@@ -111,6 +111,7 @@ private:
     std::array<uint8_t, 8> m_sprite_shifter_lo;
     std::array<uint8_t, 8> m_sprite_shifter_hi;
     int m_sprite_count = 0;
+    int m_sprite_zero_index = -1;  // Index of OAM sprite 0 in m_scanline_sprites (-1 if not present)
     bool m_sprite_zero_hit_possible = false;
     bool m_sprite_zero_rendering = false;
 

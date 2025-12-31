@@ -480,7 +480,8 @@ void PPU::render_pixel() {
                     uint8_t pixel = p0 | p1;
 
                     if (pixel != 0) {
-                        if (i == 0) m_sprite_zero_rendering = true;
+                        // Check if this is OAM sprite 0 (not just index 0 in scanline list)
+                        if (i == m_sprite_zero_index) m_sprite_zero_rendering = true;
                         sprite_pixel = pixel;
                         sprite_palette = (m_scanline_sprites[i].attr & 0x03) + 4;
                         sprite_priority = (m_scanline_sprites[i].attr & 0x20) ? 1 : 0;
@@ -545,6 +546,7 @@ void PPU::evaluate_sprites() {
 void PPU::evaluate_sprites_for_scanline(int scanline) {
     m_sprite_count = 0;
     m_sprite_zero_hit_possible = false;
+    m_sprite_zero_index = -1;
 
     for (int i = 0; i < 8; i++) {
         m_sprite_shifter_lo[i] = 0;
@@ -558,7 +560,10 @@ void PPU::evaluate_sprites_for_scanline(int scanline) {
 
         if (diff >= 0 && diff < sprite_height) {
             if (m_sprite_count < 8) {
-                if (i == 0) m_sprite_zero_hit_possible = true;
+                if (i == 0) {
+                    m_sprite_zero_hit_possible = true;
+                    m_sprite_zero_index = m_sprite_count;  // Track where sprite 0 is in the list
+                }
 
                 m_scanline_sprites[m_sprite_count].y = m_oam[i * 4];
                 m_scanline_sprites[m_sprite_count].tile = m_oam[i * 4 + 1];
@@ -765,6 +770,7 @@ void PPU::load_state(const uint8_t*& data, size_t& remaining) {
 
     // Reset sprite state (will be recalculated)
     m_sprite_count = 0;
+    m_sprite_zero_index = -1;
     m_sprite_zero_hit_possible = false;
     m_sprite_zero_rendering = false;
 }
