@@ -151,12 +151,14 @@ elseif(PLATFORM_WINDOWS)
     endif()
 endif()
 
-# Copy assets to build directory
-add_custom_command(TARGET veloce POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-    ${CMAKE_SOURCE_DIR}/assets
-    ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets
-)
+# Copy assets to build directory (only if assets directory exists)
+if(EXISTS ${CMAKE_SOURCE_DIR}/assets)
+    add_custom_command(TARGET veloce POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_SOURCE_DIR}/assets
+        ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets
+    )
+endif()
 
 # Enable plugins subdirectory
 add_subdirectory(plugins/nes)
@@ -166,4 +168,6 @@ add_subdirectory(plugins/tas_default)
 
 # Install rules
 install(TARGETS veloce RUNTIME DESTINATION bin)
-install(DIRECTORY assets/ DESTINATION share/veloce/assets)
+if(EXISTS ${CMAKE_SOURCE_DIR}/assets)
+    install(DIRECTORY assets/ DESTINATION share/veloce/assets)
+endif()
