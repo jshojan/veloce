@@ -34,6 +34,10 @@ void Mapper004::reset() {
     m_irq_pending = false;
     m_irq_reload = false;
 
+    // A12 tracking for proper scanline detection
+    m_last_a12 = false;
+    m_a12_low_cycles = 0;
+
     update_banks();
 }
 
@@ -172,6 +176,33 @@ void Mapper004::cpu_write(uint16_t address, uint8_t value) {
 
 uint8_t Mapper004::ppu_read(uint16_t address) {
     if (address < 0x2000) {
+        // A12 tracking for MMC3 scanline counter
+        // The real MMC3 clocks its counter on A12 rising edges
+        bool a12 = (address & 0x1000) != 0;
+
+        if (a12 && !m_last_a12) {
+            // A12 rising edge - check if it was low long enough (filter rapid toggles)
+            // MMC3 requires A12 to be low for ~3 PPU cycles minimum
+            if (m_a12_low_cycles >= 3) {
+                // Clock the scanline counter
+                if (m_irq_counter == 0 || m_irq_reload) {
+                    m_irq_counter = m_irq_latch;
+                    m_irq_reload = false;
+                } else {
+                    m_irq_counter--;
+                }
+
+                if (m_irq_counter == 0 && m_irq_enabled) {
+                    m_irq_pending = true;
+                }
+            }
+            m_a12_low_cycles = 0;
+        } else if (!a12) {
+            // A12 is low - increment the low cycle counter
+            m_a12_low_cycles++;
+        }
+        m_last_a12 = a12;
+
         // CHR ROM/RAM: 8 x 1KB banks
         int bank = address / 0x400;
         uint32_t offset = m_chr_bank[bank] + (address & 0x3FF);
@@ -195,25 +226,10 @@ void Mapper004::ppu_write(uint16_t address, uint8_t value) {
 }
 
 void Mapper004::scanline() {
-    // Called during each scanline by the PPU (at cycle 260)
-    // This is a simplified implementation - real MMC3 uses A12 rising edge detection
-    //
-    // MMC3 counter behavior (compatible with both old and new MMC3 revisions):
-    // - If counter is 0 OR reload flag is set: reload counter from latch
-    // - Then decrement counter (new MMC3 behavior, required by Kirby's Adventure)
-    // - If counter becomes 0 AND IRQs enabled: trigger IRQ
-
-    if (m_irq_counter == 0 || m_irq_reload) {
-        m_irq_counter = m_irq_latch;
-        m_irq_reload = false;
-    } else {
-        m_irq_counter--;
-    }
-
-    // Check for IRQ after the counter operation
-    if (m_irq_counter == 0 && m_irq_enabled) {
-        m_irq_pending = true;
-    }
+    // This function is kept for compatibility but is no longer used.
+    // MMC3 now uses proper A12-based clocking in ppu_read() instead of
+    // simplified scanline counting. This is required for games like
+    // Kirby's Adventure that depend on accurate A12 timing.
 }
 
 void Mapper004::save_state(std::vector<uint8_t>& data) {
