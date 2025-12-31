@@ -145,6 +145,16 @@ bool PluginManager::load_plugin(const std::string& path) {
     // Get plugin info
     EmulatorInfo info = instance->get_info();
 
+    // Check if a plugin with this name is already loaded
+    for (const auto& existing : m_plugins) {
+        if (existing.name == info.name) {
+            std::cout << "Plugin '" << info.name << "' already loaded, skipping duplicate" << std::endl;
+            destroy_func(instance);
+            CLOSE_LIBRARY(handle);
+            return false;
+        }
+    }
+
     PluginInfo plugin_info;
     plugin_info.path = path;
     plugin_info.name = info.name;
