@@ -22,16 +22,11 @@ void Mapper004::reset() {
     m_prg_mode = false;
     m_chr_mode = false;
 
-    // Initialize registers with proper power-on values
-    // This ensures CHR banks are mapped to unique locations at startup
-    m_registers[0] = 0;   // CHR 2KB bank 0 (selects 1KB banks 0,1)
-    m_registers[1] = 2;   // CHR 2KB bank 1 (selects 1KB banks 2,3)
-    m_registers[2] = 4;   // CHR 1KB bank 0
-    m_registers[3] = 5;   // CHR 1KB bank 1
-    m_registers[4] = 6;   // CHR 1KB bank 2
-    m_registers[5] = 7;   // CHR 1KB bank 3
-    m_registers[6] = 0;   // PRG 8KB bank 0
-    m_registers[7] = 1;   // PRG 8KB bank 1
+    // Initialize registers to 0 (power-on state is undefined on hardware,
+    // but many games expect 0)
+    for (int i = 0; i < 8; i++) {
+        m_registers[i] = 0;
+    }
 
     m_irq_counter = 0;
     m_irq_latch = 0;
@@ -200,8 +195,13 @@ void Mapper004::ppu_write(uint16_t address, uint8_t value) {
 }
 
 void Mapper004::scanline() {
-    // Called at the end of each visible scanline by the PPU
+    // Called during each scanline by the PPU (at cycle 260)
     // This is a simplified implementation - real MMC3 uses A12 rising edge detection
+    //
+    // MMC3 counter behavior (compatible with both old and new MMC3 revisions):
+    // - If counter is 0 OR reload flag is set: reload counter from latch
+    // - Then decrement counter (new MMC3 behavior, required by Kirby's Adventure)
+    // - If counter becomes 0 AND IRQs enabled: trigger IRQ
 
     if (m_irq_counter == 0 || m_irq_reload) {
         m_irq_counter = m_irq_latch;
@@ -210,6 +210,7 @@ void Mapper004::scanline() {
         m_irq_counter--;
     }
 
+    // Check for IRQ after the counter operation
     if (m_irq_counter == 0 && m_irq_enabled) {
         m_irq_pending = true;
     }
