@@ -127,9 +127,12 @@ void PPU::step() {
             m_bus.mapper_scanline();
         }
 
-        // Prefetch first two tiles for next scanline during cycles 321-336
+        // Prefetch first two tiles for next scanline during cycles 321-340
         // This primes the shifters so pixels 0-15 of the next scanline render correctly
-        if (m_cycle >= 321 && m_cycle <= 336 && (m_mask & 0x18) != 0) {
+        // Shifters must be updated during prefetch to position data correctly
+        if (m_cycle >= 321 && m_cycle <= 340 && (m_mask & 0x18) != 0) {
+            update_shifters();
+
             switch ((m_cycle - 1) % 8) {
                 case 0:
                     load_background_shifters();
@@ -187,8 +190,10 @@ void PPU::step() {
             m_bus.mapper_scanline();
         }
 
-        // Prefetch first two tiles for scanline 0 during cycles 321-336
-        if (m_cycle >= 321 && m_cycle <= 336 && (m_mask & 0x18) != 0) {
+        // Prefetch first two tiles for scanline 0 during cycles 321-340
+        if (m_cycle >= 321 && m_cycle <= 340 && (m_mask & 0x18) != 0) {
+            update_shifters();
+
             switch ((m_cycle - 1) % 8) {
                 case 0:
                     load_background_shifters();
