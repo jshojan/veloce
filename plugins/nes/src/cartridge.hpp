@@ -57,6 +57,7 @@ public:
     void scanline();
     void notify_ppu_addr_change(uint16_t old_addr, uint16_t new_addr);
     void notify_ppu_address_bus(uint16_t address, uint32_t frame_cycle);
+    void notify_frame_start();
 
     // ROM info
     uint32_t get_crc32() const { return m_crc32; }

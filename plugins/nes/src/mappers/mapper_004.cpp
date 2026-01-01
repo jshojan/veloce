@@ -309,6 +309,16 @@ void Mapper004::notify_ppu_address_bus(uint16_t address, uint32_t frame_cycle) {
     clock_counter_on_a12_fast(a12, frame_cycle);
 }
 
+void Mapper004::notify_frame_start() {
+    // Reset A12 cycle tracking at frame start to prevent timing drift
+    // This ensures the A12 filter calculations don't compare cycles
+    // across frame boundaries (which can cause inconsistent IRQ timing)
+    // Note: We keep m_last_a12 state since the A12 line doesn't reset
+    m_last_a12_cycle = 0;
+    m_current_frame_cycle = 0;
+    m_irq_pending_at_cycle = 0;  // Clear any stale pending IRQ timing
+}
+
 void Mapper004::save_state(std::vector<uint8_t>& data) {
     data.push_back(m_bank_select);
     data.push_back(m_prg_mode ? 1 : 0);

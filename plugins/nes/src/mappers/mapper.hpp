@@ -46,6 +46,10 @@ public:
     // Called for ALL PPU address bus activity including nametable/attribute fetches
     virtual void notify_ppu_address_bus(uint16_t address, uint32_t frame_cycle) {}
 
+    // Frame start notification (called when scanline resets to 0)
+    // Used by mappers like MMC3 to reset frame-relative timing state
+    virtual void notify_frame_start() {}
+
     // Reset mapper state
     virtual void reset() {}
 

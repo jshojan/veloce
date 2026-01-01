@@ -192,6 +192,12 @@ void Bus::notify_ppu_address_bus(uint16_t address, uint32_t frame_cycle) {
     }
 }
 
+void Bus::notify_frame_start() {
+    if (m_cartridge) {
+        m_cartridge->notify_frame_start();
+    }
+}
+
 int Bus::get_mirror_mode() const {
     if (m_cartridge) {
         // Return the actual mirror mode value:

@@ -48,6 +48,9 @@ public:
     // Notify mapper of PPU address bus activity during rendering (for A12 tracking)
     void notify_ppu_address_bus(uint16_t address, uint32_t frame_cycle);
 
+    // Notify mapper of frame start (for resetting timing state)
+    void notify_frame_start();
+
     // Check for mapper IRQ
     bool mapper_irq_pending(uint32_t frame_cycle = 0);
     void mapper_irq_clear();

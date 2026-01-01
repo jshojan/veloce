@@ -31,6 +31,7 @@ public:
     void scanline() override;
     void notify_ppu_addr_change(uint16_t old_addr, uint16_t new_addr) override;
     void notify_ppu_address_bus(uint16_t address, uint32_t frame_cycle) override;
+    void notify_frame_start() override;
 
     void reset() override;
     void save_state(std::vector<uint8_t>& data) override;

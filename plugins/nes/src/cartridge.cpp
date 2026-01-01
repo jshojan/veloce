@@ -253,6 +253,12 @@ void Cartridge::notify_ppu_address_bus(uint16_t address, uint32_t frame_cycle) {
     }
 }
 
+void Cartridge::notify_frame_start() {
+    if (m_mapper) {
+        m_mapper->notify_frame_start();
+    }
+}
+
 // Serialization helpers
 namespace {
     template<typename T>

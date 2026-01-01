@@ -90,10 +90,34 @@ void APU::step(int cpu_cycles) {
             }
         }
 
-        // Frame counter
+        // Frame counter - more accurate step timing
+        // 4-step mode: steps at 7457, 14913, 22371, 29829 (29830 resets)
+        // 5-step mode: steps at 7457, 14913, 22371, 29829, 37281 (37282 resets)
         m_frame_counter_cycles++;
-        if (m_frame_counter_cycles >= 7457) {  // Approximate
-            m_frame_counter_cycles = 0;
+        bool should_clock = false;
+
+        if (m_frame_counter_mode == 0) {
+            // 4-step mode
+            should_clock = (m_frame_counter_cycles == 7457 ||
+                           m_frame_counter_cycles == 14913 ||
+                           m_frame_counter_cycles == 22371 ||
+                           m_frame_counter_cycles == 29829);
+            if (m_frame_counter_cycles >= 29830) {
+                m_frame_counter_cycles = 0;
+            }
+        } else {
+            // 5-step mode
+            should_clock = (m_frame_counter_cycles == 7457 ||
+                           m_frame_counter_cycles == 14913 ||
+                           m_frame_counter_cycles == 22371 ||
+                           m_frame_counter_cycles == 37281);
+            // Note: 29829 step is skipped in 5-step mode (no clock, just wait)
+            if (m_frame_counter_cycles >= 37282) {
+                m_frame_counter_cycles = 0;
+            }
+        }
+
+        if (should_clock) {
             clock_frame_counter();
         }
 
@@ -107,8 +131,8 @@ void APU::step(int cpu_cycles) {
         if (m_sample_counter >= CPU_FREQ) {
             m_sample_counter -= CPU_FREQ;
 
-            // Average accumulated samples
-            float sample = m_sample_accumulator / m_sample_count;
+            // Average accumulated samples (with safety check)
+            float sample = (m_sample_count > 0) ? (m_sample_accumulator / m_sample_count) : 0.0f;
             m_sample_accumulator = 0.0f;
             m_sample_count = 0;
 
@@ -116,9 +140,22 @@ void APU::step(int cpu_cycles) {
             m_filter_state = m_filter_state + FILTER_ALPHA * (sample - m_filter_state);
             sample = m_filter_state;
 
+            // Write sample to buffer, wrapping around if buffer is full
+            // This prevents audio dropouts by maintaining continuous output
             if (m_audio_write_pos < AUDIO_BUFFER_SIZE * 2 - 1) {
                 m_audio_buffer[m_audio_write_pos++] = sample;
                 m_audio_buffer[m_audio_write_pos++] = sample;  // Stereo
+            } else {
+                // Buffer full - this indicates the consumer isn't keeping up
+                // Keep the most recent samples by shifting buffer contents
+                // This is expensive but preferable to audio glitches
+                size_t shift_amount = AUDIO_BUFFER_SIZE / 2;  // Shift half the buffer
+                for (size_t j = 0; j < AUDIO_BUFFER_SIZE * 2 - shift_amount * 2; j++) {
+                    m_audio_buffer[j] = m_audio_buffer[j + shift_amount * 2];
+                }
+                m_audio_write_pos = AUDIO_BUFFER_SIZE * 2 - shift_amount * 2;
+                m_audio_buffer[m_audio_write_pos++] = sample;
+                m_audio_buffer[m_audio_write_pos++] = sample;
             }
         }
     }
@@ -128,12 +165,13 @@ void APU::clock_frame_counter() {
     m_frame_counter_step++;
 
     if (m_frame_counter_mode == 0) {
-        // 4-step mode
-        if (m_frame_counter_step == 1 || m_frame_counter_step == 3) {
-            clock_envelopes();
-        }
+        // 4-step mode: envelope/linear counter on all steps, length/sweep on steps 2 and 4
+        // Step 1 (7457):   envelope, linear counter
+        // Step 2 (14913):  envelope, linear counter, length, sweep
+        // Step 3 (22371):  envelope, linear counter
+        // Step 4 (29829):  envelope, linear counter, length, sweep, IRQ
+        clock_envelopes();
         if (m_frame_counter_step == 2 || m_frame_counter_step == 4) {
-            clock_envelopes();
             clock_length_counters();
             clock_sweeps();
         }
@@ -144,16 +182,18 @@ void APU::clock_frame_counter() {
             }
         }
     } else {
-        // 5-step mode
-        if (m_frame_counter_step == 1 || m_frame_counter_step == 3) {
-            clock_envelopes();
-        }
-        if (m_frame_counter_step == 2 || m_frame_counter_step == 5) {
-            clock_envelopes();
+        // 5-step mode: same as 4-step but step 4 is skipped, step 5 clocks length/sweep
+        // Step 1 (7457):   envelope, linear counter
+        // Step 2 (14913):  envelope, linear counter, length, sweep
+        // Step 3 (22371):  envelope, linear counter
+        // Step 4 (29829):  (skipped - no clock happens here)
+        // Step 5 (37281):  envelope, linear counter, length, sweep (no IRQ)
+        clock_envelopes();
+        if (m_frame_counter_step == 2 || m_frame_counter_step == 4) {
             clock_length_counters();
             clock_sweeps();
         }
-        if (m_frame_counter_step >= 5) {
+        if (m_frame_counter_step >= 4) {
             m_frame_counter_step = 0;
         }
     }
@@ -420,11 +460,22 @@ size_t APU::get_samples(float* buffer, size_t max_samples) {
     size_t samples = m_audio_write_pos / 2;
     if (samples > max_samples) samples = max_samples;
 
-    for (size_t i = 0; i < samples * 2; i++) {
+    // Copy requested samples to output buffer
+    size_t samples_to_copy = samples * 2;
+    for (size_t i = 0; i < samples_to_copy; i++) {
         buffer[i] = m_audio_buffer[i];
     }
 
-    m_audio_write_pos = 0;
+    // Move remaining samples to the beginning of the buffer
+    // This prevents audio discontinuities when buffer isn't fully consumed
+    size_t remaining = m_audio_write_pos - samples_to_copy;
+    if (remaining > 0) {
+        for (size_t i = 0; i < remaining; i++) {
+            m_audio_buffer[i] = m_audio_buffer[samples_to_copy + i];
+        }
+    }
+    m_audio_write_pos = remaining;
+
     return samples;
 }
 

@@ -430,6 +430,8 @@ void PPU::step() {
             m_scanline = 0;
             m_frame++;
             m_odd_frame = !m_odd_frame;
+            // Notify mapper of new frame for timing reset
+            m_bus.notify_frame_start();
         }
     }
 
@@ -442,6 +444,8 @@ void PPU::step() {
             m_scanline = 0;
             m_frame++;
             m_odd_frame = !m_odd_frame;
+            // Notify mapper of new frame for timing reset
+            m_bus.notify_frame_start();
         }
     }
 
