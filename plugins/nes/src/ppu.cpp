@@ -325,13 +325,56 @@ void PPU::step() {
             m_v = (m_v & ~0x041F) | (m_t & 0x041F);
         }
 
-        // Sprite evaluation and fetches for scanline 0
-        // Note: On the pre-render scanline, we do sprite evaluation but NOT the
-        // pattern fetches that would trigger A12 clocking. This matches the committed
-        // behavior and is required for MMC3 test 4 (scanline_timing) to pass.
-        // The actual sprite data is already loaded - we just need to prepare for scanline 0.
-        if (m_cycle == 257 && (m_mask & 0x18) != 0) {
-            evaluate_sprites_for_next_scanline(0);
+        // Sprite evaluation and pattern fetches for scanline 0 (cycles 257-320)
+        // The pre-render scanline performs the same memory accesses as visible scanlines,
+        // including sprite pattern fetches. This is critical for MMC3 A12 clocking -
+        // when sprites use pattern table $1000 and background uses $0000, the A12
+        // rising edge during sprite fetches provides the scanline counter clock.
+        // Without this, MMC3 games with split-screen scrolling (like Kirby's Adventure)
+        // will have jittery scroll splits.
+        if (m_cycle >= 257 && m_cycle <= 320 && (m_mask & 0x18) != 0) {
+            int sprite_phase = (m_cycle - 257) % 8;
+            int sprite_slot = (m_cycle - 257) / 8;
+
+            // At cycle 257 (first sprite phase 0), do the sprite evaluation for scanline 0
+            if (m_cycle == 257) {
+                evaluate_sprites_for_next_scanline(0);
+            }
+
+            switch (sprite_phase) {
+                case 0: {
+                    // Garbage nametable fetch - address is $2000 | (garbage)
+                    uint16_t nt_addr = 0x2000 | 0x0FF;
+                    m_bus.notify_ppu_address_bus(nt_addr, frame_cycle);
+                    break;
+                }
+                case 2: {
+                    // Garbage attribute fetch - address is $23C0 | (garbage)
+                    uint16_t at_addr = 0x23C0;
+                    m_bus.notify_ppu_address_bus(at_addr, frame_cycle);
+                    break;
+                }
+                case 4: {
+                    // Pattern lo fetch - use sprite data or dummy tile $FF
+                    uint16_t addr = get_sprite_pattern_addr(sprite_slot, false);
+                    m_bus.notify_ppu_address_bus(addr, frame_cycle);
+                    uint8_t lo = m_bus.ppu_read(addr, frame_cycle);
+                    if (sprite_slot < m_sprite_count) {
+                        m_sprite_shifter_lo[sprite_slot] = maybe_flip_sprite_byte(sprite_slot, lo);
+                    }
+                    break;
+                }
+                case 6: {
+                    // Pattern hi fetch
+                    uint16_t addr = get_sprite_pattern_addr(sprite_slot, true);
+                    m_bus.notify_ppu_address_bus(addr, frame_cycle);
+                    uint8_t hi = m_bus.ppu_read(addr, frame_cycle);
+                    if (sprite_slot < m_sprite_count) {
+                        m_sprite_shifter_hi[sprite_slot] = maybe_flip_sprite_byte(sprite_slot, hi);
+                    }
+                    break;
+                }
+            }
         }
 
         // Copy vertical bits during cycles 280-304
