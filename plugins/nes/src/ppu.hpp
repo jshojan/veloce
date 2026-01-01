@@ -32,13 +32,17 @@ public:
     void oam_write(int address, uint8_t value);
 
     // NMI check (called after step)
-    bool check_nmi();
+    // Returns 0 = no NMI, 1 = immediate NMI, 2 = delayed NMI (after next instruction)
+    int check_nmi();
 
     // Frame complete check (returns true once per frame, at start of VBlank)
     bool check_frame_complete();
 
     // Get framebuffer
     const uint32_t* get_framebuffer() const { return m_framebuffer.data(); }
+
+    // Get current frame cycle for mapper IRQ timing
+    uint32_t get_frame_cycle() const { return static_cast<uint32_t>(m_scanline * 341 + m_cycle); }
 
     // Set mirroring mode (from cartridge)
     void set_mirroring(int mode) { m_mirroring = mode; }
@@ -52,7 +56,10 @@ private:
     uint8_t get_background_pixel();
     uint8_t get_sprite_pixel(uint8_t& sprite_priority);
     void evaluate_sprites();
-    void evaluate_sprites_for_scanline(int scanline);
+    void evaluate_sprites_for_scanline(int scanline, uint32_t frame_cycle);
+    void evaluate_sprites_for_next_scanline(int scanline);
+    uint16_t get_sprite_pattern_addr(int sprite_slot, bool hi_byte);
+    uint8_t maybe_flip_sprite_byte(int sprite_slot, uint8_t byte);
     void load_background_shifters();
     void update_shifters();
 
@@ -62,6 +69,8 @@ private:
     // PPU registers
     uint8_t m_ctrl = 0;     // $2000 PPUCTRL
     uint8_t m_mask = 0;     // $2001 PPUMASK
+    uint8_t m_mask_prev = 0;         // Previous PPUMASK value for skip timing
+    uint32_t m_mask_write_cycle = 0; // Frame cycle when PPUMASK was last written
     uint8_t m_status = 0;   // $2002 PPUSTATUS
     uint8_t m_oam_addr = 0; // $2003 OAMADDR
 
@@ -84,6 +93,14 @@ private:
     bool m_nmi_occurred = false;
     bool m_nmi_output = false;
     bool m_nmi_triggered = false;
+    bool m_nmi_triggered_delayed = false;  // NMI should fire after NEXT instruction
+    bool m_nmi_pending = false;  // NMI will be triggered after current instruction
+    int m_nmi_delay = 0;  // Delay counter for NMI (in PPU cycles)
+    bool m_nmi_latched = false;  // NMI edge has been generated and will fire when delay expires
+
+    // VBL suppression - reading $2002 at the exact cycle VBL is set suppresses both flag and NMI
+    bool m_vbl_suppress = false;     // Suppress VBL flag from being set
+    bool m_suppress_nmi = false;     // Suppress NMI from occurring
 
     // Frame completion flag (set when entering VBlank)
     bool m_frame_complete = false;

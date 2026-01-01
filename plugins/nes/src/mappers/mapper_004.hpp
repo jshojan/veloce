@@ -21,14 +21,16 @@ public:
     uint8_t cpu_read(uint16_t address) override;
     void cpu_write(uint16_t address, uint8_t value) override;
 
-    uint8_t ppu_read(uint16_t address) override;
+    uint8_t ppu_read(uint16_t address, uint32_t frame_cycle = 0) override;
     void ppu_write(uint16_t address, uint8_t value) override;
 
     MirrorMode get_mirror_mode() const override { return m_mirror_mode; }
 
-    bool irq_pending() override { return m_irq_pending; }
-    void irq_clear() override { m_irq_pending = false; }
+    bool irq_pending(uint32_t frame_cycle = 0) override;
+    void irq_clear() override { m_irq_pending = false; m_irq_pending_at_cycle = 0; }
     void scanline() override;
+    void notify_ppu_addr_change(uint16_t old_addr, uint16_t new_addr) override;
+    void notify_ppu_address_bus(uint16_t address, uint32_t frame_cycle) override;
 
     void reset() override;
     void save_state(std::vector<uint8_t>& data) override;
@@ -36,6 +38,8 @@ public:
 
 private:
     void update_banks();
+    void clock_counter_on_a12(bool a12, uint16_t addr = 0, int scanline = -1, int cycle = -1);
+    void clock_counter_on_a12_fast(bool a12, uint32_t frame_cycle);  // Optimized version
 
     // Bank select register
     uint8_t m_bank_select = 0;
@@ -58,9 +62,19 @@ private:
     bool m_irq_pending = false;
     bool m_irq_reload = false;
 
+    // IRQ delay: accounts for CPU/PPU synchronization timing
+    // MMC3 IRQ signal propagation is nearly immediate on real hardware
+    // Testing shows we need minimal delay for correct scanline timing tests
+    static constexpr uint32_t IRQ_DELAY_CYCLES = 0;
+    uint32_t m_irq_pending_at_cycle = 0;  // Frame cycle when IRQ was triggered
+
     // A12 tracking for scanline detection
     bool m_last_a12 = false;
-    int m_a12_low_cycles = 0;
+    uint32_t m_last_a12_cycle = 0;  // PPU cycle when A12 last changed
+    uint32_t m_current_frame_cycle = 0;  // Current PPU frame cycle for IRQ delay tracking
+
+    // Debug counter for A12 clocks
+    int m_debug_clock_count = 0;
 };
 
 } // namespace nes

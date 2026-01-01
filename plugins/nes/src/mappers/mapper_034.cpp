@@ -88,7 +88,7 @@ void Mapper034::cpu_write(uint16_t address, uint8_t value) {
     }
 }
 
-uint8_t Mapper034::ppu_read(uint16_t address) {
+uint8_t Mapper034::ppu_read(uint16_t address, [[maybe_unused]] uint32_t frame_cycle) {
     if (address < 0x2000) {
         if (m_is_nina001) {
             // NINA-001: Two 4KB CHR banks

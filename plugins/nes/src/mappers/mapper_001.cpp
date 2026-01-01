@@ -1,4 +1,20 @@
 #include "mapper_001.hpp"
+#include <cstdio>
+#include <cstdlib>
+
+namespace {
+    bool g_debug_mode = false;
+    bool g_debug_checked = false;
+
+    bool is_debug_mode() {
+        if (!g_debug_checked) {
+            const char* env = std::getenv("DEBUG");
+            g_debug_mode = env && (env[0] == '1' || env[0] == 'y' || env[0] == 'Y');
+            g_debug_checked = true;
+        }
+        return g_debug_mode;
+    }
+}
 
 namespace nes {
 
@@ -78,6 +94,9 @@ void Mapper001::write_register(uint16_t address, uint8_t value) {
         m_shift_register = 0x10;
         m_shift_count = 0;
         m_control |= 0x0C;  // Set PRG ROM mode to 3
+        if (is_debug_mode()) {
+            fprintf(stderr, "MMC1: Reset (addr=%04X val=%02X)\n", address, value);
+        }
         update_banks();
         return;
     }
@@ -102,15 +121,28 @@ void Mapper001::write_register(uint16_t address, uint8_t value) {
                 case 2: m_mirror_mode = MirrorMode::Vertical; break;
                 case 3: m_mirror_mode = MirrorMode::Horizontal; break;
             }
+            if (is_debug_mode()) {
+                fprintf(stderr, "MMC1: Control=%02X (mirror=%d, PRG mode=%d, CHR mode=%d)\n",
+                        m_control, m_control & 0x03, (m_control >> 2) & 0x03, (m_control >> 4) & 0x01);
+            }
         } else if (address < 0xC000) {
             // CHR bank 0 ($A000-$BFFF)
             m_chr_bank_0 = reg_value;
+            if (is_debug_mode()) {
+                fprintf(stderr, "MMC1: CHR bank 0 = %02X\n", m_chr_bank_0);
+            }
         } else if (address < 0xE000) {
             // CHR bank 1 ($C000-$DFFF)
             m_chr_bank_1 = reg_value;
+            if (is_debug_mode()) {
+                fprintf(stderr, "MMC1: CHR bank 1 = %02X\n", m_chr_bank_1);
+            }
         } else {
             // PRG bank ($E000-$FFFF)
             m_prg_bank = reg_value & 0x0F;
+            if (is_debug_mode()) {
+                fprintf(stderr, "MMC1: PRG bank = %02X\n", m_prg_bank);
+            }
         }
 
         update_banks();
@@ -168,7 +200,7 @@ void Mapper001::update_banks() {
     }
 }
 
-uint8_t Mapper001::ppu_read(uint16_t address) {
+uint8_t Mapper001::ppu_read(uint16_t address, [[maybe_unused]] uint32_t frame_cycle) {
     if (address < 0x1000) {
         // CHR bank 0: $0000-$0FFF
         uint32_t offset = m_chr_bank_0_offset + address;

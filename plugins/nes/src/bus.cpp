@@ -5,6 +5,8 @@
 #include "cartridge.hpp"
 #include "mappers/mapper.hpp"
 
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
 
 namespace nes {
@@ -80,12 +82,12 @@ void Bus::cpu_write(uint16_t address, uint8_t value) {
     }
 }
 
-uint8_t Bus::ppu_read(uint16_t address) {
+uint8_t Bus::ppu_read(uint16_t address, uint32_t frame_cycle) {
     address &= 0x3FFF;
 
     if (address < 0x2000) {
         // Pattern tables (CHR ROM/RAM)
-        return m_cartridge ? m_cartridge->ppu_read(address) : 0;
+        return m_cartridge ? m_cartridge->ppu_read(address, frame_cycle) : 0;
     }
     else {
         // Nametables and palettes handled by PPU
@@ -165,9 +167,9 @@ void Bus::mapper_scanline() {
     }
 }
 
-bool Bus::mapper_irq_pending() {
+bool Bus::mapper_irq_pending(uint32_t frame_cycle) {
     if (m_cartridge) {
-        return m_cartridge->irq_pending();
+        return m_cartridge->irq_pending(frame_cycle);
     }
     return false;
 }
@@ -178,6 +180,18 @@ void Bus::mapper_irq_clear() {
     }
 }
 
+void Bus::notify_ppu_addr_change(uint16_t old_addr, uint16_t new_addr) {
+    if (m_cartridge) {
+        m_cartridge->notify_ppu_addr_change(old_addr, new_addr);
+    }
+}
+
+void Bus::notify_ppu_address_bus(uint16_t address, uint32_t frame_cycle) {
+    if (m_cartridge) {
+        m_cartridge->notify_ppu_address_bus(address, frame_cycle);
+    }
+}
+
 int Bus::get_mirror_mode() const {
     if (m_cartridge) {
         // Return the actual mirror mode value:
@@ -185,6 +199,58 @@ int Bus::get_mirror_mode() const {
         return static_cast<int>(m_cartridge->get_mirror_mode());
     }
     return 0;  // Default to horizontal
+}
+
+void Bus::check_test_output() {
+    // Only check in debug mode
+    static bool debug_mode = false;
+    static bool debug_checked = false;
+    if (!debug_checked) {
+        const char* env = std::getenv("DEBUG");
+        debug_mode = env && (env[0] == '1' || env[0] == 'y' || env[0] == 'Y');
+        debug_checked = true;
+    }
+    if (!debug_mode) return;
+
+    // Check for test ROM signature: 0xDE 0xB0 0x61 at $6001-$6003
+    uint8_t sig1 = cpu_read(0x6001);
+    uint8_t sig2 = cpu_read(0x6002);
+    uint8_t sig3 = cpu_read(0x6003);
+
+    // Debug: show what's at $6000 (every time, until signature found)
+    static int check_count = 0;
+    if (check_count < 10 && !(sig1 == 0xDE && sig2 == 0xB0 && sig3 == 0x61)) {
+        fprintf(stderr, "Test check #%d: $6000=%02X sig=%02X %02X %02X\n",
+                check_count++, cpu_read(0x6000), sig1, sig2, sig3);
+    }
+
+    if (sig1 == 0xDE && sig2 == 0xB0 && sig3 == 0x61) {
+        uint8_t status = cpu_read(0x6000);
+
+        // Status: 0x80 = running, 0x81 = needs reset, 0x00-0x7F = finished with result
+        static bool result_printed = false;
+        static uint8_t last_status = 0x80;
+        if (status < 0x80 && !result_printed) {
+            result_printed = true;
+            last_status = status;
+            fprintf(stderr, "\n=== TEST ROM RESULT ===\n");
+            fprintf(stderr, "Status code: %d (%s)\n", status,
+                    status == 0 ? "PASSED" : "FAILED");
+
+            // Read text output from $6004
+            fprintf(stderr, "Output: ");
+            for (int i = 0; i < 200; i++) {
+                uint8_t c = cpu_read(0x6004 + i);
+                if (c == 0) break;
+                if (c >= 32 && c < 127) {
+                    fputc(c, stderr);
+                } else if (c == '\n') {
+                    fputc('\n', stderr);
+                }
+            }
+            fprintf(stderr, "\n=======================\n");
+        }
+    }
 }
 
 // Save state serialization

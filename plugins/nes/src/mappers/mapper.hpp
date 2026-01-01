@@ -24,18 +24,27 @@ public:
     virtual void cpu_write(uint16_t address, uint8_t value) = 0;
 
     // PPU memory access ($0000-$1FFF)
-    virtual uint8_t ppu_read(uint16_t address) = 0;
+    // The frame_cycle parameter is (scanline * 341 + cycle) for A12 timing
+    virtual uint8_t ppu_read(uint16_t address, uint32_t frame_cycle = 0) = 0;
     virtual void ppu_write(uint16_t address, uint8_t value) = 0;
 
     // Get current mirror mode
     virtual MirrorMode get_mirror_mode() const = 0;
 
     // IRQ support (some mappers generate IRQs)
-    virtual bool irq_pending() { return false; }
+    // frame_cycle is (scanline * 341 + cycle) for delayed IRQ timing
+    virtual bool irq_pending(uint32_t frame_cycle = 0) { return false; }
     virtual void irq_clear() {}
 
     // Scanline counter (for MMC3 and similar)
     virtual void scanline() {}
+
+    // PPU address change notification (for MMC3 A12 clocking from PPUADDR writes)
+    virtual void notify_ppu_addr_change(uint16_t old_addr, uint16_t new_addr) {}
+
+    // PPU address bus notification (for MMC3 A12 clocking during rendering)
+    // Called for ALL PPU address bus activity including nametable/attribute fetches
+    virtual void notify_ppu_address_bus(uint16_t address, uint32_t frame_cycle) {}
 
     // Reset mapper state
     virtual void reset() {}

@@ -23,6 +23,7 @@ void CPU::reset() {
     m_sp = 0xFD;
     m_status = 0x24;  // IRQ disabled, unused bit set
     m_nmi_pending = false;
+    m_nmi_delayed = false;
     m_irq_pending = false;
 }
 
@@ -518,6 +519,14 @@ int CPU::step() {
         default: cycles = 2; break;
     }
 
+    // At the end of each instruction, convert delayed NMI to pending
+    // This makes the NMI fire BEFORE the next instruction starts
+    // (but AFTER this instruction completed)
+    if (m_nmi_delayed) {
+        m_nmi_delayed = false;
+        m_nmi_pending = true;
+    }
+
     return cycles;
 }
 
@@ -525,8 +534,20 @@ void CPU::trigger_nmi() {
     m_nmi_pending = true;
 }
 
+void CPU::trigger_nmi_delayed() {
+    // NMI will fire after the NEXT instruction completes
+    // This is used when NMI is enabled via PPUCTRL while VBL is already set
+    m_nmi_delayed = true;
+}
+
 void CPU::trigger_irq() {
     m_irq_pending = true;
+}
+
+void CPU::set_irq_line(bool active) {
+    // Level-triggered: IRQ is pending if the line is currently active
+    // This reflects the mapper's current IRQ state, not a latched value
+    m_irq_pending = active;
 }
 
 uint8_t CPU::read(uint16_t address) {
@@ -662,6 +683,7 @@ void CPU::op_and(uint8_t value) {
 
 void CPU::op_asl(uint16_t address) {
     uint8_t value = read(address);
+    write(address, value);  // Dummy write of original value (RMW behavior)
     set_flag(FLAG_C, (value & 0x80) != 0);
     value <<= 1;
     write(address, value);
@@ -710,7 +732,9 @@ void CPU::op_cmp(uint8_t reg, uint8_t value) {
 }
 
 void CPU::op_dec(uint16_t address) {
-    uint8_t value = read(address) - 1;
+    uint8_t value = read(address);
+    write(address, value);  // Dummy write of original value (RMW behavior)
+    value--;
     write(address, value);
     update_zero_negative(value);
 }
@@ -721,7 +745,9 @@ void CPU::op_eor(uint8_t value) {
 }
 
 void CPU::op_inc(uint16_t address) {
-    uint8_t value = read(address) + 1;
+    uint8_t value = read(address);
+    write(address, value);  // Dummy write of original value (RMW behavior)
+    value++;
     write(address, value);
     update_zero_negative(value);
 }
@@ -752,6 +778,7 @@ void CPU::op_ldy(uint8_t value) {
 
 void CPU::op_lsr(uint16_t address) {
     uint8_t value = read(address);
+    write(address, value);  // Dummy write of original value (RMW behavior)
     set_flag(FLAG_C, (value & 0x01) != 0);
     value >>= 1;
     write(address, value);
@@ -771,6 +798,7 @@ void CPU::op_ora(uint8_t value) {
 
 void CPU::op_rol(uint16_t address) {
     uint8_t value = read(address);
+    write(address, value);  // Dummy write of original value (RMW behavior)
     bool carry = get_flag(FLAG_C);
     set_flag(FLAG_C, (value & 0x80) != 0);
     value = (value << 1) | (carry ? 1 : 0);
@@ -787,6 +815,7 @@ void CPU::op_rol_a() {
 
 void CPU::op_ror(uint16_t address) {
     uint8_t value = read(address);
+    write(address, value);  // Dummy write of original value (RMW behavior)
     bool carry = get_flag(FLAG_C);
     set_flag(FLAG_C, (value & 0x01) != 0);
     value = (value >> 1) | (carry ? 0x80 : 0);

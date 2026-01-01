@@ -1,4 +1,20 @@
 #include "mapper_003.hpp"
+#include <cstdio>
+#include <cstdlib>
+
+namespace {
+    bool g_debug_mode = false;
+    bool g_debug_checked = false;
+
+    bool is_debug_mode() {
+        if (!g_debug_checked) {
+            const char* env = std::getenv("DEBUG");
+            g_debug_mode = env && (env[0] == '1' || env[0] == 'y' || env[0] == 'Y');
+            g_debug_checked = true;
+        }
+        return g_debug_mode;
+    }
+}
 
 namespace nes {
 
@@ -58,10 +74,13 @@ void Mapper003::cpu_write(uint16_t address, uint8_t value) {
         // Select CHR bank (usually only 2 bits used, but can be more)
         m_chr_bank = value & 0x03;  // Typically 4 banks max
         m_chr_bank_offset = (m_chr_bank * 0x2000) % m_chr_rom->size();
+        if (is_debug_mode()) {
+            fprintf(stderr, "CNROM: CHR bank = %02X (addr=%04X val=%02X)\n", m_chr_bank, address, value);
+        }
     }
 }
 
-uint8_t Mapper003::ppu_read(uint16_t address) {
+uint8_t Mapper003::ppu_read(uint16_t address, [[maybe_unused]] uint32_t frame_cycle) {
     // CHR ROM: $0000-$1FFF (banked)
     if (address < 0x2000) {
         if (!m_chr_rom->empty()) {

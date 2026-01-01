@@ -1,4 +1,20 @@
 #include "mapper_010.hpp"
+#include <cstdio>
+#include <cstdlib>
+
+namespace {
+    bool g_debug_mode = false;
+    bool g_debug_checked = false;
+
+    bool is_debug_mode() {
+        if (!g_debug_checked) {
+            const char* env = std::getenv("DEBUG");
+            g_debug_mode = env && (env[0] == '1' || env[0] == 'y' || env[0] == 'Y');
+            g_debug_checked = true;
+        }
+        return g_debug_mode;
+    }
+}
 
 namespace nes {
 
@@ -120,7 +136,7 @@ void Mapper010::cpu_write(uint16_t address, uint8_t value) {
     }
 }
 
-uint8_t Mapper010::ppu_read(uint16_t address) {
+uint8_t Mapper010::ppu_read(uint16_t address, [[maybe_unused]] uint32_t frame_cycle) {
     if (address < 0x2000) {
         uint8_t value;
 
@@ -128,12 +144,15 @@ uint8_t Mapper010::ppu_read(uint16_t address) {
             uint32_t offset = m_chr_bank_0_offset + (address & 0x0FFF);
             value = (*m_chr_rom)[offset % m_chr_rom->size()];
 
-            // Update latch after reading specific tile addresses
-            uint16_t tile = (address & 0x0FF0) >> 4;
-            if (tile == 0xFD) {
+            // MMC4 latch switching for $0000-$0FFF:
+            // - $0FD8-$0FDF triggers latch 0 to select $FD bank
+            // - $0FE8-$0FEF triggers latch 0 to select $FE bank
+            // (MMC4 differs from MMC2: latch 0 responds to ranges, not single addresses)
+            uint16_t masked = address & 0x0FF8;
+            if (masked == 0x0FD8) {
                 m_latch_0 = false;
                 update_chr_banks();
-            } else if (tile == 0xFE) {
+            } else if (masked == 0x0FE8) {
                 m_latch_0 = true;
                 update_chr_banks();
             }
@@ -141,11 +160,14 @@ uint8_t Mapper010::ppu_read(uint16_t address) {
             uint32_t offset = m_chr_bank_1_offset + (address & 0x0FFF);
             value = (*m_chr_rom)[offset % m_chr_rom->size()];
 
-            uint16_t tile = (address & 0x0FF0) >> 4;
-            if (tile == 0xFD) {
+            // MMC4 latch switching for $1000-$1FFF:
+            // - $1FD8-$1FDF triggers latch 1 to select $FD bank
+            // - $1FE8-$1FEF triggers latch 1 to select $FE bank
+            uint16_t masked = address & 0x0FF8;
+            if (masked == 0x0FD8) {
                 m_latch_1 = false;
                 update_chr_banks();
-            } else if (tile == 0xFE) {
+            } else if (masked == 0x0FE8) {
                 m_latch_1 = true;
                 update_chr_banks();
             }

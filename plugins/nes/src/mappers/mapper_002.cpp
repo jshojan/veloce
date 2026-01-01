@@ -1,4 +1,20 @@
 #include "mapper_002.hpp"
+#include <cstdio>
+#include <cstdlib>
+
+namespace {
+    bool g_debug_mode = false;
+    bool g_debug_checked = false;
+
+    bool is_debug_mode() {
+        if (!g_debug_checked) {
+            const char* env = std::getenv("DEBUG");
+            g_debug_mode = env && (env[0] == '1' || env[0] == 'y' || env[0] == 'Y');
+            g_debug_checked = true;
+        }
+        return g_debug_mode;
+    }
+}
 
 namespace nes {
 
@@ -67,10 +83,13 @@ void Mapper002::cpu_write(uint16_t address, uint8_t value) {
     if (address >= 0x8000) {
         m_prg_bank = value & 0x0F;  // Usually only 4 bits used
         m_prg_bank_offset = (m_prg_bank * 0x4000) % m_prg_rom->size();
+        if (is_debug_mode()) {
+            fprintf(stderr, "UxROM: PRG bank = %02X (addr=%04X val=%02X)\n", m_prg_bank, address, value);
+        }
     }
 }
 
-uint8_t Mapper002::ppu_read(uint16_t address) {
+uint8_t Mapper002::ppu_read(uint16_t address, [[maybe_unused]] uint32_t frame_cycle) {
     // CHR RAM: $0000-$1FFF
     if (address < 0x2000) {
         if (!m_chr_rom->empty()) {

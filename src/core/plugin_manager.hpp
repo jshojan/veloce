@@ -36,7 +36,7 @@ public:
     PluginManager& operator=(const PluginManager&) = delete;
 
     // Initialize and scan for plugins
-    bool initialize(const std::string& plugin_dir = "plugins");
+    bool initialize(const std::string& plugin_dir = "lib");
 
     // Shutdown and unload all plugins
     void shutdown();

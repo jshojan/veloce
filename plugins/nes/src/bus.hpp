@@ -28,7 +28,7 @@ public:
     void cpu_write(uint16_t address, uint8_t value);
 
     // PPU memory access (for CHR ROM/RAM)
-    uint8_t ppu_read(uint16_t address);
+    uint8_t ppu_read(uint16_t address, uint32_t frame_cycle = 0);
     void ppu_write(uint16_t address, uint8_t value);
 
     // Controller input
@@ -42,8 +42,14 @@ public:
     // Mapper scanline counter (for MMC3, etc.)
     void mapper_scanline();
 
+    // Notify mapper of PPU address changes (for MMC3 A12 clocking)
+    void notify_ppu_addr_change(uint16_t old_addr, uint16_t new_addr);
+
+    // Notify mapper of PPU address bus activity during rendering (for A12 tracking)
+    void notify_ppu_address_bus(uint16_t address, uint32_t frame_cycle);
+
     // Check for mapper IRQ
-    bool mapper_irq_pending();
+    bool mapper_irq_pending(uint32_t frame_cycle = 0);
     void mapper_irq_clear();
 
     // Get current mirror mode (0=H, 1=V, 2=SingleScreen0, 3=SingleScreen1, 4=FourScreen)
@@ -52,6 +58,9 @@ public:
     // Save state
     void save_state(std::vector<uint8_t>& data);
     void load_state(const uint8_t*& data, size_t& remaining);
+
+    // Test ROM support - check and print test output from $6000+
+    void check_test_output();
 
 private:
     // Components

@@ -292,3 +292,4 @@ MIT License - See LICENSE file.
 - [Dear ImGui](https://github.com/ocornut/imgui) - Immediate mode GUI
 - [SDL2](https://www.libsdl.org/) - Cross-platform multimedia
 - [nlohmann/json](https://github.com/nlohmann/json) - JSON library
+- [nes-test-roms](https://github.com/christopherpow/nes-test-roms) - NES emulator test ROMs for accuracy validation

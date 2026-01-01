@@ -33,10 +33,12 @@ void Mapper004::reset() {
     m_irq_enabled = false;
     m_irq_pending = false;
     m_irq_reload = false;
+    m_irq_pending_at_cycle = 0;
 
     // A12 tracking for proper scanline detection
     m_last_a12 = false;
-    m_a12_low_cycles = 0;
+    m_last_a12_cycle = 0;
+    m_current_frame_cycle = 0;
 
     update_banks();
 }
@@ -53,8 +55,9 @@ void Mapper004::update_banks() {
     uint32_t prg_bank_count = prg_size / 0x2000;  // Number of 8KB banks
     if (prg_bank_count == 0) prg_bank_count = 1;
 
-    uint8_t r6 = m_registers[6] % prg_bank_count;
-    uint8_t r7 = m_registers[7] % prg_bank_count;
+    // R6-R7: MMC3 only has 6 PRG ROM address lines, so mask with 0x3F
+    uint8_t r6 = (m_registers[6] & 0x3F) % prg_bank_count;
+    uint8_t r7 = (m_registers[7] & 0x3F) % prg_bank_count;
     uint8_t second_last = (prg_bank_count - 2) % prg_bank_count;
     uint8_t last = (prg_bank_count - 1) % prg_bank_count;
 
@@ -102,6 +105,55 @@ void Mapper004::update_banks() {
             m_chr_bank[7] = (m_registers[5] % chr_bank_count) * 0x400;
         }
     }
+}
+
+// Original version for PPUADDR-triggered calls (with scanline/cycle parameters)
+void Mapper004::clock_counter_on_a12(bool a12, uint16_t addr, int scanline, int cycle) {
+    (void)addr;
+    constexpr uint32_t FILTER_THRESHOLD = 16;
+
+    uint32_t frame_cycle;
+    if (scanline < 0 || cycle < 0) {
+        frame_cycle = m_last_a12_cycle + FILTER_THRESHOLD + 1;
+    } else {
+        frame_cycle = static_cast<uint32_t>(scanline * 341 + cycle);
+    }
+
+    clock_counter_on_a12_fast(a12, frame_cycle);
+}
+
+// Optimized version - called from notify_ppu_address_bus when A12 changes
+void Mapper004::clock_counter_on_a12_fast(bool a12, uint32_t frame_cycle) {
+    constexpr uint32_t FILTER_THRESHOLD = 16;
+
+    if (!a12) {
+        // A12 falling edge - track when it started being low
+        if (m_last_a12) {
+            m_last_a12_cycle = frame_cycle;
+        }
+    } else if (!m_last_a12) {
+        // A12 rising edge - check if filter is satisfied
+        uint32_t cycles_low = (frame_cycle >= m_last_a12_cycle) ?
+                              (frame_cycle - m_last_a12_cycle) :
+                              (frame_cycle + 89342 - m_last_a12_cycle);
+
+        if (cycles_low >= FILTER_THRESHOLD) {
+            // Filter satisfied - clock the scanline counter
+            if (m_irq_counter == 0 || m_irq_reload) {
+                m_irq_counter = m_irq_latch;
+                m_irq_reload = false;
+            } else {
+                m_irq_counter--;
+            }
+
+            if (m_irq_counter == 0 && m_irq_enabled) {
+                if (m_irq_pending_at_cycle == 0 && !m_irq_pending) {
+                    m_irq_pending_at_cycle = frame_cycle;
+                }
+            }
+        }
+    }
+    m_last_a12 = a12;
 }
 
 uint8_t Mapper004::cpu_read(uint16_t address) {
@@ -154,7 +206,6 @@ void Mapper004::cpu_write(uint16_t address, uint8_t value) {
             if (even) {
                 m_mirror_mode = (value & 1) ? MirrorMode::Horizontal : MirrorMode::Vertical;
             }
-            // PRG RAM protect not fully implemented
         } else if (address < 0xE000) {
             // IRQ latch ($C000-$DFFE even) / IRQ reload ($C001-$DFFF odd)
             if (even) {
@@ -167,6 +218,7 @@ void Mapper004::cpu_write(uint16_t address, uint8_t value) {
             if (even) {
                 m_irq_enabled = false;
                 m_irq_pending = false;
+                m_irq_pending_at_cycle = 0;
             } else {
                 m_irq_enabled = true;
             }
@@ -174,38 +226,14 @@ void Mapper004::cpu_write(uint16_t address, uint8_t value) {
     }
 }
 
-uint8_t Mapper004::ppu_read(uint16_t address) {
+uint8_t Mapper004::ppu_read(uint16_t address, uint32_t frame_cycle) {
+    (void)frame_cycle;
+
     if (address < 0x2000) {
-        // A12 tracking for MMC3 scanline counter
-        // The real MMC3 clocks its counter on A12 rising edges
-        bool a12 = (address & 0x1000) != 0;
-
-        if (a12 && !m_last_a12) {
-            // A12 rising edge - check if it was low long enough (filter rapid toggles)
-            // MMC3 requires A12 to be low for ~3 PPU cycles minimum
-            if (m_a12_low_cycles >= 3) {
-                // Clock the scanline counter
-                if (m_irq_counter == 0 || m_irq_reload) {
-                    m_irq_counter = m_irq_latch;
-                    m_irq_reload = false;
-                } else {
-                    m_irq_counter--;
-                }
-
-                if (m_irq_counter == 0 && m_irq_enabled) {
-                    m_irq_pending = true;
-                }
-            }
-            m_a12_low_cycles = 0;
-        } else if (!a12) {
-            // A12 is low - increment the low cycle counter
-            m_a12_low_cycles++;
-        }
-        m_last_a12 = a12;
-
         // CHR ROM/RAM: 8 x 1KB banks
         int bank = address / 0x400;
         uint32_t offset = m_chr_bank[bank] + (address & 0x3FF);
+
         if (offset < m_chr_rom->size()) {
             return (*m_chr_rom)[offset];
         }
@@ -225,11 +253,60 @@ void Mapper004::ppu_write(uint16_t address, uint8_t value) {
     }
 }
 
+bool Mapper004::irq_pending(uint32_t frame_cycle) {
+    if (m_irq_pending) {
+        return true;
+    }
+
+    // Check if delayed IRQ should fire now
+    if (m_irq_pending_at_cycle > 0 && m_irq_enabled) {
+        uint32_t cycles_since_trigger;
+        if (frame_cycle >= m_irq_pending_at_cycle) {
+            cycles_since_trigger = frame_cycle - m_irq_pending_at_cycle;
+        } else {
+            cycles_since_trigger = frame_cycle + 89342 - m_irq_pending_at_cycle;
+        }
+
+        if (cycles_since_trigger >= IRQ_DELAY_CYCLES) {
+            m_irq_pending = true;
+            m_irq_pending_at_cycle = 0;
+            return true;
+        }
+    }
+
+    return false;
+}
+
 void Mapper004::scanline() {
-    // This function is kept for compatibility but is no longer used.
-    // MMC3 now uses proper A12-based clocking in ppu_read() instead of
-    // simplified scanline counting. This is required for games like
-    // Kirby's Adventure that depend on accurate A12 timing.
+    // Scanline-based clocking is now handled by A12 detection in ppu_read()
+    // This function is kept as a fallback but currently does nothing
+    // The A12-based clocking provides more accurate timing for most games
+}
+
+void Mapper004::notify_ppu_addr_change(uint16_t old_addr, uint16_t new_addr) {
+    (void)old_addr;
+
+    // Only consider addresses in the CHR range ($0000-$1FFF) for A12 clocking
+    uint16_t masked_addr = new_addr & 0x3FFF;
+    if (masked_addr >= 0x2000) {
+        return;
+    }
+
+    bool new_a12 = (new_addr & 0x1000) != 0;
+    clock_counter_on_a12(new_a12, new_addr);
+}
+
+void Mapper004::notify_ppu_address_bus(uint16_t address, uint32_t frame_cycle) {
+    bool a12 = (address & 0x1000) != 0;
+
+    // Fast path: if A12 hasn't changed, nothing to do except possibly updating fall time
+    if (a12 == m_last_a12) {
+        return;
+    }
+
+    // A12 changed - need to process
+    m_current_frame_cycle = frame_cycle;
+    clock_counter_on_a12_fast(a12, frame_cycle);
 }
 
 void Mapper004::save_state(std::vector<uint8_t>& data) {

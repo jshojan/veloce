@@ -54,7 +54,7 @@ void Mapper079::cpu_write(uint16_t address, uint8_t value) {
     }
 }
 
-uint8_t Mapper079::ppu_read(uint16_t address) {
+uint8_t Mapper079::ppu_read(uint16_t address, [[maybe_unused]] uint32_t frame_cycle) {
     // CHR ROM: $0000-$1FFF
     if (address < 0x2000) {
         if (!m_chr_rom->empty()) {

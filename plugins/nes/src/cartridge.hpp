@@ -45,16 +45,18 @@ public:
     void cpu_write(uint16_t address, uint8_t value);
 
     // PPU memory access (via mapper)
-    uint8_t ppu_read(uint16_t address);
+    uint8_t ppu_read(uint16_t address, uint32_t frame_cycle = 0);
     void ppu_write(uint16_t address, uint8_t value);
 
     // Get mirror mode from mapper
     MirrorMode get_mirror_mode() const;
 
     // IRQ support
-    bool irq_pending();
+    bool irq_pending(uint32_t frame_cycle = 0);
     void irq_clear();
     void scanline();
+    void notify_ppu_addr_change(uint16_t old_addr, uint16_t new_addr);
+    void notify_ppu_address_bus(uint16_t address, uint32_t frame_cycle);
 
     // ROM info
     uint32_t get_crc32() const { return m_crc32; }

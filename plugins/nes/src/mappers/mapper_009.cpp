@@ -1,4 +1,20 @@
 #include "mapper_009.hpp"
+#include <cstdio>
+#include <cstdlib>
+
+namespace {
+    bool g_debug_mode = false;
+    bool g_debug_checked = false;
+
+    bool is_debug_mode() {
+        if (!g_debug_checked) {
+            const char* env = std::getenv("DEBUG");
+            g_debug_mode = env && (env[0] == '1' || env[0] == 'y' || env[0] == 'Y');
+            g_debug_checked = true;
+        }
+        return g_debug_mode;
+    }
+}
 
 namespace nes {
 
@@ -87,26 +103,41 @@ void Mapper009::cpu_write(uint16_t address, uint8_t value) {
             case 0xA000:  // PRG ROM bank select
                 m_prg_bank = value & 0x0F;
                 m_prg_bank_offset = (m_prg_bank * 0x2000) % m_prg_rom->size();
+                if (is_debug_mode()) {
+                    fprintf(stderr, "MMC2: PRG bank = %02X\n", m_prg_bank);
+                }
                 break;
 
             case 0xB000:  // CHR ROM bank 0 select ($FD)
                 m_chr_bank_0_fd = value & 0x1F;
                 update_chr_banks();
+                if (is_debug_mode()) {
+                    fprintf(stderr, "MMC2: CHR bank 0 FD = %02X\n", m_chr_bank_0_fd);
+                }
                 break;
 
             case 0xC000:  // CHR ROM bank 0 select ($FE)
                 m_chr_bank_0_fe = value & 0x1F;
                 update_chr_banks();
+                if (is_debug_mode()) {
+                    fprintf(stderr, "MMC2: CHR bank 0 FE = %02X\n", m_chr_bank_0_fe);
+                }
                 break;
 
             case 0xD000:  // CHR ROM bank 1 select ($FD)
                 m_chr_bank_1_fd = value & 0x1F;
                 update_chr_banks();
+                if (is_debug_mode()) {
+                    fprintf(stderr, "MMC2: CHR bank 1 FD = %02X\n", m_chr_bank_1_fd);
+                }
                 break;
 
             case 0xE000:  // CHR ROM bank 1 select ($FE)
                 m_chr_bank_1_fe = value & 0x1F;
                 update_chr_banks();
+                if (is_debug_mode()) {
+                    fprintf(stderr, "MMC2: CHR bank 1 FE = %02X\n", m_chr_bank_1_fe);
+                }
                 break;
 
             case 0xF000:  // Mirroring
@@ -115,12 +146,15 @@ void Mapper009::cpu_write(uint16_t address, uint8_t value) {
                 } else {
                     m_mirror_mode = MirrorMode::Vertical;
                 }
+                if (is_debug_mode()) {
+                    fprintf(stderr, "MMC2: Mirroring = %s\n", (value & 0x01) ? "Horizontal" : "Vertical");
+                }
                 break;
         }
     }
 }
 
-uint8_t Mapper009::ppu_read(uint16_t address) {
+uint8_t Mapper009::ppu_read(uint16_t address, [[maybe_unused]] uint32_t frame_cycle) {
     if (address < 0x2000) {
         uint8_t value;
 
@@ -129,13 +163,15 @@ uint8_t Mapper009::ppu_read(uint16_t address) {
             uint32_t offset = m_chr_bank_0_offset + (address & 0x0FFF);
             value = (*m_chr_rom)[offset % m_chr_rom->size()];
 
-            // Update latch after reading specific tile addresses
-            // Latch is set when reading bytes from tiles $FD or $FE (tile * 16 bytes)
-            uint16_t tile = (address & 0x0FF0) >> 4;
-            if (tile == 0xFD) {
+            // MMC2 latch switching for $0000-$0FFF:
+            // - $0FD8 triggers latch 0 to select $FD bank
+            // - $0FE8 triggers latch 0 to select $FE bank
+            // The latch updates AFTER the read (old bank is used for the triggering tile)
+            // A3 must be set (address & 0x8), ensuring we're on the second byte row
+            if (address == 0x0FD8) {
                 m_latch_0 = false;
                 update_chr_banks();
-            } else if (tile == 0xFE) {
+            } else if (address == 0x0FE8) {
                 m_latch_0 = true;
                 update_chr_banks();
             }
@@ -144,12 +180,15 @@ uint8_t Mapper009::ppu_read(uint16_t address) {
             uint32_t offset = m_chr_bank_1_offset + (address & 0x0FFF);
             value = (*m_chr_rom)[offset % m_chr_rom->size()];
 
-            // Update latch after reading specific tile addresses
-            uint16_t tile = (address & 0x0FF0) >> 4;
-            if (tile == 0xFD) {
+            // MMC2 latch switching for $1000-$1FFF:
+            // - $1FD8-$1FDF triggers latch 1 to select $FD bank
+            // - $1FE8-$1FEF triggers latch 1 to select $FE bank
+            // Note: latch 1 responds to a range, not just one address
+            uint16_t masked = address & 0x0FF8;
+            if (masked == 0x0FD8) {
                 m_latch_1 = false;
                 update_chr_banks();
-            } else if (tile == 0xFE) {
+            } else if (masked == 0x0FE8) {
                 m_latch_1 = true;
                 update_chr_banks();
             }

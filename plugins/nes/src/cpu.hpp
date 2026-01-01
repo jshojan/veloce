@@ -21,7 +21,9 @@ public:
 
     // Interrupts
     void trigger_nmi();
-    void trigger_irq();
+    void trigger_nmi_delayed();  // NMI will fire after NEXT instruction
+    void trigger_irq();  // Edge-triggered (BRK, etc.)
+    void set_irq_line(bool active);  // Level-triggered (mapper IRQ)
 
     // Save state
     void save_state(std::vector<uint8_t>& data);
@@ -107,6 +109,7 @@ private:
 
     // Interrupt flags
     bool m_nmi_pending = false;
+    bool m_nmi_delayed = false;  // NMI will fire after next instruction
     bool m_irq_pending = false;
 
     // Status register flags

@@ -175,10 +175,6 @@ void NESPlugin::run_frame(const emu::InputState& input) {
     if (!m_rom_loaded) return;
 
     // Run until PPU signals frame completion (at VBlank start)
-    // This ensures proper synchronization with the PPU's rendering cycle
-    // Note: Controller input is set AFTER the loop so it's ready for the
-    // NEXT frame's NMI handler. The NMI triggered at VBlank will run at
-    // the start of the next run_frame call and read the input we set here.
     bool frame_complete = false;
 
     while (!frame_complete) {
@@ -194,25 +190,33 @@ void NESPlugin::run_frame(const emu::InputState& input) {
         }
 
         // Step PPU (3 PPU cycles per CPU cycle)
-        for (int i = 0; i < cpu_cycles * 3; i++) {
+        int ppu_cycles = cpu_cycles * 3;
+        for (int i = 0; i < ppu_cycles; i++) {
             m_ppu->step();
 
-            // Check for NMI
-            if (m_ppu->check_nmi()) {
+            // Check for NMI (only need to check once per batch, but NMI timing is critical)
+            int nmi_type = m_ppu->check_nmi();
+            if (nmi_type == 1) {
                 m_cpu->trigger_nmi();
+            } else if (nmi_type == 2) {
+                m_cpu->trigger_nmi_delayed();
             }
 
             // Check for frame completion (at VBlank start)
             if (m_ppu->check_frame_complete()) {
                 frame_complete = true;
+                // Check for test ROM output once per frame
+                static int check_interval = 0;
+                if (++check_interval >= 30) {
+                    check_interval = 0;
+                    m_bus->check_test_output();
+                }
             }
         }
 
-        // Check for mapper IRQ (MMC3, etc.)
-        if (m_bus->mapper_irq_pending()) {
-            m_cpu->trigger_irq();
-            m_bus->mapper_irq_clear();
-        }
+        // Check for mapper IRQ once per CPU instruction (sufficient for MMC3 timing)
+        // The IRQ line is level-triggered, so we just need to check the current state
+        m_cpu->set_irq_line(m_bus->mapper_irq_pending(m_ppu->get_frame_cycle()));
 
         // Step APU
         m_apu->step(cpu_cycles);

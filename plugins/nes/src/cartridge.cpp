@@ -202,9 +202,9 @@ void Cartridge::cpu_write(uint16_t address, uint8_t value) {
     }
 }
 
-uint8_t Cartridge::ppu_read(uint16_t address) {
+uint8_t Cartridge::ppu_read(uint16_t address, uint32_t frame_cycle) {
     if (m_mapper) {
-        return m_mapper->ppu_read(address);
+        return m_mapper->ppu_read(address, frame_cycle);
     }
     return 0;
 }
@@ -222,9 +222,9 @@ MirrorMode Cartridge::get_mirror_mode() const {
     return MirrorMode::Horizontal;
 }
 
-bool Cartridge::irq_pending() {
+bool Cartridge::irq_pending(uint32_t frame_cycle) {
     if (m_mapper) {
-        return m_mapper->irq_pending();
+        return m_mapper->irq_pending(frame_cycle);
     }
     return false;
 }
@@ -238,6 +238,18 @@ void Cartridge::irq_clear() {
 void Cartridge::scanline() {
     if (m_mapper) {
         m_mapper->scanline();
+    }
+}
+
+void Cartridge::notify_ppu_addr_change(uint16_t old_addr, uint16_t new_addr) {
+    if (m_mapper) {
+        m_mapper->notify_ppu_addr_change(old_addr, new_addr);
+    }
+}
+
+void Cartridge::notify_ppu_address_bus(uint16_t address, uint32_t frame_cycle) {
+    if (m_mapper) {
+        m_mapper->notify_ppu_address_bus(address, frame_cycle);
     }
 }
 

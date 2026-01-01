@@ -117,7 +117,7 @@ void Mapper206::cpu_write(uint16_t address, uint8_t value) {
     // DxROM has no mirroring control, no IRQ, no PRG RAM protection
 }
 
-uint8_t Mapper206::ppu_read(uint16_t address) {
+uint8_t Mapper206::ppu_read(uint16_t address, [[maybe_unused]] uint32_t frame_cycle) {
     if (address < 0x2000) {
         if (!m_chr_rom->empty()) {
             int bank = address / 0x400;

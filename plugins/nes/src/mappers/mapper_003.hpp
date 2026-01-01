@@ -21,7 +21,7 @@ public:
     uint8_t cpu_read(uint16_t address) override;
     void cpu_write(uint16_t address, uint8_t value) override;
 
-    uint8_t ppu_read(uint16_t address) override;
+    uint8_t ppu_read(uint16_t address, uint32_t frame_cycle = 0) override;
     void ppu_write(uint16_t address, uint8_t value) override;
 
     MirrorMode get_mirror_mode() const override { return m_mirror_mode; }
