@@ -18,6 +18,8 @@ namespace emu {
 struct EmulatorInfo {
     const char* name;               // "NES", "SNES", etc.
     const char* version;            // "1.0.0"
+    const char* author;             // Plugin author
+    const char* description;        // Brief description of the core
     const char** file_extensions;   // {".nes", nullptr}
     double native_fps;              // 60.0988 for NES (NTSC)
     uint64_t cycles_per_second;     // 1789773 for NES CPU
@@ -84,6 +86,21 @@ public:
     // Save states
     virtual bool save_state(std::vector<uint8_t>& data) = 0;
     virtual bool load_state(const std::vector<uint8_t>& data) = 0;
+
+    // Battery-backed save file support (SRAM, EEPROM, etc.)
+    // These allow games with battery saves to persist data across sessions.
+    // The application handles file I/O; the plugin provides/accepts raw data.
+
+    // Returns true if the currently loaded ROM has battery-backed save data
+    virtual bool has_battery_save() const { return false; }
+
+    // Get the current battery save data (PRG RAM, EEPROM, etc.)
+    // Returns empty vector if no save data available
+    virtual std::vector<uint8_t> get_battery_save_data() const { return {}; }
+
+    // Load battery save data (called before reset, after ROM load)
+    // Returns true if data was successfully loaded
+    virtual bool set_battery_save_data(const std::vector<uint8_t>& data) { (void)data; return false; }
 };
 
 } // namespace emu

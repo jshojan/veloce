@@ -1,119 +1,165 @@
 # Veloce
 
-A cross-platform, plugin-based emulator framework built for speedrunners and TAS creators. Supports Windows, Linux, and macOS (x86/ARM).
+A cross-platform, plugin-based emulator framework built for speedrunners and TAS creators.
 
 *Veloce* - Italian for "fast"
+
+| Platform | Status |
+|----------|--------|
+| Windows  | Supported |
+| Linux    | Supported |
+| macOS    | Supported (x86/ARM) |
+
+## Overview
+
+Veloce is a modular emulator platform that combines cycle-accurate console emulation with advanced features for speedrunning and tool-assisted speedruns (TAS). The architecture follows a Project64-style plugin system where emulator cores, audio backends, input handlers, and TAS tools are all swappable components.
+
+The framework prioritizes accuracy where it matters for speedrunning (timing-sensitive operations, RNG behavior) while maintaining playable performance on modern hardware.
+
+## Quick Start
+
+```bash
+# Build
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build
+
+# Run
+./build/bin/veloce game.nes
+```
+
+See [Build Instructions](#building) for platform-specific details.
+
+## Supported Systems
+
+| System | Core | Status | Notes |
+|--------|------|--------|-------|
+| NES/Famicom | [cores/nes](cores/nes/README.md) | Playable | 20+ mappers, ~90% library coverage |
+| Game Boy / Color | [cores/gb](cores/gb/README.md) | In Progress | DMG and CGB, MBC1/3/5 |
+| Game Boy Advance | [cores/gba](cores/gba/README.md) | In Progress | ARM7TDMI, all video modes |
+| Super Nintendo | [cores/snes](cores/snes/README.md) | In Progress | 65C816, Mode 7, SPC700 |
+
+## Architecture
+
+Veloce uses a plugin architecture where functionality is divided into distinct, swappable components:
+
+```
+veloce (application)
+    |
+    +-- Plugin Manager
+    |       |
+    |       +-- Emulator Cores (IEmulatorPlugin)
+    |       |       NES, GB, GBA, SNES
+    |       |
+    |       +-- Audio Plugin (IAudioPlugin)
+    |       |       Volume, muting, processing
+    |       |
+    |       +-- Input Plugin (IInputPlugin)
+    |       |       Keyboard, gamepad, recording
+    |       |
+    |       +-- TAS Plugin (ITASPlugin)
+    |               Movie editing, greenzone, playback
+    |
+    +-- Core Services
+            Savestate Manager, Speedrun Timer, Netplay
+```
+
+### Plugin Documentation
+
+**Auxiliary Plugins:**
+- [Audio Plugin](plugins/audio_default/README.md) - Audio passthrough with volume control
+- [Input Plugin](plugins/input_default/README.md) - Keyboard and gamepad input handling
+- [TAS Plugin](plugins/tas_default/README.md) - TAS movie recording and editing
+
+**Emulator Cores:**
+- [NES Core](cores/nes/README.md) - Nintendo Entertainment System
+- [Game Boy Core](cores/gb/README.md) - Game Boy and Game Boy Color
+- [GBA Core](cores/gba/README.md) - Game Boy Advance
+- [SNES Core](cores/snes/README.md) - Super Nintendo Entertainment System
+
+### Plugin Interfaces
+
+All plugin interfaces are defined in include/emu/:
+
+| Header | Interface | Description |
+|--------|-----------|-------------|
+| emulator_plugin.hpp | IEmulatorPlugin | ROM loading, frame execution, save states |
+| audio_plugin.hpp | IAudioPlugin | Audio processing and output |
+| input_plugin.hpp | IInputPlugin | Input polling and configuration |
+| tas_plugin.hpp | ITASPlugin | Movie recording, playback, editing |
+| netplay_plugin.hpp | INetplayPlugin | Network multiplayer support |
 
 ## Features
 
 ### Core Features
-- **Plugin Architecture** - Emulator cores loaded as dynamic libraries (.dll/.so/.dylib)
-- **Cycle-Accurate NES Emulation** - Dot-by-dot PPU rendering, accurate CPU timing
-- **Save States** - 10 quick-save slots with F1-F10 hotkeys
-- **Visual Input Configuration** - Interactive controller display for button mapping
-- **Controller Support** - Keyboard and USB gamepad with hot-plugging
-- **Per-Platform Bindings** - Separate input configs for each system
-- **Debug Tools** - Memory viewer, CPU/PPU state inspection
+
+- 10 save state slots with F1-F10 hotkeys
+- Visual input configuration with interactive controller display
+- Per-platform controller bindings
+- USB gamepad support with hot-plugging
+- Debug tools (memory viewer, CPU/PPU state)
 
 ### Speedrun Features
-- **Live Timer** - Millisecond-precision timer with splits
-- **Split Tracking** - Track segment times and cumulative time
-- **Personal Best** - Stores and compares against your best times
-- **Gold Splits** - Tracks best individual segment times
-- **Sum of Best** - Shows your theoretical best time
-- **Delta Display** - Color-coded comparison to PB
 
-### TAS Features (Backend Complete, GUI Planned)
-- **Movie Recording** - Record input frame-by-frame
-- **Movie Playback** - Play back recorded inputs
-- **Greenzone** - Automatic savestate snapshots for seeking
-- **Undo/Redo** - Full edit history (100 levels)
-- **Frame Editing** - Insert, delete, modify frames
-- **FM2 Import** - Import movies from FCEUX
-- **Selection & Clipboard** - Copy/cut/paste frame ranges
-- **Markers** - Mark important frames with descriptions
+- Millisecond-precision live timer with splits
+- Personal best tracking and comparison
+- Gold splits (best segment times)
+- Sum of best calculation
+- Color-coded delta display
+- Per-game auto-splitter support via game plugins
 
-> **Note:** TAS backend is fully functional but currently lacks a GUI. A piano roll editor is planned.
+### TAS Features
 
-## Supported Systems
+- Frame-by-frame movie recording and playback
+- Greenzone (automatic savestate snapshots for seeking)
+- Undo/redo with 100 levels of history
+- Frame insertion, deletion, and modification
+- FM2 movie import (FCEUX format)
+- Selection, copy/cut/paste operations
+- Frame markers with descriptions
 
-| System | Status | Mappers | Notes |
-|--------|--------|---------|-------|
-| NES | Playable | 0, 1, 2, 3, 4, 7, 9, 10, 11, 34, 66, 71, 79, 206 | Covers ~90% of NES library |
-| Game Boy | Planned | - | Next priority |
-| SNES | Planned | - | After GB |
+### Netplay Features
 
-### NES Mapper Coverage
-
-**Core Mappers:**
-- **Mapper 0 (NROM)** - Super Mario Bros., Donkey Kong
-- **Mapper 1 (MMC1)** - Zelda, Metroid, Final Fantasy (~25% of library)
-- **Mapper 2 (UxROM)** - Mega Man, Castlevania, Contra, Duck Tales
-- **Mapper 3 (CNROM)** - Arkanoid, Gradius, Solomon's Key
-- **Mapper 4 (MMC3)** - SMB3, Kirby, Mega Man 3-6 (scanline IRQ)
-- **Mapper 7 (AxROM)** - Battletoads, Marble Madness, RC Pro-Am
-
-**Extended Mappers:**
-- **Mapper 9 (MMC2)** - Punch-Out!!, Mike Tyson's Punch-Out!! (CHR latching)
-- **Mapper 10 (MMC4)** - Fire Emblem (Japan)
-- **Mapper 11 (Color Dreams)** - Bible Adventures, Crystal Mines (unlicensed)
-- **Mapper 34 (BNROM/NINA-001)** - Deadly Towers, Impossible Mission II
-- **Mapper 66 (GxROM)** - Super Mario Bros. + Duck Hunt multicart
-- **Mapper 71 (Camerica)** - Micro Machines, Fire Hawk, Quattro games
-- **Mapper 79 (NINA-03/06)** - Various AVE games
-- **Mapper 206 (DxROM/Namcot)** - Various Namco games, Tengen releases
+- GGPO-style rollback netcode
+- Delay-based mode for stable connections
+- Session codes for easy joining
+- In-game chat with timestamps
+- Desync detection and recovery
 
 ## Building
 
 ### Prerequisites
 
-All dependencies (SDL2, Dear ImGui, nlohmann/json) are automatically downloaded via CMake FetchContent.
+Dependencies (SDL2, Dear ImGui, nlohmann/json) are automatically downloaded via CMake FetchContent.
 
-#### Linux (Ubuntu/Debian)
+**Linux (Ubuntu/Debian):**
 ```bash
 sudo apt-get install -y build-essential cmake libgl-dev libglu1-mesa-dev
 ```
 
-#### macOS
+**macOS:**
 ```bash
 xcode-select --install
 brew install cmake
 ```
 
-#### Windows
-- [Visual Studio 2022](https://visualstudio.microsoft.com/) with "Desktop development with C++" workload
+**Windows:**
+- Visual Studio 2022 with "Desktop development with C++" workload
 - CMake is included with Visual Studio
 
-### Build Instructions
+### Build Commands
 
-#### Linux / macOS
+**Linux / macOS:**
 ```bash
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 ./build/bin/veloce
 ```
 
-#### Windows (Command Prompt)
+**Windows (Command Prompt):**
 ```cmd
 cmake -B build -G "Visual Studio 17 2022" -A x64
 cmake --build build --config Release
-build\bin\veloce.exe
-```
-
-#### Windows (Visual Studio IDE)
-1. File -> Open -> CMake... -> Select `CMakeLists.txt`
-2. Build -> Build All (F7)
-3. Select "veloce.exe" as startup item and run (F5)
-
-### Build Output
-```
-build/bin/
-├── veloce(.exe)           # Main executable
-└── plugins/
-    ├── nes.so/.dll        # NES emulator
-    ├── libaudio_default   # Audio plugin
-    ├── libinput_default   # Input plugin
-    └── libtas_default     # TAS plugin
+buildineloce.exe
 ```
 
 ## Usage
@@ -126,20 +172,11 @@ Options:
   -v, --version    Show version and exit
   -d, --debug      Enable debug panel
 
-Examples:
-  veloce game.nes           # Load a NES ROM
-  veloce --debug game.nes   # Debug mode
+Environment Variables:
+  DEBUG=1          Enable debug output
+  HEADLESS=1       Run without GUI (for automated testing)
+  FRAMES=N         Run for N frames then exit (requires HEADLESS=1)
 ```
-
-### Default Controls (NES)
-
-| Button | Keyboard | Gamepad |
-|--------|----------|---------|
-| D-Pad | Arrow Keys | D-Pad / Left Stick |
-| A | Z | A / Cross |
-| B | X | B / Circle |
-| Start | Enter | Start |
-| Select | Right Shift | Back/Select |
 
 ### Hotkeys
 
@@ -150,165 +187,74 @@ Examples:
 | Reset | Ctrl+R |
 | Fullscreen | F11 |
 | Debug Panel | F12 |
+| Netplay Panel | F8 |
 | Quick Save (Slot 1-10) | F1-F10 |
 | Quick Load (Slot 1-10) | Shift+F1-F10 |
 
-## Save States
+### Default Controls
 
-10 slots per ROM with hotkey access:
-- **Save**: F1-F10
-- **Load**: Shift+F1-F10
+| Button | Keyboard | Gamepad |
+|--------|----------|---------|
+| D-Pad | Arrow Keys | D-Pad / Left Stick |
+| A | Z | A / Cross |
+| B | X | B / Circle |
+| Start | Enter | Start |
+| Select | Right Shift | Back/Select |
 
-Files stored in:
-- Linux/macOS: `~/.config/veloce/savestates/`
-- Windows: `%APPDATA%\veloce\savestates\`
+## Configuration
 
-## Input Configuration
+Configuration files are stored in:
+- Linux/macOS: ~/.config/veloce/
+- Windows: %APPDATA%eloce\
 
-**Settings -> Input** provides:
+## Testing
 
-- **Visual Mode** - Click buttons on an interactive controller graphic
-- **Table Mode** - Traditional list with Set/Clear buttons
-- **Per-Platform** - Separate bindings for NES, GB, SNES, etc.
+Each emulator core includes test suites for accuracy validation. See the individual core documentation:
 
-## NES Emulation Details
+- [NES Testing](cores/nes/README.md#testing)
+- [Game Boy Testing](cores/gb/README.md#testing)
+- [GBA Testing](cores/gba/README.md#testing)
+- [SNES Testing](cores/snes/README.md#testing)
 
-### CPU (6502)
-- All 56 official opcodes
-- Cycle-accurate timing
-- NMI and IRQ handling
+### Headless Mode
 
-### PPU (2C02)
-- Dot-by-dot rendering
-- Sprite 0 hit detection
-- 8 sprites per scanline limit
-- VBlank at scanline 241, cycle 1
+For CI/CD integration:
 
-### APU (2A03)
-- 2 pulse channels with sweep
-- Triangle and noise channels
-- DMC (basic support)
-- Low-pass filtering
+```bash
+HEADLESS=1 FRAMES=600 veloce test.nes
+DEBUG=1 HEADLESS=1 FRAMES=600 veloce test.nes  # With debug output
+```
 
 ## Project Structure
 
 ```
 veloce/
-├── include/emu/           # Plugin interfaces
-│   ├── emulator_plugin.hpp
-│   ├── audio_plugin.hpp
-│   ├── input_plugin.hpp
-│   ├── tas_plugin.hpp
-│   └── speedrun_plugin.hpp
-├── src/
-│   ├── core/              # Application core
-│   └── gui/               # Dear ImGui interface
-├── plugins/
-│   ├── nes/               # NES emulator
-│   ├── audio_default/     # Audio backend
-│   ├── input_default/     # Input backend
-│   └── tas_default/       # TAS engine
-└── speedrun_plugins/      # Auto-splitters (planned)
+    include/emu/              Plugin interfaces
+    src/
+        core/                 Application core
+        gui/                  Dear ImGui interface
+    cores/                    Emulator cores
+        nes/                  NES emulator
+        gb/                   Game Boy emulator
+        gba/                  GBA emulator
+        snes/                 SNES emulator
+    plugins/                  Auxiliary plugins
+        audio_default/        Audio backend
+        input_default/        Input backend
+        tas_default/          TAS engine
 ```
-
-## Roadmap
-
-### Completed
-- [x] Core framework (window, audio, input, plugins)
-- [x] NES emulator (CPU, PPU, APU)
-- [x] Mappers 0, 1, 2, 3, 4, 7, 9, 10, 11, 34, 66, 71, 79, 206
-- [x] Save states (10 slots, hotkeys)
-- [x] Visual input configuration
-- [x] Per-platform controller bindings
-- [x] USB controller with hot-plug
-- [x] Debug panel with memory viewer
-- [x] Speedrun timer with splits, PB, golds
-- [x] TAS backend (recording, playback, greenzone, undo)
-
-### In Progress
-- [ ] TAS Editor GUI (piano roll)
-
-### Next Up: Game Boy
-- [ ] Game Boy emulator plugin
-- [ ] GB CPU (Sharp LR35902)
-- [ ] GB PPU with proper timing
-- [ ] GB APU (4 channels)
-- [ ] MBC1, MBC3, MBC5 mappers
-- [ ] Game Boy Color support
-
-### Then: More NES + SNES
-- [ ] Additional NES mappers (5, 16, 18, 19, 21, 22, 23, 24, 25, 69, etc.)
-- [ ] RAM watch panel
-- [ ] Game-specific auto-split plugins
-- [ ] SNES emulator plugin
-- [ ] SNES CPU (65C816)
-- [ ] SNES PPU (Mode 7, etc.)
-- [ ] SNES APU (SPC700 + DSP)
-
-### Future
-- [ ] Netplay (race mode)
-- [ ] Rewind functionality
-- [ ] Shader support (CRT, scanlines)
-- [ ] LiveSplit .lss import/export
-- [ ] TAS movie verification/sync
-
-## Configuration
-
-Config stored in:
-- Linux/macOS: `~/.config/veloce/`
-- Windows: `%APPDATA%\veloce\`
-
-### Files
-```
-config/
-├── input_nes.json      # NES bindings
-├── input_gb.json       # GB bindings (future)
-└── input_snes.json     # SNES bindings (future)
-splits/
-└── *.json              # Personal bests
-savestates/
-└── <CRC32>_slot*.sav   # Save state files
-```
-
-## Troubleshooting
-
-### Duplicate Controllers (Windows)
-Windows may show the same controller twice (XInput + DirectInput). Veloce filters by GUID but some may still appear. Either works.
-
-### Input Blocked During Config
-Intentional. Game input is blocked while Settings -> Input is open.
-
-### Save States Not Working
-- Ensure ROM is loaded
-- Check config directory is writable
-- States are per-ROM (by CRC32)
-
-## Testing
-
-### NES Emulator Tests
-
-The NES plugin includes a comprehensive test suite using the [nes-test-roms](https://github.com/christopherpow/nes-test-roms) collection:
-
-```bash
-# Run all tests (auto-clones test ROMs, cleans up after)
-cd plugins/nes/tests
-./run_tests.sh
-
-# Or use Python runner with JSON output for CI
-python3 test_runner.py --json
-```
-
-**Test Categories:** CPU instructions, PPU rendering, mapper accuracy (MMC3), APU
-
-See [plugins/nes/README.md](plugins/nes/README.md) for detailed test documentation.
 
 ## Acknowledgments
 
 - [Dear ImGui](https://github.com/ocornut/imgui) - Immediate mode GUI
 - [SDL2](https://www.libsdl.org/) - Cross-platform multimedia
 - [nlohmann/json](https://github.com/nlohmann/json) - JSON library
-- [nes-test-roms](https://github.com/christopherpow/nes-test-roms) - NES emulator test ROMs for accuracy validation
+- [nes-test-roms](https://github.com/christopherpow/nes-test-roms) - NES emulator test ROMs
+- [gba-tests](https://github.com/jsmolka/gba-tests) - GBA emulator test ROMs by jsmolka
+- [snes-tests](https://github.com/gilyon/snes-tests) - SNES emulator test ROMs by gilyon
+- [Project64](https://www.pj64-emu.com/) - Plugin architecture inspiration
 
 ## License
 
-MIT License - See LICENSE file.
+MIT License - See [LICENSE](LICENSE) file.
+

@@ -19,7 +19,9 @@ public:
         return {
             "Default Input",
             "1.0.0",
-            "Standard keyboard and gamepad input handler",
+            "Veloce Team",
+            "Standard keyboard and gamepad input handler with hot-plugging support. "
+            "Features input recording, playback, and turbo/autofire functionality.",
             true,   // supports_recording
             true,   // supports_playback
             true    // supports_turbo

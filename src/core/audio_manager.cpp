@@ -204,8 +204,14 @@ void AudioManager::fill_audio_buffer(float* buffer, size_t samples) {
                     m_last_sample_right = m_ring_buffer[read_pos];
                     read_pos = (read_pos + 1) % buffer_capacity;
                 } else {
-                    // Underrun - track it but hold last sample
+                    // Underrun - fade samples toward zero to minimize clicking
                     m_underrun_count.fetch_add(1, std::memory_order_relaxed);
+
+                    // Move prev toward current, and current toward zero
+                    m_prev_sample_left = m_last_sample_left;
+                    m_prev_sample_right = m_last_sample_right;
+                    m_last_sample_left *= 0.95f;
+                    m_last_sample_right *= 0.95f;
                 }
             }
 
@@ -226,15 +232,28 @@ void AudioManager::fill_audio_buffer(float* buffer, size_t samples) {
             }
 
             if (available >= 2) {
-                m_last_sample_left = m_ring_buffer[read_pos];
+                float new_left = m_ring_buffer[read_pos];
                 read_pos = (read_pos + 1) % buffer_capacity;
-                m_last_sample_right = m_ring_buffer[read_pos];
+                float new_right = m_ring_buffer[read_pos];
                 read_pos = (read_pos + 1) % buffer_capacity;
-                buffer[i] = m_last_sample_left;
-                buffer[i + 1] = m_last_sample_right;
+
+                // Apply interpolation to smooth sample transitions
+                // This reduces high-frequency artifacts from sample discontinuities
+                buffer[i] = 0.5f * (new_left + m_last_sample_left);
+                buffer[i + 1] = 0.5f * (new_right + m_last_sample_right);
+
+                m_last_sample_left = new_left;
+                m_last_sample_right = new_right;
             } else {
-                // Underrun - hold the last sample value to minimize clicking
+                // Underrun - fade toward zero gradually to minimize clicking
+                // Instead of holding the last sample indefinitely (which can cause DC offset),
+                // we fade it toward zero over time
                 m_underrun_count.fetch_add(1, std::memory_order_relaxed);
+
+                // Exponential decay toward zero
+                m_last_sample_left *= 0.95f;
+                m_last_sample_right *= 0.95f;
+
                 buffer[i] = m_last_sample_left;
                 buffer[i + 1] = m_last_sample_right;
             }
@@ -282,12 +301,20 @@ double AudioManager::get_latency_ms() const {
 }
 
 void AudioManager::clear_buffer() {
+    // Don't immediately zero everything - fade out the last samples
+    // to prevent clicking on buffer clear
+    // The audio callback will naturally fade to zero via underrun handling
+
     m_read_pos.store(0, std::memory_order_relaxed);
     m_write_pos.store(0, std::memory_order_relaxed);
-    m_last_sample_left = 0.0f;
-    m_last_sample_right = 0.0f;
-    m_prev_sample_left = 0.0f;
-    m_prev_sample_right = 0.0f;
+
+    // Keep last sample values for smooth transition - they'll fade via underrun handling
+    // Don't reset these to zero:
+    // m_last_sample_left = 0.0f;
+    // m_last_sample_right = 0.0f;
+
+    m_prev_sample_left = m_last_sample_left;
+    m_prev_sample_right = m_last_sample_right;
     m_resample_accumulator = 0.0f;
     m_rate_adjustment = 1.0;
     std::memset(m_ring_buffer, 0, sizeof(m_ring_buffer));

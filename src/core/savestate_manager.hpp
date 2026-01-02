@@ -8,6 +8,7 @@
 namespace emu {
 
 class PluginManager;
+class PathsConfiguration;
 
 // Metadata stored with each savestate
 struct SavestateInfo {
@@ -25,8 +26,8 @@ public:
     SavestateManager();
     ~SavestateManager();
 
-    // Initialize with plugin manager reference
-    void initialize(PluginManager* plugin_manager);
+    // Initialize with plugin manager and paths configuration
+    void initialize(PluginManager* plugin_manager, PathsConfiguration* paths_config);
 
     // Save current state to slot (0-9)
     bool save_state(int slot);
@@ -44,12 +45,15 @@ public:
     // Check if slot has a valid savestate
     bool is_slot_valid(int slot) const;
 
-    // Get/set save directory
-    void set_save_directory(const std::string& dir);
-    const std::string& get_save_directory() const { return m_save_directory; }
-
-    // Get current ROM's save path
+    // Get current ROM's savestate path for a slot
     std::string get_savestate_path(int slot) const;
+
+    // Save/load to arbitrary file path
+    bool save_state_to_file(const std::string& path);
+    bool load_state_from_file(const std::string& path);
+
+    // Set the current ROM name (used for organizing saves)
+    void set_current_rom_name(const std::string& name) { m_current_rom_name = name; }
 
 private:
     bool write_savestate_file(const std::string& path, const std::vector<uint8_t>& data,
@@ -58,7 +62,7 @@ private:
                                                              SavestateInfo& info);
 
     PluginManager* m_plugin_manager = nullptr;
-    std::string m_save_directory = "savestates";
+    PathsConfiguration* m_paths_config = nullptr;
     std::string m_current_rom_name;
 };
 

@@ -19,6 +19,7 @@ namespace emu {
 struct AudioPluginInfo {
     const char* name;           // "Default Audio", "DSP Effects", etc.
     const char* version;        // "1.0.0"
+    const char* author;         // Plugin author
     const char* description;    // Brief description
     bool supports_recording;    // Can record audio
     bool supports_effects;      // Has DSP effects

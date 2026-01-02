@@ -13,7 +13,9 @@ public:
         return {
             "Default Audio",
             "1.0.0",
-            "Standard audio passthrough with volume control",
+            "Veloce Team",
+            "Standard audio passthrough with volume control. Provides basic "
+            "muting and volume adjustment for emulator audio output.",
             false,  // No recording
             false   // No effects
         };

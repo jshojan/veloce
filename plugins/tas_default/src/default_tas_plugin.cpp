@@ -19,7 +19,9 @@ public:
         return {
             "TAS Editor",
             "1.0.0",
-            "Tool-assisted speedrun movie editor and player",
+            "Veloce Team",
+            "Tool-assisted speedrun movie editor and player. Features greenzone "
+            "savestate snapshots, undo/redo support, frame editing, and FM2 import.",
             s_file_formats
         };
     }

@@ -6,19 +6,6 @@
 #include <iostream>
 #include <filesystem>
 
-#ifdef _WIN32
-    #define NOMINMAX
-    #include <windows.h>
-    #define LOAD_LIBRARY(path) LoadLibraryA(path)
-    #define GET_PROC(handle, name) GetProcAddress((HMODULE)handle, name)
-    #define CLOSE_LIBRARY(handle) FreeLibrary((HMODULE)handle)
-#else
-    #include <dlfcn.h>
-    #define LOAD_LIBRARY(path) dlopen(path, RTLD_NOW)
-    #define GET_PROC(handle, name) dlsym(handle, name)
-    #define CLOSE_LIBRARY(handle) dlclose(handle)
-#endif
-
 namespace emu {
 
 SpeedrunManager::SpeedrunManager() = default;
@@ -32,24 +19,29 @@ void SpeedrunManager::initialize(PluginManager* plugin_manager) {
 }
 
 bool SpeedrunManager::load_plugin_for_rom(uint32_t crc32, const std::string& rom_name) {
-    // TODO: Scan speedrun_plugins directory and find matching plugin
-    // For now, just reset state
     unload_plugin();
     reset_timer();
+
+    // Get the game plugin from the plugin manager (it handles discovery)
+    if (m_plugin_manager) {
+        m_active_plugin = m_plugin_manager->get_game_plugin();
+        if (m_active_plugin && m_active_plugin->matches_rom(crc32, rom_name.c_str())) {
+            load_splits_from_plugin();
+            m_active_plugin->on_rom_loaded(this);
+            return true;
+        }
+        m_active_plugin = nullptr;
+    }
+
     return false;
 }
 
 void SpeedrunManager::unload_plugin() {
-    if (m_active_plugin && m_plugin_handle) {
-        auto destroy = reinterpret_cast<void(*)(ISpeedrunPlugin*)>(
-            GET_PROC(m_plugin_handle, "destroy_speedrun_plugin"));
-        if (destroy) {
-            destroy(m_active_plugin);
-        }
-        CLOSE_LIBRARY(m_plugin_handle);
+    if (m_active_plugin) {
+        m_active_plugin->on_rom_unloaded();
     }
+    // Plugin lifetime is managed by PluginManager, we just clear our reference
     m_active_plugin = nullptr;
-    m_plugin_handle = nullptr;
 }
 
 void SpeedrunManager::update() {
@@ -59,10 +51,32 @@ void SpeedrunManager::update() {
 }
 
 uint8_t SpeedrunManager::read_memory(uint16_t address) {
-    if (m_plugin_manager && m_plugin_manager->get_active_plugin()) {
-        return m_plugin_manager->get_active_plugin()->read_memory(address);
+    if (m_plugin_manager && m_plugin_manager->get_emulator_plugin()) {
+        return m_plugin_manager->get_emulator_plugin()->read_memory(address);
     }
     return 0;
+}
+
+uint16_t SpeedrunManager::read_memory_16(uint16_t address) {
+    // Little-endian read
+    uint16_t lo = read_memory(address);
+    uint16_t hi = read_memory(address + 1);
+    return lo | (hi << 8);
+}
+
+uint32_t SpeedrunManager::read_memory_32(uint16_t address) {
+    // Little-endian read
+    uint32_t b0 = read_memory(address);
+    uint32_t b1 = read_memory(address + 1);
+    uint32_t b2 = read_memory(address + 2);
+    uint32_t b3 = read_memory(address + 3);
+    return b0 | (b1 << 8) | (b2 << 16) | (b3 << 24);
+}
+
+void SpeedrunManager::write_memory(uint16_t address, uint8_t value) {
+    if (m_plugin_manager && m_plugin_manager->get_emulator_plugin()) {
+        m_plugin_manager->get_emulator_plugin()->write_memory(address, value);
+    }
 }
 
 void SpeedrunManager::start_timer() {
@@ -174,6 +188,21 @@ uint64_t SpeedrunManager::get_current_time_ms() const {
 
 int SpeedrunManager::get_current_split_index() const {
     return m_current_split;
+}
+
+uint64_t SpeedrunManager::get_frame_count() const {
+    if (m_plugin_manager && m_plugin_manager->get_emulator_plugin()) {
+        return m_plugin_manager->get_emulator_plugin()->get_frame_count();
+    }
+    return 0;
+}
+
+const char* SpeedrunManager::get_selected_category() const {
+    return m_category.c_str();
+}
+
+void SpeedrunManager::log_message(const char* message) {
+    std::cout << "[GamePlugin] " << message << std::endl;
 }
 
 uint64_t SpeedrunManager::get_total_time_ms() const {
@@ -296,14 +325,14 @@ void SpeedrunManager::load_splits_from_plugin() {
     if (!m_active_plugin) return;
 
     auto info = m_active_plugin->get_info();
-    m_game_name = info.game_name;
-    m_category = info.category;
+    m_game_name = info.game_name ? info.game_name : "";
+    m_category = info.categories && info.categories[0] ? info.categories[0] : "Any%";
 
-    auto split_defs = m_active_plugin->get_splits();
+    auto split_defs = m_active_plugin->get_splits(m_category.c_str());
     m_splits.clear();
     for (const auto& def : split_defs) {
         SplitTime split;
-        split.name = def.name;
+        split.name = def.name ? def.name : "";
         m_splits.push_back(split);
     }
 

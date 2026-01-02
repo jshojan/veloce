@@ -2,6 +2,10 @@
 #include "speedrun_panel.hpp"
 #include "debug_panel.hpp"
 #include "input_config_panel.hpp"
+#include "plugin_config_panel.hpp"
+#include "paths_config_panel.hpp"
+#include "notification_manager.hpp"
+#include "netplay_panel.hpp"
 #include "core/application.hpp"
 #include "core/window_manager.hpp"
 #include "core/renderer.hpp"
@@ -9,6 +13,15 @@
 #include "core/audio_manager.hpp"
 #include "core/input_manager.hpp"
 #include "core/speedrun_manager.hpp"
+#include "core/savestate_manager.hpp"
+#include "core/paths_config.hpp"
+#include "core/netplay_manager.hpp"
+
+#include <chrono>
+#include <cstring>
+#include <ctime>
+#include <iomanip>
+#include <sstream>
 
 #include <SDL.h>
 #include <imgui.h>
@@ -18,6 +31,7 @@
 #include <iostream>
 #include <filesystem>
 #include <algorithm>
+#include <stdexcept>
 
 namespace emu {
 
@@ -55,6 +69,10 @@ bool GuiManager::initialize(WindowManager& window_manager) {
     m_speedrun_panel = std::make_unique<SpeedrunPanel>();
     m_debug_panel = std::make_unique<DebugPanel>();
     m_input_config_panel = std::make_unique<InputConfigPanel>();
+    m_plugin_config_panel = std::make_unique<PluginConfigPanel>();
+    m_paths_config_panel = std::make_unique<PathsConfigPanel>();
+    m_notification_manager = std::make_unique<NotificationManager>();
+    // Note: NetplayPanel is created lazily since it needs Application reference
 
     m_initialized = true;
     std::cout << "GUI manager initialized" << std::endl;
@@ -92,6 +110,10 @@ void GuiManager::render(Application& app, Renderer& renderer) {
         render_rom_browser(app);
     }
 
+    if (m_show_savestate_browser) {
+        render_savestate_file_browser(app);
+    }
+
     // Clear input capture mode by default - only set when Input settings tab is active
     app.get_input_manager().set_input_capture_mode(false);
 
@@ -114,9 +136,26 @@ void GuiManager::render(Application& app, Renderer& renderer) {
         }
     }
 
+    // Render plugin configuration panel
+    if (m_show_plugin_config && m_plugin_config_panel) {
+        m_plugin_config_panel->render(app, m_show_plugin_config);
+    }
+
+    // Render netplay panel (create lazily if needed)
+    if (!m_netplay_panel) {
+        m_netplay_panel = std::make_unique<NetplayPanel>(app);
+    }
+    // Always call render - the panel handles its own visibility for dialogs and overlays
+    m_netplay_panel->render();
+
     // Demo window for development
     if (m_show_demo_window) {
         ImGui::ShowDemoWindow(&m_show_demo_window);
+    }
+
+    // Render notifications (always on top)
+    if (m_notification_manager) {
+        m_notification_manager->render();
     }
 }
 
@@ -139,7 +178,17 @@ void GuiManager::render_main_menu(Application& app) {
             if (ImGui::MenuItem("Open ROM...", "Ctrl+O")) {
                 m_show_rom_browser = true;
             }
+
             ImGui::Separator();
+
+            // Save State submenu
+            render_save_state_menu(app);
+
+            // Load State submenu
+            render_load_state_menu(app);
+
+            ImGui::Separator();
+
             if (ImGui::MenuItem("Exit", "Alt+F4")) {
                 app.request_quit();
             }
@@ -181,6 +230,10 @@ void GuiManager::render_main_menu(Application& app) {
         }
 
         if (ImGui::BeginMenu("Settings")) {
+            if (ImGui::MenuItem("Plugins...", nullptr, m_show_plugin_config)) {
+                m_show_plugin_config = !m_show_plugin_config;
+            }
+            ImGui::Separator();
             if (ImGui::MenuItem("Video...")) {
                 m_show_settings = true;
             }
@@ -190,6 +243,42 @@ void GuiManager::render_main_menu(Application& app) {
             if (ImGui::MenuItem("Input...")) {
                 m_show_settings = true;
             }
+            if (ImGui::MenuItem("Paths...")) {
+                m_show_settings = true;
+            }
+            ImGui::EndMenu();
+        }
+
+        if (ImGui::BeginMenu("Netplay")) {
+            // Ensure netplay panel exists
+            if (!m_netplay_panel) {
+                m_netplay_panel = std::make_unique<NetplayPanel>(app);
+            }
+
+            auto& netplay = app.get_netplay_manager();
+            bool is_connected = netplay.is_connected();
+            bool rom_loaded = app.get_plugin_manager().is_rom_loaded();
+
+            if (ImGui::MenuItem("Netplay Panel", nullptr, m_show_netplay_panel)) {
+                m_show_netplay_panel = !m_show_netplay_panel;
+            }
+
+            ImGui::Separator();
+
+            if (ImGui::MenuItem("Host Game...", nullptr, false, rom_loaded && !is_connected)) {
+                m_netplay_panel->show_host_dialog();
+            }
+
+            if (ImGui::MenuItem("Join Game...", nullptr, false, rom_loaded && !is_connected)) {
+                m_netplay_panel->show_join_dialog();
+            }
+
+            ImGui::Separator();
+
+            if (ImGui::MenuItem("Disconnect", nullptr, false, is_connected)) {
+                netplay.disconnect();
+            }
+
             ImGui::EndMenu();
         }
 
@@ -340,11 +429,22 @@ void GuiManager::render_rom_browser(Application& app) {
                             m_current_directory = entry.path().string();
                         }
                     } else {
-                        // Check if it's a supported ROM file
+                        // Check if it's a supported ROM file by querying registered plugins
                         std::string ext = entry.path().extension().string();
-                        bool is_rom = (ext == ".nes" || ext == ".NES" ||
-                                      ext == ".sfc" || ext == ".smc" ||
-                                      ext == ".gb" || ext == ".gbc");
+                        bool is_rom = false;
+
+                        // Query the plugin registry for supported file extensions
+                        const auto& registry = app.get_plugin_manager().get_registry();
+                        auto emulator_plugins = registry.get_plugins_of_type(emu::PluginType::Emulator);
+                        for (const auto& plugin : emulator_plugins) {
+                            for (const auto& supported_ext : plugin.file_extensions) {
+                                if (ext == supported_ext) {
+                                    is_rom = true;
+                                    break;
+                                }
+                            }
+                            if (is_rom) break;
+                        }
 
                         if (is_rom) {
                             if (ImGui::Selectable(name.c_str())) {
@@ -372,7 +472,7 @@ void GuiManager::render_rom_browser(Application& app) {
 }
 
 void GuiManager::render_settings(Application& app) {
-    ImGui::SetNextWindowSize(ImVec2(400, 300), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(500, 400), ImGuiCond_FirstUseEver);
 
     if (ImGui::Begin("Settings", &m_show_settings)) {
         if (ImGui::BeginTabBar("SettingsTabs")) {
@@ -415,7 +515,251 @@ void GuiManager::render_settings(Application& app) {
                 ImGui::EndTabItem();
             }
 
+            if (ImGui::BeginTabItem("Paths")) {
+                // Render the paths configuration panel
+                if (m_paths_config_panel) {
+                    m_paths_config_panel->render(app);
+                }
+                ImGui::EndTabItem();
+            }
+
             ImGui::EndTabBar();
+        }
+    }
+    ImGui::End();
+}
+
+NotificationManager& GuiManager::get_notification_manager() {
+    return *m_notification_manager;
+}
+
+NetplayPanel& GuiManager::get_netplay_panel() {
+    // This should only be called after render() has been called at least once
+    // but we create lazily just in case
+    if (!m_netplay_panel) {
+        // This is a fallback - normally the panel is created during render()
+        // We need an Application reference which we don't have here
+        // This should never happen in normal usage
+        throw std::runtime_error("NetplayPanel accessed before initialization");
+    }
+    return *m_netplay_panel;
+}
+
+std::string GuiManager::format_savestate_slot_label(int slot, bool has_save, int64_t timestamp) const {
+    std::ostringstream label;
+    label << "Slot " << (slot + 1);
+
+    if (has_save && timestamp > 0) {
+        // Convert timestamp to readable format
+        // The timestamp is stored as system_clock duration count
+        auto tp = std::chrono::system_clock::time_point(
+            std::chrono::system_clock::duration(timestamp));
+        std::time_t time = std::chrono::system_clock::to_time_t(tp);
+        std::tm* tm = std::localtime(&time);
+        if (tm) {
+            label << " - " << std::put_time(tm, "%Y-%m-%d %H:%M:%S");
+        }
+    } else if (!has_save) {
+        label << " - <empty>";
+    }
+
+    return label.str();
+}
+
+void GuiManager::render_save_state_menu(Application& app) {
+    bool rom_loaded = app.get_plugin_manager().is_rom_loaded();
+
+    if (ImGui::BeginMenu("Save State", rom_loaded)) {
+        auto& savestate_mgr = app.get_savestate_manager();
+        auto& notifications = get_notification_manager();
+
+        // Slot items (1-10)
+        for (int slot = 0; slot < SavestateManager::NUM_SLOTS; ++slot) {
+            SavestateInfo info = savestate_mgr.get_slot_info(slot);
+
+            std::string label = format_savestate_slot_label(slot, info.valid, info.timestamp);
+
+            // Hotkey text: Shift+F1 through Shift+F10
+            std::string hotkey = "Shift+F" + std::to_string(slot + 1);
+
+            if (ImGui::MenuItem(label.c_str(), hotkey.c_str())) {
+                std::ostringstream msg;
+                if (savestate_mgr.save_state(slot)) {
+                    msg << "State saved to slot " << (slot + 1);
+                    notifications.success(msg.str());
+                } else {
+                    msg << "Failed to save state to slot " << (slot + 1);
+                    notifications.error(msg.str());
+                }
+            }
+        }
+
+        ImGui::Separator();
+
+        // Save to file option
+        if (ImGui::MenuItem("Save to file...", "Ctrl+S")) {
+            m_show_savestate_browser = true;
+            m_savestate_browser_is_save = true;
+            // Initialize browser directory to savestates path
+            auto& paths = app.get_paths_config();
+            m_savestate_browser_directory = paths.get_savestate_directory().string();
+        }
+
+        ImGui::EndMenu();
+    }
+}
+
+void GuiManager::render_load_state_menu(Application& app) {
+    bool rom_loaded = app.get_plugin_manager().is_rom_loaded();
+
+    if (ImGui::BeginMenu("Load State", rom_loaded)) {
+        auto& savestate_mgr = app.get_savestate_manager();
+        auto& notifications = get_notification_manager();
+
+        // Slot items (1-10)
+        for (int slot = 0; slot < SavestateManager::NUM_SLOTS; ++slot) {
+            SavestateInfo info = savestate_mgr.get_slot_info(slot);
+
+            std::string label = format_savestate_slot_label(slot, info.valid, info.timestamp);
+
+            // Hotkey text: F1 through F10
+            std::string hotkey = "F" + std::to_string(slot + 1);
+
+            // Disable menu item if slot is empty
+            if (ImGui::MenuItem(label.c_str(), hotkey.c_str(), false, info.valid)) {
+                std::ostringstream msg;
+                if (savestate_mgr.load_state(slot)) {
+                    msg << "State loaded from slot " << (slot + 1);
+                    notifications.success(msg.str());
+                } else {
+                    msg << "Failed to load state from slot " << (slot + 1);
+                    notifications.error(msg.str());
+                }
+            }
+        }
+
+        ImGui::Separator();
+
+        // Load from file option
+        if (ImGui::MenuItem("Load from file...", "Ctrl+L")) {
+            m_show_savestate_browser = true;
+            m_savestate_browser_is_save = false;
+            // Initialize browser directory to savestates path
+            auto& paths = app.get_paths_config();
+            m_savestate_browser_directory = paths.get_savestate_directory().string();
+        }
+
+        ImGui::EndMenu();
+    }
+}
+
+void GuiManager::render_savestate_file_browser(Application& app) {
+    const char* title = m_savestate_browser_is_save ? "Save State to File" : "Load State from File";
+    ImGui::SetNextWindowSize(ImVec2(600, 400), ImGuiCond_FirstUseEver);
+
+    if (ImGui::Begin(title, &m_show_savestate_browser)) {
+        auto& savestate_mgr = app.get_savestate_manager();
+        auto& notifications = get_notification_manager();
+
+        // Current path
+        ImGui::Text("Path: %s", m_savestate_browser_directory.c_str());
+        ImGui::Separator();
+
+        // Filename input for save mode
+        static char filename_buf[256] = "savestate.state";
+        if (m_savestate_browser_is_save) {
+            ImGui::InputText("Filename", filename_buf, sizeof(filename_buf));
+        }
+
+        // File list
+        if (ImGui::BeginChild("FileList", ImVec2(0, -30))) {
+            namespace fs = std::filesystem;
+
+            try {
+                // Ensure directory exists
+                if (!fs::exists(m_savestate_browser_directory)) {
+                    fs::create_directories(m_savestate_browser_directory);
+                }
+
+                // Parent directory entry
+                if (fs::path(m_savestate_browser_directory).has_parent_path()) {
+                    if (ImGui::Selectable("..")) {
+                        m_savestate_browser_directory = fs::path(m_savestate_browser_directory).parent_path().string();
+                    }
+                }
+
+                // Directory entries
+                std::vector<fs::directory_entry> entries;
+                for (const auto& entry : fs::directory_iterator(m_savestate_browser_directory)) {
+                    entries.push_back(entry);
+                }
+
+                // Sort: directories first, then files
+                std::sort(entries.begin(), entries.end(),
+                    [](const fs::directory_entry& a, const fs::directory_entry& b) {
+                        if (a.is_directory() != b.is_directory()) {
+                            return a.is_directory();
+                        }
+                        return a.path().filename() < b.path().filename();
+                    });
+
+                for (const auto& entry : entries) {
+                    std::string name = entry.path().filename().string();
+
+                    if (entry.is_directory()) {
+                        name = "[DIR] " + name;
+                        if (ImGui::Selectable(name.c_str())) {
+                            m_savestate_browser_directory = entry.path().string();
+                        }
+                    } else {
+                        // Check if it's a savestate file (.state extension)
+                        std::string ext = entry.path().extension().string();
+                        bool is_savestate = (ext == ".state" || ext == ".sav" || ext == ".ss");
+
+                        if (is_savestate) {
+                            if (ImGui::Selectable(name.c_str())) {
+                                if (m_savestate_browser_is_save) {
+                                    // Copy filename to input
+                                    std::strncpy(filename_buf, name.c_str(), sizeof(filename_buf) - 1);
+                                } else {
+                                    // Load the file
+                                    std::string path = entry.path().string();
+                                    if (savestate_mgr.load_state_from_file(path)) {
+                                        notifications.success("State loaded from " + name);
+                                        m_show_savestate_browser = false;
+                                    } else {
+                                        notifications.error("Failed to load state from " + name);
+                                    }
+                                }
+                            }
+                        } else {
+                            ImGui::TextDisabled("%s", name.c_str());
+                        }
+                    }
+                }
+            } catch (const std::exception& e) {
+                ImGui::TextColored(ImVec4(1, 0, 0, 1), "Error: %s", e.what());
+            }
+        }
+        ImGui::EndChild();
+
+        // Buttons
+        if (m_savestate_browser_is_save) {
+            if (ImGui::Button("Save")) {
+                namespace fs = std::filesystem;
+                std::string path = (fs::path(m_savestate_browser_directory) / filename_buf).string();
+                if (savestate_mgr.save_state_to_file(path)) {
+                    notifications.success("State saved to " + std::string(filename_buf));
+                    m_show_savestate_browser = false;
+                } else {
+                    notifications.error("Failed to save state to " + std::string(filename_buf));
+                }
+            }
+            ImGui::SameLine();
+        }
+
+        if (ImGui::Button("Cancel")) {
+            m_show_savestate_browser = false;
         }
     }
     ImGui::End();

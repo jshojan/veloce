@@ -1,5 +1,6 @@
 #include "savestate_manager.hpp"
 #include "plugin_manager.hpp"
+#include "paths_config.hpp"
 #include "emu/emulator_plugin.hpp"
 
 #include <fstream>
@@ -11,9 +12,12 @@
 namespace emu {
 
 // Savestate file format header
+// Version history:
+// 1 - Initial format
+// 2 - Added complete PPU NMI state, sprite state, CPU m_nmi_delayed flag
 struct SavestateHeader {
     char magic[4] = {'V', 'E', 'L', 'O'};  // "VELO" - Veloce Savestate
-    uint32_t version = 1;
+    uint32_t version = 2;
     uint32_t rom_crc32 = 0;
     uint64_t frame_count = 0;
     int64_t timestamp = 0;
@@ -24,11 +28,14 @@ struct SavestateHeader {
 SavestateManager::SavestateManager() = default;
 SavestateManager::~SavestateManager() = default;
 
-void SavestateManager::initialize(PluginManager* plugin_manager) {
+void SavestateManager::initialize(PluginManager* plugin_manager, PathsConfiguration* paths_config) {
     m_plugin_manager = plugin_manager;
+    m_paths_config = paths_config;
 
-    // Create save directory if it doesn't exist
-    std::filesystem::create_directories(m_save_directory);
+    // The paths configuration handles directory creation
+    if (m_paths_config) {
+        m_paths_config->ensure_directories_exist();
+    }
 }
 
 bool SavestateManager::save_state(int slot) {
@@ -158,11 +165,6 @@ bool SavestateManager::is_slot_valid(int slot) const {
     return get_slot_info(slot).valid;
 }
 
-void SavestateManager::set_save_directory(const std::string& dir) {
-    m_save_directory = dir;
-    std::filesystem::create_directories(dir);
-}
-
 std::string SavestateManager::get_savestate_path(int slot) const {
     // Use ROM CRC as part of filename to separate saves per game
     if (!m_plugin_manager) return "";
@@ -171,10 +173,91 @@ std::string SavestateManager::get_savestate_path(int slot) const {
     if (!plugin || !plugin->is_rom_loaded()) return "";
 
     uint32_t crc = plugin->get_rom_crc32();
-    char filename[64];
-    std::snprintf(filename, sizeof(filename), "%08X_slot%d.sav", crc, slot);
 
-    return m_save_directory + "/" + filename;
+    // Use paths configuration if available, otherwise fall back to default
+    if (m_paths_config) {
+        return m_paths_config->get_savestate_path(crc, slot).string();
+    }
+
+    // Fallback path if no config is set
+    char filename[64];
+    std::snprintf(filename, sizeof(filename), "%08X_slot%d.state", crc, slot);
+    return std::string("savestates/") + filename;
+}
+
+bool SavestateManager::save_state_to_file(const std::string& path) {
+    if (!m_plugin_manager) {
+        std::cerr << "SavestateManager not initialized" << std::endl;
+        return false;
+    }
+
+    auto* plugin = m_plugin_manager->get_active_plugin();
+    if (!plugin || !plugin->is_rom_loaded()) {
+        std::cerr << "No ROM loaded, cannot save state" << std::endl;
+        return false;
+    }
+
+    // Serialize emulator state
+    std::vector<uint8_t> data;
+    if (!plugin->save_state(data)) {
+        std::cerr << "Failed to serialize emulator state" << std::endl;
+        return false;
+    }
+
+    // Build savestate info
+    SavestateInfo info;
+    info.rom_name = m_current_rom_name;
+    info.rom_crc32 = plugin->get_rom_crc32();
+    info.frame_count = plugin->get_frame_count();
+    info.timestamp = std::chrono::system_clock::now().time_since_epoch().count();
+    info.valid = true;
+
+    // Write to file
+    if (!write_savestate_file(path, data, info)) {
+        std::cerr << "Failed to write savestate file: " << path << std::endl;
+        return false;
+    }
+
+    std::cout << "Saved state to file: " << path << " (" << data.size() << " bytes)" << std::endl;
+    return true;
+}
+
+bool SavestateManager::load_state_from_file(const std::string& path) {
+    if (!m_plugin_manager) {
+        std::cerr << "SavestateManager not initialized" << std::endl;
+        return false;
+    }
+
+    auto* plugin = m_plugin_manager->get_active_plugin();
+    if (!plugin || !plugin->is_rom_loaded()) {
+        std::cerr << "No ROM loaded, cannot load state" << std::endl;
+        return false;
+    }
+
+    // Read savestate file
+    SavestateInfo info;
+    auto data = read_savestate_file(path, info);
+
+    if (!data.has_value()) {
+        std::cerr << "Failed to read savestate file: " << path << std::endl;
+        return false;
+    }
+
+    // Verify ROM CRC matches
+    if (info.rom_crc32 != plugin->get_rom_crc32()) {
+        std::cerr << "Savestate ROM CRC mismatch! Expected: " << std::hex
+                  << plugin->get_rom_crc32() << ", got: " << info.rom_crc32 << std::dec << std::endl;
+        return false;
+    }
+
+    // Load the state
+    if (!plugin->load_state(data.value())) {
+        std::cerr << "Failed to deserialize emulator state" << std::endl;
+        return false;
+    }
+
+    std::cout << "Loaded state from file: " << path << " (frame " << info.frame_count << ")" << std::endl;
+    return true;
 }
 
 bool SavestateManager::write_savestate_file(const std::string& path,
@@ -214,10 +297,12 @@ std::optional<std::vector<uint8_t>> SavestateManager::read_savestate_file(const 
         return std::nullopt;
     }
 
-    if (header.version != 1) {
+    if (header.version < 1 || header.version > 2) {
         std::cerr << "Unsupported savestate version: " << header.version << std::endl;
         return std::nullopt;
     }
+    // Note: Version 1 savestates are not compatible with version 2 due to
+    // added NMI/sprite state fields. Old savestates will fail to load correctly.
 
     // Fill info
     info.rom_name = header.rom_name;

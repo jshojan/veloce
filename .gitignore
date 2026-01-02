@@ -54,7 +54,9 @@ DerivedData/
 # User data (config, saves, etc.)
 config/
 splits/
+saves/
 savestates/
+screenshots/
 *.sav
 *.tas
 *.fm2
@@ -66,7 +68,7 @@ savestates/
 *.gb
 *.gbc
 *.gba
-
+*-test-roms/
 # Logs
 *.log
 

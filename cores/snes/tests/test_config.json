@@ -1,0 +1,62 @@
+{
+  "description": "SNES Emulator Test Configuration - Blargg Tests",
+  "repository": "https://gitlab.com/higan/snes-test-roms",
+  "download_url": "https://github.com/MiSTer-devel/SNES_MiSTer/files/4109309/blargg_testroms.zip",
+  "timeout_seconds": 60,
+
+  "blargg_memory_interface": {
+    "description": "Blargg tests write results to specific memory addresses",
+    "status_address": "0x6000",
+    "status_values": {
+      "0x00": "Test passed",
+      "0x01-0x7F": "Test failed with error code",
+      "0x80": "Test still running",
+      "0x81": "Test needs reset button"
+    },
+    "signature_address": "0x6001-0x6003",
+    "signature_bytes": "0xDE 0xB0 0x61",
+    "result_text_address": "0x6004+",
+    "result_text_format": "Null-terminated ASCII string"
+  },
+
+  "test_suites": {
+    "blargg_spc": {
+      "name": "Blargg SPC700/DSP Tests",
+      "description": "Blargg's SPC700 audio processor and DSP tests",
+      "priority": "high",
+      "tests": []
+    }
+  },
+
+  "notes": {
+    "auto_discovery": "Tests are auto-discovered from the blargg-test-roms directory",
+    "result_parsing": "Results are parsed from DEBUG=1 output looking for BLARGG_STATUS or Status code patterns",
+    "memory_detection": "The emulator reads $6000-$6003 to detect test completion and results"
+  },
+
+  "known_issues": {
+    "spc_dsp6": "DSP6 test fails on 3-chip SNES consoles, passes only on higan/bsnes"
+  },
+
+  "available_tests": {
+    "spc_dsp6.sfc": {
+      "description": "Comprehensive DSP register and behavior tests",
+      "known_issue": "Fails on 3-chip consoles, may freeze on some hardware"
+    },
+    "spc_mem_access_times.sfc": {
+      "description": "Memory access timing validation"
+    },
+    "spc_spc.sfc": {
+      "description": "SPC700 instruction set tests"
+    },
+    "spc_timer.sfc": {
+      "description": "SPC700 timer functionality tests"
+    }
+  },
+
+  "references": {
+    "nesdev_forum": "https://forums.nesdev.org/viewtopic.php?t=18005",
+    "mister_issue": "https://github.com/MiSTer-devel/SNES_MiSTer/issues/201",
+    "higan_test_roms": "https://gitlab.com/higan/snes-test-roms"
+  }
+}

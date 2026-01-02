@@ -20,6 +20,7 @@ namespace emu {
 struct InputPluginInfo {
     const char* name;           // "Default Input", "TAS Input", etc.
     const char* version;        // "1.0.0"
+    const char* author;         // Plugin author
     const char* description;    // Brief description
     bool supports_recording;    // Can record input
     bool supports_playback;     // Can playback recorded input

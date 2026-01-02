@@ -20,6 +20,7 @@ namespace emu {
 struct TASPluginInfo {
     const char* name;           // "TAS Editor", etc.
     const char* version;        // "1.0.0"
+    const char* author;         // Plugin author
     const char* description;    // Brief description
     const char** file_formats;  // Supported file formats {".fm2", ".bk2", nullptr}
 };

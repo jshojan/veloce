@@ -10,6 +10,12 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
+# Plugin output directories:
+# - cores/   : Emulator core plugins (NES, GBA, SNES, etc.)
+# - plugins/ : Other plugins (audio, input, TAS, speedrun tools, game plugins)
+set(VELOCE_CORES_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/cores)
+set(VELOCE_PLUGINS_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/plugins)
+
 # For multi-config generators (Visual Studio, Xcode)
 foreach(CONFIG_TYPE ${CMAKE_CONFIGURATION_TYPES})
     string(TOUPPER ${CONFIG_TYPE} CONFIG_TYPE_UPPER)
@@ -98,8 +104,13 @@ set(CORE_SOURCES
     src/core/input_manager.cpp
     src/core/audio_manager.cpp
     src/core/plugin_manager.cpp
+    src/core/plugin_registry.cpp
+    src/core/plugin_config.cpp
+    src/core/paths_config.cpp
     src/core/speedrun_manager.cpp
     src/core/savestate_manager.cpp
+    src/core/netplay_manager.cpp
+    src/core/netplay_input_manager.cpp
 )
 
 set(GUI_SOURCES
@@ -109,6 +120,10 @@ set(GUI_SOURCES
     src/gui/speedrun_panel.cpp
     src/gui/debug_panel.cpp
     src/gui/input_config_panel.cpp
+    src/gui/plugin_config_panel.cpp
+    src/gui/paths_config_panel.cpp
+    src/gui/notification_manager.cpp
+    src/gui/netplay_panel.cpp
 )
 
 # Main executable
@@ -160,8 +175,13 @@ if(EXISTS ${CMAKE_SOURCE_DIR}/assets)
     )
 endif()
 
-# Enable plugins subdirectory
-add_subdirectory(plugins/nes)
+# Emulator cores (cores/ directory)
+add_subdirectory(cores/nes)
+add_subdirectory(cores/snes)
+add_subdirectory(cores/gb)
+add_subdirectory(cores/gba)
+
+# Auxiliary plugins (plugins/ directory)
 add_subdirectory(plugins/audio_default)
 add_subdirectory(plugins/input_default)
 add_subdirectory(plugins/tas_default)

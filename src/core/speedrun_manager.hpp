@@ -1,6 +1,6 @@
 #pragma once
 
-#include "emu/speedrun_plugin.hpp"
+#include "emu/game_plugin.hpp"
 #include <string>
 #include <vector>
 #include <chrono>
@@ -28,7 +28,8 @@ struct PersonalBest {
 };
 
 // Speedrun manager - handles timer, splits, PB tracking
-class SpeedrunManager : public ISpeedrunHost {
+// Now implements IGameHost to work with IGamePlugin
+class SpeedrunManager : public IGameHost {
 public:
     SpeedrunManager();
     ~SpeedrunManager();
@@ -36,15 +37,18 @@ public:
     // Initialize with plugin manager for memory access
     void initialize(PluginManager* plugin_manager);
 
-    // Load speedrun plugin for current ROM
+    // Load game plugin for current ROM (uses PluginManager's game plugin)
     bool load_plugin_for_rom(uint32_t crc32, const std::string& rom_name);
     void unload_plugin();
 
     // Called each frame
     void update();
 
-    // ISpeedrunHost interface
+    // IGameHost interface
     uint8_t read_memory(uint16_t address) override;
+    uint16_t read_memory_16(uint16_t address) override;
+    uint32_t read_memory_32(uint16_t address) override;
+    void write_memory(uint16_t address, uint8_t value) override;
     void start_timer() override;
     void stop_timer() override;
     void reset_timer() override;
@@ -54,6 +58,9 @@ public:
     bool is_timer_running() const override;
     uint64_t get_current_time_ms() const override;
     int get_current_split_index() const override;
+    uint64_t get_frame_count() const override;
+    const char* get_selected_category() const override;
+    void log_message(const char* message) override;
 
     // Timer info
     uint64_t get_total_time_ms() const;
@@ -81,8 +88,7 @@ private:
     std::string get_pb_filename() const;
 
     PluginManager* m_plugin_manager = nullptr;
-    ISpeedrunPlugin* m_active_plugin = nullptr;
-    void* m_plugin_handle = nullptr;
+    IGamePlugin* m_active_plugin = nullptr;
 
     // Timer state
     bool m_running = false;
