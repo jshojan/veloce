@@ -81,6 +81,7 @@ void DSP::reset() {
         voice.envelope_mode = 0;
         voice.envelope_level = 0;
         voice.envelope_rate = 0;
+        voice.envelope_counter = 0;
         voice.adsr1 = 0;
         voice.adsr2 = 0;
         voice.gain = 0;
@@ -266,6 +267,7 @@ void DSP::step() {
                 voice.pitch_counter = 0;
                 voice.envelope_level = 0;
                 voice.envelope_mode = 1;  // Attack
+                voice.envelope_counter = 0;
 
                 // Clear ENDX bit
                 m_regs[REG_ENDX] &= ~(1 << v);
@@ -321,7 +323,7 @@ void DSP::step() {
             }
 
             // Store sample in ring buffer
-            voice.samples[voice.sample_index] = voice.brr_buffer[voice.brr_offset >> 2];
+            voice.samples[voice.sample_index] = voice.brr_buffer[voice.brr_offset];
             voice.sample_index = (voice.sample_index + 1) % 12;
         }
 
@@ -441,18 +443,15 @@ void DSP::decode_brr_block(int v) {
     int prev1 = voice.samples[(voice.sample_index + 11) % 12];
     int prev2 = voice.samples[(voice.sample_index + 10) % 12];
 
-    // Decode 16 samples (4 at a time)
-    for (int i = 0; i < 4; i++) {
-        uint8_t byte = ram[(voice.brr_addr + 1 + i * 2) & 0xFFFF];
-        uint8_t byte2 = ram[(voice.brr_addr + 2 + i * 2) & 0xFFFF];
+    // Decode 16 samples from 8 data bytes (2 nibbles per byte)
+    // BRR block layout: 1 header byte + 8 data bytes = 9 bytes total
+    int sample_idx = 0;
+    for (int i = 0; i < 8; i++) {
+        uint8_t byte = ram[(voice.brr_addr + 1 + i) & 0xFFFF];
 
-        for (int j = 0; j < 4; j++) {
-            int nibble;
-            if (j < 2) {
-                nibble = (j == 0) ? (byte >> 4) : (byte & 0x0F);
-            } else {
-                nibble = (j == 2) ? (byte2 >> 4) : (byte2 & 0x0F);
-            }
+        // Each byte has 2 nibbles (high nibble first)
+        for (int j = 0; j < 2; j++) {
+            int nibble = (j == 0) ? (byte >> 4) : (byte & 0x0F);
 
             // Sign extend nibble
             if (nibble >= 8) nibble -= 16;
@@ -486,7 +485,8 @@ void DSP::decode_brr_block(int v) {
             sample = std::clamp(sample, -32768, 32767);
             sample = static_cast<int16_t>(sample << 1) >> 1;  // Clip to 15-bit signed
 
-            voice.brr_buffer[i] = static_cast<int16_t>(sample);
+            // Store sample in buffer - all 16 samples
+            voice.brr_buffer[sample_idx++] = static_cast<int16_t>(sample);
 
             prev2 = prev1;
             prev1 = sample;
@@ -519,81 +519,111 @@ int16_t DSP::interpolate(int v) {
 void DSP::process_envelope(int v) {
     auto& voice = m_voices[v];
 
-    // Check if using ADSR or GAIN mode
+    // Determine rate based on mode
+    int rate = 0;
     bool use_adsr = (voice.adsr1 & 0x80) != 0;
 
-    if (use_adsr) {
+    if (voice.envelope_mode == 0) {
+        // Release mode - always rate 31 (fastest)
+        rate = 31;
+    } else if (use_adsr) {
         // ADSR mode
-        int rate;
         switch (voice.envelope_mode) {
             case 1:  // Attack
                 rate = ((voice.adsr1 & 0x0F) << 1) + 1;
-                if (voice.envelope_level >= 0x7E0) {
-                    voice.envelope_level = 0x7FF;
-                    voice.envelope_mode = 2;  // Decay
-                } else {
-                    voice.envelope_level += (rate == 31) ? 1024 : 32;
-                }
                 break;
-
             case 2:  // Decay
                 rate = ((voice.adsr1 >> 4) & 0x07) * 2 + 16;
-                voice.envelope_level -= ((voice.envelope_level - 1) >> 8) + 1;
-                if (voice.envelope_level <= ((voice.adsr2 >> 5) + 1) * 0x100) {
-                    voice.envelope_mode = 3;  // Sustain
-                }
                 break;
-
             case 3:  // Sustain
                 rate = voice.adsr2 & 0x1F;
-                if (rate != 0) {
-                    voice.envelope_level -= ((voice.envelope_level - 1) >> 8) + 1;
-                }
-                break;
-
-            case 0:  // Release
-            default:
-                voice.envelope_level -= 8;
-                if (voice.envelope_level < 0) voice.envelope_level = 0;
                 break;
         }
     } else {
         // GAIN mode
         uint8_t gain = voice.gain;
         if (gain < 0x80) {
-            // Direct mode
+            // Direct mode - immediate, no rate
             voice.envelope_level = gain << 4;
-        } else {
-            int mode = (gain >> 5) & 0x03;
-            int rate = gain & 0x1F;
-
-            switch (mode) {
-                case 0:  // Linear decrease
-                    voice.envelope_level -= 32;
-                    break;
-                case 1:  // Exponential decrease
-                    voice.envelope_level -= ((voice.envelope_level - 1) >> 8) + 1;
-                    break;
-                case 2:  // Linear increase
-                    voice.envelope_level += 32;
-                    break;
-                case 3:  // Bent line increase
-                    if (voice.envelope_level < 0x600) {
-                        voice.envelope_level += 32;
-                    } else {
-                        voice.envelope_level += 8;
-                    }
-                    break;
-            }
+            return;
         }
+        rate = gain & 0x1F;
+    }
 
-        if (voice.envelope_mode == 0) {
-            // Release
-            voice.envelope_level -= 8;
+    // Rate 0 means envelope is frozen (except release)
+    if (rate == 0 && voice.envelope_mode != 0) {
+        return;
+    }
+
+    // Increment counter and check if we should update
+    voice.envelope_counter++;
+    if (voice.envelope_counter < ENVELOPE_RATE_TABLE[rate]) {
+        return;  // Not time to update yet
+    }
+    voice.envelope_counter = 0;  // Reset counter
+
+    // Apply envelope change based on mode
+    if (voice.envelope_mode == 0) {
+        // Release - linear decrease by 8
+        voice.envelope_level -= 8;
+        if (voice.envelope_level < 0) {
+            voice.envelope_level = 0;
+        }
+    } else if (use_adsr) {
+        switch (voice.envelope_mode) {
+            case 1:  // Attack - linear increase
+                if (rate == 31) {
+                    voice.envelope_level += 1024;  // Fast attack
+                } else {
+                    voice.envelope_level += 32;
+                }
+                // Check for attack completion
+                if (voice.envelope_level >= 0x7E0) {
+                    voice.envelope_level = 0x7FF;
+                    voice.envelope_mode = 2;  // Move to decay
+                }
+                break;
+
+            case 2:  // Decay - exponential decrease
+                voice.envelope_level -= ((voice.envelope_level - 1) >> 8) + 1;
+                // Check for sustain level reached
+                {
+                    int sustain_level = ((voice.adsr2 >> 5) + 1) * 0x100;
+                    if (voice.envelope_level <= sustain_level) {
+                        voice.envelope_level = sustain_level;
+                        voice.envelope_mode = 3;  // Move to sustain
+                    }
+                }
+                break;
+
+            case 3:  // Sustain - exponential decrease
+                voice.envelope_level -= ((voice.envelope_level - 1) >> 8) + 1;
+                break;
+        }
+    } else {
+        // GAIN mode (rate > 0, non-direct)
+        int mode = (voice.gain >> 5) & 0x03;
+        switch (mode) {
+            case 0:  // Linear decrease
+                voice.envelope_level -= 32;
+                break;
+            case 1:  // Exponential decrease
+                voice.envelope_level -= ((voice.envelope_level - 1) >> 8) + 1;
+                break;
+            case 2:  // Linear increase
+                voice.envelope_level += 32;
+                break;
+            case 3:  // Bent line increase
+                if (voice.envelope_level < 0x600) {
+                    voice.envelope_level += 32;
+                } else {
+                    voice.envelope_level += 8;
+                }
+                break;
         }
     }
 
-    // Clamp envelope
+    // Clamp envelope to valid range
     voice.envelope_level = std::clamp(voice.envelope_level, 0, 0x7FF);
 }
 
@@ -635,6 +665,8 @@ void DSP::save_state(std::vector<uint8_t>& data) {
         data.push_back(voice.envelope_level & 0xFF);
         data.push_back((voice.envelope_level >> 8) & 0xFF);
         data.push_back(voice.envelope_mode);
+        data.push_back(voice.envelope_counter & 0xFF);
+        data.push_back((voice.envelope_counter >> 8) & 0xFF);
     }
 
     // Save echo state
@@ -654,6 +686,8 @@ void DSP::load_state(const uint8_t*& data, size_t& remaining) {
         voice.envelope_level = data[0] | (data[1] << 8);
         data += 2; remaining -= 2;
         voice.envelope_mode = *data++; remaining--;
+        voice.envelope_counter = data[0] | (data[1] << 8);
+        data += 2; remaining -= 2;
     }
 
     // Load echo state

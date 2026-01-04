@@ -36,6 +36,7 @@ private:
     // Render individual sections
     void render_plugin_selector(const char* label, PluginType type, bool enabled = true,
                                 const char* disabled_message = nullptr);
+    void render_game_plugin_multi_selector();  // Multi-select for game plugins
     void render_emulator_cores_section();
     void render_about_plugin(const PluginSelection* selection);
     void render_buttons(Application& app, bool& visible);
@@ -64,6 +65,12 @@ private:
 
     // Track selected emulator core for info display (-1 = none)
     int m_selected_core = -1;
+
+    // Track selected game plugin for info display (-1 = none)
+    int m_selected_game_plugin = -1;
+
+    // Game plugin enabled states (for multi-select checkboxes)
+    std::unordered_map<std::string, bool> m_game_plugin_enabled;
 
     // Reference to plugin manager (set during render)
     PluginManager* m_plugin_manager = nullptr;

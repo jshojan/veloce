@@ -46,6 +46,14 @@ void APU::reset() {
     m_cycles = 0;
     m_sample_counter = 0;
     m_audio_write_pos = 0;
+
+    // Reset audio filters
+    m_hp_filter_left = 0.0f;
+    m_hp_filter_right = 0.0f;
+    m_hp_prev_in_left = 0.0f;
+    m_hp_prev_in_right = 0.0f;
+    m_lp_filter_left = 0.0f;
+    m_lp_filter_right = 0.0f;
 }
 
 void APU::step(int cycles) {
@@ -122,9 +130,41 @@ void APU::step(int cycles) {
             if (m_audio_write_pos < AUDIO_BUFFER_SIZE) {
                 float left, right;
                 mix_output(left, right);
-                m_audio_buffer[m_audio_write_pos * 2] = left;
-                m_audio_buffer[m_audio_write_pos * 2 + 1] = right;
-                m_audio_write_pos++;
+
+                // Apply high-pass filter to remove DC offset (~37Hz cutoff like real GB)
+                // y[n] = alpha * (y[n-1] + x[n] - x[n-1])
+                // Alpha = 1 / (1 + 2*pi*fc/fs) = 1 / (1 + 2*pi*37/44100) = 0.9947
+                constexpr float HP_ALPHA = 0.9947f;
+                float hp_left = HP_ALPHA * (m_hp_filter_left + left - m_hp_prev_in_left);
+                float hp_right = HP_ALPHA * (m_hp_filter_right + right - m_hp_prev_in_right);
+                m_hp_prev_in_left = left;
+                m_hp_prev_in_right = right;
+                m_hp_filter_left = hp_left;
+                m_hp_filter_right = hp_right;
+
+                // Apply gentle low-pass filter for smoothing (~14kHz)
+                // Alpha = 2 * pi * fc / fs = 2 * pi * 14000 / 44100 = 0.5
+                constexpr float LP_ALPHA = 0.5f;
+                m_lp_filter_left = m_lp_filter_left + LP_ALPHA * (hp_left - m_lp_filter_left);
+                m_lp_filter_right = m_lp_filter_right + LP_ALPHA * (hp_right - m_lp_filter_right);
+
+                // If streaming callback is set, use low-latency path
+                if (m_audio_callback) {
+                    m_stream_buffer[m_stream_pos * 2] = m_lp_filter_left;
+                    m_stream_buffer[m_stream_pos * 2 + 1] = m_lp_filter_right;
+                    m_stream_pos++;
+
+                    // Flush when buffer is full (every 64 samples = ~1.5ms)
+                    if (m_stream_pos >= STREAM_BUFFER_SIZE) {
+                        m_audio_callback(m_stream_buffer, m_stream_pos, 44100);
+                        m_stream_pos = 0;
+                    }
+                } else {
+                    // Legacy path: buffer until get_samples() is called
+                    m_audio_buffer[m_audio_write_pos * 2] = m_lp_filter_left;
+                    m_audio_buffer[m_audio_write_pos * 2 + 1] = m_lp_filter_right;
+                    m_audio_write_pos++;
+                }
             }
         }
     }
@@ -398,12 +438,38 @@ uint8_t APU::read_register(uint16_t address) {
 }
 
 void APU::write_register(uint16_t address, uint8_t value) {
-    // If APU is disabled, only NR52 can be written
-    if (!m_enabled && (address & 0xFF) != 0x26) {
+    uint8_t reg = address & 0xFF;
+
+    // If APU is disabled, only NR52 and length registers (on DMG) can be written
+    // On DMG, NRx1 length registers (NR11=0x11, NR21=0x16, NR31=0x1B, NR41=0x20)
+    // can be written even when APU is off. On CGB, all registers except NR52 are blocked.
+    if (!m_enabled && reg != 0x26) {
+        // On DMG, allow writes to length registers even when APU is off
+        if (!m_cgb_mode) {
+            bool is_length_reg = (reg == 0x11 || reg == 0x16 || reg == 0x1B || reg == 0x20);
+            if (!is_length_reg) {
+                return;
+            }
+            // For length registers when APU is off, only update the length counter
+            switch (reg) {
+                case 0x11:  // NR11 - Pulse 1 length/duty
+                    m_pulse1.length_counter = 64 - (value & 0x3F);
+                    return;
+                case 0x16:  // NR21 - Pulse 2 length/duty
+                    m_pulse2.length_counter = 64 - (value & 0x3F);
+                    return;
+                case 0x1B:  // NR31 - Wave length
+                    m_wave.length_counter = 256 - value;
+                    return;
+                case 0x20:  // NR41 - Noise length
+                    m_noise.length_counter = 64 - (value & 0x3F);
+                    return;
+            }
+        }
         return;
     }
 
-    switch (address & 0xFF) {
+    switch (reg) {
         // Pulse 1
         case 0x10:
             m_pulse1.sweep_period = (value >> 4) & 7;
@@ -425,14 +491,32 @@ void APU::write_register(uint16_t address, uint8_t value) {
         case 0x13:
             m_pulse1.frequency = (m_pulse1.frequency & 0x700) | value;
             break;
-        case 0x14:
+        case 0x14: {
             m_pulse1.frequency = (m_pulse1.frequency & 0xFF) | ((value & 7) << 8);
+            bool was_length_enabled = m_pulse1.length_enable;
             m_pulse1.length_enable = value & 0x40;
+
+            // Extra length clocking: if enabling length when frame sequencer is at step that clocks length
+            if (!was_length_enabled && m_pulse1.length_enable && (m_frame_counter_step & 1) == 0) {
+                if (m_pulse1.length_counter > 0) {
+                    m_pulse1.length_counter--;
+                    if (m_pulse1.length_counter == 0 && !(value & 0x80)) {
+                        m_pulse1.enabled = false;
+                    }
+                }
+            }
+
             if (value & 0x80) {
                 // Trigger - only enable if DAC is on
                 bool dac_on = (m_pulse1.envelope_initial > 0) || m_pulse1.envelope_dir;
                 m_pulse1.enabled = dac_on;
-                if (m_pulse1.length_counter == 0) m_pulse1.length_counter = 64;
+                if (m_pulse1.length_counter == 0) {
+                    m_pulse1.length_counter = 64;
+                    // If enabling length during first half and triggering, extra clock
+                    if (m_pulse1.length_enable && (m_frame_counter_step & 1) == 0) {
+                        m_pulse1.length_counter--;
+                    }
+                }
                 m_pulse1.timer = (2048 - m_pulse1.frequency) * 4;
                 m_pulse1.volume = m_pulse1.envelope_initial;
                 m_pulse1.envelope_counter = m_pulse1.envelope_period > 0 ? m_pulse1.envelope_period : 8;
@@ -449,6 +533,7 @@ void APU::write_register(uint16_t address, uint8_t value) {
                 }
             }
             break;
+        }
 
         // Pulse 2
         case 0x16:
@@ -466,19 +551,38 @@ void APU::write_register(uint16_t address, uint8_t value) {
         case 0x18:
             m_pulse2.frequency = (m_pulse2.frequency & 0x700) | value;
             break;
-        case 0x19:
+        case 0x19: {
             m_pulse2.frequency = (m_pulse2.frequency & 0xFF) | ((value & 7) << 8);
+            bool was_length_enabled = m_pulse2.length_enable;
             m_pulse2.length_enable = value & 0x40;
+
+            // Extra length clocking: if enabling length when frame sequencer is at step that clocks length
+            if (!was_length_enabled && m_pulse2.length_enable && (m_frame_counter_step & 1) == 0) {
+                if (m_pulse2.length_counter > 0) {
+                    m_pulse2.length_counter--;
+                    if (m_pulse2.length_counter == 0 && !(value & 0x80)) {
+                        m_pulse2.enabled = false;
+                    }
+                }
+            }
+
             if (value & 0x80) {
                 // Trigger - only enable if DAC is on
                 bool dac_on = (m_pulse2.envelope_initial > 0) || m_pulse2.envelope_dir;
                 m_pulse2.enabled = dac_on;
-                if (m_pulse2.length_counter == 0) m_pulse2.length_counter = 64;
+                if (m_pulse2.length_counter == 0) {
+                    m_pulse2.length_counter = 64;
+                    // If enabling length during first half and triggering, extra clock
+                    if (m_pulse2.length_enable && (m_frame_counter_step & 1) == 0) {
+                        m_pulse2.length_counter--;
+                    }
+                }
                 m_pulse2.timer = (2048 - m_pulse2.frequency) * 4;
                 m_pulse2.volume = m_pulse2.envelope_initial;
                 m_pulse2.envelope_counter = m_pulse2.envelope_period > 0 ? m_pulse2.envelope_period : 8;
             }
             break;
+        }
 
         // Wave
         case 0x1A:
@@ -494,16 +598,35 @@ void APU::write_register(uint16_t address, uint8_t value) {
         case 0x1D:
             m_wave.frequency = (m_wave.frequency & 0x700) | value;
             break;
-        case 0x1E:
+        case 0x1E: {
             m_wave.frequency = (m_wave.frequency & 0xFF) | ((value & 7) << 8);
+            bool was_length_enabled = m_wave.length_enable;
             m_wave.length_enable = value & 0x40;
+
+            // Extra length clocking: if enabling length when frame sequencer is at step that clocks length
+            if (!was_length_enabled && m_wave.length_enable && (m_frame_counter_step & 1) == 0) {
+                if (m_wave.length_counter > 0) {
+                    m_wave.length_counter--;
+                    if (m_wave.length_counter == 0 && !(value & 0x80)) {
+                        m_wave.enabled = false;
+                    }
+                }
+            }
+
             if (value & 0x80) {
                 m_wave.enabled = m_wave.dac_enabled;
-                if (m_wave.length_counter == 0) m_wave.length_counter = 256;
+                if (m_wave.length_counter == 0) {
+                    m_wave.length_counter = 256;
+                    // If enabling length during first half and triggering, extra clock
+                    if (m_wave.length_enable && (m_frame_counter_step & 1) == 0) {
+                        m_wave.length_counter--;
+                    }
+                }
                 m_wave.timer = (2048 - m_wave.frequency) * 2;
                 m_wave.position = 0;
             }
             break;
+        }
 
         // Noise
         case 0x20:
@@ -522,13 +645,31 @@ void APU::write_register(uint16_t address, uint8_t value) {
             m_noise.width_mode = value & 0x08;
             m_noise.divisor_code = value & 7;
             break;
-        case 0x23:
+        case 0x23: {
+            bool was_length_enabled = m_noise.length_enable;
             m_noise.length_enable = value & 0x40;
+
+            // Extra length clocking: if enabling length when frame sequencer is at step that clocks length
+            if (!was_length_enabled && m_noise.length_enable && (m_frame_counter_step & 1) == 0) {
+                if (m_noise.length_counter > 0) {
+                    m_noise.length_counter--;
+                    if (m_noise.length_counter == 0 && !(value & 0x80)) {
+                        m_noise.enabled = false;
+                    }
+                }
+            }
+
             if (value & 0x80) {
                 // Trigger - only enable if DAC is on
                 bool dac_on = (m_noise.envelope_initial > 0) || m_noise.envelope_dir;
                 m_noise.enabled = dac_on;
-                if (m_noise.length_counter == 0) m_noise.length_counter = 64;
+                if (m_noise.length_counter == 0) {
+                    m_noise.length_counter = 64;
+                    // If enabling length during first half and triggering, extra clock
+                    if (m_noise.length_enable && (m_frame_counter_step & 1) == 0) {
+                        m_noise.length_counter--;
+                    }
+                }
                 uint16_t divisor = m_noise.divisor_code == 0 ? 8 : (m_noise.divisor_code * 16);
                 m_noise.timer = divisor << m_noise.clock_shift;
                 m_noise.volume = m_noise.envelope_initial;
@@ -536,6 +677,7 @@ void APU::write_register(uint16_t address, uint8_t value) {
                 m_noise.lfsr = 0x7FFF;
             }
             break;
+        }
 
         // Control
         case 0x24:
@@ -544,20 +686,33 @@ void APU::write_register(uint16_t address, uint8_t value) {
         case 0x25:
             m_nr51 = value;
             break;
-        case 0x26:
+        case 0x26: {
+            bool was_enabled = m_enabled;
             m_enabled = value & 0x80;
-            if (!m_enabled) {
-                // Disable all channels
-                m_pulse1.enabled = false;
-                m_pulse2.enabled = false;
-                m_wave.enabled = false;
-                m_noise.enabled = false;
+            if (!m_enabled && was_enabled) {
+                // APU turned off - clear all registers to 0 (except NR52 itself and wave RAM)
+                // This is required behavior per Pan Docs
+                m_pulse1 = {};  // Clear all pulse1 state
+                m_pulse2 = {};  // Clear all pulse2 state
+
+                // Clear wave channel but preserve wave RAM
+                std::array<uint8_t, 16> saved_wave_ram = m_wave.wave_ram;
+                m_wave = {};
+                m_wave.wave_ram = saved_wave_ram;
+
+                m_noise = {};
+                m_noise.lfsr = 0x7FFF;  // LFSR initialized to all 1s
+
+                // Clear control registers (NR50, NR51)
+                m_nr50 = 0;
+                m_nr51 = 0;
             }
             break;
+        }
 
         // Wave RAM
         case 0x30 ... 0x3F:
-            m_wave.wave_ram[(address & 0xFF) - 0x30] = value;
+            m_wave.wave_ram[reg - 0x30] = value;
             break;
     }
 }

@@ -284,17 +284,41 @@ void Bus::write_io(uint16_t address, uint8_t value) {
             }
             break;
 
-        case 0x04:
+        case 0x04: {
             // Writing any value resets DIV
+            // This can trigger a timer increment if the selected bit was 1
+            bool old_bit = get_timer_bit();
             m_div_counter = 0;
+            // Resetting DIV means the selected bit is now 0, check for falling edge
+            if (old_bit) {
+                check_timer_falling_edge(false);
+            }
+            m_prev_timer_bit = false;
             break;
+        }
 
-        case 0x05: m_tima = value; break;
-        case 0x06: m_tma = value; break;
-        case 0x07:
-            m_tac = value;
-            // Timer control changed
+        case 0x05:
+            // Writing to TIMA during overflow cycle cancels the reload
+            if (m_tima_overflow_cycle > 0) {
+                m_tima_overflow_cycle = 0;  // Cancel pending overflow
+            }
+            m_tima = value;
             break;
+        case 0x06: m_tma = value; break;
+        case 0x07: {
+            // TAC write can trigger timer increment via glitch
+            // If changing from enabled to disabled, or changing clock select
+            // while the selected bit is 1, a falling edge may occur
+            bool old_bit = get_timer_bit();
+            m_tac = value;
+            bool new_bit = get_timer_bit();
+            // Check for falling edge caused by the change
+            if (old_bit && !new_bit) {
+                check_timer_falling_edge(false);
+            }
+            m_prev_timer_bit = new_bit;
+            break;
+        }
 
         case 0x0F: m_if = value & 0x1F; break;
 
@@ -441,30 +465,65 @@ void Bus::step_oam_dma() {
     }
 }
 
+void Bus::trigger_oam_bug(uint16_t address, bool is_read) {
+    // DMG OAM bug - only triggers in OAM range during mode 2
+    if (address >= 0xFE00 && address < 0xFF00 && m_ppu) {
+        m_ppu->trigger_oam_bug(address, is_read);
+    }
+}
+
+bool Bus::get_timer_bit() const {
+    // Timer is clocked by falling edge of specific DIV bit based on TAC
+    // Only check if timer is enabled (TAC bit 2)
+    if (!(m_tac & 0x04)) {
+        return false;
+    }
+    int bit_pos = TIMER_DIV_BITS[m_tac & 3];
+    return (m_div_counter >> bit_pos) & 1;
+}
+
+void Bus::check_timer_falling_edge(bool new_bit) {
+    // Falling edge detection: TIMA increments when timer bit goes from 1 to 0
+    if (m_prev_timer_bit && !new_bit) {
+        m_tima++;
+        if (m_tima == 0) {
+            // TIMA overflow - schedule delayed reload (happens 1 M-cycle later)
+            m_tima_overflow_cycle = 1;
+        }
+    }
+    m_prev_timer_bit = new_bit;
+}
+
 void Bus::step_timer(int m_cycles) {
-    // Timer operates on T-cycles, but we receive M-cycles
-    int t_cycles = m_cycles * 4;
-
-    // Step DIV - increments at 16384 Hz (every 256 T-cycles)
-    // The full 16-bit internal counter increments every T-cycle
-    m_div_counter += t_cycles;
-
-    // Step TIMA if enabled
-    if (m_tac & 0x04) {
-        // TIMER_PERIODS are in T-cycles
-        int period = TIMER_PERIODS[m_tac & 3];
-        m_timer_counter += t_cycles;
-
-        while (m_timer_counter >= period) {
-            m_timer_counter -= period;
-            m_tima++;
-
-            if (m_tima == 0) {
+    // Timer uses falling edge detection on specific DIV bits
+    // We need to tick one M-cycle at a time for accuracy
+    for (int i = 0; i < m_cycles; i++) {
+        // Handle delayed TIMA overflow reload
+        if (m_tima_overflow_cycle > 0) {
+            m_tima_overflow_cycle--;
+            if (m_tima_overflow_cycle == 0) {
+                // TMA reload and interrupt happen now
                 m_tima = m_tma;
                 request_interrupt(0x04);  // Timer interrupt
             }
         }
+
+        // Increment DIV counter by 4 T-cycles (1 M-cycle)
+        m_div_counter += 4;
+
+        // Check for timer falling edge
+        bool new_bit = get_timer_bit();
+        check_timer_falling_edge(new_bit);
     }
+}
+
+void Bus::tick_m_cycle() {
+    // Single M-cycle tick for cycle-accurate timing
+    // This is called during memory accesses to tick components
+    step_timer(1);
+    step_oam_dma();
+    step_serial(1);
+    // PPU and APU are stepped by the plugin with T-cycles for their own timing
 }
 
 void Bus::step_serial(int m_cycles) {
@@ -555,6 +614,10 @@ void Bus::load_state(const uint8_t*& data, size_t& remaining) {
     m_key1 = *data++; remaining--;
     m_vbk = *data++; remaining--;
     m_svbk = *data++; remaining--;
+
+    // Initialize timer falling edge state from current div_counter
+    m_prev_timer_bit = get_timer_bit();
+    m_tima_overflow_cycle = 0;
 }
 
 } // namespace gb

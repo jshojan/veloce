@@ -67,13 +67,48 @@ bool Cartridge::load(const uint8_t* data, size_t size) {
     // Check for and skip optional 512-byte copier header
     // These headers are a legacy from SNES copiers and some ROM dumps include them
     size_t rom_offset = 0;
-    if ((size % 1024) == 512) {
-        rom_offset = 512;
-        size -= 512;
-        SNES_DEBUG_PRINT("Detected and skipping 512-byte copier header\n");
+    bool has_copier_header = (size % 1024) == 512;
+
+    if (has_copier_header) {
+        // Check if ROM data is correctly aligned by looking for the header
+        // A valid LoROM header at $7FC0+512 (with copier header skip) should have valid checksum
+        // But some ROMs have misaligned data where the copier header was added incorrectly
+
+        // Score header at $7FC0 + 512 (standard with header skip)
+        int score_with_skip = 0;
+        if (size >= 0x8000 + 512) {
+            score_with_skip = score_header(data + 0x7FC0 + 512, size - 512);
+        }
+
+        // Score header at $7FC0 without skip (misaligned ROM)
+        // This would mean the "copier header" is actually padding that was added incorrectly
+        int score_without_skip = 0;
+        if (size >= 0x8000) {
+            score_without_skip = score_header(data + 0x7FC0, size);
+        }
+
+        SNES_DEBUG_PRINT("Header check: with_skip=%d, without_skip=%d\n",
+                         score_with_skip, score_without_skip);
+
+        // If header scores better WITHOUT the skip, the ROM data is misaligned
+        // In this case, don't skip the header - the file has incorrect padding
+        if (score_with_skip > score_without_skip && score_with_skip > 0) {
+            rom_offset = 512;
+            size -= 512;
+            SNES_DEBUG_PRINT("Detected and skipping 512-byte copier header\n");
+        } else if (score_without_skip > 0) {
+            // ROM data is at offset 0, the "copier header" is actually junk padding
+            // Don't skip it - treat the whole file as ROM
+            SNES_DEBUG_PRINT("ROM has 512-byte padding but data is aligned without skip - keeping full file\n");
+        } else {
+            // Neither works well, try the standard approach
+            rom_offset = 512;
+            size -= 512;
+            SNES_DEBUG_PRINT("Detected and skipping 512-byte copier header (fallback)\n");
+        }
     }
 
-    // Copy ROM data (without copier header)
+    // Copy ROM data (without copier header if applicable)
     m_rom.resize(size);
     std::memcpy(m_rom.data(), data + rom_offset, size);
 
@@ -82,6 +117,47 @@ bool Cartridge::load(const uint8_t* data, size_t size) {
         std::cerr << "Failed to detect valid SNES ROM header" << std::endl;
         m_rom.clear();
         return false;
+    }
+
+    // For LoROM with copier header, check if ROM data is at expected offsets
+    // Some ROM dumps have data misaligned by 512 bytes due to incorrect header handling during dump
+    if (m_mapper_type == MapperType::LoROM && has_copier_header && rom_offset == 512 && m_rom.size() >= 0x18000) {
+        // Check if bank 1 start (ROM $8000) is all zeros but data exists 512 bytes earlier
+        // This indicates the copier header was added without properly shifting the ROM data
+        bool bank1_start_zero = true;
+        for (size_t i = 0; i < 16; i++) {
+            if (m_rom[0x8000 + i] != 0) {
+                bank1_start_zero = false;
+                break;
+            }
+        }
+
+        // Also check bank 2 area that games commonly use (e.g., graphics data)
+        bool bank2_dma_zero = true;
+        for (size_t i = 0; i < 16; i++) {
+            if (m_rom[0x11000 + i] != 0) {  // Common DMA source for graphics
+                bank2_dma_zero = false;
+                break;
+            }
+        }
+
+        if (bank1_start_zero && bank2_dma_zero) {
+            std::cerr << "WARNING: ROM data appears misaligned." << std::endl;
+            std::cerr << "This ROM dump may have incorrect header handling." << std::endl;
+            std::cerr << "Graphics and some game data may not load correctly." << std::endl;
+            std::cerr << "Consider obtaining a verified ROM dump from a trusted source." << std::endl;
+        }
+    }
+
+    // Debug: verify ROM data at key locations
+    if (m_rom.size() >= 0x12000) {
+        fprintf(stderr, "[SNES] ROM verification - first bytes at key offsets:\n");
+        fprintf(stderr, "  ROM[0x0000]: %02X %02X %02X %02X (expected: 78 9c 00 42)\n",
+                m_rom[0], m_rom[1], m_rom[2], m_rom[3]);
+        fprintf(stderr, "  ROM[0x8000]: %02X %02X %02X %02X\n",
+                m_rom[0x8000], m_rom[0x8001], m_rom[0x8002], m_rom[0x8003]);
+        fprintf(stderr, "  ROM[0x11000]: %02X %02X %02X %02X (DMA source for VRAM $A000)\n",
+                m_rom[0x11000], m_rom[0x11001], m_rom[0x11002], m_rom[0x11003]);
     }
 
     // Calculate CRC32 of ROM data
@@ -471,8 +547,17 @@ uint8_t Cartridge::read_lorom(uint32_t address) {
     uint8_t bank = (address >> 16) & 0xFF;
     uint16_t offset = address & 0xFFFF;
 
-    // Debug: trace bank 01:8000 reads
+    // Debug: trace reads from DMA source regions
     static int lorom_debug = 0;
+    static int dma_source_debug = 0;
+    // Trace DMA source $029000 (graphics for VRAM $A000)
+    if (is_debug_mode() && bank == 0x02 && offset >= 0x9000 && offset < 0x9020 && dma_source_debug < 5) {
+        size_t calc_addr = (bank * 0x8000) + (offset - 0x8000);
+        uint8_t val = m_rom.empty() ? 0 : m_rom[calc_addr % m_rom.size()];
+        fprintf(stderr, "[CART] LoROM read $%02X:%04X -> rom_addr=$%06lX val=$%02X (rom_size=$%lX)\n",
+            bank, offset, (unsigned long)calc_addr, val, (unsigned long)m_rom.size());
+        dma_source_debug++;
+    }
     if (is_debug_mode() && bank == 0x01 && offset == 0x8000 && lorom_debug < 3) {
         size_t calc_addr = (bank * 0x8000) + (offset - 0x8000);
         uint8_t val = m_rom.empty() ? 0 : m_rom[calc_addr % m_rom.size()];

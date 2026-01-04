@@ -57,11 +57,33 @@ veloce (application)
     |       |       Keyboard, gamepad, recording
     |       |
     |       +-- TAS Plugin (ITASPlugin)
-    |               Movie editing, greenzone, playback
+    |       |       Movie editing, greenzone, playback
+    |       |
+    |       +-- Game Plugins (IGamePlugin) [Multiple]
+    |       |       Timer, splits, auto-splitters
+    |       |       Each plugin renders its own GUI panel
+    |       |       Self-contained with IGameHost interface
+    |       |
+    |       +-- Netplay Plugin (INetplayPlugin)
+    |               Rollback netcode, delay-based
     |
     +-- Core Services
-            Savestate Manager, Speedrun Timer, Netplay
+            Savestate Manager, GamePluginHost (IGameHost)
 ```
+
+### Game Plugin Architecture
+
+Game plugins are self-contained components that can:
+- Render their own ImGui panels via `render_gui()`
+- Access emulator memory for auto-split detection
+- Track timer state, splits, and personal bests
+
+**Multiple game plugins can be active simultaneously**, enabling:
+- Built-in timer + game-specific auto-splitter
+- Different timer layouts for different use cases
+- Community-created auto-splitter plugins
+
+Game plugin selection is configurable in Settings > Plugins.
 
 ### Plugin Documentation
 
@@ -69,6 +91,7 @@ veloce (application)
 - [Audio Plugin](plugins/audio_default/README.md) - Audio passthrough with volume control
 - [Input Plugin](plugins/input_default/README.md) - Keyboard and gamepad input handling
 - [TAS Plugin](plugins/tas_default/README.md) - TAS movie recording and editing
+- [Game Plugin](plugins/speedrun_tools_default/README.md) - Built-in timer, splits, and PB tracking
 
 **Emulator Cores:**
 - [NES Core](cores/nes/README.md) - Nintendo Entertainment System
@@ -86,6 +109,7 @@ All plugin interfaces are defined in include/emu/:
 | audio_plugin.hpp | IAudioPlugin | Audio processing and output |
 | input_plugin.hpp | IInputPlugin | Input polling and configuration |
 | tas_plugin.hpp | ITASPlugin | Movie recording, playback, editing |
+| game_plugin.hpp | IGamePlugin | Timer, splits, auto-splitters, RAM watch |
 | netplay_plugin.hpp | INetplayPlugin | Network multiplayer support |
 
 ## Features
@@ -106,6 +130,7 @@ All plugin interfaces are defined in include/emu/:
 - Sum of best calculation
 - Color-coded delta display
 - Per-game auto-splitter support via game plugins
+- LiveSplit integration (planned)
 
 ### TAS Features
 
@@ -159,7 +184,7 @@ cmake --build build
 ```cmd
 cmake -B build -G "Visual Studio 17 2022" -A x64
 cmake --build build --config Release
-buildineloce.exe
+build\bin\veloce.exe
 ```
 
 ## Usage
@@ -205,7 +230,7 @@ Environment Variables:
 
 Configuration files are stored in:
 - Linux/macOS: ~/.config/veloce/
-- Windows: %APPDATA%eloce\
+- Windows: %APPDATA%\veloce\
 
 ## Testing
 
@@ -242,6 +267,7 @@ veloce/
         audio_default/        Audio backend
         input_default/        Input backend
         tas_default/          TAS engine
+        speedrun_tools_default/  Built-in timer (IGamePlugin)
 ```
 
 ## Acknowledgments
@@ -257,4 +283,3 @@ veloce/
 ## License
 
 MIT License - See [LICENSE](LICENSE) file.
-

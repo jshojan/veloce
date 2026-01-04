@@ -67,15 +67,15 @@ bool PluginConfigPanel::render(Application& app, bool& visible) {
     ImGui::Separator();
     ImGui::Spacing();
 
-    // Speedrun Tools Plugin
-    render_plugin_selector("Speedrun Tools", PluginType::SpeedrunTools);
+    // Netplay Plugin
+    render_plugin_selector("Netplay Plugin", PluginType::Netplay);
 
     ImGui::Spacing();
     ImGui::Separator();
     ImGui::Spacing();
 
-    // Game Plugins (Auto-splitters)
-    render_plugin_selector("Game Plugin (Auto-splitter)", PluginType::Game);
+    // Game Plugins (multi-select - timer, auto-splitters)
+    render_game_plugin_multi_selector();
 
     ImGui::Spacing();
     ImGui::Separator();
@@ -101,8 +101,15 @@ bool PluginConfigPanel::render(Application& app, bool& visible) {
     if (m_selected_core >= 0 && m_selected_core < static_cast<int>(m_emulator_cores.size())) {
         selected_plugin = &m_emulator_cores[m_selected_core];
     }
-    // Otherwise check for focused plugin type
-    else if (m_selected_indices.count(m_focused_type) && m_selected_indices[m_focused_type] > 0) {
+    // Check if a game plugin is selected (from the multi-select list)
+    else if (m_selected_game_plugin >= 0 &&
+             m_available_plugins.count(PluginType::Game) &&
+             m_selected_game_plugin < static_cast<int>(m_available_plugins[PluginType::Game].size())) {
+        selected_plugin = &m_available_plugins[PluginType::Game][m_selected_game_plugin];
+    }
+    // Otherwise check for focused plugin type (excluding Game which uses multi-select)
+    else if (m_focused_type != PluginType::Game &&
+             m_selected_indices.count(m_focused_type) && m_selected_indices[m_focused_type] > 0) {
         int idx = m_selected_indices[m_focused_type] - 1;  // -1 for "(None)" offset
         if (m_available_plugins.count(m_focused_type) &&
             idx >= 0 && idx < static_cast<int>(m_available_plugins[m_focused_type].size())) {
@@ -113,6 +120,9 @@ bool PluginConfigPanel::render(Application& app, bool& visible) {
     // If nothing selected for focused type, find any valid selection
     if (!selected_plugin) {
         for (const auto& [type, plugins] : m_available_plugins) {
+            // Skip game plugins for this fallback (they use multi-select)
+            if (type == PluginType::Game) continue;
+
             if (m_selected_indices.count(type) && m_selected_indices[type] > 0) {
                 int idx = m_selected_indices[type] - 1;
                 if (idx >= 0 && idx < static_cast<int>(plugins.size())) {
@@ -191,6 +201,56 @@ void PluginConfigPanel::render_plugin_selector(const char* label, PluginType typ
             ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.3f, 1.0f), "%s", disabled_message);
         }
     }
+}
+
+void PluginConfigPanel::render_game_plugin_multi_selector() {
+    ImGui::Text("Game Plugins (Timer / Auto-splitters)");
+    ImGui::Spacing();
+
+    if (!m_available_plugins.count(PluginType::Game) || m_available_plugins[PluginType::Game].empty()) {
+        ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "No game plugins available.");
+        return;
+    }
+
+    ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f),
+                       "Multiple plugins can be active simultaneously.");
+    ImGui::Spacing();
+
+    // Display checkboxes for each game plugin
+    ImGui::BeginChild("GamePluginsList", ImVec2(-1, 100), true);
+
+    const auto& plugins = m_available_plugins[PluginType::Game];
+    for (size_t i = 0; i < plugins.size(); ++i) {
+        const auto& plugin = plugins[i];
+
+        // Initialize enabled state from config if not set
+        if (m_game_plugin_enabled.find(plugin.name) == m_game_plugin_enabled.end()) {
+            // Default to enabled if no config exists, or check config
+            m_game_plugin_enabled[plugin.name] = true;  // Default enabled
+        }
+
+        bool& enabled = m_game_plugin_enabled[plugin.name];
+        bool is_selected = (m_selected_game_plugin == static_cast<int>(i));
+
+        // Create a selectable area for info display
+        ImGui::PushID(static_cast<int>(i));
+
+        if (ImGui::Checkbox("##enabled", &enabled)) {
+            m_dirty = true;
+        }
+        ImGui::SameLine();
+
+        // Selectable for showing info
+        if (ImGui::Selectable(plugin.name.c_str(), is_selected, ImGuiSelectableFlags_None, ImVec2(0, 0))) {
+            m_selected_game_plugin = static_cast<int>(i);
+            m_selected_core = -1;  // Clear core selection
+            m_focused_type = PluginType::Game;
+        }
+
+        ImGui::PopID();
+    }
+
+    ImGui::EndChild();
 }
 
 void PluginConfigPanel::render_emulator_cores_section() {
@@ -301,6 +361,9 @@ void PluginConfigPanel::apply_selections(PluginManager& pm) {
         // Skip emulator plugins (auto-selected based on ROM)
         if (type == PluginType::Emulator) continue;
 
+        // Skip game plugins (handled separately with multi-select)
+        if (type == PluginType::Game) continue;
+
         std::string plugin_name;
         if (index > 0 && m_available_plugins.count(type)) {
             // Index 0 is "(None)", actual plugins start at 1
@@ -311,6 +374,33 @@ void PluginConfigPanel::apply_selections(PluginManager& pm) {
         }
 
         pm.set_active_plugin(type, plugin_name);
+    }
+
+    // Apply game plugin selections (multi-select)
+    std::vector<std::string> enabled_game_plugins;
+    for (const auto& [name, enabled] : m_game_plugin_enabled) {
+        if (enabled) {
+            enabled_game_plugins.push_back(name);
+        }
+    }
+
+    // Update the config with enabled game plugins
+    auto& config = pm.get_config();
+    config.set_enabled_game_plugins(enabled_game_plugins);
+
+    // Deactivate all game plugins and reload enabled ones
+    pm.deactivate_all_game_plugins();
+    for (const auto& name : enabled_game_plugins) {
+        pm.activate_game_plugin_by_name(name);
+    }
+
+    // Re-initialize game plugins with the host interface
+    // This is necessary after reactivation to set up the IGameHost pointer
+    pm.initialize_game_plugins();
+
+    // Notify game plugins about ROM load if a ROM is currently loaded
+    if (pm.is_rom_loaded()) {
+        pm.notify_game_plugins_rom_loaded();
     }
 
     // Save configuration
@@ -397,8 +487,24 @@ void PluginConfigPanel::build_plugin_lists(PluginManager& pm) {
     init_selection(PluginType::Audio, config.get_selected_plugin(PluginType::Audio));
     init_selection(PluginType::Input, config.get_selected_plugin(PluginType::Input));
     init_selection(PluginType::TAS, config.get_selected_plugin(PluginType::TAS));
-    init_selection(PluginType::SpeedrunTools, config.get_selected_plugin(PluginType::SpeedrunTools));
-    init_selection(PluginType::Game, config.get_selected_plugin(PluginType::Game));
+    init_selection(PluginType::Netplay, config.get_selected_plugin(PluginType::Netplay));
+
+    // Initialize game plugin enabled states from config (multi-select)
+    m_game_plugin_enabled.clear();
+    auto enabled_game_plugins = config.get_enabled_game_plugins();
+
+    if (m_available_plugins.count(PluginType::Game)) {
+        for (const auto& plugin : m_available_plugins[PluginType::Game]) {
+            // Check if in enabled list, or default to enabled if no config
+            bool is_enabled = enabled_game_plugins.empty() ||
+                std::find(enabled_game_plugins.begin(), enabled_game_plugins.end(), plugin.name)
+                    != enabled_game_plugins.end();
+            m_game_plugin_enabled[plugin.name] = is_enabled;
+        }
+    }
+
+    // Clear game plugin selection index
+    m_selected_game_plugin = -1;
 }
 
 void PluginConfigPanel::refresh_plugins(PluginManager& pm) {

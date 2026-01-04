@@ -72,11 +72,17 @@ void LR35902::reset() {
 }
 
 uint8_t LR35902::read(uint16_t address) {
-    return m_bus.read(address);
+    // Read first, then tick - the read samples current state, then time advances
+    // This matches: the memory operation sees the state at the END of the previous cycle
+    uint8_t value = m_bus.read(address);
+    m_bus.tick_m_cycle();
+    return value;
 }
 
 void LR35902::write(uint16_t address, uint8_t value) {
+    // Write first, then tick - the write affects current state, then time advances
     m_bus.write(address, value);
+    m_bus.tick_m_cycle();
 }
 
 uint8_t LR35902::fetch() {
@@ -88,6 +94,20 @@ uint8_t LR35902::fetch() {
     return value;
 }
 
+void LR35902::internal_cycle() {
+    // An internal cycle with no memory access - still takes 1 M-cycle
+    m_bus.tick_m_cycle();
+}
+
+void LR35902::check_oam_bug(uint16_t addr, bool is_read) {
+    // DMG OAM corruption bug: triggered by 16-bit register pair operations
+    // when the register contains an address in the OAM range (0xFE00-0xFEFF)
+    // during PPU mode 2 (OAM scan)
+    if (addr >= 0xFE00 && addr < 0xFF00) {
+        m_bus.trigger_oam_bug(addr, is_read);
+    }
+}
+
 uint16_t LR35902::fetch16() {
     uint8_t lo = fetch();
     uint8_t hi = fetch();
@@ -95,6 +115,9 @@ uint16_t LR35902::fetch16() {
 }
 
 void LR35902::push(uint16_t value) {
+    // OAM bug: decrementing SP when it points to OAM range triggers corruption
+    // PUSH decrements SP by 2 before writing
+    check_oam_bug(m_sp, false);
     m_sp -= 2;
     write(m_sp, value & 0xFF);
     write(m_sp + 1, value >> 8);
@@ -102,6 +125,9 @@ void LR35902::push(uint16_t value) {
 
 uint16_t LR35902::pop() {
     uint16_t value = read(m_sp) | (read(m_sp + 1) << 8);
+    // OAM bug: incrementing SP when it points to OAM range triggers corruption
+    // POP increments SP by 2 after reading
+    check_oam_bug(m_sp, true);
     m_sp += 2;
     return value;
 }
@@ -165,8 +191,8 @@ int LR35902::step() {
         // LD (BC), A
         case 0x02: write(get_bc(), m_a); break;
 
-        // INC BC
-        case 0x03: set_bc(get_bc() + 1); break;
+        // INC BC (2 cycles: fetch + internal)
+        case 0x03: check_oam_bug(get_bc(), false); set_bc(get_bc() + 1); internal_cycle(); break;
 
         // INC B
         case 0x04: m_b = alu_inc(m_b); break;
@@ -191,21 +217,22 @@ int LR35902::step() {
             break;
         }
 
-        // ADD HL, BC
+        // ADD HL, BC (2 cycles: fetch + internal)
         case 0x09: {
             uint32_t result = get_hl() + get_bc();
             set_flag_n(false);
             set_flag_h((get_hl() & 0xFFF) + (get_bc() & 0xFFF) > 0xFFF);
             set_flag_c(result > 0xFFFF);
             set_hl(result & 0xFFFF);
+            internal_cycle();
             break;
         }
 
         // LD A, (BC)
         case 0x0A: m_a = read(get_bc()); break;
 
-        // DEC BC
-        case 0x0B: set_bc(get_bc() - 1); break;
+        // DEC BC (2 cycles: fetch + internal)
+        case 0x0B: check_oam_bug(get_bc(), false); set_bc(get_bc() - 1); internal_cycle(); break;
 
         // INC C
         case 0x0C: m_c = alu_inc(m_c); break;
@@ -234,8 +261,8 @@ int LR35902::step() {
         // LD (DE), A
         case 0x12: write(get_de(), m_a); break;
 
-        // INC DE
-        case 0x13: set_de(get_de() + 1); break;
+        // INC DE (2 cycles: fetch + internal)
+        case 0x13: check_oam_bug(get_de(), false); set_de(get_de() + 1); internal_cycle(); break;
 
         // INC D
         case 0x14: m_d = alu_inc(m_d); break;
@@ -252,28 +279,30 @@ int LR35902::step() {
             set_flag_z(false);
             break;
 
-        // JR n
+        // JR n (3 cycles: fetch opcode + fetch offset + internal)
         case 0x18: {
             int8_t offset = static_cast<int8_t>(fetch());
             m_pc += offset;
+            internal_cycle();
             break;
         }
 
-        // ADD HL, DE
+        // ADD HL, DE (2 cycles: fetch + internal)
         case 0x19: {
             uint32_t result = get_hl() + get_de();
             set_flag_n(false);
             set_flag_h((get_hl() & 0xFFF) + (get_de() & 0xFFF) > 0xFFF);
             set_flag_c(result > 0xFFFF);
             set_hl(result & 0xFFFF);
+            internal_cycle();
             break;
         }
 
         // LD A, (DE)
         case 0x1A: m_a = read(get_de()); break;
 
-        // DEC DE
-        case 0x1B: set_de(get_de() - 1); break;
+        // DEC DE (2 cycles: fetch + internal)
+        case 0x1B: check_oam_bug(get_de(), false); set_de(get_de() - 1); internal_cycle(); break;
 
         // INC E
         case 0x1C: m_e = alu_inc(m_e); break;
@@ -290,11 +319,12 @@ int LR35902::step() {
             set_flag_z(false);
             break;
 
-        // JR NZ, n
+        // JR NZ, n (2 cycles if not taken, 3 if taken)
         case 0x20: {
             int8_t offset = static_cast<int8_t>(fetch());
             if (!get_flag_z()) {
                 m_pc += offset;
+                internal_cycle();
                 cycles = 3;
             } else {
                 cycles = 2;
@@ -305,11 +335,11 @@ int LR35902::step() {
         // LD HL, nn
         case 0x21: set_hl(fetch16()); break;
 
-        // LD (HL+), A
-        case 0x22: write(get_hl(), m_a); set_hl(get_hl() + 1); break;
+        // LD (HL+), A - OAM bug triggers on the increment (is_read=false for write+inc)
+        case 0x22: write(get_hl(), m_a); check_oam_bug(get_hl(), false); set_hl(get_hl() + 1); break;
 
-        // INC HL
-        case 0x23: set_hl(get_hl() + 1); break;
+        // INC HL (2 cycles: fetch + internal)
+        case 0x23: check_oam_bug(get_hl(), false); set_hl(get_hl() + 1); internal_cycle(); break;
 
         // INC H
         case 0x24: m_h = alu_inc(m_h); break;
@@ -339,11 +369,12 @@ int LR35902::step() {
             break;
         }
 
-        // JR Z, n
+        // JR Z, n (2 cycles if not taken, 3 if taken)
         case 0x28: {
             int8_t offset = static_cast<int8_t>(fetch());
             if (get_flag_z()) {
                 m_pc += offset;
+                internal_cycle();
                 cycles = 3;
             } else {
                 cycles = 2;
@@ -351,21 +382,22 @@ int LR35902::step() {
             break;
         }
 
-        // ADD HL, HL
+        // ADD HL, HL (2 cycles: fetch + internal)
         case 0x29: {
             uint32_t result = get_hl() + get_hl();
             set_flag_n(false);
             set_flag_h((get_hl() & 0xFFF) + (get_hl() & 0xFFF) > 0xFFF);
             set_flag_c(result > 0xFFFF);
             set_hl(result & 0xFFFF);
+            internal_cycle();
             break;
         }
 
-        // LD A, (HL+)
-        case 0x2A: m_a = read(get_hl()); set_hl(get_hl() + 1); break;
+        // LD A, (HL+) - OAM bug triggers on the increment (is_read=true for read+inc)
+        case 0x2A: m_a = read(get_hl()); check_oam_bug(get_hl(), true); set_hl(get_hl() + 1); break;
 
-        // DEC HL
-        case 0x2B: set_hl(get_hl() - 1); break;
+        // DEC HL (2 cycles: fetch + internal)
+        case 0x2B: check_oam_bug(get_hl(), false); set_hl(get_hl() - 1); internal_cycle(); break;
 
         // INC L
         case 0x2C: m_l = alu_inc(m_l); break;
@@ -383,11 +415,12 @@ int LR35902::step() {
             set_flag_h(true);
             break;
 
-        // JR NC, n
+        // JR NC, n (2 cycles if not taken, 3 if taken)
         case 0x30: {
             int8_t offset = static_cast<int8_t>(fetch());
             if (!get_flag_c()) {
                 m_pc += offset;
+                internal_cycle();
                 cycles = 3;
             } else {
                 cycles = 2;
@@ -398,11 +431,11 @@ int LR35902::step() {
         // LD SP, nn
         case 0x31: m_sp = fetch16(); break;
 
-        // LD (HL-), A
-        case 0x32: write(get_hl(), m_a); set_hl(get_hl() - 1); break;
+        // LD (HL-), A - OAM bug triggers on the decrement
+        case 0x32: write(get_hl(), m_a); check_oam_bug(get_hl(), false); set_hl(get_hl() - 1); break;
 
-        // INC SP
-        case 0x33: m_sp++; break;
+        // INC SP (2 cycles: fetch + internal) - SP can point to OAM
+        case 0x33: check_oam_bug(m_sp, false); m_sp++; internal_cycle(); break;
 
         // INC (HL)
         case 0x34: write(get_hl(), alu_inc(read(get_hl()))); break;
@@ -420,11 +453,12 @@ int LR35902::step() {
             set_flag_c(true);
             break;
 
-        // JR C, n
+        // JR C, n (2 cycles if not taken, 3 if taken)
         case 0x38: {
             int8_t offset = static_cast<int8_t>(fetch());
             if (get_flag_c()) {
                 m_pc += offset;
+                internal_cycle();
                 cycles = 3;
             } else {
                 cycles = 2;
@@ -432,21 +466,22 @@ int LR35902::step() {
             break;
         }
 
-        // ADD HL, SP
+        // ADD HL, SP (2 cycles: fetch + internal)
         case 0x39: {
             uint32_t result = get_hl() + m_sp;
             set_flag_n(false);
             set_flag_h((get_hl() & 0xFFF) + (m_sp & 0xFFF) > 0xFFF);
             set_flag_c(result > 0xFFFF);
             set_hl(result & 0xFFFF);
+            internal_cycle();
             break;
         }
 
-        // LD A, (HL-)
-        case 0x3A: m_a = read(get_hl()); set_hl(get_hl() - 1); break;
+        // LD A, (HL-) - OAM bug triggers on the decrement
+        case 0x3A: m_a = read(get_hl()); check_oam_bug(get_hl(), true); set_hl(get_hl() - 1); break;
 
-        // DEC SP
-        case 0x3B: m_sp--; break;
+        // DEC SP (2 cycles: fetch + internal) - SP can point to OAM
+        case 0x3B: check_oam_bug(m_sp, false); m_sp--; internal_cycle(); break;
 
         // INC A
         case 0x3C: m_a = alu_inc(m_a); break;
@@ -634,24 +669,27 @@ int LR35902::step() {
         case 0xBE: alu_cp(read(get_hl())); break;
         case 0xBF: alu_cp(m_a); break;
 
-        // RET NZ
+        // RET NZ (2 cycles if not taken, 5 if taken: internal check + pop lo + pop hi + internal + internal)
         case 0xC0:
+            internal_cycle();  // Condition check cycle
             if (!get_flag_z()) {
                 m_pc = pop();
+                internal_cycle();  // Internal before jumping
                 cycles = 5;
             } else {
                 cycles = 2;
             }
             break;
 
-        // POP BC
+        // POP BC (3 cycles: fetch + pop lo + pop hi)
         case 0xC1: set_bc(pop()); break;
 
-        // JP NZ, nn
+        // JP NZ, nn (3 cycles if not taken, 4 if taken: fetch + lo + hi + internal if taken)
         case 0xC2: {
             uint16_t addr = fetch16();
             if (!get_flag_z()) {
                 m_pc = addr;
+                internal_cycle();
                 cycles = 4;
             } else {
                 cycles = 3;
@@ -659,13 +697,14 @@ int LR35902::step() {
             break;
         }
 
-        // JP nn
-        case 0xC3: m_pc = fetch16(); break;
+        // JP nn (4 cycles: fetch + lo + hi + internal)
+        case 0xC3: m_pc = fetch16(); internal_cycle(); break;
 
-        // CALL NZ, nn
+        // CALL NZ, nn (3 cycles if not taken, 6 if taken: fetch + lo + hi + [internal + push hi + push lo])
         case 0xC4: {
             uint16_t addr = fetch16();
             if (!get_flag_z()) {
+                internal_cycle();
                 push(m_pc);
                 m_pc = addr;
                 cycles = 6;
@@ -675,33 +714,36 @@ int LR35902::step() {
             break;
         }
 
-        // PUSH BC
-        case 0xC5: push(get_bc()); break;
+        // PUSH BC (4 cycles: fetch + internal + push hi + push lo)
+        case 0xC5: internal_cycle(); push(get_bc()); break;
 
         // ADD A, n
         case 0xC6: alu_add(fetch(), false); break;
 
-        // RST 00
-        case 0xC7: push(m_pc); m_pc = 0x00; break;
+        // RST 00 (4 cycles: fetch + internal + push hi + push lo)
+        case 0xC7: internal_cycle(); push(m_pc); m_pc = 0x00; break;
 
-        // RET Z
+        // RET Z (2 cycles if not taken, 5 if taken)
         case 0xC8:
+            internal_cycle();  // Condition check cycle
             if (get_flag_z()) {
                 m_pc = pop();
+                internal_cycle();  // Internal before jumping
                 cycles = 5;
             } else {
                 cycles = 2;
             }
             break;
 
-        // RET
-        case 0xC9: m_pc = pop(); break;
+        // RET (4 cycles: fetch + pop lo + pop hi + internal)
+        case 0xC9: m_pc = pop(); internal_cycle(); break;
 
-        // JP Z, nn
+        // JP Z, nn (3 cycles if not taken, 4 if taken)
         case 0xCA: {
             uint16_t addr = fetch16();
             if (get_flag_z()) {
                 m_pc = addr;
+                internal_cycle();
                 cycles = 4;
             } else {
                 cycles = 3;
@@ -712,10 +754,11 @@ int LR35902::step() {
         // CB prefix
         case 0xCB: cycles = execute_cb(); break;
 
-        // CALL Z, nn
+        // CALL Z, nn (3 cycles if not taken, 6 if taken)
         case 0xCC: {
             uint16_t addr = fetch16();
             if (get_flag_z()) {
+                internal_cycle();
                 push(m_pc);
                 m_pc = addr;
                 cycles = 6;
@@ -725,9 +768,10 @@ int LR35902::step() {
             break;
         }
 
-        // CALL nn
+        // CALL nn (6 cycles: fetch + lo + hi + internal + push hi + push lo)
         case 0xCD: {
             uint16_t addr = fetch16();
+            internal_cycle();
             push(m_pc);
             m_pc = addr;
             break;
@@ -736,27 +780,30 @@ int LR35902::step() {
         // ADC A, n
         case 0xCE: alu_add(fetch(), true); break;
 
-        // RST 08
-        case 0xCF: push(m_pc); m_pc = 0x08; break;
+        // RST 08 (4 cycles: fetch + internal + push hi + push lo)
+        case 0xCF: internal_cycle(); push(m_pc); m_pc = 0x08; break;
 
-        // RET NC
+        // RET NC (2 cycles if not taken, 5 if taken)
         case 0xD0:
+            internal_cycle();  // Condition check
             if (!get_flag_c()) {
                 m_pc = pop();
+                internal_cycle();
                 cycles = 5;
             } else {
                 cycles = 2;
             }
             break;
 
-        // POP DE
+        // POP DE (3 cycles: fetch + pop lo + pop hi)
         case 0xD1: set_de(pop()); break;
 
-        // JP NC, nn
+        // JP NC, nn (3 cycles if not taken, 4 if taken)
         case 0xD2: {
             uint16_t addr = fetch16();
             if (!get_flag_c()) {
                 m_pc = addr;
+                internal_cycle();
                 cycles = 4;
             } else {
                 cycles = 3;
@@ -764,10 +811,11 @@ int LR35902::step() {
             break;
         }
 
-        // CALL NC, nn
+        // CALL NC, nn (3 cycles if not taken, 6 if taken)
         case 0xD4: {
             uint16_t addr = fetch16();
             if (!get_flag_c()) {
+                internal_cycle();
                 push(m_pc);
                 m_pc = addr;
                 cycles = 6;
@@ -777,36 +825,40 @@ int LR35902::step() {
             break;
         }
 
-        // PUSH DE
-        case 0xD5: push(get_de()); break;
+        // PUSH DE (4 cycles: fetch + internal + push hi + push lo)
+        case 0xD5: internal_cycle(); push(get_de()); break;
 
         // SUB n
         case 0xD6: alu_sub(fetch(), false); break;
 
-        // RST 10
-        case 0xD7: push(m_pc); m_pc = 0x10; break;
+        // RST 10 (4 cycles: fetch + internal + push hi + push lo)
+        case 0xD7: internal_cycle(); push(m_pc); m_pc = 0x10; break;
 
-        // RET C
+        // RET C (2 cycles if not taken, 5 if taken)
         case 0xD8:
+            internal_cycle();  // Condition check
             if (get_flag_c()) {
                 m_pc = pop();
+                internal_cycle();
                 cycles = 5;
             } else {
                 cycles = 2;
             }
             break;
 
-        // RETI
+        // RETI (4 cycles: fetch + pop lo + pop hi + internal)
         case 0xD9:
             m_pc = pop();
+            internal_cycle();
             m_ime = true;
             break;
 
-        // JP C, nn
+        // JP C, nn (3 cycles if not taken, 4 if taken)
         case 0xDA: {
             uint16_t addr = fetch16();
             if (get_flag_c()) {
                 m_pc = addr;
+                internal_cycle();
                 cycles = 4;
             } else {
                 cycles = 3;
@@ -814,10 +866,11 @@ int LR35902::step() {
             break;
         }
 
-        // CALL C, nn
+        // CALL C, nn (3 cycles if not taken, 6 if taken)
         case 0xDC: {
             uint16_t addr = fetch16();
             if (get_flag_c()) {
+                internal_cycle();
                 push(m_pc);
                 m_pc = addr;
                 cycles = 6;
@@ -830,28 +883,28 @@ int LR35902::step() {
         // SBC A, n
         case 0xDE: alu_sub(fetch(), true); break;
 
-        // RST 18
-        case 0xDF: push(m_pc); m_pc = 0x18; break;
+        // RST 18 (4 cycles: fetch + internal + push hi + push lo)
+        case 0xDF: internal_cycle(); push(m_pc); m_pc = 0x18; break;
 
         // LD (FF00+n), A
         case 0xE0: write(0xFF00 + fetch(), m_a); break;
 
-        // POP HL
+        // POP HL (3 cycles: fetch + pop lo + pop hi)
         case 0xE1: set_hl(pop()); break;
 
         // LD (FF00+C), A
         case 0xE2: write(0xFF00 + m_c, m_a); break;
 
-        // PUSH HL
-        case 0xE5: push(get_hl()); break;
+        // PUSH HL (4 cycles: fetch + internal + push hi + push lo)
+        case 0xE5: internal_cycle(); push(get_hl()); break;
 
         // AND n
         case 0xE6: alu_and(fetch()); break;
 
-        // RST 20
-        case 0xE7: push(m_pc); m_pc = 0x20; break;
+        // RST 20 (4 cycles: fetch + internal + push hi + push lo)
+        case 0xE7: internal_cycle(); push(m_pc); m_pc = 0x20; break;
 
-        // ADD SP, n
+        // ADD SP, n (4 cycles: fetch + n + internal + internal)
         case 0xE8: {
             int8_t n = static_cast<int8_t>(fetch());
             uint32_t result = m_sp + n;
@@ -860,10 +913,12 @@ int LR35902::step() {
             set_flag_h((m_sp & 0x0F) + (n & 0x0F) > 0x0F);
             set_flag_c((m_sp & 0xFF) + (n & 0xFF) > 0xFF);
             m_sp = result & 0xFFFF;
+            internal_cycle();
+            internal_cycle();
             break;
         }
 
-        // JP HL
+        // JP HL (1 cycle - just fetch, no internal needed)
         case 0xE9: m_pc = get_hl(); break;
 
         // LD (nn), A
@@ -872,13 +927,13 @@ int LR35902::step() {
         // XOR n
         case 0xEE: alu_xor(fetch()); break;
 
-        // RST 28
-        case 0xEF: push(m_pc); m_pc = 0x28; break;
+        // RST 28 (4 cycles: fetch + internal + push hi + push lo)
+        case 0xEF: internal_cycle(); push(m_pc); m_pc = 0x28; break;
 
         // LD A, (FF00+n)
         case 0xF0: m_a = read(0xFF00 + fetch()); break;
 
-        // POP AF
+        // POP AF (3 cycles: fetch + pop lo + pop hi)
         case 0xF1: set_af(pop()); break;
 
         // LD A, (FF00+C)
@@ -887,16 +942,16 @@ int LR35902::step() {
         // DI
         case 0xF3: m_ime = false; break;
 
-        // PUSH AF
-        case 0xF5: push(get_af()); break;
+        // PUSH AF (4 cycles: fetch + internal + push hi + push lo)
+        case 0xF5: internal_cycle(); push(get_af()); break;
 
         // OR n
         case 0xF6: alu_or(fetch()); break;
 
-        // RST 30
-        case 0xF7: push(m_pc); m_pc = 0x30; break;
+        // RST 30 (4 cycles: fetch + internal + push hi + push lo)
+        case 0xF7: internal_cycle(); push(m_pc); m_pc = 0x30; break;
 
-        // LD HL, SP+n
+        // LD HL, SP+n (3 cycles: fetch + n + internal)
         case 0xF8: {
             int8_t n = static_cast<int8_t>(fetch());
             uint32_t result = m_sp + n;
@@ -905,11 +960,12 @@ int LR35902::step() {
             set_flag_h((m_sp & 0x0F) + (n & 0x0F) > 0x0F);
             set_flag_c((m_sp & 0xFF) + (n & 0xFF) > 0xFF);
             set_hl(result & 0xFFFF);
+            internal_cycle();
             break;
         }
 
-        // LD SP, HL
-        case 0xF9: m_sp = get_hl(); break;
+        // LD SP, HL (2 cycles: fetch + internal)
+        case 0xF9: m_sp = get_hl(); internal_cycle(); break;
 
         // LD A, (nn)
         case 0xFA: m_a = read(fetch16()); break;
@@ -920,8 +976,8 @@ int LR35902::step() {
         // CP n
         case 0xFE: alu_cp(fetch()); break;
 
-        // RST 38
-        case 0xFF: push(m_pc); m_pc = 0x38; break;
+        // RST 38 (4 cycles: fetch + internal + push hi + push lo)
+        case 0xFF: internal_cycle(); push(m_pc); m_pc = 0x38; break;
 
         default:
             // Undefined opcodes (0xD3, 0xDB, 0xDD, 0xE3, 0xE4, 0xEB, 0xEC, 0xED, 0xF4, 0xFC, 0xFD)

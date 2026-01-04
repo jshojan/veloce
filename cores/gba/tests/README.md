@@ -82,7 +82,10 @@ tests/
 | thumb.gba | Passing | Thumb instruction set |
 | memory.gba | Passing | Memory access |
 | ppu/hello.gba | Passing | Basic PPU |
-| bios.gba | Partial | Requires HLE BIOS |
+| bios.gba | Passing | HLE BIOS with read protection |
+| save/sram.gba | Passing | 32KB SRAM |
+| save/flash64.gba | Passing | 64KB Flash |
+| save/flash128.gba | Passing | 128KB Flash with bank switching |
 
 ## Contributing
 

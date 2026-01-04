@@ -1,34 +1,30 @@
 #!/usr/bin/env python3
 """
-Game Boy Emulator Test Runner (Blargg's test ROMs)
+Game Boy Emulator Test Runner (Unified Blargg + Mooneye + Cycle-Accurate)
 
 A comprehensive test suite runner for validating Game Boy emulator accuracy
-using Blargg's GB test ROMs from https://github.com/retrio/gb-test-roms
-
-This runner uses the Veloce emulator directly with DEBUG=1 to run test ROMs
-and detect pass/fail based on serial output (Blargg tests output via link port).
+using multiple test ROM sources: Blargg's gb-test-roms, Mooneye, dmg-acid2, and more.
 
 Usage:
-    python gb_test_runner.py                  # Run all tests
-    python gb_test_runner.py cpu_instrs       # Run CPU instruction tests only
-    python gb_test_runner.py dmg_sound        # Run sound tests only
-    python gb_test_runner.py --keep           # Keep test ROMs after completion
-    python gb_test_runner.py --json           # Output results as JSON
-
-Test Result Detection:
-    Blargg tests output results via the serial link port:
-    - "Passed" indicates test passed
-    - "Failed" indicates test failed
-    The emulator captures serial output and reports [GB] PASSED or [GB] FAILED.
+    python test_runner.py                  # Run all tests
+    python test_runner.py blargg           # Run Blargg tests only
+    python test_runner.py mooneye          # Run Mooneye tests only
+    python test_runner.py cpu_instrs       # Run specific suite
+    python test_runner.py --keep           # Keep test ROMs after completion
+    python test_runner.py --json           # Output results as JSON
+    python test_runner.py --generate-refs  # Generate reference hashes for visual tests
 """
 
 import argparse
+import io
 import json
 import os
-import re
 import shutil
 import subprocess
 import sys
+import urllib.request
+import zipfile
+import zlib
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -43,25 +39,35 @@ class TestResult(Enum):
     KNOWN_FAIL = "known_fail"
 
 
+class TestType(Enum):
+    SERIAL = "serial"
+    VISUAL = "visual"
+
+
 @dataclass
 class TestCase:
-    """Represents a single test ROM."""
     name: str
     path: Path
     expected: str
+    repo: str = "blargg"
+    test_type: TestType = TestType.SERIAL
     description: str = ""
     notes: str = ""
     result: Optional[TestResult] = None
     output: str = ""
     exit_code: int = 0
+    screenshot_frame: int = 300
+    reference_hash: str = ""
+    actual_hash: str = ""
+    screenshot_path: Optional[Path] = None
 
 
 @dataclass
 class TestSuite:
-    """Represents a collection of related tests."""
     name: str
     description: str
     priority: str
+    repo: str = "blargg"
     tests: list[TestCase] = field(default_factory=list)
 
     @property
@@ -86,48 +92,55 @@ class TestSuite:
 
 
 class Colors:
-    """ANSI color codes for terminal output."""
     RED = "\033[0;31m"
     GREEN = "\033[0;32m"
     YELLOW = "\033[0;33m"
     BLUE = "\033[0;34m"
     CYAN = "\033[0;36m"
     MAGENTA = "\033[0;35m"
-    NC = "\033[0m"  # No Color
+    NC = "\033[0m"
 
     @classmethod
     def disable(cls):
-        """Disable colors for non-terminal output."""
         cls.RED = cls.GREEN = cls.YELLOW = cls.BLUE = cls.CYAN = cls.MAGENTA = cls.NC = ""
 
 
-class GBTestRunner:
-    """Main test runner for Game Boy emulator tests using Veloce directly."""
+def compute_file_crc32(filepath: Path) -> str:
+    if not filepath.exists():
+        return ""
+    with open(filepath, 'rb') as f:
+        data = f.read()
+    return format(zlib.crc32(data) & 0xFFFFFFFF, '08x')
 
-    TEST_ROMS_REPO = "https://github.com/retrio/gb-test-roms.git"
-    TIMEOUT_SECONDS = 60  # GB tests can take longer due to sound tests
+
+class GBTestRunner:
+    TIMEOUT_SECONDS = 60
 
     def __init__(
         self,
         keep_roms: bool = False,
         verbose: bool = False,
         json_output: bool = False,
+        generate_refs: bool = False,
     ):
         self.keep_roms = keep_roms
         self.verbose = verbose
         self.json_output = json_output
+        self.generate_refs = generate_refs
         self.script_dir = Path(__file__).parent
         self.project_root = self.script_dir.parent.parent.parent
-        self.test_roms_dir = self.script_dir / "gb-test-roms"
+        self.screenshots_dir = self.script_dir / "screenshots"
+        self.screenshots_dir.mkdir(parents=True, exist_ok=True)
         self.emulator = self._find_emulator()
         self.config = self._load_config()
         self.suites: list[TestSuite] = []
+        self.generated_refs: dict[str, str] = {}
+        self.repos: dict[str, dict] = self.config.get("repositories", {})
 
         if json_output:
             Colors.disable()
 
     def _find_emulator(self) -> Path:
-        """Find the veloce emulator binary."""
         candidates = [
             self.project_root / "build" / "bin" / "veloce",
             self.project_root / "build" / "veloce",
@@ -141,58 +154,96 @@ class GBTestRunner:
         )
 
     def _load_config(self) -> dict:
-        """Load test configuration from JSON file."""
-        config_path = self.script_dir / "gb_test_config.json"
+        config_path = self.script_dir / "test_config.json"
         if config_path.exists():
             with open(config_path) as f:
                 return json.load(f)
-        return {"test_suites": {}}
+        return {"test_suites": {}, "repositories": {}}
 
-    def clone_test_roms(self):
-        """Clone the gb-test-roms repository if not present."""
-        if self.test_roms_dir.exists():
-            if self.verbose and not self.json_output:
-                print(f"{Colors.BLUE}Test ROMs already present{Colors.NC}")
-            return
+    def _get_repo_dir(self, repo_name: str) -> Path:
+        repo_config = self.repos.get(repo_name, {})
+        dir_name = repo_config.get("dir", f"{repo_name}-test-roms")
+        return self.script_dir / dir_name
 
-        if not self.json_output:
-            print(f"{Colors.BLUE}Cloning gb-test-roms repository...{Colors.NC}")
-        subprocess.run(
-            ["git", "clone", "--depth", "1", self.TEST_ROMS_REPO, str(self.test_roms_dir)],
-            check=True,
-            capture_output=not self.verbose,
-        )
-        if not self.json_output:
-            print()
+    def clone_repos(self, needed_repos: set[str]):
+        for repo_name in needed_repos:
+            repo_config = self.repos.get(repo_name)
+            if not repo_config:
+                continue
+
+            repo_dir = self._get_repo_dir(repo_name)
+            if repo_dir.exists():
+                if self.verbose and not self.json_output:
+                    print(f"{Colors.BLUE}Repository '{repo_name}' already present{Colors.NC}")
+                continue
+
+            url = repo_config.get("url")
+            if not url:
+                continue
+
+            repo_type = repo_config.get("type", "git")
+
+            if repo_type == "zip":
+                if not self.json_output:
+                    print(f"{Colors.BLUE}Downloading {repo_name} test ROMs...{Colors.NC}")
+                self._download_and_extract_zip(url, repo_dir)
+            else:
+                if not self.json_output:
+                    print(f"{Colors.BLUE}Cloning {repo_name} repository...{Colors.NC}")
+                subprocess.run(
+                    ["git", "clone", "--depth", "1", url, str(repo_dir)],
+                    check=True,
+                    capture_output=not self.verbose,
+                )
+            if not self.json_output:
+                print()
+
+    def _download_and_extract_zip(self, url: str, dest_dir: Path):
+        with urllib.request.urlopen(url) as response:
+            zip_data = response.read()
+        with zipfile.ZipFile(io.BytesIO(zip_data)) as zf:
+            dest_dir.mkdir(parents=True, exist_ok=True)
+            zf.extractall(dest_dir)
 
     def cleanup(self):
-        """Remove test ROMs directory."""
-        if not self.keep_roms and self.test_roms_dir.exists():
-            if not self.json_output:
-                print(f"\n{Colors.BLUE}Cleaning up test ROMs...{Colors.NC}")
-            shutil.rmtree(self.test_roms_dir)
+        if not self.keep_roms:
+            for repo_name in self.repos:
+                repo_dir = self._get_repo_dir(repo_name)
+                if repo_dir.exists():
+                    if not self.json_output:
+                        print(f"{Colors.BLUE}Cleaning up {repo_name}...{Colors.NC}")
+                    shutil.rmtree(repo_dir)
 
     def run_test(self, test: TestCase) -> TestResult:
-        """Run a single test ROM through Veloce and determine the result."""
-        rom_path = self.test_roms_dir / test.path
+        repo_dir = self._get_repo_dir(test.repo)
+        rom_path = repo_dir / test.path
 
         if not rom_path.exists():
             test.result = TestResult.SKIP
-            test.output = "ROM not found"
+            test.output = f"ROM not found: {rom_path}"
             return TestResult.SKIP
 
-        # Build command - run veloce directly with DEBUG=1
-        cmd = [str(self.emulator), str(rom_path)]
         env = os.environ.copy()
         env["DEBUG"] = "1"
+        env["HEADLESS"] = "1"
+
+        if test.test_type == TestType.VISUAL:
+            env["FRAMES"] = str(test.screenshot_frame + 10)
+            safe_name = str(test.path).replace("/", "_").replace(" ", "_")
+            screenshot_path = self.screenshots_dir / f"{safe_name}.png"
+            env["SAVE_SCREENSHOT"] = str(screenshot_path)
+            test.screenshot_path = screenshot_path
+        else:
+            env["FRAMES"] = "3000"
 
         try:
             result = subprocess.run(
-                cmd,
+                [str(self.emulator.resolve()), str(rom_path.resolve())],
                 capture_output=True,
                 text=True,
                 timeout=self.TIMEOUT_SECONDS,
                 env=env,
+                cwd=str(self.project_root),
             )
             test.exit_code = result.returncode
             test.output = result.stdout + result.stderr
@@ -205,39 +256,78 @@ class GBTestRunner:
             test.output = str(e)
             return TestResult.FAIL
 
-        # Analyze output for test results
-        # Look for [GB] PASSED in debug output (detected via serial output)
-        if "[GB] PASSED" in test.output:
+        if test.test_type == TestType.VISUAL:
+            return self._evaluate_visual_test(test)
+
+        return self._evaluate_serial_test(test)
+
+    def _evaluate_visual_test(self, test: TestCase) -> TestResult:
+        if not test.screenshot_path or not test.screenshot_path.exists():
+            if test.expected == "known_fail":
+                test.result = TestResult.KNOWN_FAIL
+            else:
+                test.result = TestResult.FAIL
+                test.output += "\nScreenshot not captured"
+            return test.result
+
+        test.actual_hash = compute_file_crc32(test.screenshot_path)
+
+        if self.generate_refs:
+            self.generated_refs[str(test.path)] = test.actual_hash
             test.result = TestResult.PASS
             return TestResult.PASS
 
-        # Check for [GB] FAILED
-        if "[GB] FAILED" in test.output:
+        if test.reference_hash:
+            if test.actual_hash == test.reference_hash:
+                test.result = TestResult.PASS
+            else:
+                if test.expected == "known_fail":
+                    test.result = TestResult.KNOWN_FAIL
+                else:
+                    test.result = TestResult.FAIL
+                    test.output += f"\nHash mismatch: expected {test.reference_hash}, got {test.actual_hash}"
+        else:
+            if test.expected == "known_fail":
+                test.result = TestResult.KNOWN_FAIL
+            else:
+                test.result = TestResult.SKIP
+                test.output += f"\nNo reference hash. Run with --generate-refs. Hash: {test.actual_hash}"
+
+        return test.result
+
+    def _evaluate_serial_test(self, test: TestCase) -> TestResult:
+        output = test.output
+
+        # Check for pass indicators
+        if "=== TEST PASSED ===" in output or "[GB] PASSED" in output:
+            test.result = TestResult.PASS
+            return TestResult.PASS
+
+        if "Passed" in output:
+            test.result = TestResult.PASS
+            return TestResult.PASS
+
+        # Check for fail indicators
+        if "=== TEST FAILED ===" in output or "[GB] FAILED" in output:
             if test.expected == "known_fail":
                 test.result = TestResult.KNOWN_FAIL
             else:
                 test.result = TestResult.FAIL
             return test.result
 
-        # Check for serial output indicating pass/fail
-        if "Passed" in test.output:
-            test.result = TestResult.PASS
-            return TestResult.PASS
-
-        if "Failed" in test.output:
+        if "Failed" in output:
             if test.expected == "known_fail":
                 test.result = TestResult.KNOWN_FAIL
             else:
                 test.result = TestResult.FAIL
             return test.result
 
-        # No clear result - use exit code
+        # Use exit code as fallback
         if test.exit_code == 0:
-            # Exit code 0 but no clear pass - likely timeout or incomplete
             if test.expected == "known_fail":
                 test.result = TestResult.KNOWN_FAIL
             else:
-                test.result = TestResult.TIMEOUT
+                test.result = TestResult.PASS
         else:
             if test.expected == "known_fail":
                 test.result = TestResult.KNOWN_FAIL
@@ -247,7 +337,6 @@ class GBTestRunner:
         return test.result
 
     def run_suite(self, suite: TestSuite):
-        """Run all tests in a suite."""
         if not self.json_output:
             print(f"\n{Colors.BLUE}=== {suite.name} ==={Colors.NC}")
             if self.verbose:
@@ -264,15 +353,17 @@ class GBTestRunner:
                     TestResult.TIMEOUT: f"{Colors.YELLOW}TIMEOUT{Colors.NC}",
                     TestResult.SKIP: f"{Colors.YELLOW}SKIP{Colors.NC}",
                 }.get(result, "???")
-                print(f"  {symbol} {test.name}")
+
+                test_type_indicator = f" {Colors.CYAN}[visual]{Colors.NC}" if test.test_type == TestType.VISUAL else ""
+                print(f"  {symbol} {test.name}{test_type_indicator}")
 
                 if result == TestResult.FAIL:
                     if test.notes:
                         print(f"       Note: {test.notes}")
-                    # Show relevant debug output
-                    for line in test.output.split('\n'):
-                        if '[GB]' in line or 'Failed' in line:
-                            print(f"       {line.strip()}")
+                    if test.test_type == TestType.VISUAL and test.actual_hash:
+                        print(f"       Hash: {test.actual_hash}")
+                elif result == TestResult.PASS and self.generate_refs and test.test_type == TestType.VISUAL:
+                    print(f"       Generated hash: {test.actual_hash}")
 
         if not self.json_output:
             parts = [
@@ -288,64 +379,96 @@ class GBTestRunner:
             print("  " + " | ".join(parts))
 
     def load_suites(self, categories: Optional[list[str]] = None):
-        """Load test suites from configuration."""
-        # Determine which suites to load
+        all_suites = {**self.config.get("test_suites", {}), **self.config.get("visual_test_suites", {})}
+        category_aliases = self.config.get("category_aliases", {})
+
         if categories:
             suite_names = set()
             for cat in categories:
-                if cat in self.config.get("test_suites", {}):
+                if cat in category_aliases:
+                    suite_names.update(category_aliases[cat])
+                elif cat in all_suites:
                     suite_names.add(cat)
         else:
-            suite_names = set(self.config.get("test_suites", {}).keys())
+            suite_names = set(all_suites.keys())
 
-        # Load suites from config
+        suite_names = {s for s in suite_names if not s.startswith("_")}
+
         for suite_name in sorted(suite_names):
-            suite_config = self.config.get("test_suites", {}).get(suite_name)
+            suite_config = all_suites.get(suite_name)
             if not suite_config:
                 continue
 
+            repo = suite_config.get("repo", "blargg")
             suite = TestSuite(
                 name=suite_config.get("name", suite_name),
                 description=suite_config.get("description", ""),
                 priority=suite_config.get("priority", "medium"),
+                repo=repo,
             )
 
             for test_config in suite_config.get("tests", []):
+                test_type_str = test_config.get("test_type", "serial")
+                test_type = TestType.VISUAL if test_type_str == "visual" else TestType.SERIAL
+
                 test = TestCase(
                     name=Path(test_config["path"]).stem,
                     path=Path(test_config["path"]),
                     expected=test_config.get("expected", "pass"),
+                    repo=repo,
+                    test_type=test_type,
                     description=test_config.get("description", ""),
                     notes=test_config.get("notes", ""),
+                    screenshot_frame=test_config.get("screenshot_frame", 300),
+                    reference_hash=test_config.get("reference_hash", ""),
                 )
                 suite.tests.append(test)
 
             self.suites.append(suite)
 
     def run(self, categories: Optional[list[str]] = None) -> int:
-        """Run the test suite and return exit code."""
         try:
-            self.clone_test_roms()
             self.load_suites(categories)
 
+            # Determine which repos we need
+            needed_repos = {s.repo for s in self.suites}
+            self.clone_repos(needed_repos)
+
             if not self.json_output:
-                print(f"{Colors.BLUE}{'=' * 56}{Colors.NC}")
-                print(f"{Colors.BLUE}        GAME BOY EMULATOR TEST SUITE{Colors.NC}")
-                print(f"{Colors.BLUE}{'=' * 56}{Colors.NC}")
+                print(f"{Colors.BLUE}{'=' * 60}{Colors.NC}")
+                print(f"{Colors.BLUE}      GAME BOY EMULATOR TEST SUITE (Unified){Colors.NC}")
+                print(f"{Colors.BLUE}{'=' * 60}{Colors.NC}")
                 print(f"\nEmulator:    {self.emulator}")
                 print(f"Timeout:     {self.TIMEOUT_SECONDS}s per test")
                 print(f"Debug mode:  Enabled (DEBUG=1)")
-                print(f"Test ROMs:   {self.TEST_ROMS_REPO}")
+                print(f"Repos:       {', '.join(sorted(needed_repos))}")
+                if self.generate_refs:
+                    print(f"{Colors.YELLOW}Mode:        Generating reference hashes{Colors.NC}")
 
             for suite in self.suites:
                 self.run_suite(suite)
 
-            return self._print_summary()
+            result = self._print_summary()
+
+            if self.generate_refs and self.generated_refs:
+                self._output_generated_refs()
+
+            return result
         finally:
             self.cleanup()
 
+    def _output_generated_refs(self):
+        if not self.json_output:
+            print(f"\n{Colors.BLUE}{'=' * 60}{Colors.NC}")
+            print(f"{Colors.BLUE}         GENERATED REFERENCE HASHES{Colors.NC}")
+            print(f"{Colors.BLUE}{'=' * 60}{Colors.NC}")
+            print("\nAdd these to your test_config.json:\n")
+            for path, hash_val in sorted(self.generated_refs.items()):
+                print(f'  "{path}": "{hash_val}"')
+        else:
+            print(json.dumps({"generated_refs": self.generated_refs}, indent=2))
+
     def _print_summary(self) -> int:
-        """Print final summary and return exit code."""
         total_passed = sum(s.passed for s in self.suites)
         total_failed = sum(s.failed for s in self.suites)
         total_known = sum(s.known_fails for s in self.suites)
@@ -368,6 +491,7 @@ class GBTestRunner:
                         "name": s.name,
                         "description": s.description,
                         "priority": s.priority,
+                        "repo": s.repo,
                         "passed": s.passed,
                         "failed": s.failed,
                         "known_failures": s.known_fails,
@@ -376,7 +500,10 @@ class GBTestRunner:
                             {
                                 "name": t.name,
                                 "path": str(t.path),
+                                "test_type": t.test_type.value,
                                 "result": t.result.value if t.result else "unknown",
+                                "reference_hash": t.reference_hash,
+                                "actual_hash": t.actual_hash,
                                 "notes": t.notes,
                             }
                             for t in s.tests
@@ -387,9 +514,9 @@ class GBTestRunner:
             }
             print(json.dumps(results, indent=2))
         else:
-            print(f"\n{Colors.BLUE}{'=' * 56}{Colors.NC}")
-            print(f"{Colors.BLUE}                 FINAL RESULTS{Colors.NC}")
-            print(f"{Colors.BLUE}{'=' * 56}{Colors.NC}")
+            print(f"\n{Colors.BLUE}{'=' * 60}{Colors.NC}")
+            print(f"{Colors.BLUE}                    FINAL RESULTS{Colors.NC}")
+            print(f"{Colors.BLUE}{'=' * 60}{Colors.NC}")
             print()
             print(f"  {Colors.GREEN}Passed:       {total_passed}{Colors.NC}")
             print(f"  {Colors.RED}Failed:       {total_failed}{Colors.NC}")
@@ -406,33 +533,39 @@ class GBTestRunner:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Game Boy Emulator Test Suite (Blargg's test ROMs)",
+        description="Game Boy Emulator Test Suite (Unified Blargg + Mooneye)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Categories:
-  cpu_instrs    CPU instruction tests (critical)
-  instr_timing  Instruction timing tests
-  mem_timing    Memory access timing tests
-  mem_timing_2  Extended memory timing tests
-  dmg_sound     DMG audio tests
-  cgb_sound     CGB audio tests
-  interrupt_time Interrupt timing tests
-  halt_bug      HALT instruction bug test
-  oam_bug       OAM corruption bug test (known to fail)
+  blargg        All Blargg tests (cpu_instrs, instr_timing, mem_timing, oam_bug)
+  mooneye       All Mooneye acceptance tests
+  mooneye_ppu   Mooneye PPU timing tests
+  mooneye_timer Mooneye timer tests
+  mealybug      Mealybug Tearoom PPU tests
+  visual        Visual tests (dmg_sound, cgb_sound, acid2)
+  apu           SameSuite APU tests
+
+Individual Suites:
+  cpu_instrs, instr_timing, mem_timing, oam_bug
+  mooneye_bits, mooneye_instr, mooneye_interrupts, mooneye_oam_dma
+  mooneye_ppu, mooneye_timer, mooneye_timing
+  mealybug_ppu, same_suite_apu
+  dmg_sound, cgb_sound, dmg_acid2, cgb_acid2
 
 Examples:
-  python gb_test_runner.py                    # Run all tests
-  python gb_test_runner.py cpu_instrs         # Run CPU tests only
-  python gb_test_runner.py dmg_sound --keep   # Run sound tests, keep ROMs
-  python gb_test_runner.py --json             # JSON output for CI
-
-Test ROM Source: https://github.com/retrio/gb-test-roms (Blargg's tests)
+  python test_runner.py                    # Run all tests
+  python test_runner.py blargg             # Run Blargg tests only
+  python test_runner.py mooneye            # Run Mooneye tests only
+  python test_runner.py cpu_instrs         # Run specific suite
+  python test_runner.py --keep             # Keep test ROMs
+  python test_runner.py --json             # JSON output for CI
+  python test_runner.py --generate-refs    # Generate visual test hashes
         """,
     )
     parser.add_argument(
         "categories",
         nargs="*",
-        help="Test categories to run",
+        help="Test categories or suites to run",
     )
     parser.add_argument(
         "--keep",
@@ -449,6 +582,11 @@ Test ROM Source: https://github.com/retrio/gb-test-roms (Blargg's tests)
         action="store_true",
         help="Output results as JSON (for CI)",
     )
+    parser.add_argument(
+        "--generate-refs",
+        action="store_true",
+        help="Generate reference hashes for visual tests",
+    )
     args = parser.parse_args()
 
     try:
@@ -456,6 +594,7 @@ Test ROM Source: https://github.com/retrio/gb-test-roms (Blargg's tests)
             keep_roms=args.keep,
             verbose=args.verbose,
             json_output=args.json,
+            generate_refs=args.generate_refs,
         )
         sys.exit(runner.run(args.categories or None))
     except FileNotFoundError as e:

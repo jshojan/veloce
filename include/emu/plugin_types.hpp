@@ -21,8 +21,7 @@ enum class PluginType {
     Audio,          // Audio output and processing
     Input,          // Controller handling
     TAS,            // Tool-Assisted Speedrun tools
-    SpeedrunTools,  // General speedrun features (timer, LiveSplit integration)
-    Game,           // Per-game plugins (auto-splitters, Lua scripts)
+    Game,           // Game plugins (timer, auto-splitters, Lua scripts)
     Netplay         // Network multiplayer (rollback, delay-based)
 };
 
@@ -34,7 +33,6 @@ inline const char* plugin_type_to_string(PluginType type) {
         case PluginType::Audio:         return "Audio";
         case PluginType::Input:         return "Input";
         case PluginType::TAS:           return "TAS";
-        case PluginType::SpeedrunTools: return "SpeedrunTools";
         case PluginType::Game:          return "Game";
         case PluginType::Netplay:       return "Netplay";
         default:                        return "Unknown";
@@ -56,6 +54,10 @@ struct PluginMetadata {
 
     // For game plugins: CRC32 of supported ROMs (empty = universal)
     std::vector<uint32_t> supported_roms;
+
+    // Game plugins: additional ROM info
+    uint32_t game_crc32 = 0;
+    std::vector<uint32_t> alt_crc32s;
 
     // Plugin capabilities (type-specific, stored as flags)
     uint32_t capabilities;
@@ -97,15 +99,6 @@ namespace TASCapabilities {
     constexpr uint32_t LuaScripting   = 1 << 1;  // Lua support
     constexpr uint32_t PianoRoll      = 1 << 2;  // Piano roll editor
     constexpr uint32_t RamWatch       = 1 << 3;  // RAM watch/search
-}
-
-// Capability flags for SpeedrunTools plugins
-namespace SpeedrunToolsCapabilities {
-    constexpr uint32_t None           = 0;
-    constexpr uint32_t LiveSplit      = 1 << 0;  // LiveSplit integration
-    constexpr uint32_t Autosave       = 1 << 1;  // Automatic PB saving
-    constexpr uint32_t Comparisons    = 1 << 2;  // Delta comparisons
-    constexpr uint32_t GlobalHotkeys  = 1 << 3;  // Global hotkey support
 }
 
 // Capability flags for Netplay plugins

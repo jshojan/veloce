@@ -50,6 +50,15 @@ private:
     uint16_t fetch_thumb();
     void flush_pipeline();
 
+    // Prefetch buffer operations
+    void prefetch_step(int cycles);           // Advance prefetch during idle cycles
+    int prefetch_read(uint32_t address, int size);  // Read from prefetch, returns cycles
+    void prefetch_invalidate();               // Invalidate buffer on non-sequential access
+    bool is_rom_address(uint32_t address) const;    // Check if address is in ROM region
+
+    // Data access timing - calculates wait states and advances prefetch during stalls
+    int data_access_cycles(uint32_t address, int access_size, bool is_write);
+
     // ARM instruction execution
     int execute_arm(uint32_t instruction);
     bool check_condition(uint32_t instruction);
@@ -71,6 +80,9 @@ private:
 
     // ARM data processing operand calculation
     uint32_t arm_shift(uint32_t value, int shift_type, int amount, bool& carry_out, bool reg_shift);
+
+    // Multiply timing calculation based on operand significant bits
+    int multiply_cycles(uint32_t rs);
 
     // Thumb instruction execution
     int execute_thumb(uint16_t instruction);
@@ -108,6 +120,8 @@ private:
     void bios_arctan2();
     void bios_cpu_set();
     void bios_cpu_fast_set();
+    void bios_soft_reset();
+    void bios_bg_affine_set();
     void bios_obj_affine_set();
     void bios_bit_unpack();
     void bios_lz77_uncomp_wram();
@@ -115,6 +129,9 @@ private:
     void bios_huff_uncomp();
     void bios_rl_uncomp_wram();
     void bios_rl_uncomp_vram();
+    void bios_diff8bit_unfilter_wram();
+    void bios_diff8bit_unfilter_vram();
+    void bios_diff16bit_unfilter();
 
     // Register bank access
     void bank_registers(ProcessorMode old_mode, ProcessorMode new_mode);
@@ -163,11 +180,65 @@ private:
     // IRQ state
     bool m_irq_pending = false;
 
+    // IRQ delay counter
+    // The ARM7TDMI has approximately 3 cycles from interrupt request to vector entry
+    // during normal execution. When waking from HALT, it's even faster (~2 cycles).
+    int m_irq_delay = 0;
+    static constexpr int IRQ_DELAY_CYCLES = 3;
+    static constexpr int IRQ_DELAY_FROM_HALT = 2;
+
     // Halt state (for low-power wait)
     bool m_halted = false;
 
-    // IntrWait flags - which interrupts we're waiting for
-    uint16_t m_intr_wait_flags = 0;
+    // Thumb BL atomicity flag
+    // The Thumb BL instruction is two 16-bit instructions (prefix + suffix).
+    // An IRQ must not fire between them as it would corrupt LR.
+    bool m_in_thumb_bl = false;
+
+    // IntrWait state machine
+    // When in IntrWait, we need to:
+    // 1. Halt the CPU
+    // 2. Let IRQ handler run when woken
+    // 3. Check BIOS flags at 0x03007FF8 after IRQ handler returns
+    // 4. If flag is set, clear it and return; otherwise halt again
+    bool m_in_intr_wait = false;           // Currently in IntrWait loop
+    uint16_t m_intr_wait_flags = 0;        // Interrupt flags we're waiting for
+    uint32_t m_intr_wait_return_pc = 0;    // PC to return to when IntrWait completes
+    uint32_t m_intr_wait_return_cpsr = 0;  // CPSR to restore when IntrWait completes
+
+    // Sequential access tracking for wait states
+    uint32_t m_last_fetch_addr = 0xFFFFFFFF;  // Last instruction fetch address
+    uint32_t m_last_data_addr = 0xFFFFFFFF;   // Last data access address (for sequential detection)
+    bool m_next_fetch_nonseq = false;         // Force next fetch to be non-sequential (after branch)
+
+    // Prefetch buffer emulation
+    // The GBA has an 8 x 16-bit prefetch buffer that significantly affects execution timing.
+    // - Buffer fills during I-cycles or when CPU isn't accessing ROM
+    // - Provides 0-wait sequential ROM reads if data is prefetched
+    // - Buffer becomes invalid on non-sequential access (branches)
+    // - WAITCNT bit 14 enables/disables the prefetch buffer
+    struct Prefetch {
+        uint32_t head_address = 0;     // Start of current prefetch region (first valid address)
+        uint32_t next_address = 0;     // Next address to prefetch
+        int count = 0;                 // Current halfwords in buffer (0-8)
+        int countdown = 0;             // Cycles until next prefetch completes
+        bool active = false;           // Is the prefetcher currently running?
+
+        void reset() {
+            head_address = 0;
+            next_address = 0;
+            count = 0;
+            countdown = 0;
+            active = false;
+        }
+
+        void invalidate() {
+            count = 0;
+            countdown = 0;
+            active = false;
+        }
+    };
+    Prefetch m_prefetch;
 
     // Current processor mode
     ProcessorMode m_mode = ProcessorMode::Supervisor;

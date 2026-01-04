@@ -71,6 +71,9 @@ public:
     emu::AudioBuffer get_audio() override;
     void clear_audio_buffer() override;
 
+    // Streaming audio (low-latency)
+    void set_audio_callback(AudioStreamCallback callback) override;
+
     // Memory access
     uint8_t read_memory(uint16_t address) override;
     void write_memory(uint16_t address, uint8_t value) override;
@@ -245,8 +248,8 @@ uint32_t SNESPlugin::convert_input(uint32_t buttons) {
 void SNESPlugin::run_frame(const emu::InputState& input) {
     if (!m_rom_loaded) return;
 
-    // Debug: Output diagnostic info for the first few frames
-    if (m_frame_count < 5) {
+    // Debug: Output diagnostic info for the first few frames and periodically
+    if (m_frame_count < 5 || (is_debug_mode() && m_frame_count % 100 == 0)) {
         SNES_DEBUG_PRINT("Frame %llu: PC=$%02X:%04X force_blank=%d brightness=%d TM=$%02X\n",
             (unsigned long long)m_frame_count,
             m_cpu->get_pbr(), m_cpu->get_pc(),
@@ -256,8 +259,10 @@ void SNESPlugin::run_frame(const emu::InputState& input) {
     }
 
     // Set controller state at the start of the frame
-    uint32_t snes_input = convert_input(input.buttons);
-    m_bus->set_controller_state(0, snes_input);
+    // Pass raw VirtualButton bitmask - set_controller_state does the conversion
+    // Set both controller ports - SMAS reads from port 2 for game select scroll
+    m_bus->set_controller_state(0, input.buttons);
+    m_bus->set_controller_state(1, input.buttons);
 
     // SNES timing:
     // Master clock: 21.477272 MHz (NTSC)
@@ -277,20 +282,79 @@ void SNESPlugin::run_frame(const emu::InputState& input) {
     m_bus->start_frame();
     m_dma->hdma_init();
 
+    // ========================================================================
+    // CATCH-UP RENDERING FRAME LOOP
+    // ========================================================================
+    // Reference: Mesen-S, bsnes timing model
+    //
+    // Unlike the previous scanline-by-scanline approach, we now use catch-up
+    // rendering where:
+    // 1. CPU and PPU run concurrently, with PPU timing tracked in dots
+    // 2. PPU rendering is deferred until needed (register write or frame end)
+    // 3. Mid-scanline register changes affect rendering at the correct dot
+    //
+    // This fixes games that rely on mid-scanline effects:
+    // - HBlank IRQ effects (color changes, scroll changes)
+    // - Force blank timing (INIDISP changes during active display)
+    // - HDMA effects that must take effect at specific dot positions
+    // ========================================================================
+
+    // TEMPORARY: Use old render_scanline for debugging
+    static bool use_old_rendering = false;  // Using new catch-up rendering
+
+    // Initialize PPU timing for frame start
+    // This resets the rendered state for the new frame
+    if (!use_old_rendering) {
+        m_ppu->set_timing(0, 0);
+    }
+
     for (int scanline = 0; scanline < SCANLINES_PER_FRAME; scanline++) {
+        // For old rendering, set timing per scanline
+        // For catch-up rendering, don't set timing - let advance() manage the clock
+        if (use_old_rendering) {
+            m_ppu->set_timing(scanline, 0);
+        }
+
+        // Check V-IRQ at start of scanline (fires at dot 0 of VTIME scanline)
+        m_bus->start_scanline();
+
+        // TEST: Use old scanline-at-a-time rendering
+        if (use_old_rendering && scanline <= 223) {
+            m_ppu->render_scanline(scanline);
+        }
+
+        // NOTE: With catch-up rendering, sprite evaluation happens at dot 285
+        // of the PREVIOUS scanline via advance(). We do NOT pre-evaluate here
+        // because that would use the wrong force_blank timing.
+        // The advance() function handles sprite evaluation at the correct time.
+
         // Run CPU for approximately one scanline worth of cycles
         // CPU runs at Master/6 (fast) or Master/8 (slow)
         // Average is about Master/6, giving ~227 CPU cycles per scanline
-
         int cycles_this_scanline = 0;
         int target_cycles = MASTER_CYCLES_PER_SCANLINE;
 
         while (cycles_this_scanline < target_cycles) {
-            // Check for DMA (halts CPU)
+            // Check for DMA (halts CPU completely during transfer)
             int dma_cycles = m_dma->get_dma_cycles();
             if (dma_cycles > 0) {
+                // DMA halts CPU - just accumulate cycles
                 cycles_this_scanline += dma_cycles;
                 m_total_cycles += dma_cycles;
+
+                // Advance PPU timing during DMA
+                // PPU continues running even while CPU is halted
+                if (!use_old_rendering) {
+                    m_ppu->advance(dma_cycles);
+                }
+
+                // Update H-counter during DMA (IRQ can still fire)
+                m_bus->update_hcounter(dma_cycles);
+                m_bus->add_cycles(dma_cycles);
+
+                // APU continues during DMA
+                m_apu->step(dma_cycles);
+
                 m_dma->clear_dma_cycles();
                 continue;
             }
@@ -298,37 +362,71 @@ void SNESPlugin::run_frame(const emu::InputState& input) {
             // Step CPU
             int cpu_cycles = m_cpu->step();
 
+            // Debug: Trace CPU PC during transition frames
+            static int trace_count = 0;
+            if (is_debug_mode() && m_frame_count >= 265 && m_frame_count <= 280 && trace_count < 50) {
+                if (scanline == 0 && cycles_this_scanline < 100) {
+                    fprintf(stderr, "[SNES/CPU] F%d PC=$%02X:%04X\n",
+                        m_frame_count, m_cpu->get_pbr(), m_cpu->get_pc());
+                    trace_count++;
+                }
+            }
+
             // Convert CPU cycles to master cycles
             // Assume average of 6 master cycles per CPU cycle
             int master_cycles = cpu_cycles * 6;
             cycles_this_scanline += master_cycles;
             m_total_cycles += master_cycles;
 
+            // Advance PPU timing - this may trigger catch-up rendering
+            // and handles sprite evaluation at dot 285
+            if (!use_old_rendering) {
+                m_ppu->advance(master_cycles);
+            }
+
+            // Update H-counter and check for H-IRQ trigger
+            m_bus->update_hcounter(master_cycles);
+            m_bus->add_cycles(master_cycles);
+
+            // Poll NMI state (edge detection)
+            m_bus->poll_nmi();
+
+            // Check for H-IRQ at proper dot position
+            m_bus->check_irq_trigger();
+
             // Step APU (runs at its own clock)
             m_apu->step(master_cycles);
 
-            // Check for NMI
+            // Check for NMI (edge-triggered)
             if (m_bus->nmi_pending()) {
                 m_cpu->trigger_nmi();
                 m_bus->clear_nmi();
             }
 
-            // Check for IRQ
-            if (m_bus->irq_pending() && !m_cpu->get_interrupt_disable()) {
-                m_cpu->trigger_irq();
-            }
+            // Update IRQ line state (level-triggered)
+            // Reference: bsnes/ares - IRQ is level-triggered, meaning the CPU's
+            // IRQ line should reflect the current state of irq_pending().
+            // When the IRQ handler reads TIMESTATUS ($4211), the flag is cleared
+            // and irq_pending() becomes false, which should clear the IRQ line.
+            // This prevents infinite IRQ loops after RTI restores the I flag.
+            m_cpu->set_irq_line(m_bus->irq_pending());
         }
 
-        // Render scanline (for visible scanlines 1-224)
-        if (scanline >= 1 && scanline <= 224) {
-            m_ppu->render_scanline(scanline - 1);
+        // Force PPU to catch up to current position before H-blank processing
+        // This ensures all visible pixels are rendered before HDMA changes registers
+        // Note: We don't use set_timing here because advance() has already updated
+        // the PPU clock - we just need to render any pending pixels.
+        if (!use_old_rendering) {
+            m_ppu->sync_to_current();
         }
 
         // H-blank processing
         m_bus->start_hblank();
 
-        // HDMA transfers occur during H-blank
-        if (scanline < 225) {  // HDMA only during active display
+        // HDMA transfers occur at dot 278 (H-blank) on real hardware.
+        // With catch-up rendering, pixels are already rendered, so HDMA
+        // changes will affect the NEXT scanline's rendering.
+        if (scanline < 225) {
             m_dma->hdma_transfer();
         }
 
@@ -336,6 +434,11 @@ void SNESPlugin::run_frame(const emu::InputState& input) {
         if (scanline == 225) {
             m_bus->start_vblank();
         }
+    }
+
+    // Final catch-up: ensure all remaining pixels are rendered
+    if (!use_old_rendering) {
+        m_ppu->sync_to_current();
     }
 
     // Copy PPU framebuffer
@@ -362,19 +465,8 @@ void SNESPlugin::run_frame(const emu::InputState& input) {
         }
     }
 
-    // Notify PPU frame complete (updates internal frame counter for debug)
+    // Notify PPU frame complete (updates internal frame counter)
     m_ppu->end_frame();
-
-    // Debug: Check for non-black pixels every 60 frames
-    if (is_debug_mode() && (m_frame_count % 60 == 0)) {
-        int non_black = 0;
-        for (int i = 0; i < 256 * 224; i++) {
-            if ((m_framebuffer[i] & 0x00FFFFFF) != 0) non_black++;
-        }
-        fprintf(stderr, "[SNES] Frame %llu: %d non-black pixels (%.1f%%)\n",
-                (unsigned long long)m_frame_count, non_black,
-                non_black * 100.0 / (256.0 * 224.0));
-    }
 
     // Get audio samples
     m_audio_samples = m_apu->get_samples(m_audio_buffer, AUDIO_BUFFER_SIZE);
@@ -407,12 +499,28 @@ emu::AudioBuffer SNESPlugin::get_audio() {
     emu::AudioBuffer ab;
     ab.samples = m_audio_buffer;
     ab.sample_count = static_cast<int>(m_audio_samples);
-    ab.sample_rate = 44100;
+    ab.sample_rate = 32000;  // DSP outputs at 32 kHz
     return ab;
 }
 
 void SNESPlugin::clear_audio_buffer() {
     m_audio_samples = 0;
+}
+
+void SNESPlugin::set_audio_callback(AudioStreamCallback callback) {
+    // Store in base class
+    m_audio_callback = callback;
+
+    // Forward to APU for direct streaming
+    if (m_apu) {
+        if (callback) {
+            m_apu->set_audio_callback([callback](const float* samples, size_t count, int rate) {
+                callback(samples, count, rate);
+            });
+        } else {
+            m_apu->set_audio_callback(nullptr);
+        }
+    }
 }
 
 uint8_t SNESPlugin::read_memory(uint16_t address) {

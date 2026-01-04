@@ -451,6 +451,14 @@ struct NetplayStats {
     float frame_advantage;      // Local frame advantage (-/+ frames)
 };
 
+// Notification types for UI
+enum class NetplayNotificationType {
+    Info,
+    Success,
+    Warning,
+    Error
+};
+
 // Host interface provided to netplay plugins
 class INetplayHost {
 public:
@@ -467,6 +475,7 @@ public:
     virtual double get_fps() const = 0;
 
     // ROM information
+    virtual bool is_rom_loaded() const = 0;
     virtual const char* get_rom_name() const = 0;
     virtual uint32_t get_rom_crc32() const = 0;
     virtual const char* get_platform_name() const = 0;
@@ -479,7 +488,13 @@ public:
     virtual void set_controller_input(int controller, uint32_t buttons) = 0;
     virtual uint32_t get_local_input(int controller) const = 0;
 
-    // Notifications
+    // Configuration
+    virtual const char* get_config_directory() const = 0;
+
+    // UI notifications
+    virtual void show_notification(NetplayNotificationType type, const char* message, float duration = 3.0f) = 0;
+
+    // Notifications (callbacks to host)
     virtual void on_netplay_connected(int player_id) = 0;
     virtual void on_netplay_disconnected(const char* reason) = 0;
     virtual void on_netplay_player_joined(const NetplayPlayer& player) = 0;
@@ -649,6 +664,30 @@ public:
     // Handles state saving for rollback, network updates, etc.
     virtual void end_frame() = 0;
 
+    // Get number of active players in the session
+    virtual int get_active_player_count() const {
+        auto info = get_session_info();
+        return info.player_count > 0 ? info.player_count : 2;
+    }
+
+    // Get synchronized inputs for all players at once (efficient batch version)
+    // out_inputs: Output buffer, should be pre-sized to get_active_player_count()
+    // frame: Current frame number
+    virtual void get_synchronized_inputs_fast(std::vector<uint32_t>& out_inputs, uint64_t frame) {
+        int count = get_active_player_count();
+        if (static_cast<int>(out_inputs.size()) != count) {
+            out_inputs.resize(count, 0);
+        }
+        for (int i = 0; i < count; i++) {
+            get_input(i, out_inputs[i], frame);
+        }
+    }
+
+    // Set local input for a player slot (for local controller input routing)
+    virtual void set_local_input(int player, uint32_t buttons) {
+        (void)player; (void)buttons;
+    }
+
     // =========================================================================
     // State Synchronization
     // =========================================================================
@@ -742,6 +781,33 @@ public:
 
     // Get frame advantage (positive = ahead of remote)
     virtual float get_frame_advantage() const { return 0.0f; }
+
+    // =========================================================================
+    // GUI Integration
+    // =========================================================================
+
+    // Set ImGui context (must be called before render methods)
+    virtual void set_imgui_context(void* context) { (void)context; }
+
+    // Render the Netplay menu in the main menu bar
+    // Called by the GUI manager when rendering the main menu.
+    // The plugin is responsible for creating its own menu structure.
+    // Returns true if a menu was rendered.
+    virtual bool render_menu() { return false; }
+
+    // Render any netplay-related windows/panels
+    // Called each frame to render dialogs, overlays, status panels, etc.
+    virtual void render_gui() {}
+
+    // Show the host game dialog
+    virtual void show_host_dialog() {}
+
+    // Show the join game dialog
+    virtual void show_join_dialog() {}
+
+    // Panel visibility control (for Window menu toggle)
+    virtual void show_panel(bool show) { (void)show; }
+    virtual bool is_panel_visible() const { return false; }
 };
 
 } // namespace emu

@@ -8,6 +8,20 @@
 
 namespace gba {
 
+// Helper to check if a PC value points to valid executable memory
+static inline bool is_valid_pc(uint32_t pc) {
+    // Valid GBA executable memory regions:
+    // BIOS: 0x00000000 - 0x00003FFF
+    // EWRAM: 0x02000000 - 0x0203FFFF
+    // IWRAM: 0x03000000 - 0x03007FFF
+    // ROM: 0x08000000 - 0x09FFFFFF (and mirrors)
+    if (pc < 0x00004000) return true;  // BIOS
+    if (pc >= 0x02000000 && pc < 0x02040000) return true;  // EWRAM
+    if (pc >= 0x03000000 && pc < 0x03008000) return true;  // IWRAM
+    if (pc >= 0x08000000 && pc < 0x0E000000) return true;  // ROM + mirrors
+    return false;
+}
+
 ARM7TDMI::ARM7TDMI(Bus& bus) : m_bus(bus) {
     reset();
 }
@@ -27,10 +41,6 @@ void ARM7TDMI::reset() {
     m_usr_regs.fill(0);     // R8-R12 shared by User/System mode
     m_usr_sp_lr.fill(0);    // R13-R14 for User/System mode
 
-    // Reset CPSR: ARM state, IRQ/FIQ disabled, Supervisor mode
-    m_cpsr = FLAG_I | FLAG_F | static_cast<uint32_t>(ProcessorMode::Supervisor);
-    m_mode = ProcessorMode::Supervisor;
-
     // Clear SPSRs
     m_spsr_fiq = 0;
     m_spsr_svc = 0;
@@ -38,16 +48,31 @@ void ARM7TDMI::reset() {
     m_spsr_irq = 0;
     m_spsr_und = 0;
 
-    // Set PC to reset vector
-    // GBA BIOS is at 0x00000000, it will jump to cartridge
-    m_regs[15] = 0x08000000;  // Start at ROM for now (skip BIOS)
+    // Initialize stack pointers for each mode (matching mGBA's GBAReset)
+    // The BIOS sets up different stack pointers for each mode
 
-    // Initialize stack pointers for each mode
-    // These values match what the GBA BIOS would set up
-    m_irq_regs[0] = 0x03007FA0;      // IRQ stack
-    m_svc_regs[0] = 0x03007FE0;      // Supervisor stack
-    m_regs[13] = 0x03007FE0;         // Current SP (in SVC mode)
-    m_usr_sp_lr[0] = 0x03007F00;     // User/System stack
+    // Set up IRQ mode stack
+    m_cpsr = static_cast<uint32_t>(ProcessorMode::IRQ);
+    m_mode = ProcessorMode::IRQ;
+    m_irq_regs[0] = 0x03007FA0;      // SP_irq
+
+    // Set up Supervisor mode stack
+    m_cpsr = static_cast<uint32_t>(ProcessorMode::Supervisor);
+    m_mode = ProcessorMode::Supervisor;
+    m_svc_regs[0] = 0x03007FE0;      // SP_svc
+
+    // Set up User/System mode stack
+    m_usr_sp_lr[0] = 0x03007F00;     // SP_usr/SP_sys
+
+    // Final state: System mode with IRQ enabled, FIQ disabled
+    // This matches the state after the real BIOS completes
+    // mGBA ends reset in System mode
+    m_cpsr = static_cast<uint32_t>(ProcessorMode::System);  // No FLAG_I - IRQs enabled
+    m_mode = ProcessorMode::System;
+    m_regs[13] = 0x03007F00;         // Current SP (in System mode)
+
+    // Set PC to ROM entry point (skip BIOS)
+    m_regs[15] = 0x08000000;
 
     // Clear pipeline
     m_pipeline[0] = 0;
@@ -56,68 +81,146 @@ void ARM7TDMI::reset() {
 
     // Clear interrupt state
     m_irq_pending = false;
+    m_irq_delay = 0;
     m_halted = false;
+    m_in_thumb_bl = false;
+
+    // Clear IntrWait state
+    m_in_intr_wait = false;
+    m_intr_wait_flags = 0;
+    m_intr_wait_return_pc = 0;
+    m_intr_wait_return_cpsr = 0;
+
+    // Reset prefetch buffer and sequential tracking
+    m_prefetch.reset();
+    m_last_fetch_addr = 0xFFFFFFFF;
+    m_last_data_addr = 0xFFFFFFFF;
+    m_next_fetch_nonseq = true;  // First fetch after reset is non-sequential
+
+    GBA_DEBUG_PRINT("CPU Reset: PC=0x%08X, CPSR=0x%08X (mode=%s, IRQ=%s)\n",
+                    m_regs[15], m_cpsr,
+                    (m_mode == ProcessorMode::System) ? "System" : "Other",
+                    (m_cpsr & FLAG_I) ? "disabled" : "enabled");
 }
 
 int ARM7TDMI::step() {
-    // Check for pending IRQ
-    if (m_irq_pending && !(m_cpsr & FLAG_I)) {
-        // HLE IRQ handling - simulate what the GBA BIOS does:
-        // 1. Read handler address from 0x03007FFC
-        // 2. If handler is valid (in executable memory), call it
-        // 3. If handler is invalid, wait for handler to be set up
-        uint32_t handler_addr = read32(0x03007FFC);
+    int cycles = 1;  // Default cycle count
 
-        // Validate handler address is in a valid executable region AND has code:
-        // - 0x02xxxxxx: EWRAM (256KB)
-        // - 0x03xxxxxx: IWRAM (32KB)
-        // - 0x08xxxxxx-0x0Dxxxxxx: ROM
-        // Also check that the handler has actual code (not just zeros).
-        // Games set up the handler pointer before writing the handler code,
-        // so we need to wait for the code to be written.
-        bool valid_handler = false;
-        uint8_t region = (handler_addr >> 24) & 0xFF;
-        if (region == 0x02 || region == 0x03 ||
-            (region >= 0x08 && region <= 0x0D)) {
-            // Check if handler has actual code (first instruction isn't 0)
-            uint32_t handler_instr = read32(handler_addr & ~3u);
-            if (handler_instr != 0 && handler_instr != 0xFFFFFFFF) {
-                valid_handler = true;
-            }
-        }
-
-        if (!valid_handler) {
-            // No valid handler yet - clear pending and continue executing
-            m_irq_pending = false;
-        } else {
-            // Enter IRQ mode and jump to BIOS IRQ vector at 0x00000018
-            // The HLE BIOS code there will save registers, call the user's
-            // handler from 0x03FFFFFC, restore registers, and return from IRQ
-            enter_exception(ProcessorMode::IRQ, VECTOR_IRQ);
-            m_irq_pending = false;
-            return 3;
-        }
-    }
-
-    // If halted, just return 1 cycle
+    // If halted (either from Halt SWI or IntrWait), just pass time
+    // The CPU will be woken by signal_irq() when an interrupt arrives
     if (m_halted) {
+        // Decrement IRQ delay during halt (cycles still pass)
+        if (m_irq_delay > 0) {
+            m_irq_delay--;
+        }
         return 1;
     }
 
-    // Execute based on current state
+    // Check for pending IRQ - only service if:
+    // 1. IRQ is pending
+    // 2. IRQs are enabled (I flag clear)
+    // 3. The IRQ delay has elapsed (m_irq_delay <= 0)
+    // 4. We're not in the middle of a Thumb BL instruction (which is pseudo-atomic)
+    if (m_irq_pending && !(m_cpsr & FLAG_I) && m_irq_delay <= 0 && !m_in_thumb_bl) {
+        // Enter IRQ mode and jump to BIOS IRQ vector at 0x00000018
+        // The game's IRQ handler will be called via the handler address at 0x03007FFC
+        enter_exception(ProcessorMode::IRQ, VECTOR_IRQ);
+        m_irq_pending = false;
+        return 3;
+    }
+
+    // If we're in IntrWait mode and not halted, check if the waited interrupt occurred
+    // This happens after an IRQ woke us and the IRQ handler ran
+    if (m_in_intr_wait) {
+        // Read the BIOS interrupt flags at 0x03007FF8
+        // The game's IRQ handler should have ORed the acknowledged interrupt flags here
+        uint16_t bios_flags = read16(0x03007FF8);
+        uint16_t matched = bios_flags & m_intr_wait_flags;
+
+        GBA_DEBUG_PRINT("IntrWait: Checking flags, BIOS_IF=0x%04X, waiting=0x%04X, matched=0x%04X\n",
+                        bios_flags, m_intr_wait_flags, matched);
+
+        if (matched != 0) {
+            // The interrupt we were waiting for occurred!
+            // Clear the matched flags from BIOS interrupt flags
+            write16(0x03007FF8, bios_flags & ~matched);
+
+            GBA_DEBUG_PRINT("IntrWait: Complete! Cleared flags, returning to PC=0x%08X\n",
+                            m_intr_wait_return_pc);
+
+            // Exit IntrWait state
+            m_in_intr_wait = false;
+            m_intr_wait_flags = 0;
+
+            // IntrWait returns normally - the SWI already set up the return
+            // We just continue execution from where the SWI was called
+        } else {
+            // Interrupt we were waiting for hasn't occurred yet
+            // Go back to halt state and wait for next interrupt
+            GBA_DEBUG_PRINT("IntrWait: Flag not set, halting again\n");
+            m_halted = true;
+            return 1;
+        }
+    }
+
+
+    // Execute instruction based on current state
     if (m_cpsr & FLAG_T) {
         // Thumb mode
+        uint32_t fetch_addr = m_regs[15];
+
+        // Use prefetch buffer for ROM fetches, otherwise normal wait states
+        int fetch_wait = prefetch_read(fetch_addr, 16);
+
         uint16_t instruction = fetch_thumb();
-        return execute_thumb(instruction);
+        int exec_cycles = execute_thumb(instruction);
+        cycles = exec_cycles + fetch_wait;
+
+        // Advance prefetch buffer during execution cycles
+        prefetch_step(exec_cycles);
+
+        // Update last fetch address (m_regs[15] was incremented by fetch_thumb)
+        m_last_fetch_addr = fetch_addr;
     } else {
         // ARM mode
+        uint32_t fetch_addr = m_regs[15];
+
+        // Use prefetch buffer for ROM fetches, otherwise normal wait states
+        int fetch_wait = prefetch_read(fetch_addr, 32);
+
         uint32_t instruction = fetch_arm();
-        return execute_arm(instruction);
+        int exec_cycles = execute_arm(instruction);
+        cycles = exec_cycles + fetch_wait;
+
+        // Advance prefetch buffer during execution cycles
+        prefetch_step(exec_cycles);
+
+        // Update last fetch address
+        m_last_fetch_addr = fetch_addr;
     }
+
+    // Decrement IRQ delay by cycles consumed
+    if (m_irq_delay > 0) {
+        m_irq_delay -= cycles;
+    }
+
+    return cycles;
 }
 
 void ARM7TDMI::signal_irq() {
-    m_irq_pending = true;
+    // Only start the delay if we don't already have an IRQ pending
+    // This prevents resetting the delay counter on every call
+    if (!m_irq_pending) {
+        m_irq_pending = true;
+        // When waking from HALT, use shorter delay (~2 cycles)
+        // During normal execution, use standard delay (~3 cycles)
+        if (m_halted) {
+            m_irq_delay = IRQ_DELAY_FROM_HALT;
+        } else {
+            m_irq_delay = IRQ_DELAY_CYCLES;
+        }
+    }
+
     m_halted = false;  // IRQ wakes from halt
 }
 
@@ -140,12 +243,10 @@ void ARM7TDMI::write8(uint32_t address, uint8_t value) {
 }
 
 void ARM7TDMI::write16(uint32_t address, uint16_t value) {
-    // Use unaligned write for correct SRAM byte selection
     m_bus.write16_unaligned(address, value);
 }
 
 void ARM7TDMI::write32(uint32_t address, uint32_t value) {
-    // Use unaligned write for correct SRAM byte selection
     m_bus.write32_unaligned(address, value);
 }
 
@@ -168,6 +269,189 @@ void ARM7TDMI::flush_pipeline() {
     // PC is already pointing to the instruction after the branch target
     // ARM: PC + 8 from current instruction
     // Thumb: PC + 4 from current instruction
+
+    // Debug: check if we're branching to an invalid address
+    if (!is_valid_pc(m_regs[15])) {
+        GBA_DEBUG_PRINT("=== BRANCH TO INVALID PC ===\n");
+        GBA_DEBUG_PRINT("  PC=0x%08X, CPSR=0x%08X, mode=%s\n",
+                        m_regs[15], m_cpsr,
+                        m_mode == ProcessorMode::System ? "System" :
+                        m_mode == ProcessorMode::User ? "User" :
+                        m_mode == ProcessorMode::IRQ ? "IRQ" :
+                        m_mode == ProcessorMode::FIQ ? "FIQ" :
+                        m_mode == ProcessorMode::Supervisor ? "SVC" :
+                        m_mode == ProcessorMode::Abort ? "ABT" :
+                        m_mode == ProcessorMode::Undefined ? "UND" : "???");
+        GBA_DEBUG_PRINT("  LR=0x%08X, SP=0x%08X\n", m_regs[14], m_regs[13]);
+    }
+
+    // Reset sequential tracking - next fetch after a branch is non-sequential
+    m_last_fetch_addr = 0xFFFFFFFF;
+    m_last_data_addr = 0xFFFFFFFF;
+    m_next_fetch_nonseq = true;  // Force next fetch to be non-sequential
+
+    // Invalidate prefetch buffer on branch (non-sequential access)
+    prefetch_invalidate();
+}
+
+bool ARM7TDMI::is_rom_address(uint32_t address) const {
+    // ROM region: 0x08000000 - 0x0DFFFFFF (WS0, WS1, WS2)
+    uint32_t region = address >> 24;
+    return region >= 0x08 && region <= 0x0D;
+}
+
+void ARM7TDMI::prefetch_invalidate() {
+    m_prefetch.invalidate();
+}
+
+void ARM7TDMI::prefetch_step(int cycles) {
+    // Don't fill if prefetch is disabled
+    if (!m_bus.is_prefetch_enabled()) {
+        return;
+    }
+
+    // Need a valid next_address to prefetch from
+    if (!m_prefetch.active) {
+        return;
+    }
+
+    // Only prefetch from ROM regions (0x08-0x0D)
+    if (!is_rom_address(m_prefetch.next_address)) {
+        m_prefetch.active = false;
+        return;
+    }
+
+    // Buffer is full (8 halfwords)
+    if (m_prefetch.count >= 8) {
+        return;
+    }
+
+    // Get the duty cycle (S wait states) for the current ROM region
+    int duty = m_bus.get_prefetch_duty(m_prefetch.next_address);
+
+    // Use the cycles to fill the buffer
+    m_prefetch.countdown -= cycles;
+
+    while (m_prefetch.countdown <= 0 && m_prefetch.count < 8) {
+        // Check for 128KB boundary crossing
+        // The GBA forces non-sequential timing at each 128KB ROM boundary
+        // The prefetcher stops at these boundaries (acts as full)
+        uint32_t current_block = m_prefetch.next_address & 0x1FFFF;  // Within 128KB block
+        if (current_block == 0 && m_prefetch.count > 0) {
+            // We've reached a 128KB boundary, stop prefetching
+            m_prefetch.countdown = 0;
+            break;
+        }
+
+        // One halfword filled
+        m_prefetch.count++;
+        m_prefetch.next_address += 2;
+
+        // Check if next address crosses 128KB boundary
+        uint32_t next_block = m_prefetch.next_address & 0x1FFFF;
+
+        // Reset countdown for next halfword if buffer not full and valid
+        if (m_prefetch.count < 8 && is_rom_address(m_prefetch.next_address) && next_block != 0) {
+            m_prefetch.countdown += duty;
+        } else if (m_prefetch.count < 8 && is_rom_address(m_prefetch.next_address) && next_block == 0) {
+            // Stop at boundary - don't continue prefetching
+            m_prefetch.countdown = 0;
+            break;
+        } else {
+            m_prefetch.countdown = 0;
+            break;
+        }
+    }
+}
+
+int ARM7TDMI::prefetch_read(uint32_t address, int size) {
+    // Check if this is a ROM address and prefetch is enabled
+    if (!is_rom_address(address) || !m_bus.is_prefetch_enabled()) {
+        bool is_sequential = !m_next_fetch_nonseq && (address == m_last_fetch_addr + (size / 8));
+        m_next_fetch_nonseq = false;  // Clear the flag after use
+        return m_bus.get_wait_states(address, is_sequential, size);
+    }
+
+    // Calculate how many halfwords we need (1 for Thumb/16-bit, 2 for ARM/32-bit)
+    int halfwords_needed = (size == 32) ? 2 : 1;
+
+    // Check if the requested address is within the prefetch buffer range
+    // Buffer covers: [head_address, head_address + count * 2)
+    bool hit = false;
+    if (m_prefetch.count >= halfwords_needed) {
+        uint32_t buffer_end = m_prefetch.head_address + (m_prefetch.count * 2);
+        // Check if address falls within [head_address, buffer_end - size_in_bytes)
+        if (address >= m_prefetch.head_address &&
+            address + (size / 8) <= buffer_end) {
+            hit = true;
+        }
+    }
+
+    // After a branch, even if we have a prefetch hit, the timing is different
+    // The first fetch after a branch is always non-sequential on the ROM bus
+    // But if we have a prefetch hit, we still get the benefit of 1S timing
+    bool forced_nonseq = m_next_fetch_nonseq;
+    m_next_fetch_nonseq = false;  // Clear the flag
+
+    if (hit && !forced_nonseq) {
+        // Prefetch hit - consume from buffer
+        // Calculate how many halfwords to consume (from head to address + size)
+        uint32_t consumed_end = address + (size / 8);
+        int consumed = (consumed_end - m_prefetch.head_address) / 2;
+
+        // Update buffer state
+        m_prefetch.head_address = consumed_end;
+        m_prefetch.count -= consumed;
+
+        // The prefetcher continues from where it was
+        // If it was idle, restart it
+        if (!m_prefetch.active && m_prefetch.count < 8) {
+            m_prefetch.active = true;
+            m_prefetch.countdown = m_bus.get_prefetch_duty(m_prefetch.next_address);
+        }
+
+        // Prefetch hit: 1 cycle (1S) instead of normal wait states
+        return 1;
+    }
+
+    // Prefetch miss or forced non-sequential (after branch)
+    // Use normal wait states and restart prefetch from this address
+    bool is_sequential = !forced_nonseq && (address == m_last_fetch_addr + (size / 8));
+    int wait = m_bus.get_wait_states(address, is_sequential, size);
+
+    // Restart prefetch buffer from after this access
+    m_prefetch.head_address = address + (size / 8);
+    m_prefetch.next_address = m_prefetch.head_address;
+    m_prefetch.count = 0;
+    m_prefetch.active = true;
+    m_prefetch.countdown = m_bus.get_prefetch_duty(m_prefetch.next_address);
+
+    return wait;
+}
+
+int ARM7TDMI::data_access_cycles(uint32_t address, int access_size, bool is_write) {
+    // Calculate wait states for data memory access
+    // During non-ROM accesses, the prefetch buffer can fill
+    //
+    // Key insight from mGBA: when CPU accesses non-ROM memory (EWRAM, VRAM, etc.),
+    // the prefetch buffer continues filling during that memory stall time.
+
+    // Determine if this is a sequential access
+    // Data accesses are sequential if they follow the previous data access
+    bool is_sequential = (address == m_last_data_addr + (access_size / 8));
+    m_last_data_addr = address;
+
+    // Get the wait states for this memory region
+    int wait = m_bus.get_wait_states(address, is_sequential, access_size);
+
+    // If we're accessing non-ROM memory and prefetch is enabled,
+    // the prefetch buffer can fill during the memory stall cycles
+    if (!is_rom_address(address) && m_bus.is_prefetch_enabled() && m_prefetch.active) {
+        // Advance prefetch buffer during the memory stall
+        prefetch_step(wait);
+    }
+
+    return wait;
 }
 
 bool ARM7TDMI::check_condition(uint32_t instruction) {
@@ -332,6 +616,30 @@ uint32_t ARM7TDMI::arm_shift(uint32_t value, int shift_type, int amount, bool& c
     }
 
     return value;
+}
+
+int ARM7TDMI::multiply_cycles(uint32_t rs) {
+    // ARM7TDMI multiply timing depends on the significant bits of the Rs operand.
+    // The multiplier array processes 8 bits at a time, terminating early when
+    // all remaining bits are zeros or ones (sign extension for signed multiply).
+    //
+    // m = 1 if bits [31:8] are all zeros or all ones
+    // m = 2 if bits [31:16] are all zeros or all ones
+    // m = 3 if bits [31:24] are all zeros or all ones
+    // m = 4 otherwise
+    //
+    // Total cycles for MUL: m, MLA: m+1, UMULL/UMLAL: m+1, SMULL/SMLAL: m+2
+
+    uint32_t mask = rs & 0xFFFFFF00;
+    if (mask == 0 || mask == 0xFFFFFF00) return 1;
+
+    mask = rs & 0xFFFF0000;
+    if (mask == 0 || mask == 0xFFFF0000) return 2;
+
+    mask = rs & 0xFF000000;
+    if (mask == 0 || mask == 0xFF000000) return 3;
+
+    return 4;
 }
 
 int ARM7TDMI::arm_branch(uint32_t instruction) {
@@ -552,9 +860,11 @@ int ARM7TDMI::arm_multiply(uint32_t instruction) {
         // C flag is destroyed (unpredictable)
     }
 
-    // Multiply timing depends on operand values
-    // Simplified: 2-4 cycles
-    return 3;
+    // ARM7TDMI multiply timing:
+    // MUL: m cycles, MLA: m+1 cycles
+    // where m is 1-4 based on Rs significant bits
+    int m = multiply_cycles(m_regs[rs]);
+    return accumulate ? m + 1 : m;
 }
 
 int ARM7TDMI::arm_multiply_long(uint32_t instruction) {
@@ -588,7 +898,14 @@ int ARM7TDMI::arm_multiply_long(uint32_t instruction) {
         if (result & (1ULL << 63)) m_cpsr |= FLAG_N;
     }
 
-    return 4;  // Long multiply takes 3-5 cycles
+    // ARM7TDMI long multiply timing:
+    // UMULL: m+1, UMLAL: m+2, SMULL: m+2, SMLAL: m+3
+    // where m is 1-4 based on Rs significant bits
+    int m = multiply_cycles(m_regs[rs]);
+    int cycles = m + 1;           // Base for long multiply
+    if (sign) cycles++;           // +1 for signed
+    if (accumulate) cycles++;     // +1 for accumulate
+    return cycles;
 }
 
 int ARM7TDMI::arm_single_data_transfer(uint32_t instruction) {
@@ -618,6 +935,10 @@ int ARM7TDMI::arm_single_data_transfer(uint32_t instruction) {
     if (rn == 15) base += 4;  // After fetch, PC is at instruction+4, ARM expects +8
 
     uint32_t addr = pre ? (up ? base + offset : base - offset) : base;
+
+    // Calculate memory access timing (this also advances prefetch during non-ROM stalls)
+    int access_size = byte ? 8 : 32;
+    int mem_cycles = data_access_cycles(addr, access_size, !load);
 
     // Perform transfer
     if (load) {
@@ -655,7 +976,11 @@ int ARM7TDMI::arm_single_data_transfer(uint32_t instruction) {
         }
     }
 
-    return load ? 3 : 2;
+    // Base timing: 1S (internal) + memory wait states
+    // LDR: 1S + 1N + 1I = 3 cycles minimum + memory wait
+    // STR: 1S + 1N = 2 cycles minimum + memory wait
+    int base_cycles = load ? 1 : 1;  // Internal cycles
+    return base_cycles + mem_cycles;
 }
 
 int ARM7TDMI::arm_halfword_data_transfer(uint32_t instruction) {
@@ -681,6 +1006,10 @@ int ARM7TDMI::arm_halfword_data_transfer(uint32_t instruction) {
     if (rn == 15) base += 4;  // After fetch, PC is at instruction+4, ARM expects +8
 
     uint32_t addr = pre ? (up ? base + offset : base - offset) : base;
+
+    // Determine access size for timing
+    int access_size = (op == 2) ? 8 : 16;  // LDRSB is 8-bit, others are 16-bit
+    int mem_cycles = data_access_cycles(addr, access_size, !load);
 
     // Perform transfer
     if (load) {
@@ -721,7 +1050,9 @@ int ARM7TDMI::arm_halfword_data_transfer(uint32_t instruction) {
         }
     }
 
-    return load ? 3 : 2;
+    // Base timing: 1S (internal) + memory wait states
+    int base_cycles = load ? 1 : 1;
+    return base_cycles + mem_cycles;
 }
 
 int ARM7TDMI::arm_block_data_transfer(uint32_t instruction) {
@@ -793,7 +1124,40 @@ int ARM7TDMI::arm_block_data_transfer(uint32_t instruction) {
                     }
                 } else {
                     m_regs[i] = value;
+                    // Debug: if loading garbage into SP, dump the context
+                    if (i == 13 && (value < 0x03000000 || value >= 0x03008000)) {
+                        static bool sp_ldm_logged = false;
+                        if (!sp_ldm_logged) {
+                            sp_ldm_logged = true;
+                            GBA_DEBUG_PRINT("=== LDM loading invalid SP ===\n");
+                            GBA_DEBUG_PRINT("  Instruction: 0x%08X (P=%d, U=%d, S=%d, W=%d, L=%d)\n",
+                                           instruction, pre, up, psr, writeback, load);
+                            GBA_DEBUG_PRINT("  Loading SP from addr=0x%08X, got value=0x%08X\n", addr, value);
+                            GBA_DEBUG_PRINT("  PC=0x%08X, reg_list=0x%04X, base Rn=R%d=0x%08X, reg_count=%d\n",
+                                           m_regs[15], reg_list, rn, base, reg_count);
+                            // Print memory both before and after base
+                            GBA_DEBUG_PRINT("  Stack contents (base-16 to base+28):\n");
+                            for (int j = -4; j < 8; j++) {
+                                uint32_t a = base + j * 4;
+                                uint32_t v = read32(a);
+                                GBA_DEBUG_PRINT("    [0x%08X] = 0x%08X%s%s\n", a, v,
+                                    (a == addr) ? " <-- SP loaded from here" : "",
+                                    (v >= 0x08000000 && v < 0x0E000000) ? " (ROM)" :
+                                    (v >= 0x03000000 && v < 0x03008000) ? " (IWRAM)" :
+                                    (v >= 0x02000000 && v < 0x02040000) ? " (EWRAM)" : "");
+                            }
+                        }
+                    }
                     if (i == 15) {
+                        // Debug: if loading garbage into PC, dump the context
+                        if (!is_valid_pc(value & ~3u)) {
+                            GBA_DEBUG_PRINT("=== LDM loading invalid PC ===\n");
+                            GBA_DEBUG_PRINT("  Loading PC from addr=0x%08X, got value=0x%08X\n", addr - 4, value);
+                            GBA_DEBUG_PRINT("  Current regs: PC=0x%08X SP=0x%08X LR=0x%08X\n",
+                                           m_regs[15], m_regs[13], m_regs[14]);
+                            GBA_DEBUG_PRINT("  Base was Rn=R%d=0x%08X, reg_list=0x%04X\n",
+                                           rn, base, reg_list);
+                        }
                         if (psr) {
                             set_cpsr(get_spsr());
                         }
@@ -810,7 +1174,24 @@ int ARM7TDMI::arm_block_data_transfer(uint32_t instruction) {
                         value = m_usr_sp_lr[i - 13];
                     }
                 } else {
-                    value = m_regs[i];
+                    // ARM7TDMI STM behavior when Rn (base) is in the register list:
+                    // - If Rn is the FIRST (lowest numbered) register in the list: store OLD base
+                    // - If Rn is NOT the first register: store NEW (updated) base
+                    // Reference: GBATEK and ARM7TDMI documentation
+                    if (static_cast<uint32_t>(i) == rn) {
+                        // Find the lowest set bit in register list to check if rn is first
+                        int lowest_reg = __builtin_ctz(reg_list);  // Count trailing zeros = lowest register
+                        if (static_cast<int>(rn) == lowest_reg) {
+                            // Base register is FIRST in the list - store OLD base
+                            value = base;
+                        } else {
+                            // Base register is NOT first - store NEW (updated) base
+                            // The new base has already been written to m_regs[rn] via early writeback
+                            value = m_regs[rn];
+                        }
+                    } else {
+                        value = m_regs[i];
+                    }
                     if (i == 15) value += 8;  // STM PC stores instruction_address + 12, we have +4, so add 8
                 }
                 write32(addr, value);
@@ -894,7 +1275,8 @@ int ARM7TDMI::arm_msr(uint32_t instruction) {
         int rotate = ((instruction >> 8) & 0xF) * 2;
         value = ror(value, rotate);
     } else {
-        value = m_regs[instruction & 0xF];
+        uint32_t rm = instruction & 0xF;
+        value = m_regs[rm];
     }
 
     // Build mask from field bits
@@ -911,7 +1293,8 @@ int ARM7TDMI::arm_msr(uint32_t instruction) {
 
     if (spsr) {
         uint32_t spsr_val = get_spsr();
-        set_spsr((spsr_val & ~mask) | (value & mask));
+        uint32_t new_val = (spsr_val & ~mask) | (value & mask);
+        set_spsr(new_val);
     } else {
         set_cpsr((m_cpsr & ~mask) | (value & mask));
     }
@@ -1225,7 +1608,8 @@ int ARM7TDMI::thumb_alu(uint16_t instruction) {
 
     m_regs[rd] = result;
     set_nzcv_flags(result, carry, overflow);
-    return (op == 0xD) ? 3 : 1;  // MUL takes extra cycles
+    // Thumb MUL timing: m cycles based on Rs significant bits
+    return (op == 0xD) ? multiply_cycles(b) : 1;
 }
 
 int ARM7TDMI::thumb_hi_reg_bx(uint16_t instruction) {
@@ -1286,10 +1670,14 @@ int ARM7TDMI::thumb_pc_relative_load(uint16_t instruction) {
     // After fetch, m_regs[15] = instruction_address + 2
     // So we need (m_regs[15] + 2) & ~3 to get the aligned (PC+4) value
     uint32_t addr = ((m_regs[15] + 2) & ~3u) + offset;
-    uint32_t value = read32(addr);
 
+    // Calculate memory access timing
+    int mem_cycles = data_access_cycles(addr, 32, false);
+
+    uint32_t value = read32(addr);
     m_regs[rd] = value;
-    return 3;
+
+    return 1 + mem_cycles;
 }
 
 int ARM7TDMI::thumb_load_store_reg(uint16_t instruction) {
@@ -1301,6 +1689,10 @@ int ARM7TDMI::thumb_load_store_reg(uint16_t instruction) {
 
     uint32_t addr = m_regs[rb] + m_regs[ro];
 
+    // Calculate memory access timing
+    int access_size = byte ? 8 : 32;
+    int mem_cycles = data_access_cycles(addr, access_size, !load);
+
     if (load) {
         if (byte) {
             m_regs[rd] = read8(addr);
@@ -1315,7 +1707,7 @@ int ARM7TDMI::thumb_load_store_reg(uint16_t instruction) {
         }
     }
 
-    return load ? 3 : 2;
+    return 1 + mem_cycles;
 }
 
 int ARM7TDMI::thumb_load_store_sign(uint16_t instruction) {
@@ -1326,22 +1718,29 @@ int ARM7TDMI::thumb_load_store_sign(uint16_t instruction) {
 
     uint32_t addr = m_regs[rb] + m_regs[ro];
 
+    // Determine access size and if it's a write
+    int access_size = (op == 1) ? 8 : 16;  // LDSB is 8-bit, others are 16-bit
+    bool is_write = (op == 0);  // STRH
+
+    // Calculate memory access timing
+    int mem_cycles = data_access_cycles(addr, access_size, is_write);
+
     switch (op) {
         case 0:  // STRH
             write16(addr, static_cast<uint16_t>(m_regs[rd]));
-            return 2;
+            break;
         case 1:  // LDSB
             m_regs[rd] = static_cast<uint32_t>(sign_extend_8(read8(addr)));
-            return 3;
+            break;
         case 2:  // LDRH
             m_regs[rd] = read16(addr);
-            return 3;
+            break;
         case 3:  // LDSH
             m_regs[rd] = static_cast<uint32_t>(sign_extend_16(read16(addr)));
-            return 3;
+            break;
     }
 
-    return 1;
+    return 1 + mem_cycles;
 }
 
 int ARM7TDMI::thumb_load_store_imm(uint16_t instruction) {
@@ -1353,6 +1752,10 @@ int ARM7TDMI::thumb_load_store_imm(uint16_t instruction) {
 
     uint32_t addr = m_regs[rb] + (byte ? offset : (offset << 2));
 
+    // Calculate memory access timing
+    int access_size = byte ? 8 : 32;
+    int mem_cycles = data_access_cycles(addr, access_size, !load);
+
     if (load) {
         if (byte) {
             m_regs[rd] = read8(addr);
@@ -1367,7 +1770,7 @@ int ARM7TDMI::thumb_load_store_imm(uint16_t instruction) {
         }
     }
 
-    return load ? 3 : 2;
+    return 1 + mem_cycles;
 }
 
 int ARM7TDMI::thumb_load_store_half(uint16_t instruction) {
@@ -1378,13 +1781,16 @@ int ARM7TDMI::thumb_load_store_half(uint16_t instruction) {
 
     uint32_t addr = m_regs[rb] + offset;
 
+    // Calculate memory access timing
+    int mem_cycles = data_access_cycles(addr, 16, !load);
+
     if (load) {
         m_regs[rd] = read16(addr);
     } else {
         write16(addr, static_cast<uint16_t>(m_regs[rd]));
     }
 
-    return load ? 3 : 2;
+    return 1 + mem_cycles;
 }
 
 int ARM7TDMI::thumb_sp_relative_load_store(uint16_t instruction) {
@@ -1394,13 +1800,16 @@ int ARM7TDMI::thumb_sp_relative_load_store(uint16_t instruction) {
 
     uint32_t addr = m_regs[13] + offset;
 
+    // Calculate memory access timing
+    int mem_cycles = data_access_cycles(addr, 32, !load);
+
     if (load) {
         m_regs[rd] = read32(addr);
     } else {
         write32(addr, m_regs[rd]);
     }
 
-    return load ? 3 : 2;
+    return 1 + mem_cycles;
 }
 
 int ARM7TDMI::thumb_load_address(uint16_t instruction) {
@@ -1449,7 +1858,8 @@ int ARM7TDMI::thumb_push_pop(uint16_t instruction) {
             }
         }
         if (pc_lr) {
-            m_regs[15] = read32(addr) & ~1u;
+            uint32_t new_pc = read32(addr) & ~1u;
+            m_regs[15] = new_pc;
             addr += 4;
             flush_pipeline();
         }
@@ -1529,6 +1939,14 @@ int ARM7TDMI::thumb_conditional_branch(uint16_t instruction) {
         default: break;
     }
 
+    // Debug: trace conditional branches near timer polling area
+    uint32_t pc = m_regs[15] - 2;  // PC of this instruction
+    if (pc >= 0x081E34F0 && pc <= 0x081E3510) {
+        uint32_t target = m_regs[15] + 2 + static_cast<int32_t>(offset) * 2;
+        GBA_DEBUG_PRINT("BRANCH @ 0x%08X: cond=%d, N=%d Z=%d C=%d V=%d, take=%d, offset=%d, target=0x%08X\n",
+                       pc, static_cast<int>(cond), n, z, c, v, take_branch, offset, target);
+    }
+
     if (take_branch) {
         // Branch target = PC + 4 + offset * 2
         // After fetch, m_regs[15] = instruction_address + 2
@@ -1568,6 +1986,8 @@ int ARM7TDMI::thumb_long_branch(uint16_t instruction) {
         // So PC+4 = m_regs[15] + 2
         int32_t signed_offset = static_cast<int32_t>(offset << 21) >> 9;
         m_regs[14] = (m_regs[15] + 2) + signed_offset;
+        // Mark that we're in the middle of BL - defer IRQ until second half
+        m_in_thumb_bl = true;
         return 1;
     } else {
         // Second instruction: complete the branch
@@ -1576,6 +1996,9 @@ int ARM7TDMI::thumb_long_branch(uint16_t instruction) {
         uint32_t next_pc = m_regs[15] | 1;
         m_regs[15] = m_regs[14] + (offset << 1);
         m_regs[14] = next_pc;
+
+        // BL complete - allow IRQs again
+        m_in_thumb_bl = false;
 
         flush_pipeline();
         return 3;
@@ -1586,6 +2009,7 @@ void ARM7TDMI::switch_mode(ProcessorMode new_mode) {
     if (m_mode == new_mode) return;
 
     bank_registers(m_mode, new_mode);
+
     m_mode = new_mode;
     m_cpsr = (m_cpsr & ~0x1F) | static_cast<uint32_t>(new_mode);
 }
@@ -1594,6 +2018,14 @@ void ARM7TDMI::enter_exception(ProcessorMode mode, uint32_t vector) {
     // Save current CPSR to new mode's SPSR
     uint32_t old_cpsr = m_cpsr;
 
+    // Warning if IRQ fires before game has set up handler
+    if (mode == ProcessorMode::IRQ) {
+        uint32_t user_handler = read32(0x03007FFC);
+        if (user_handler == 0) {
+            GBA_DEBUG_PRINT("WARNING: IRQ fired but game handler at 0x03007FFC is NULL!\n");
+        }
+    }
+
     // Switch mode
     switch_mode(mode);
 
@@ -1601,22 +2033,36 @@ void ARM7TDMI::enter_exception(ProcessorMode mode, uint32_t vector) {
     set_spsr(old_cpsr);
 
     // Set return address in LR
-    // For IRQ: The return instruction is SUBS PC, LR, #4
-    // So we need LR = address to return to + 4
+    // For IRQ/FIQ: The return instruction is SUBS PC, LR, #4
+    // ARM7TDMI manual: LR_irq = "address of next instruction to be executed" + 4
     //
-    // In our emulator, after executing an instruction, PC points to the next
-    // instruction. When an IRQ fires:
-    // - If mid-instruction (normal): PC = next_instr, LR should = PC + 4
-    // - If halted: PC = next_instr to execute, LR should = PC + 4
+    // In our emulator, at IRQ check time (before fetch), m_regs[15] = address of
+    // next instruction to be executed. So LR = m_regs[15] + 4.
     //
-    // The ARM7TDMI manual states that for IRQ, LR_irq = PC of next instruction + 4
-    // This accounts for the pipeline, and SUBS PC, LR, #4 returns to that instruction
-    if (old_cpsr & FLAG_T) {
-        // Thumb: instructions are 2 bytes
-        m_regs[14] = m_regs[15] + 2;
-    } else {
-        // ARM: instructions are 4 bytes
+    // This is the SAME for both ARM and Thumb modes because SUBS PC, LR, #4
+    // is always executed in ARM mode (T bit is cleared on exception entry).
+    // When CPSR is restored from SPSR, the correct Thumb/ARM state resumes.
+    //
+    // Reference implementations:
+    // - mGBA: LR = PC - instructionWidth + WORD_SIZE_ARM (effectively PC for ARM, PC+2 for Thumb
+    //         when their PC is instruction_addr + width, but timing differs from ours)
+    // - SkyEmu: LR = PC + 4 (direct)
+    // - NanoBoyAdvance: Similar approach
+    //
+    // For SWI/Undefined, the return instruction is MOVS PC, LR so LR = next_instruction.
+    if (mode == ProcessorMode::IRQ || mode == ProcessorMode::FIQ) {
+        // IRQ/FIQ: LR = next_instruction + 4 so SUBS PC, LR, #4 returns correctly
         m_regs[14] = m_regs[15] + 4;
+    } else {
+        // SWI/Undefined/Abort: LR = next_instruction so MOVS PC, LR returns correctly
+        // (or SUBS PC, LR, #4 for Data Abort which returns to retry the instruction)
+        if (mode == ProcessorMode::Abort) {
+            // Data/Prefetch Abort: LR = instruction_address + 8 (to retry after SUBS PC, LR, #8)
+            m_regs[14] = m_regs[15] + 8;
+        } else {
+            // SWI/Undefined: LR = next_instruction
+            m_regs[14] = m_regs[15];
+        }
     }
 
     // Disable IRQ, clear Thumb state
@@ -1710,6 +2156,33 @@ void ARM7TDMI::bank_registers(ProcessorMode old_mode, ProcessorMode new_mode) {
 
 void ARM7TDMI::set_cpsr(uint32_t value) {
     ProcessorMode new_mode = static_cast<ProcessorMode>(value & 0x1F);
+
+    // Validate mode - ARM7TDMI only has specific valid modes
+    bool valid_mode = (new_mode == ProcessorMode::User ||
+                       new_mode == ProcessorMode::FIQ ||
+                       new_mode == ProcessorMode::IRQ ||
+                       new_mode == ProcessorMode::Supervisor ||
+                       new_mode == ProcessorMode::Abort ||
+                       new_mode == ProcessorMode::Undefined ||
+                       new_mode == ProcessorMode::System);
+
+    if (!valid_mode) {
+        GBA_DEBUG_PRINT("=== INVALID CPSR MODE ===\n");
+        GBA_DEBUG_PRINT("  Attempting to set CPSR=0x%08X (mode=0x%02X)\n", value, value & 0x1F);
+        GBA_DEBUG_PRINT("  Current PC=0x%08X, CPSR=0x%08X, mode=%s\n",
+                        m_regs[15], m_cpsr,
+                        m_mode == ProcessorMode::System ? "System" :
+                        m_mode == ProcessorMode::User ? "User" :
+                        m_mode == ProcessorMode::IRQ ? "IRQ" :
+                        m_mode == ProcessorMode::FIQ ? "FIQ" :
+                        m_mode == ProcessorMode::Supervisor ? "SVC" :
+                        m_mode == ProcessorMode::Abort ? "ABT" :
+                        m_mode == ProcessorMode::Undefined ? "UND" : "???");
+        GBA_DEBUG_PRINT("  Current SPSR=%08X\n", get_spsr());
+        // Don't apply invalid mode - this would crash
+        return;
+    }
+
     if (new_mode != m_mode) {
         switch_mode(new_mode);
     }
@@ -1728,12 +2201,30 @@ uint32_t ARM7TDMI::get_spsr() const {
 }
 
 void ARM7TDMI::set_spsr(uint32_t value) {
+    // Validate the mode bits in the SPSR value being written
+    // If the mode is invalid (0x00), preserve the current valid SPSR
+    // This helps prevent corruption when game code incorrectly uses SPSR operations
+    uint8_t mode_bits = value & 0x1F;
+    bool valid_mode = (mode_bits == 0x10 || mode_bits == 0x11 || mode_bits == 0x12 ||
+                       mode_bits == 0x13 || mode_bits == 0x17 || mode_bits == 0x1B ||
+                       mode_bits == 0x1F);
+
     switch (m_mode) {
-        case ProcessorMode::FIQ:        m_spsr_fiq = value; break;
-        case ProcessorMode::Supervisor: m_spsr_svc = value; break;
-        case ProcessorMode::Abort:      m_spsr_abt = value; break;
-        case ProcessorMode::IRQ:        m_spsr_irq = value; break;
-        case ProcessorMode::Undefined:  m_spsr_und = value; break;
+        case ProcessorMode::FIQ:
+            if (valid_mode || value == m_spsr_fiq) m_spsr_fiq = value;
+            break;
+        case ProcessorMode::Supervisor:
+            if (valid_mode || value == m_spsr_svc) m_spsr_svc = value;
+            break;
+        case ProcessorMode::Abort:
+            if (valid_mode || value == m_spsr_abt) m_spsr_abt = value;
+            break;
+        case ProcessorMode::IRQ:
+            if (valid_mode || value == m_spsr_irq) m_spsr_irq = value;
+            break;
+        case ProcessorMode::Undefined:
+            if (valid_mode || value == m_spsr_und) m_spsr_und = value;
+            break;
         default: break;
     }
 }
@@ -1808,6 +2299,31 @@ void ARM7TDMI::save_state(std::vector<uint8_t>& data) {
     data.push_back(m_irq_pending ? 1 : 0);
     data.push_back(m_halted ? 1 : 0);
     data.push_back(static_cast<uint8_t>(m_mode));
+
+    // Save IRQ delay counter (added for 7-cycle IRQ delay implementation)
+    data.push_back(static_cast<uint8_t>(m_irq_delay));
+
+    // Save IntrWait state
+    data.push_back(m_in_intr_wait ? 1 : 0);
+    const uint8_t* flags_ptr = reinterpret_cast<const uint8_t*>(&m_intr_wait_flags);
+    data.insert(data.end(), flags_ptr, flags_ptr + 2);
+    const uint8_t* pc_ptr = reinterpret_cast<const uint8_t*>(&m_intr_wait_return_pc);
+    data.insert(data.end(), pc_ptr, pc_ptr + 4);
+    const uint8_t* cpsr_ptr2 = reinterpret_cast<const uint8_t*>(&m_intr_wait_return_cpsr);
+    data.insert(data.end(), cpsr_ptr2, cpsr_ptr2 + 4);
+
+    // Save prefetch buffer state
+    const uint8_t* prefetch_head = reinterpret_cast<const uint8_t*>(&m_prefetch.head_address);
+    data.insert(data.end(), prefetch_head, prefetch_head + 4);
+    const uint8_t* prefetch_next = reinterpret_cast<const uint8_t*>(&m_prefetch.next_address);
+    data.insert(data.end(), prefetch_next, prefetch_next + 4);
+    data.push_back(static_cast<uint8_t>(m_prefetch.count));
+    data.push_back(static_cast<uint8_t>(m_prefetch.countdown));
+    data.push_back(m_prefetch.active ? 1 : 0);
+
+    // Save last fetch address
+    const uint8_t* last_fetch = reinterpret_cast<const uint8_t*>(&m_last_fetch_addr);
+    data.insert(data.end(), last_fetch, last_fetch + 4);
 }
 
 void ARM7TDMI::load_state(const uint8_t*& data, size_t& remaining) {
@@ -1860,6 +2376,50 @@ void ARM7TDMI::load_state(const uint8_t*& data, size_t& remaining) {
     m_irq_pending = *data++ != 0; remaining--;
     m_halted = *data++ != 0; remaining--;
     m_mode = static_cast<ProcessorMode>(*data++); remaining--;
+
+    // Load IRQ delay counter (added for 7-cycle IRQ delay implementation)
+    if (remaining >= 1) {
+        m_irq_delay = *data++; remaining--;
+    } else {
+        m_irq_delay = 0;
+    }
+
+    // Load IntrWait state (check if data is available for backwards compatibility)
+    if (remaining >= 11) {
+        m_in_intr_wait = *data++ != 0; remaining--;
+        std::memcpy(&m_intr_wait_flags, data, 2); data += 2; remaining -= 2;
+        std::memcpy(&m_intr_wait_return_pc, data, 4); data += 4; remaining -= 4;
+        std::memcpy(&m_intr_wait_return_cpsr, data, 4); data += 4; remaining -= 4;
+    } else {
+        // Old save state without IntrWait data
+        m_in_intr_wait = false;
+        m_intr_wait_flags = 0;
+        m_intr_wait_return_pc = 0;
+        m_intr_wait_return_cpsr = 0;
+    }
+
+    // Load prefetch buffer state (check if data is available for backwards compatibility)
+    if (remaining >= 15) {
+        // New format with next_address and active
+        std::memcpy(&m_prefetch.head_address, data, 4); data += 4; remaining -= 4;
+        std::memcpy(&m_prefetch.next_address, data, 4); data += 4; remaining -= 4;
+        m_prefetch.count = *data++; remaining--;
+        m_prefetch.countdown = static_cast<int8_t>(*data++); remaining--;
+        m_prefetch.active = *data++ != 0; remaining--;
+        std::memcpy(&m_last_fetch_addr, data, 4); data += 4; remaining -= 4;
+    } else if (remaining >= 10) {
+        // Old format without next_address and active
+        std::memcpy(&m_prefetch.head_address, data, 4); data += 4; remaining -= 4;
+        m_prefetch.next_address = m_prefetch.head_address;
+        m_prefetch.count = *data++; remaining--;
+        m_prefetch.countdown = static_cast<int8_t>(*data++); remaining--;
+        m_prefetch.active = m_prefetch.count > 0;
+        std::memcpy(&m_last_fetch_addr, data, 4); data += 4; remaining -= 4;
+    } else {
+        // Old save state without prefetch data
+        m_prefetch.reset();
+        m_last_fetch_addr = 0xFFFFFFFF;
+    }
 }
 
 // ============================================================================
@@ -1867,16 +2427,51 @@ void ARM7TDMI::load_state(const uint8_t*& data, size_t& remaining) {
 // ============================================================================
 
 void ARM7TDMI::hle_bios_call(uint8_t function) {
+    GBA_DEBUG_PRINT("BIOS call: 0x%02X at PC=0x%08X\n", function, m_regs[15]);
     switch (function) {
         case 0x00:  // SoftReset
-            // Reset CPU state and jump to ROM
-            reset();
+            bios_soft_reset();
             break;
 
         case 0x01:  // RegisterRamReset
+        {
             // R0 contains flags for what to reset
-            // For now, do nothing (games usually handle their own init)
+            uint32_t flags = m_regs[0];
+            GBA_DEBUG_PRINT("BIOS call: RegisterRamReset flags=0x%02X\n", flags);
+
+            // bit 0 - Clear 256K EWRAM (0x02000000-0x0203FFFF)
+            if (flags & 0x01) {
+                for (uint32_t addr = 0x02000000; addr < 0x02040000; addr += 4) {
+                    m_bus.write32(addr, 0);
+                }
+            }
+            // bit 1 - Clear 32K IWRAM (0x03000000-0x03007FFF), except last 512 bytes (stack area)
+            if (flags & 0x02) {
+                for (uint32_t addr = 0x03000000; addr < 0x03007E00; addr += 4) {
+                    m_bus.write32(addr, 0);
+                }
+            }
+            // bit 2 - Clear Palette (0x05000000-0x050003FF)
+            if (flags & 0x04) {
+                for (uint32_t addr = 0x05000000; addr < 0x05000400; addr += 4) {
+                    m_bus.write32(addr, 0);
+                }
+            }
+            // bit 3 - Clear VRAM (0x06000000-0x06017FFF)
+            if (flags & 0x08) {
+                for (uint32_t addr = 0x06000000; addr < 0x06018000; addr += 4) {
+                    m_bus.write32(addr, 0);
+                }
+            }
+            // bit 4 - Clear OAM (0x07000000-0x070003FF)
+            if (flags & 0x10) {
+                for (uint32_t addr = 0x07000000; addr < 0x07000400; addr += 4) {
+                    m_bus.write32(addr, 0);
+                }
+            }
+            // bits 5-7: SIO, Sound, other registers - not implemented for now
             break;
+        }
 
         case 0x02:  // Halt
             m_halted = true;
@@ -1889,32 +2484,63 @@ void ARM7TDMI::hle_bios_call(uint8_t function) {
         case 0x04:  // IntrWait
             // R0: 1 = discard old flags, 0 = check existing
             // R1: interrupt flags to wait for
-            // For proper HLE, we need to:
-            // 1. If R0=1, clear the flags from the BIOS IRQ mirror at 0x03007FF8
-            // 2. Wait until the requested interrupt fires
-            // For now, we implement a simplified version that just halts
-            // and the game's IRQ handler will update the BIOS IRQ flags
-            if (m_regs[0] != 0) {
-                // Clear the requested flags from BIOS IRQ mirror
-                uint16_t flags = read16(0x03007FF8);
-                flags &= ~static_cast<uint16_t>(m_regs[1]);
-                write16(0x03007FF8, flags);
+            //
+            // The real BIOS implements this as a polling loop:
+            // 1. If R0=1, clear the requested flags from 0x03007FF8
+            // 2. Halt the CPU (write to HALTCNT)
+            // 3. When IRQ wakes CPU, let IRQ handler run
+            // 4. After IRQ handler returns, check if flag is set in 0x03007FF8
+            // 5. If set, clear it and return; otherwise, halt again
+            {
+                GBA_DEBUG_PRINT("IntrWait: Called with R0=%u, R1=0x%04X\n",
+                                m_regs[0], m_regs[1] & 0x3FFF);
+
+                m_intr_wait_flags = m_regs[1] & 0x3FFF;
+
+                // If R0 != 0, discard old flags (clear them from BIOS mirror)
+                if (m_regs[0] != 0) {
+                    uint16_t flags = read16(0x03007FF8);
+                    flags &= ~m_intr_wait_flags;
+                    write16(0x03007FF8, flags);
+                    GBA_DEBUG_PRINT("IntrWait: Cleared old flags, BIOS_IF now=0x%04X\n", flags);
+                } else {
+                    // R0 == 0: Check if flag is already set
+                    uint16_t flags = read16(0x03007FF8);
+                    if (flags & m_intr_wait_flags) {
+                        // Flag already set, clear it and return immediately
+                        write16(0x03007FF8, flags & ~m_intr_wait_flags);
+                        GBA_DEBUG_PRINT("IntrWait: Flag already set! Returning immediately\n");
+                        break;
+                    }
+                }
+
+                // Enter IntrWait state - we'll poll after each IRQ
+                m_in_intr_wait = true;
+                m_halted = true;
+
+                GBA_DEBUG_PRINT("IntrWait: Entering halt, waiting for flags=0x%04X\n",
+                                m_intr_wait_flags);
             }
-            m_halted = true;
-            // Store the wait flags for later checking (we use IWRAM location)
-            m_intr_wait_flags = m_regs[1] & 0x3FFF;
             break;
 
         case 0x05:  // VBlankIntrWait
             // Equivalent to IntrWait(1, 1) - wait for VBlank
+            // Always discards old flags and waits for a fresh VBlank
             {
+                GBA_DEBUG_PRINT("VBlankIntrWait: Called\n");
+
                 // Clear VBlank flag from BIOS IRQ mirror
                 uint16_t flags = read16(0x03007FF8);
                 flags &= ~0x0001;  // Clear VBlank flag
                 write16(0x03007FF8, flags);
+
+                // Enter IntrWait state waiting for VBlank
+                m_in_intr_wait = true;
+                m_intr_wait_flags = 0x0001;  // Wait for VBlank
+                m_halted = true;
+
+                GBA_DEBUG_PRINT("VBlankIntrWait: Entering halt, BIOS_IF=0x%04X\n", flags);
             }
-            m_halted = true;
-            m_intr_wait_flags = 0x0001;  // Wait for VBlank
             break;
 
         case 0x06:  // Div
@@ -1957,7 +2583,7 @@ void ARM7TDMI::hle_bios_call(uint8_t function) {
             break;
 
         case 0x0E:  // BgAffineSet
-            // Background affine transformation - implement as needed
+            bios_bg_affine_set();
             break;
 
         case 0x0F:  // ObjAffineSet
@@ -1989,9 +2615,15 @@ void ARM7TDMI::hle_bios_call(uint8_t function) {
             break;
 
         case 0x16:  // Diff8bitUnFilterWram
+            bios_diff8bit_unfilter_wram();
+            break;
+
         case 0x17:  // Diff8bitUnFilterVram
+            bios_diff8bit_unfilter_vram();
+            break;
+
         case 0x18:  // Diff16bitUnFilter
-            // Differential filters - implement as needed
+            bios_diff16bit_unfilter();
             break;
 
         case 0x19:  // SoundBias
@@ -2154,6 +2786,137 @@ void ARM7TDMI::bios_cpu_fast_set() {
     }
 }
 
+void ARM7TDMI::bios_soft_reset() {
+    // SoftReset (SWI 0x00) - Full implementation per GBATEK
+    // 1. Read return address flag from 0x03007FFA before clearing IWRAM
+    // 2. Clear top 0x200 bytes of IWRAM (0x03007E00-0x03007FFF)
+    // 3. Reset stack pointers: sp_svc=0x03007FE0, sp_irq=0x03007FA0, sp_sys=0x03007F00
+    // 4. Clear R0-R12, LR_svc, SPSR_svc, LR_irq, SPSR_irq
+    // 5. Enter System mode
+    // 6. Jump to 0x08000000 (if flag==0) or 0x02000000 (if flag!=0)
+
+    // Read the return address flag before clearing memory
+    uint8_t return_flag = m_bus.read8(0x03007FFA);
+    uint32_t return_address = (return_flag == 0) ? 0x08000000 : 0x02000000;
+
+    // Clear top 0x200 bytes of IWRAM (stacks and BIOS IRQ area)
+    for (uint32_t addr = 0x03007E00; addr < 0x03008000; addr += 4) {
+        m_bus.write32(addr, 0);
+    }
+
+    // Clear R0-R12
+    for (int i = 0; i <= 12; i++) {
+        m_regs[i] = 0;
+    }
+
+    // Set stack pointers for each mode
+    m_svc_regs[0] = 0x03007FE0;  // SP_svc
+    m_svc_regs[1] = 0;           // LR_svc = 0
+    m_irq_regs[0] = 0x03007FA0;  // SP_irq
+    m_irq_regs[1] = 0;           // LR_irq = 0
+    m_usr_sp_lr[0] = 0x03007F00; // SP_usr/sys
+    m_usr_sp_lr[1] = 0;          // LR_usr/sys (will be overwritten below)
+
+    // Clear SPSRs
+    m_spsr_svc = 0;
+    m_spsr_irq = 0;
+
+    // Enter System mode (same as User but privileged)
+    m_mode = ProcessorMode::System;
+    m_cpsr = (m_cpsr & ~0x1F) | static_cast<uint32_t>(ProcessorMode::System);
+    m_cpsr &= ~FLAG_T;  // Ensure ARM mode
+
+    // Update current SP to System mode's SP
+    m_regs[13] = m_usr_sp_lr[0];
+
+    // Set LR to return address and jump
+    m_regs[14] = return_address;
+    m_regs[15] = return_address;
+
+    // Flush pipeline for the mode switch
+    flush_pipeline();
+}
+
+void ARM7TDMI::bios_bg_affine_set() {
+    // R0 = source data pointer (20 bytes per entry)
+    // R1 = destination pointer (16 bytes per entry)
+    // R2 = number of calculations
+    //
+    // Source structure (20 bytes):
+    //   s32 orig_center_x   (8.8 fixed point)
+    //   s32 orig_center_y   (8.8 fixed point)
+    //   s16 display_center_x
+    //   s16 display_center_y
+    //   s16 scale_x         (8.8 fixed point)
+    //   s16 scale_y         (8.8 fixed point)
+    //   u16 angle           (0-0xFFFF = 0-360 degrees)
+    //   2 bytes padding
+    //
+    // Destination structure (16 bytes):
+    //   s16 PA (dx)
+    //   s16 PB (dmx)
+    //   s16 PC (dy)
+    //   s16 PD (dmy)
+    //   s32 start_x
+    //   s32 start_y
+
+    uint32_t src = m_regs[0];
+    uint32_t dst = m_regs[1];
+    uint32_t count = m_regs[2];
+
+    for (uint32_t i = 0; i < count; i++) {
+        // Read source data
+        int32_t orig_center_x = static_cast<int32_t>(read32(src));
+        int32_t orig_center_y = static_cast<int32_t>(read32(src + 4));
+        int16_t display_center_x = static_cast<int16_t>(read16(src + 8));
+        int16_t display_center_y = static_cast<int16_t>(read16(src + 10));
+        int16_t scale_x = static_cast<int16_t>(read16(src + 12));
+        int16_t scale_y = static_cast<int16_t>(read16(src + 14));
+        uint16_t angle = read16(src + 16);
+        src += 20;
+
+        // Calculate sin/cos from angle (angle is 0-0xFFFF for full circle)
+        // GBA BIOS only uses the upper 8 bits for the angle
+        double rad = (angle / 65536.0) * 2.0 * 3.14159265358979;
+        double sin_val = sin(rad);
+        double cos_val = cos(rad);
+
+        // Calculate affine matrix parameters (8.8 fixed point)
+        // PA = cos(angle) / scaleX, PB = sin(angle) / scaleX
+        // PC = -sin(angle) / scaleY, PD = cos(angle) / scaleY
+        int16_t pa, pb, pc, pd;
+        if (scale_x != 0) {
+            pa = static_cast<int16_t>((cos_val * 256.0 * 256.0) / scale_x);
+            pb = static_cast<int16_t>((sin_val * 256.0 * 256.0) / scale_x);
+        } else {
+            pa = 0;
+            pb = 0;
+        }
+        if (scale_y != 0) {
+            pc = static_cast<int16_t>((-sin_val * 256.0 * 256.0) / scale_y);
+            pd = static_cast<int16_t>((cos_val * 256.0 * 256.0) / scale_y);
+        } else {
+            pc = 0;
+            pd = 0;
+        }
+
+        // Calculate starting position (19.8 fixed point for backgrounds)
+        // start_x = orig_center_x - (display_center_x * PA + display_center_y * PB)
+        // start_y = orig_center_y - (display_center_x * PC + display_center_y * PD)
+        int32_t start_x = orig_center_x - (display_center_x * pa + display_center_y * pb);
+        int32_t start_y = orig_center_y - (display_center_x * pc + display_center_y * pd);
+
+        // Write destination data
+        write16(dst, static_cast<uint16_t>(pa));
+        write16(dst + 2, static_cast<uint16_t>(pb));
+        write16(dst + 4, static_cast<uint16_t>(pc));
+        write16(dst + 6, static_cast<uint16_t>(pd));
+        write32(dst + 8, static_cast<uint32_t>(start_x));
+        write32(dst + 12, static_cast<uint32_t>(start_y));
+        dst += 16;
+    }
+}
+
 void ARM7TDMI::bios_obj_affine_set() {
     // R0 = source data pointer
     // R1 = destination OAM pointer
@@ -2177,18 +2940,21 @@ void ARM7TDMI::bios_obj_affine_set() {
         double cos_val = cos(rad);
 
         // Calculate matrix: pa = sx*cos, pb = -sx*sin, pc = sy*sin, pd = sy*cos
+        // sx and sy are 8.8 fixed point, output is also 8.8 fixed point
         int16_t pa = static_cast<int16_t>((cos_val * 256.0 * 256.0) / sx);
         int16_t pb = static_cast<int16_t>((-sin_val * 256.0 * 256.0) / sx);
         int16_t pc = static_cast<int16_t>((sin_val * 256.0 * 256.0) / sy);
         int16_t pd = static_cast<int16_t>((cos_val * 256.0 * 256.0) / sy);
 
-        // Write to OAM (pa, pb, pc, pd at offsets 6, 14, 22, 30 relative to base)
-        write16(dst + 6, static_cast<uint16_t>(pa));
-        write16(dst + 14, static_cast<uint16_t>(pb));
-        write16(dst + 22, static_cast<uint16_t>(pc));
-        write16(dst + 30, static_cast<uint16_t>(pd));
+        // Write affine parameters using R3 as the offset between each parameter
+        // For standard OAM: offset=8 (writes to OAM+6, OAM+14, OAM+22, OAM+30)
+        // For custom buffer: offset=2 (writes consecutive 16-bit values)
+        write16(dst, static_cast<uint16_t>(pa));
+        write16(dst + offset, static_cast<uint16_t>(pb));
+        write16(dst + offset * 2, static_cast<uint16_t>(pc));
+        write16(dst + offset * 3, static_cast<uint16_t>(pd));
 
-        dst += offset;
+        dst += offset * 4;  // Move to next group of 4 parameters
     }
 }
 
@@ -2471,6 +3237,120 @@ void ARM7TDMI::bios_rl_uncomp_vram() {
                 }
             }
         }
+    }
+}
+
+void ARM7TDMI::bios_diff8bit_unfilter_wram() {
+    // Diff8bitUnFilterWram - SWI 0x16
+    // R0: Source address (compressed data)
+    // R1: Destination address (decompressed data)
+    //
+    // Data format:
+    // - Header (4 bytes): Bit 4-7 = type (0x80), Bit 8-31 = decompressed size
+    // - Data: Differential 8-bit values
+
+    uint32_t src = m_regs[0];
+    uint32_t dst = m_regs[1];
+
+    uint32_t header = read32(src);
+    src += 4;
+
+    uint32_t decomp_size = header >> 8;
+    uint32_t decomp_end = dst + decomp_size;
+
+    if (decomp_size == 0) return;
+
+    // First byte is the base value
+    uint8_t running_sum = read8(src++);
+    write8(dst++, running_sum);
+
+    // Each subsequent byte is a difference to add to the running sum
+    while (dst < decomp_end) {
+        uint8_t diff = read8(src++);
+        running_sum += diff;
+        write8(dst++, running_sum);
+    }
+}
+
+void ARM7TDMI::bios_diff8bit_unfilter_vram() {
+    // Diff8bitUnFilterVram - SWI 0x17
+    // Same as Wram but writes 16-bit at a time for VRAM compatibility
+    // VRAM only supports 16-bit writes
+
+    uint32_t src = m_regs[0];
+    uint32_t dst = m_regs[1];
+
+    uint32_t header = read32(src);
+    src += 4;
+
+    uint32_t decomp_size = header >> 8;
+
+    if (decomp_size == 0) return;
+
+    // First byte is the base value
+    uint8_t running_sum = read8(src++);
+    uint32_t bytes_processed = 1;
+
+    // Process in pairs - always write 16 bits at a time
+    while (bytes_processed <= decomp_size) {
+        uint8_t lo = running_sum;  // Current value
+
+        // Get next byte if available
+        uint8_t hi = 0;
+        if (bytes_processed < decomp_size) {
+            uint8_t diff = read8(src++);
+            running_sum += diff;
+            hi = running_sum;
+            bytes_processed++;
+        }
+
+        write16(dst, lo | (hi << 8));
+        dst += 2;
+
+        // Prepare next low byte
+        if (bytes_processed < decomp_size) {
+            uint8_t diff = read8(src++);
+            running_sum += diff;
+            bytes_processed++;
+        } else {
+            break;
+        }
+    }
+}
+
+void ARM7TDMI::bios_diff16bit_unfilter() {
+    // Diff16bitUnFilter - SWI 0x18
+    // R0: Source address (compressed data)
+    // R1: Destination address (decompressed data)
+    //
+    // Data format:
+    // - Header (4 bytes): Bit 4-7 = type (0x81), Bit 8-31 = decompressed size
+    // - Data: Differential 16-bit values
+
+    uint32_t src = m_regs[0];
+    uint32_t dst = m_regs[1];
+
+    uint32_t header = read32(src);
+    src += 4;
+
+    uint32_t decomp_size = header >> 8;
+    uint32_t decomp_end = dst + decomp_size;
+
+    if (decomp_size == 0) return;
+
+    // First halfword is the base value
+    uint16_t running_sum = read16(src);
+    src += 2;
+    write16(dst, running_sum);
+    dst += 2;
+
+    // Each subsequent halfword is a difference to add to the running sum
+    while (dst < decomp_end) {
+        uint16_t diff = read16(src);
+        src += 2;
+        running_sum += diff;
+        write16(dst, running_sum);
+        dst += 2;
     }
 }
 

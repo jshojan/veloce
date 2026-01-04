@@ -7,7 +7,7 @@ namespace gb {
 // Classic Game Boy LCD colors (greenish)
 // Format: 0xAABBGGRR for OpenGL GL_RGBA on little-endian systems
 // Original DMG green tint: lightest to darkest
-const uint32_t PPU::s_dmg_palette[4] = {
+const uint32_t PPU::s_default_dmg_palette[4] = {
     0xFF0FBC9B,  // Lightest: RGB(155, 188, 15) -> 0xAABBGGRR = 0xFF0FBC9B
     0xFF0FAC8B,  // Light: RGB(139, 172, 15)
     0xFF306230,  // Dark: RGB(48, 98, 48)
@@ -23,7 +23,15 @@ PPU::~PPU() = default;
 void PPU::reset() {
     m_vram.fill(0);
     m_oam.fill(0);
-    m_framebuffer.fill(s_dmg_palette[0]);
+
+    // Initialize DMG palette from default if not already set
+    // (preserve user-configured palette across resets)
+    if (m_dmg_palette[0] == 0 && m_dmg_palette[1] == 0 &&
+        m_dmg_palette[2] == 0 && m_dmg_palette[3] == 0) {
+        std::memcpy(m_dmg_palette, s_default_dmg_palette, sizeof(m_dmg_palette));
+    }
+
+    m_framebuffer.fill(m_dmg_palette[0]);
     m_bg_priority.fill(0);
 
     m_lcdc = 0x91;  // LCD on, BG on
@@ -428,7 +436,15 @@ void PPU::render_sprites() {
 }
 
 uint32_t PPU::get_dmg_color(uint8_t shade) {
-    return s_dmg_palette[shade & 3];
+    return m_dmg_palette[shade & 3];
+}
+
+void PPU::set_dmg_palette(const uint32_t colors[4]) {
+    std::memcpy(m_dmg_palette, colors, sizeof(m_dmg_palette));
+}
+
+void PPU::get_dmg_palette(uint32_t colors[4]) const {
+    std::memcpy(colors, m_dmg_palette, sizeof(m_dmg_palette));
 }
 
 uint32_t PPU::get_cgb_color(uint16_t color) {
@@ -469,6 +485,76 @@ uint8_t PPU::read_oam(uint16_t offset) {
 void PPU::write_oam(uint16_t offset, uint8_t value) {
     if (offset < 160) {
         m_oam[offset] = value;
+    }
+}
+
+void PPU::trigger_oam_bug(uint16_t address, bool is_read) {
+    // DMG OAM Corruption Bug
+    // This bug occurs when a 16-bit register pair (BC, DE, HL) contains a value
+    // in the OAM range (0xFE00-0xFEFF) during PPU mode 2 (OAM scan).
+    //
+    // The bug does NOT occur on CGB, or when LCD is off, or outside mode 2.
+    // Objects 0 and 1 (bytes 0x00-0x07) are unaffected.
+    //
+    // Reference: https://gbdev.io/pandocs/OAM_Corruption_Bug.html
+
+    if (m_cgb_mode) return;
+    if (!(m_lcdc & 0x80)) return;  // LCD off
+    if (m_mode != Mode::OAMScan) return;
+
+    // Calculate which OAM row (0-19) the address falls into
+    // Each row is 8 bytes, OAM is 160 bytes total (20 rows)
+    uint8_t offset = (address - 0xFE00) & 0xFF;
+    if (offset >= 160) return;  // Out of OAM range (0xFEA0-0xFEFF is not usable)
+
+    int row = offset / 8;
+
+    // Rows 0 and 1 are unaffected
+    if (row < 2) return;
+
+    // OAM corruption works on 16-bit words within each 8-byte row
+    // Each row has 4 words at offsets 0, 2, 4, 6
+    // We corrupt the current row based on the previous row's data
+
+    // Get pointers to current and previous row
+    uint8_t* curr_row = &m_oam[row * 8];
+    uint8_t* prev_row = &m_oam[(row - 1) * 8];
+
+    // Read 16-bit words (little-endian)
+    auto read_word = [](uint8_t* ptr) -> uint16_t {
+        return static_cast<uint16_t>(ptr[0]) | (static_cast<uint16_t>(ptr[1]) << 8);
+    };
+
+    auto write_word = [](uint8_t* ptr, uint16_t val) {
+        ptr[0] = val & 0xFF;
+        ptr[1] = (val >> 8) & 0xFF;
+    };
+
+    // Get words from current row: a = word0, and from previous row: b = word0, c = word2
+    uint16_t a = read_word(curr_row);      // Current row, first word
+    uint16_t b = read_word(prev_row);      // Previous row, first word
+    uint16_t c = read_word(prev_row + 4);  // Previous row, third word (offset 4)
+
+    if (is_read) {
+        // Read corruption: a | (b & c)
+        // Then copy last 3 words from previous row
+        uint16_t corrupted = b | (a & c);
+        write_word(curr_row, corrupted);
+
+        // Copy words 1, 2, 3 from previous row
+        write_word(curr_row + 2, read_word(prev_row + 2));
+        write_word(curr_row + 4, read_word(prev_row + 4));
+        write_word(curr_row + 6, read_word(prev_row + 6));
+    } else {
+        // Write corruption (INC/DEC): ((a ^ c) & (b ^ c)) ^ c
+        // Then copy last 3 words from previous row
+        uint16_t corrupted = ((a ^ c) & (b ^ c)) ^ c;
+        write_word(curr_row, corrupted);
+
+        // Copy words 1, 2, 3 from previous row
+        write_word(curr_row + 2, read_word(prev_row + 2));
+        write_word(curr_row + 4, read_word(prev_row + 4));
+        write_word(curr_row + 6, read_word(prev_row + 6));
     }
 }
 

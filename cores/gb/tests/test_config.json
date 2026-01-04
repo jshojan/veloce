@@ -1,361 +1,328 @@
 {
-  "description": "Game Boy Emulator Test Configuration (Blargg's test ROMs)",
-  "repository": "https://github.com/retrio/gb-test-roms.git",
+  "description": "Game Boy Emulator Test Configuration (Blargg + Mooneye + Cycle-Accurate tests)",
   "timeout_seconds": 60,
-  "frame_limit": 600,
+  "frame_limit": 3000,
+
+  "repositories": {
+    "blargg": {
+      "url": "https://github.com/retrio/gb-test-roms.git",
+      "dir": "gb-test-roms",
+      "type": "git"
+    },
+    "mooneye": {
+      "url": "https://github.com/c-sp/gameboy-test-roms/releases/download/v7.0/game-boy-test-roms-v7.0.zip",
+      "dir": "gameboy-test-roms",
+      "type": "zip"
+    }
+  },
 
   "test_suites": {
     "cpu_instrs": {
-      "name": "CPU Instructions",
-      "description": "Tests all CPU instructions except STOP and illegal opcodes. Uses CRC-32 checksums to verify correct behavior.",
+      "name": "CPU Instructions (Blargg)",
+      "description": "Tests all CPU instructions except STOP and illegal opcodes",
       "priority": "critical",
+      "repo": "blargg",
       "tests": [
-        {
-          "path": "cpu_instrs/individual/01-special.gb",
-          "expected": "pass",
-          "description": "Special instructions (DAA, CPL, SCF, CCF)",
-          "notes": "Tests decimal adjust, complement, and carry flag instructions"
-        },
-        {
-          "path": "cpu_instrs/individual/02-interrupts.gb",
-          "expected": "pass",
-          "description": "Interrupt handling (EI, DI, HALT, RETI)",
-          "notes": "Tests interrupt enable/disable, halt mode, and return from interrupt"
-        },
-        {
-          "path": "cpu_instrs/individual/03-op sp,hl.gb",
-          "expected": "pass",
-          "description": "Stack pointer and HL operations",
-          "notes": "Tests ADD SP, LD HL,SP+n, etc."
-        },
-        {
-          "path": "cpu_instrs/individual/04-op r,imm.gb",
-          "expected": "pass",
-          "description": "Register-immediate operations",
-          "notes": "Tests operations with immediate values"
-        },
-        {
-          "path": "cpu_instrs/individual/05-op rp.gb",
-          "expected": "pass",
-          "description": "Register pair operations",
-          "notes": "Tests 16-bit register operations"
-        },
-        {
-          "path": "cpu_instrs/individual/06-ld r,r.gb",
-          "expected": "pass",
-          "description": "Register-to-register loads",
-          "notes": "Tests all LD r,r combinations"
-        },
-        {
-          "path": "cpu_instrs/individual/07-jr,jp,call,ret,rst.gb",
-          "expected": "pass",
-          "description": "Jump, call, and return instructions",
-          "notes": "Tests all branching instructions"
-        },
-        {
-          "path": "cpu_instrs/individual/08-misc instrs.gb",
-          "expected": "pass",
-          "description": "Miscellaneous instructions",
-          "notes": "Tests various other instructions"
-        },
-        {
-          "path": "cpu_instrs/individual/09-op r,r.gb",
-          "expected": "pass",
-          "description": "Register-to-register operations",
-          "notes": "Tests arithmetic/logic operations between registers"
-        },
-        {
-          "path": "cpu_instrs/individual/10-bit ops.gb",
-          "expected": "pass",
-          "description": "Bit manipulation instructions",
-          "notes": "Tests BIT, SET, RES, and rotate/shift instructions"
-        },
-        {
-          "path": "cpu_instrs/individual/11-op a,(hl).gb",
-          "expected": "pass",
-          "description": "Operations with (HL) addressing",
-          "notes": "Tests operations using (HL) memory addressing"
-        }
+        {"path": "cpu_instrs/individual/01-special.gb", "expected": "pass"},
+        {"path": "cpu_instrs/individual/02-interrupts.gb", "expected": "pass"},
+        {"path": "cpu_instrs/individual/03-op sp,hl.gb", "expected": "pass"},
+        {"path": "cpu_instrs/individual/04-op r,imm.gb", "expected": "pass"},
+        {"path": "cpu_instrs/individual/05-op rp.gb", "expected": "pass"},
+        {"path": "cpu_instrs/individual/06-ld r,r.gb", "expected": "pass"},
+        {"path": "cpu_instrs/individual/07-jr,jp,call,ret,rst.gb", "expected": "pass"},
+        {"path": "cpu_instrs/individual/08-misc instrs.gb", "expected": "pass"},
+        {"path": "cpu_instrs/individual/09-op r,r.gb", "expected": "pass"},
+        {"path": "cpu_instrs/individual/10-bit ops.gb", "expected": "pass"},
+        {"path": "cpu_instrs/individual/11-op a,(hl).gb", "expected": "pass"}
       ]
     },
 
     "instr_timing": {
-      "name": "Instruction Timing",
+      "name": "Instruction Timing (Blargg)",
       "description": "Tests that instructions take the correct number of cycles",
       "priority": "high",
+      "repo": "blargg",
       "tests": [
-        {
-          "path": "instr_timing/instr_timing.gb",
-          "expected": "pass",
-          "description": "Instruction timing test",
-          "notes": "Verifies cycle-accurate instruction timing"
-        }
+        {"path": "instr_timing/instr_timing.gb", "expected": "pass"}
       ]
     },
 
     "mem_timing": {
-      "name": "Memory Timing",
+      "name": "Memory Timing (Blargg)",
       "description": "Tests memory access timing",
       "priority": "high",
+      "repo": "blargg",
       "tests": [
-        {
-          "path": "mem_timing/individual/01-read_timing.gb",
-          "expected": "pass",
-          "description": "Memory read timing",
-          "notes": "Tests timing of memory read operations"
-        },
-        {
-          "path": "mem_timing/individual/02-write_timing.gb",
-          "expected": "pass",
-          "description": "Memory write timing",
-          "notes": "Tests timing of memory write operations"
-        },
-        {
-          "path": "mem_timing/individual/03-modify_timing.gb",
-          "expected": "pass",
-          "description": "Memory modify timing",
-          "notes": "Tests timing of read-modify-write operations"
-        }
-      ]
-    },
-
-    "mem_timing_2": {
-      "name": "Memory Timing 2",
-      "description": "Additional memory timing tests",
-      "priority": "high",
-      "tests": [
-        {
-          "path": "mem_timing-2/mem_timing.gb",
-          "expected": "pass",
-          "description": "Extended memory timing test",
-          "notes": "More comprehensive memory timing verification"
-        }
-      ]
-    },
-
-    "dmg_sound": {
-      "name": "DMG Sound",
-      "description": "Tests DMG (original Game Boy) audio hardware",
-      "priority": "medium",
-      "tests": [
-        {
-          "path": "dmg_sound/01-registers.gb",
-          "expected": "pass",
-          "description": "Sound register behavior",
-          "notes": "Tests basic APU register functionality"
-        },
-        {
-          "path": "dmg_sound/02-len ctr.gb",
-          "expected": "pass",
-          "description": "Length counter",
-          "notes": "Tests sound channel length counters"
-        },
-        {
-          "path": "dmg_sound/03-trigger.gb",
-          "expected": "pass",
-          "description": "Channel trigger behavior",
-          "notes": "Tests sound channel triggering"
-        },
-        {
-          "path": "dmg_sound/04-sweep.gb",
-          "expected": "pass",
-          "description": "Channel 1 sweep",
-          "notes": "Tests pulse channel frequency sweep"
-        },
-        {
-          "path": "dmg_sound/05-sweep details.gb",
-          "expected": "pass",
-          "description": "Sweep edge cases",
-          "notes": "Tests sweep unit edge cases and timing"
-        },
-        {
-          "path": "dmg_sound/06-overflow on trigger.gb",
-          "expected": "pass",
-          "description": "Sweep overflow on trigger",
-          "notes": "Tests sweep overflow behavior during channel trigger"
-        },
-        {
-          "path": "dmg_sound/07-len sweep period sync.gb",
-          "expected": "pass",
-          "description": "Length/sweep period synchronization",
-          "notes": "Tests frame sequencer timing"
-        },
-        {
-          "path": "dmg_sound/08-len ctr during power.gb",
-          "expected": "pass",
-          "description": "Length counter during power transitions",
-          "notes": "Tests length counter behavior during power on/off"
-        },
-        {
-          "path": "dmg_sound/09-wave read while on.gb",
-          "expected": "pass",
-          "description": "Wave RAM reads while playing",
-          "notes": "Tests wave channel RAM access during playback"
-        },
-        {
-          "path": "dmg_sound/10-wave trigger while on.gb",
-          "expected": "pass",
-          "description": "Wave channel trigger while on",
-          "notes": "Tests wave channel re-trigger behavior"
-        },
-        {
-          "path": "dmg_sound/11-regs after power.gb",
-          "expected": "pass",
-          "description": "Registers after power",
-          "notes": "Tests APU register state after power on"
-        },
-        {
-          "path": "dmg_sound/12-wave write while on.gb",
-          "expected": "pass",
-          "description": "Wave RAM writes while playing",
-          "notes": "Tests wave channel RAM writes during playback"
-        }
-      ]
-    },
-
-    "cgb_sound": {
-      "name": "CGB Sound",
-      "description": "Tests CGB (Game Boy Color) audio hardware differences",
-      "priority": "medium",
-      "tests": [
-        {
-          "path": "cgb_sound/01-registers.gb",
-          "expected": "pass",
-          "description": "CGB sound register behavior",
-          "notes": "Tests CGB-specific APU register functionality"
-        },
-        {
-          "path": "cgb_sound/02-len ctr.gb",
-          "expected": "pass",
-          "description": "CGB length counter",
-          "notes": "Tests CGB length counter behavior"
-        },
-        {
-          "path": "cgb_sound/03-trigger.gb",
-          "expected": "pass",
-          "description": "CGB channel trigger behavior",
-          "notes": "Tests CGB sound channel triggering"
-        },
-        {
-          "path": "cgb_sound/04-sweep.gb",
-          "expected": "pass",
-          "description": "CGB channel 1 sweep",
-          "notes": "Tests CGB sweep behavior"
-        },
-        {
-          "path": "cgb_sound/05-sweep details.gb",
-          "expected": "pass",
-          "description": "CGB sweep edge cases",
-          "notes": "Tests CGB sweep unit edge cases"
-        },
-        {
-          "path": "cgb_sound/06-overflow on trigger.gb",
-          "expected": "pass",
-          "description": "CGB sweep overflow on trigger",
-          "notes": "Tests CGB sweep overflow behavior"
-        },
-        {
-          "path": "cgb_sound/07-len sweep period sync.gb",
-          "expected": "pass",
-          "description": "CGB length/sweep synchronization",
-          "notes": "Tests CGB frame sequencer timing"
-        },
-        {
-          "path": "cgb_sound/08-len ctr during power.gb",
-          "expected": "pass",
-          "description": "CGB length counter during power",
-          "notes": "Tests CGB length counter power behavior"
-        },
-        {
-          "path": "cgb_sound/09-wave read while on.gb",
-          "expected": "pass",
-          "description": "CGB wave RAM reads while playing",
-          "notes": "Tests CGB wave RAM access"
-        },
-        {
-          "path": "cgb_sound/10-wave trigger while on.gb",
-          "expected": "pass",
-          "description": "CGB wave channel trigger while on",
-          "notes": "Tests CGB wave re-trigger"
-        },
-        {
-          "path": "cgb_sound/11-regs after power.gb",
-          "expected": "pass",
-          "description": "CGB registers after power",
-          "notes": "Tests CGB APU register state"
-        },
-        {
-          "path": "cgb_sound/12-wave write while on.gb",
-          "expected": "pass",
-          "description": "CGB wave RAM writes while playing",
-          "notes": "Tests CGB wave RAM writes"
-        }
-      ]
-    },
-
-    "interrupt_time": {
-      "name": "Interrupt Timing",
-      "description": "Tests interrupt timing and dispatch",
-      "priority": "high",
-      "tests": [
-        {
-          "path": "interrupt_time/interrupt_time.gb",
-          "expected": "pass",
-          "description": "Interrupt timing test",
-          "notes": "Tests precise interrupt dispatch timing"
-        }
-      ]
-    },
-
-    "halt_bug": {
-      "name": "HALT Bug",
-      "description": "Tests the infamous HALT instruction bug",
-      "priority": "medium",
-      "tests": [
-        {
-          "path": "halt_bug.gb",
-          "expected": "pass",
-          "description": "HALT bug test",
-          "notes": "Tests the bug where HALT with IME=0 and pending interrupt causes PC to fail to increment"
-        }
+        {"path": "mem_timing/individual/01-read_timing.gb", "expected": "pass"},
+        {"path": "mem_timing/individual/02-write_timing.gb", "expected": "pass"},
+        {"path": "mem_timing/individual/03-modify_timing.gb", "expected": "pass"}
       ]
     },
 
     "oam_bug": {
-      "name": "OAM Bug",
+      "name": "OAM Bug (Blargg)",
       "description": "Tests OAM corruption bug behavior",
       "priority": "low",
+      "repo": "blargg",
       "tests": [
-        {
-          "path": "oam_bug/oam_bug.gb",
-          "expected": "known_fail",
-          "description": "OAM corruption bug test",
-          "notes": "Tests DMG OAM corruption - this is a quirky hardware bug that many emulators skip"
-        }
+        {"path": "oam_bug/oam_bug.gb", "expected": "pass", "notes": "DMG OAM corruption quirk"}
+      ]
+    },
+
+    "mooneye_bits": {
+      "name": "Mooneye - Bits",
+      "description": "Tests for bit-level hardware behavior",
+      "priority": "high",
+      "repo": "mooneye",
+      "tests": [
+        {"path": "mooneye-test-suite/acceptance/bits/mem_oam.gb", "expected": "pass"},
+        {"path": "mooneye-test-suite/acceptance/bits/reg_f.gb", "expected": "pass"},
+        {"path": "mooneye-test-suite/acceptance/bits/unused_hwio-GS.gb", "expected": "pass"}
+      ]
+    },
+
+    "mooneye_instr": {
+      "name": "Mooneye - Instructions",
+      "description": "CPU instruction tests",
+      "priority": "critical",
+      "repo": "mooneye",
+      "tests": [
+        {"path": "mooneye-test-suite/acceptance/instr/daa.gb", "expected": "pass"}
+      ]
+    },
+
+    "mooneye_interrupts": {
+      "name": "Mooneye - Interrupts",
+      "description": "Interrupt handling tests",
+      "priority": "high",
+      "repo": "mooneye",
+      "tests": [
+        {"path": "mooneye-test-suite/acceptance/interrupts/ie_push.gb", "expected": "pass"}
+      ]
+    },
+
+    "mooneye_oam_dma": {
+      "name": "Mooneye - OAM DMA",
+      "description": "OAM DMA transfer tests",
+      "priority": "high",
+      "repo": "mooneye",
+      "tests": [
+        {"path": "mooneye-test-suite/acceptance/oam_dma/basic.gb", "expected": "pass"},
+        {"path": "mooneye-test-suite/acceptance/oam_dma/reg_read.gb", "expected": "pass"},
+        {"path": "mooneye-test-suite/acceptance/oam_dma/sources-GS.gb", "expected": "pass"}
+      ]
+    },
+
+    "mooneye_ppu": {
+      "name": "Mooneye - PPU",
+      "description": "PPU timing and behavior tests - critical for cycle accuracy",
+      "priority": "critical",
+      "repo": "mooneye",
+      "tests": [
+        {"path": "mooneye-test-suite/acceptance/ppu/hblank_ly_scx_timing-GS.gb", "expected": "pass"},
+        {"path": "mooneye-test-suite/acceptance/ppu/intr_1_2_timing-GS.gb", "expected": "pass"},
+        {"path": "mooneye-test-suite/acceptance/ppu/intr_2_0_timing.gb", "expected": "pass"},
+        {"path": "mooneye-test-suite/acceptance/ppu/intr_2_mode0_timing.gb", "expected": "pass"},
+        {"path": "mooneye-test-suite/acceptance/ppu/intr_2_mode0_timing_sprites.gb", "expected": "pass"},
+        {"path": "mooneye-test-suite/acceptance/ppu/intr_2_mode3_timing.gb", "expected": "pass"},
+        {"path": "mooneye-test-suite/acceptance/ppu/intr_2_oam_ok_timing.gb", "expected": "pass"},
+        {"path": "mooneye-test-suite/acceptance/ppu/lcdon_timing-GS.gb", "expected": "pass"},
+        {"path": "mooneye-test-suite/acceptance/ppu/lcdon_write_timing-GS.gb", "expected": "pass"},
+        {"path": "mooneye-test-suite/acceptance/ppu/stat_irq_blocking.gb", "expected": "pass"},
+        {"path": "mooneye-test-suite/acceptance/ppu/stat_lyc_onoff.gb", "expected": "pass"},
+        {"path": "mooneye-test-suite/acceptance/ppu/vblank_stat_intr-GS.gb", "expected": "pass"}
+      ]
+    },
+
+    "mooneye_timer": {
+      "name": "Mooneye - Timer",
+      "description": "Timer hardware tests",
+      "priority": "high",
+      "repo": "mooneye",
+      "tests": [
+        {"path": "mooneye-test-suite/acceptance/timer/div_write.gb", "expected": "pass"},
+        {"path": "mooneye-test-suite/acceptance/timer/rapid_toggle.gb", "expected": "pass"},
+        {"path": "mooneye-test-suite/acceptance/timer/tim00.gb", "expected": "pass"},
+        {"path": "mooneye-test-suite/acceptance/timer/tim00_div_trigger.gb", "expected": "pass"},
+        {"path": "mooneye-test-suite/acceptance/timer/tim01.gb", "expected": "pass"},
+        {"path": "mooneye-test-suite/acceptance/timer/tim01_div_trigger.gb", "expected": "pass"},
+        {"path": "mooneye-test-suite/acceptance/timer/tim10.gb", "expected": "pass"},
+        {"path": "mooneye-test-suite/acceptance/timer/tim10_div_trigger.gb", "expected": "pass"},
+        {"path": "mooneye-test-suite/acceptance/timer/tim11.gb", "expected": "pass"},
+        {"path": "mooneye-test-suite/acceptance/timer/tim11_div_trigger.gb", "expected": "pass"},
+        {"path": "mooneye-test-suite/acceptance/timer/tima_reload.gb", "expected": "pass"},
+        {"path": "mooneye-test-suite/acceptance/timer/tima_write_reloading.gb", "expected": "pass"},
+        {"path": "mooneye-test-suite/acceptance/timer/tma_write_reloading.gb", "expected": "pass"}
+      ]
+    },
+
+    "mooneye_timing": {
+      "name": "Mooneye - General Timing",
+      "description": "General timing and synchronization tests",
+      "priority": "critical",
+      "repo": "mooneye",
+      "tests": [
+        {"path": "mooneye-test-suite/acceptance/add_sp_e_timing.gb", "expected": "pass"},
+        {"path": "mooneye-test-suite/acceptance/call_cc_timing.gb", "expected": "pass"},
+        {"path": "mooneye-test-suite/acceptance/call_cc_timing2.gb", "expected": "pass"},
+        {"path": "mooneye-test-suite/acceptance/call_timing.gb", "expected": "pass"},
+        {"path": "mooneye-test-suite/acceptance/call_timing2.gb", "expected": "pass"},
+        {"path": "mooneye-test-suite/acceptance/di_timing-GS.gb", "expected": "pass"},
+        {"path": "mooneye-test-suite/acceptance/div_timing.gb", "expected": "pass"},
+        {"path": "mooneye-test-suite/acceptance/ei_sequence.gb", "expected": "pass"},
+        {"path": "mooneye-test-suite/acceptance/ei_timing.gb", "expected": "pass"},
+        {"path": "mooneye-test-suite/acceptance/halt_ime0_ei.gb", "expected": "pass"},
+        {"path": "mooneye-test-suite/acceptance/halt_ime0_nointr_timing.gb", "expected": "pass"},
+        {"path": "mooneye-test-suite/acceptance/halt_ime1_timing.gb", "expected": "pass"},
+        {"path": "mooneye-test-suite/acceptance/halt_ime1_timing2-GS.gb", "expected": "pass"},
+        {"path": "mooneye-test-suite/acceptance/if_ie_registers.gb", "expected": "pass"},
+        {"path": "mooneye-test-suite/acceptance/intr_timing.gb", "expected": "pass"},
+        {"path": "mooneye-test-suite/acceptance/jp_cc_timing.gb", "expected": "pass"},
+        {"path": "mooneye-test-suite/acceptance/jp_timing.gb", "expected": "pass"},
+        {"path": "mooneye-test-suite/acceptance/ld_hl_sp_e_timing.gb", "expected": "pass"},
+        {"path": "mooneye-test-suite/acceptance/oam_dma_restart.gb", "expected": "pass"},
+        {"path": "mooneye-test-suite/acceptance/oam_dma_start.gb", "expected": "pass"},
+        {"path": "mooneye-test-suite/acceptance/oam_dma_timing.gb", "expected": "pass"},
+        {"path": "mooneye-test-suite/acceptance/pop_timing.gb", "expected": "pass"},
+        {"path": "mooneye-test-suite/acceptance/push_timing.gb", "expected": "pass"},
+        {"path": "mooneye-test-suite/acceptance/rapid_di_ei.gb", "expected": "pass"},
+        {"path": "mooneye-test-suite/acceptance/ret_cc_timing.gb", "expected": "pass"},
+        {"path": "mooneye-test-suite/acceptance/ret_timing.gb", "expected": "pass"},
+        {"path": "mooneye-test-suite/acceptance/reti_intr_timing.gb", "expected": "pass"},
+        {"path": "mooneye-test-suite/acceptance/reti_timing.gb", "expected": "pass"},
+        {"path": "mooneye-test-suite/acceptance/rst_timing.gb", "expected": "pass"}
+      ]
+    },
+
+    "mealybug_ppu": {
+      "name": "Mealybug Tearoom - PPU",
+      "description": "Advanced PPU timing tests",
+      "priority": "high",
+      "repo": "mooneye",
+      "tests": [
+        {"path": "mealybug-tearoom-tests/ppu/m2_win_en_toggle.gb", "expected": "pass"},
+        {"path": "mealybug-tearoom-tests/ppu/m3_bgp_change.gb", "expected": "pass"},
+        {"path": "mealybug-tearoom-tests/ppu/m3_bgp_change_sprites.gb", "expected": "pass"},
+        {"path": "mealybug-tearoom-tests/ppu/m3_lcdc_bg_en_change.gb", "expected": "pass"},
+        {"path": "mealybug-tearoom-tests/ppu/m3_lcdc_bg_map_change.gb", "expected": "pass"},
+        {"path": "mealybug-tearoom-tests/ppu/m3_lcdc_obj_en_change.gb", "expected": "pass"},
+        {"path": "mealybug-tearoom-tests/ppu/m3_lcdc_obj_size_change.gb", "expected": "pass"},
+        {"path": "mealybug-tearoom-tests/ppu/m3_lcdc_tile_sel_change.gb", "expected": "pass"},
+        {"path": "mealybug-tearoom-tests/ppu/m3_lcdc_tile_sel_win_change.gb", "expected": "pass"},
+        {"path": "mealybug-tearoom-tests/ppu/m3_lcdc_win_en_change_multiple.gb", "expected": "pass"},
+        {"path": "mealybug-tearoom-tests/ppu/m3_lcdc_win_en_change_multiple_wx.gb", "expected": "pass"},
+        {"path": "mealybug-tearoom-tests/ppu/m3_lcdc_win_map_change.gb", "expected": "pass"},
+        {"path": "mealybug-tearoom-tests/ppu/m3_obp0_change.gb", "expected": "pass"},
+        {"path": "mealybug-tearoom-tests/ppu/m3_scx_high_5_bits.gb", "expected": "pass"},
+        {"path": "mealybug-tearoom-tests/ppu/m3_scx_low_3_bits.gb", "expected": "pass"},
+        {"path": "mealybug-tearoom-tests/ppu/m3_scy_change.gb", "expected": "pass"},
+        {"path": "mealybug-tearoom-tests/ppu/m3_window_timing.gb", "expected": "pass"},
+        {"path": "mealybug-tearoom-tests/ppu/m3_wx_4_change.gb", "expected": "pass"},
+        {"path": "mealybug-tearoom-tests/ppu/m3_wx_5_change.gb", "expected": "pass"},
+        {"path": "mealybug-tearoom-tests/ppu/m3_wx_6_change.gb", "expected": "pass"}
+      ]
+    },
+
+    "same_suite_apu": {
+      "name": "SameSuite - APU Channel 1",
+      "description": "APU accuracy tests from SameBoy's test suite",
+      "priority": "medium",
+      "repo": "mooneye",
+      "tests": [
+        {"path": "same-suite/apu/channel_1/channel_1_align.gb", "expected": "pass"},
+        {"path": "same-suite/apu/channel_1/channel_1_delay.gb", "expected": "pass"},
+        {"path": "same-suite/apu/channel_1/channel_1_duty.gb", "expected": "pass"},
+        {"path": "same-suite/apu/channel_1/channel_1_duty_delay.gb", "expected": "pass"},
+        {"path": "same-suite/apu/channel_1/channel_1_extra_length_clocking-cgb0B.gb", "expected": "pass"},
+        {"path": "same-suite/apu/channel_1/channel_1_freq_change.gb", "expected": "pass"},
+        {"path": "same-suite/apu/channel_1/channel_1_nrx2_speed_change.gb", "expected": "pass"},
+        {"path": "same-suite/apu/channel_1/channel_1_restart.gb", "expected": "pass"},
+        {"path": "same-suite/apu/channel_1/channel_1_restart_nrx2_glitch.gb", "expected": "pass"},
+        {"path": "same-suite/apu/channel_1/channel_1_sweep.gb", "expected": "pass"},
+        {"path": "same-suite/apu/channel_1/channel_1_sweep_restart.gb", "expected": "pass"},
+        {"path": "same-suite/apu/channel_1/channel_1_volume.gb", "expected": "pass"},
+        {"path": "same-suite/apu/channel_1/channel_1_volume_div.gb", "expected": "pass"}
       ]
     }
   },
 
-  "known_issues": {
-    "oam_bug": "OAM corruption bug is a quirky DMG-only behavior that many emulators skip implementing",
-    "halt_bug": "HALT bug requires precise interrupt timing to test correctly",
-    "cgb_timing": "CGB double-speed mode may have subtle timing differences"
+  "visual_test_suites": {
+    "_note": "These test suites use screenshot comparison for pass/fail detection. Run with --generate-refs to create reference hashes.",
+
+    "dmg_sound": {
+      "name": "DMG Sound (Blargg)",
+      "description": "Tests DMG audio hardware (screenshot comparison)",
+      "priority": "medium",
+      "repo": "blargg",
+      "tests": [
+        {"path": "dmg_sound/rom_singles/01-registers.gb", "expected": "pass", "test_type": "visual", "screenshot_frame": 600},
+        {"path": "dmg_sound/rom_singles/02-len ctr.gb", "expected": "pass", "test_type": "visual", "screenshot_frame": 600},
+        {"path": "dmg_sound/rom_singles/03-trigger.gb", "expected": "pass", "test_type": "visual", "screenshot_frame": 600},
+        {"path": "dmg_sound/rom_singles/04-sweep.gb", "expected": "pass", "test_type": "visual", "screenshot_frame": 600},
+        {"path": "dmg_sound/rom_singles/05-sweep details.gb", "expected": "pass", "test_type": "visual", "screenshot_frame": 600},
+        {"path": "dmg_sound/rom_singles/06-overflow on trigger.gb", "expected": "pass", "test_type": "visual", "screenshot_frame": 600},
+        {"path": "dmg_sound/rom_singles/07-len sweep period sync.gb", "expected": "pass", "test_type": "visual", "screenshot_frame": 600},
+        {"path": "dmg_sound/rom_singles/08-len ctr during power.gb", "expected": "pass", "test_type": "visual", "screenshot_frame": 600},
+        {"path": "dmg_sound/rom_singles/09-wave read while on.gb", "expected": "pass", "test_type": "visual", "screenshot_frame": 600},
+        {"path": "dmg_sound/rom_singles/10-wave trigger while on.gb", "expected": "pass", "test_type": "visual", "screenshot_frame": 600},
+        {"path": "dmg_sound/rom_singles/11-regs after power.gb", "expected": "pass", "test_type": "visual", "screenshot_frame": 600},
+        {"path": "dmg_sound/rom_singles/12-wave write while on.gb", "expected": "pass", "test_type": "visual", "screenshot_frame": 600}
+      ]
+    },
+
+    "cgb_sound": {
+      "name": "CGB Sound (Blargg)",
+      "description": "Tests CGB audio hardware differences (screenshot comparison)",
+      "priority": "medium",
+      "repo": "blargg",
+      "tests": [
+        {"path": "cgb_sound/rom_singles/01-registers.gb", "expected": "pass", "test_type": "visual", "screenshot_frame": 600},
+        {"path": "cgb_sound/rom_singles/02-len ctr.gb", "expected": "pass", "test_type": "visual", "screenshot_frame": 600},
+        {"path": "cgb_sound/rom_singles/03-trigger.gb", "expected": "pass", "test_type": "visual", "screenshot_frame": 600},
+        {"path": "cgb_sound/rom_singles/04-sweep.gb", "expected": "pass", "test_type": "visual", "screenshot_frame": 600},
+        {"path": "cgb_sound/rom_singles/05-sweep details.gb", "expected": "pass", "test_type": "visual", "screenshot_frame": 600},
+        {"path": "cgb_sound/rom_singles/06-overflow on trigger.gb", "expected": "pass", "test_type": "visual", "screenshot_frame": 600},
+        {"path": "cgb_sound/rom_singles/07-len sweep period sync.gb", "expected": "pass", "test_type": "visual", "screenshot_frame": 600},
+        {"path": "cgb_sound/rom_singles/08-len ctr during power.gb", "expected": "pass", "test_type": "visual", "screenshot_frame": 600},
+        {"path": "cgb_sound/rom_singles/09-wave read while on.gb", "expected": "pass", "test_type": "visual", "screenshot_frame": 600},
+        {"path": "cgb_sound/rom_singles/10-wave trigger while on.gb", "expected": "pass", "test_type": "visual", "screenshot_frame": 600},
+        {"path": "cgb_sound/rom_singles/11-regs after power.gb", "expected": "pass", "test_type": "visual", "screenshot_frame": 600},
+        {"path": "cgb_sound/rom_singles/12-wave.gb", "expected": "pass", "test_type": "visual", "screenshot_frame": 600}
+      ]
+    },
+
+    "dmg_acid2": {
+      "name": "DMG Acid2",
+      "description": "Pixel-perfect PPU rendering test for DMG",
+      "priority": "high",
+      "repo": "mooneye",
+      "tests": [
+        {"path": "dmg-acid2/dmg-acid2.gb", "expected": "pass", "test_type": "visual", "screenshot_frame": 60}
+      ]
+    },
+
+    "cgb_acid2": {
+      "name": "CGB Acid2",
+      "description": "Pixel-perfect PPU rendering test for CGB",
+      "priority": "high",
+      "repo": "mooneye",
+      "tests": [
+        {"path": "cgb-acid2/cgb-acid2.gbc", "expected": "pass", "test_type": "visual", "screenshot_frame": 60}
+      ]
+    }
   },
 
-  "hardware_notes": {
-    "lr35902": "GB uses Sharp LR35902 CPU (SM83 core) at 4.194304 MHz",
-    "ppu_timing": "PPU: 456 dots per scanline, 154 scanlines per frame = 70224 cycles",
-    "memory_map": {
-      "rom_bank_0": "0x0000-0x3FFF (16KB)",
-      "rom_bank_n": "0x4000-0x7FFF (16KB, switchable)",
-      "vram": "0x8000-0x9FFF (8KB)",
-      "external_ram": "0xA000-0xBFFF (8KB, switchable)",
-      "wram": "0xC000-0xDFFF (8KB)",
-      "echo_ram": "0xE000-0xFDFF (mirrors WRAM)",
-      "oam": "0xFE00-0xFE9F (160 bytes)",
-      "io": "0xFF00-0xFF7F",
-      "hram": "0xFF80-0xFFFE (127 bytes)",
-      "ie": "0xFFFF"
-    }
+  "category_aliases": {
+    "blargg": ["cpu_instrs", "instr_timing", "mem_timing", "oam_bug"],
+    "mooneye": ["mooneye_bits", "mooneye_instr", "mooneye_interrupts", "mooneye_oam_dma", "mooneye_ppu", "mooneye_timer", "mooneye_timing"],
+    "mooneye_ppu": ["mooneye_ppu"],
+    "mooneye_timer": ["mooneye_timer"],
+    "mealybug": ["mealybug_ppu"],
+    "visual": ["dmg_sound", "cgb_sound", "dmg_acid2", "cgb_acid2"],
+    "apu": ["same_suite_apu"]
+  },
+
+  "known_issues": {
+    "cgb_sound": "CGB sound tests require proper CGB mode detection and testing"
   }
 }

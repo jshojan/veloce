@@ -72,6 +72,12 @@ public:
     int get_scanlines_per_frame() const { return m_scanlines_per_frame; }
     int get_vblank_scanlines() const { return m_vblank_scanlines; }
 
+    // Emulation options
+    void set_sprite_limit_enabled(bool enabled) { m_sprite_limit_enabled = enabled; }
+    bool is_sprite_limit_enabled() const { return m_sprite_limit_enabled; }
+    void set_crop_overscan(bool enabled) { m_crop_overscan = enabled; }
+    bool is_crop_overscan_enabled() const { return m_crop_overscan; }
+
     // Save state
     void save_state(std::vector<uint8_t>& data);
     void load_state(const uint8_t*& data, size_t& remaining);
@@ -155,9 +161,12 @@ private:
     };
 
     std::array<uint8_t, 256> m_oam;  // Object Attribute Memory
-    std::array<Sprite, 8> m_scanline_sprites;
-    std::array<uint8_t, 8> m_sprite_shifter_lo;
-    std::array<uint8_t, 8> m_sprite_shifter_hi;
+    // Sprite arrays sized for 64 sprites when sprite limit is disabled
+    // Only first 8 are used when sprite limit is enabled (hardware accurate)
+    static constexpr int MAX_SPRITES_PER_SCANLINE = 64;
+    std::array<Sprite, MAX_SPRITES_PER_SCANLINE> m_scanline_sprites;
+    std::array<uint8_t, MAX_SPRITES_PER_SCANLINE> m_sprite_shifter_lo;
+    std::array<uint8_t, MAX_SPRITES_PER_SCANLINE> m_sprite_shifter_hi;
     int m_sprite_count = 0;
     int m_sprite_zero_index = -1;  // Index of OAM sprite 0 in m_scanline_sprites (-1 if not present)
     bool m_sprite_zero_hit_possible = false;
@@ -196,6 +205,10 @@ private:
 
     // Current palette pointer (points to one of the above)
     const uint32_t* m_current_palette = s_palette;
+
+    // Emulation options
+    bool m_sprite_limit_enabled = true;  // True = accurate 8 sprite limit
+    bool m_crop_overscan = false;        // True = hide top/bottom 8 rows
 };
 
 } // namespace nes

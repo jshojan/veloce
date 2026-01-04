@@ -2,6 +2,7 @@
 #include <nlohmann/json.hpp>
 #include <fstream>
 #include <iostream>
+#include <algorithm>
 
 namespace emu {
 
@@ -13,8 +14,8 @@ static std::string type_to_key(PluginType type) {
         case PluginType::Audio:         return "audio";
         case PluginType::Input:         return "input";
         case PluginType::TAS:           return "tas";
-        case PluginType::SpeedrunTools: return "speedrun_tools";
         case PluginType::Game:          return "game";
+        case PluginType::Netplay:       return "netplay";
         default:                        return "unknown";
     }
 }
@@ -26,8 +27,9 @@ static PluginType key_to_type(const std::string& key) {
     if (key == "audio")          return PluginType::Audio;
     if (key == "input")          return PluginType::Input;
     if (key == "tas")            return PluginType::TAS;
-    if (key == "speedrun_tools") return PluginType::SpeedrunTools;
     if (key == "game")           return PluginType::Game;
+    if (key == "speedrun_tools") return PluginType::Game;  // Legacy migration
+    if (key == "netplay")        return PluginType::Netplay;
     return PluginType::Emulator;  // Default fallback
 }
 
@@ -74,6 +76,16 @@ bool PluginConfiguration::load(const std::filesystem::path& path) {
             }
         }
 
+        // Load enabled game plugins (multi-select)
+        if (json.contains("enabled_game_plugins") && json["enabled_game_plugins"].is_array()) {
+            m_enabled_game_plugins.clear();
+            for (const auto& name : json["enabled_game_plugins"]) {
+                if (name.is_string()) {
+                    m_enabled_game_plugins.push_back(name.get<std::string>());
+                }
+            }
+        }
+
         m_modified = false;
         return true;
     }
@@ -94,16 +106,19 @@ bool PluginConfiguration::save(const std::filesystem::path& path) const {
         }
         json["selected_plugins"] = selections;
 
-        // Save per-plugin settings
-        nlohmann::json settings;
+        // Save per-plugin settings (ensure empty object, not null)
+        nlohmann::json settings = nlohmann::json::object();
         for (const auto& [plugin_name, plugin_settings] : m_plugin_settings) {
-            nlohmann::json plugin_json;
+            nlohmann::json plugin_json = nlohmann::json::object();
             for (const auto& [key, value] : plugin_settings) {
                 plugin_json[key] = value;
             }
             settings[plugin_name] = plugin_json;
         }
         json["plugin_settings"] = settings;
+
+        // Save enabled game plugins (multi-select)
+        json["enabled_game_plugins"] = m_enabled_game_plugins;
 
         // Create parent directories if needed
         if (path.has_parent_path()) {
@@ -174,6 +189,35 @@ void PluginConfiguration::set_plugin_setting(const std::string& plugin_name, con
     m_modified = true;
 }
 
+std::vector<std::string> PluginConfiguration::get_enabled_game_plugins() const {
+    return m_enabled_game_plugins;
+}
+
+void PluginConfiguration::set_enabled_game_plugins(const std::vector<std::string>& plugins) {
+    m_enabled_game_plugins = plugins;
+    m_modified = true;
+}
+
+void PluginConfiguration::add_enabled_game_plugin(const std::string& plugin_name) {
+    if (!is_game_plugin_enabled(plugin_name)) {
+        m_enabled_game_plugins.push_back(plugin_name);
+        m_modified = true;
+    }
+}
+
+void PluginConfiguration::remove_enabled_game_plugin(const std::string& plugin_name) {
+    auto it = std::find(m_enabled_game_plugins.begin(), m_enabled_game_plugins.end(), plugin_name);
+    if (it != m_enabled_game_plugins.end()) {
+        m_enabled_game_plugins.erase(it);
+        m_modified = true;
+    }
+}
+
+bool PluginConfiguration::is_game_plugin_enabled(const std::string& plugin_name) const {
+    return std::find(m_enabled_game_plugins.begin(), m_enabled_game_plugins.end(), plugin_name)
+           != m_enabled_game_plugins.end();
+}
+
 const char* PluginConfiguration::get_default_plugin_name(PluginType type) {
     switch (type) {
         case PluginType::Emulator:      return "NES";
@@ -181,8 +225,8 @@ const char* PluginConfiguration::get_default_plugin_name(PluginType type) {
         case PluginType::Audio:         return "Default Audio";
         case PluginType::Input:         return "Default Input";
         case PluginType::TAS:           return "TAS Editor";
-        case PluginType::SpeedrunTools: return "Built-in Timer";
-        case PluginType::Game:          return "";  // No default game plugin
+        case PluginType::Game:          return "Built-in Timer";
+        case PluginType::Netplay:       return "";
         default:                        return "";
     }
 }

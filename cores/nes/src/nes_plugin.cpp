@@ -6,8 +6,10 @@
 #include "apu.hpp"
 #include "cartridge.hpp"
 
+#include <imgui.h>
 #include <cstring>
 #include <iostream>
+#include <fstream>
 
 namespace nes {
 
@@ -64,6 +66,9 @@ public:
     emu::AudioBuffer get_audio() override;
     void clear_audio_buffer() override;
 
+    // Streaming audio (low-latency)
+    void set_audio_callback(AudioStreamCallback callback) override;
+
     // Memory access
     uint8_t read_memory(uint16_t address) override;
     void write_memory(uint16_t address, uint8_t value) override;
@@ -111,6 +116,24 @@ public:
     // Discard audio during rollback re-simulation
     void discard_audio() override { m_audio_samples = 0; }
 
+    // =========================================================================
+    // Configuration GUI
+    // =========================================================================
+
+    // Check if core requests fast/uncapped mode
+    bool is_fast_mode_enabled() const override { return m_fast_mode; }
+
+    // Configuration GUI support
+    bool has_config_gui() const override { return true; }
+    void set_imgui_context(void* context) override;
+    void render_config_gui(bool& visible) override;
+    void render_config_gui_content() override;
+    const char* get_config_window_name() const override { return "NES Settings"; }
+
+    // Configuration persistence
+    bool save_config(const char* path) override;
+    bool load_config(const char* path) override;
+
 private:
     // Internal run_frame that takes both player inputs
     void run_frame_internal(uint32_t player1_buttons, uint32_t player2_buttons);
@@ -138,6 +161,11 @@ private:
     static constexpr size_t AUDIO_BUFFER_SIZE = 2048;
     float m_audio_buffer[AUDIO_BUFFER_SIZE * 2];  // Stereo
     size_t m_audio_samples = 0;
+
+    // Configuration options
+    bool m_fast_mode = false;           // Run at uncapped speed when true
+    bool m_disable_sprite_limit = false; // Allow >8 sprites per scanline when true
+    bool m_crop_overscan = false;        // Hide top/bottom 8 rows (typically hidden on CRT TVs)
 
     // File extensions
     static const char* s_extensions[];
@@ -238,40 +266,44 @@ void NESPlugin::run_frame_netplay(uint32_t player1_buttons, uint32_t player2_but
 void NESPlugin::run_frame_internal(uint32_t player1_buttons, uint32_t player2_buttons) {
     if (!m_rom_loaded) return;
 
+    // Set controller state BEFORE running the frame
+    // This ensures NMI handlers can read the current input
+    m_bus->set_controller_state(0, player1_buttons);
+    m_bus->set_controller_state(1, player2_buttons);
+
     // Run until PPU signals frame completion (at VBlank start)
+    // With cycle-accurate mode, PPU and APU are ticked during each CPU memory access
+    // via the Bus, but NMI detection happens at instruction boundaries here.
     bool frame_complete = false;
 
     while (!frame_complete) {
-        // Step CPU
+        // Handle OAM DMA inline if active
+        // DMA ticks PPU/APU for each cycle via the bus
+        // During DMA, interrupts are detected but not serviced until DMA completes
+        while (m_bus->is_dma_active()) {
+            m_bus->run_dma_cycle();
+            m_total_cycles++;
+
+            // Check for NMI during DMA - it will be pending when DMA completes
+            // The bus tick() already triggers NMI detection via check_nmi()
+            // but we also need to poll for IRQ changes
+            bool mapper_irq = m_bus->mapper_irq_pending(m_ppu->get_frame_cycle());
+            bool apu_irq = m_apu->irq_pending();
+            m_cpu->set_irq_line(mapper_irq || apu_irq);
+
+            // Check for frame completion during DMA
+            if (m_ppu->check_frame_complete()) {
+                frame_complete = true;
+            }
+        }
+
+        if (frame_complete) break;
+
+        // Step CPU - memory accesses tick PPU/APU via the bus
         int cpu_cycles = m_cpu->step();
-        int base_cpu_cycles = cpu_cycles;  // Save before adding DMA
         m_total_cycles += cpu_cycles;
 
-        // Check for OAM DMA (takes 513-514 CPU cycles)
-        int dma_cycles = m_bus->get_pending_dma_cycles();
-        if (dma_cycles > 0) {
-            cpu_cycles += dma_cycles;
-            m_total_cycles += dma_cycles;
-        }
-
-        // Check for DMC DMA (takes 1-4 CPU cycles per sample byte)
-        int dmc_dma_cycles = m_apu->get_dmc_dma_cycles();
-        if (dmc_dma_cycles > 0) {
-            cpu_cycles += dmc_dma_cycles;
-            m_total_cycles += dmc_dma_cycles;
-        }
-
-        // Step PPU (3 PPU cycles per CPU cycle)
-        // Run all PPU cycles first, then check for NMI/frame completion ONCE
-        // This is a critical performance optimization - checking inside the loop
-        // was causing 89,000+ redundant checks per frame!
-        int ppu_cycles = cpu_cycles * 3;
-        for (int i = 0; i < ppu_cycles; i++) {
-            m_ppu->step();
-        }
-
-        // Check for NMI ONCE after all PPU cycles for this CPU instruction
-        // NMI timing is still accurate because it's latched inside PPU::step()
+        // Check for NMI at instruction boundary (proper NMI timing)
         int nmi_type = m_ppu->check_nmi();
         if (nmi_type == 1) {
             m_cpu->trigger_nmi();
@@ -279,7 +311,12 @@ void NESPlugin::run_frame_internal(uint32_t player1_buttons, uint32_t player2_bu
             m_cpu->trigger_nmi_delayed();
         }
 
-        // Check for frame completion ONCE after PPU batch
+        // Check for mapper IRQ and APU IRQ at instruction boundary
+        bool mapper_irq = m_bus->mapper_irq_pending(m_ppu->get_frame_cycle());
+        bool apu_irq = m_apu->irq_pending();
+        m_cpu->set_irq_line(mapper_irq || apu_irq);
+
+        // Check for frame completion
         if (m_ppu->check_frame_complete()) {
             frame_complete = true;
             // Check for test ROM output once per frame
@@ -290,32 +327,10 @@ void NESPlugin::run_frame_internal(uint32_t player1_buttons, uint32_t player2_bu
             }
         }
 
-        // Check for mapper IRQ and APU IRQ once per CPU instruction
-        // The IRQ line is level-triggered, so we just need to check the current state
-        bool mapper_irq = m_bus->mapper_irq_pending(m_ppu->get_frame_cycle());
-        bool apu_irq = m_apu->irq_pending();
-        m_cpu->set_irq_line(mapper_irq || apu_irq);
-
-        // Clock mapper for IRQ counters and expansion audio
-        // Only clock for the actual CPU instruction cycles, NOT DMA cycles
-        // DMA happens on the bus and doesn't clock mapper internals the same way
-        // PERFORMANCE: Pass cycle count to mapper for batched processing instead of
-        // calling once per cycle (~90,000 calls/frame reduced to ~30,000)
-        m_bus->mapper_cpu_cycles(base_cpu_cycles);
-
         // Get expansion audio from mapper and pass to APU for mixing
         float expansion_audio = m_bus->get_mapper_audio();
         m_apu->set_expansion_audio(expansion_audio);
-
-        // Step APU
-        m_apu->step(cpu_cycles);
     }
-
-    // Set controller state for BOTH players for NEXT frame's NMI to read
-    // This must happen after the loop so the pending NMI (triggered at VBlank)
-    // will read this input when it runs at the start of the next run_frame
-    m_bus->set_controller_state(0, player1_buttons);
-    m_bus->set_controller_state(1, player2_buttons);
 
     // Copy PPU framebuffer - now guaranteed to be at the correct frame boundary
     const uint32_t* ppu_fb = m_ppu->get_framebuffer();
@@ -355,11 +370,30 @@ void NESPlugin::clear_audio_buffer() {
     m_audio_samples = 0;
 }
 
+void NESPlugin::set_audio_callback(AudioStreamCallback callback) {
+    // Store in base class
+    m_audio_callback = callback;
+
+    // Forward to APU for direct streaming
+    if (m_apu) {
+        if (callback) {
+            m_apu->set_audio_callback([callback](const float* samples, size_t count, int rate) {
+                callback(samples, count, rate);
+            });
+        } else {
+            m_apu->set_audio_callback(nullptr);
+        }
+    }
+}
+
 uint8_t NESPlugin::read_memory(uint16_t address) {
-    return m_bus->cpu_read(address);
+    // Use peek to avoid side effects (ticking PPU/APU) for debugging
+    return m_bus->cpu_peek(address);
 }
 
 void NESPlugin::write_memory(uint16_t address, uint8_t value) {
+    // Note: This will tick PPU/APU, which may have side effects during debugging
+    // Consider adding a cpu_poke function if this causes issues
     m_bus->cpu_write(address, value);
 }
 
@@ -548,11 +582,12 @@ uint64_t NESPlugin::get_state_hash() const {
     cpu_state[7] = 0;  // Padding
     hash ^= fnv1a_hash(cpu_state, sizeof(cpu_state));
 
-    // Hash RAM through bus reads (first 256 bytes as quick check)
+    // Hash RAM through bus peeks (first 256 bytes as quick check)
     // For full sync verification, consider hashing all 2KB
+    // Use cpu_peek to avoid side effects (ticking PPU/APU)
     uint8_t ram_sample[256];
     for (int i = 0; i < 256; i++) {
-        ram_sample[i] = m_bus->cpu_read(static_cast<uint16_t>(i));
+        ram_sample[i] = m_bus->cpu_peek(static_cast<uint16_t>(i));
     }
     hash ^= fnv1a_hash(ram_sample, sizeof(ram_sample));
 
@@ -565,6 +600,183 @@ uint64_t NESPlugin::get_state_hash() const {
     hash ^= fnv1a_hash(ppu_sample, sizeof(ppu_sample));
 
     return hash;
+}
+
+// =============================================================================
+// Configuration GUI Implementation
+// =============================================================================
+
+void NESPlugin::set_imgui_context(void* context) {
+    // Set the ImGui context for this plugin
+    // This is required because the plugin may be a separate shared library
+    // with its own statically-linked ImGui, which would have a different context
+    ImGui::SetCurrentContext(static_cast<ImGuiContext*>(context));
+}
+
+void NESPlugin::render_config_gui(bool& visible) {
+    ImGui::SetNextWindowSize(ImVec2(400, 250), ImGuiCond_FirstUseEver);
+
+    if (!ImGui::Begin("NES Settings", &visible, ImGuiWindowFlags_NoCollapse)) {
+        ImGui::End();
+        return;
+    }
+
+    render_config_gui_content();
+
+    ImGui::End();
+}
+
+void NESPlugin::render_config_gui_content() {
+    // Speed / Timing Section
+    if (ImGui::CollapsingHeader("Speed / Timing", ImGuiTreeNodeFlags_DefaultOpen)) {
+        // Fast mode checkbox
+        if (ImGui::Checkbox("Fast Mode (Uncapped Speed)", &m_fast_mode)) {
+            // Setting is applied immediately via is_fast_mode_enabled()
+        }
+
+        // Help text
+        ImGui::SameLine();
+        ImGui::TextDisabled("(?)");
+        if (ImGui::IsItemHovered()) {
+            ImGui::BeginTooltip();
+            ImGui::PushTextWrapPos(ImGui::GetFontSize() * 25.0f);
+            ImGui::TextUnformatted(
+                "When enabled, the emulator runs as fast as your CPU allows "
+                "with no frame rate limiting.\n\n"
+                "When disabled, the emulator runs at cycle-accurate speed "
+                "(60.0988 FPS for NTSC) to match real NES hardware timing."
+            );
+            ImGui::PopTextWrapPos();
+            ImGui::EndTooltip();
+        }
+
+        // Show current mode status
+        ImGui::Spacing();
+        if (m_fast_mode) {
+            ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.0f, 1.0f), "Running at UNCAPPED speed");
+        } else {
+            ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f), "Running at CYCLE-ACCURATE speed (default)");
+        }
+    }
+
+    // Video / Graphics Section
+    if (ImGui::CollapsingHeader("Video / Graphics", ImGuiTreeNodeFlags_DefaultOpen)) {
+        // Sprite limit disable option
+        if (ImGui::Checkbox("Disable Sprite Limit", &m_disable_sprite_limit)) {
+            // Update PPU when option changes
+            if (m_ppu) {
+                m_ppu->set_sprite_limit_enabled(!m_disable_sprite_limit);
+            }
+        }
+        ImGui::SameLine();
+        ImGui::TextDisabled("(?)");
+        if (ImGui::IsItemHovered()) {
+            ImGui::BeginTooltip();
+            ImGui::PushTextWrapPos(ImGui::GetFontSize() * 25.0f);
+            ImGui::TextUnformatted(
+                "The NES hardware can only display 8 sprites per scanline. "
+                "When this limit is reached, sprites flicker.\n\n"
+                "Disabling this limit shows all sprites but is NOT accurate "
+                "to real hardware. Some games use sprite priority for effects "
+                "that may look wrong with this enabled."
+            );
+            ImGui::PopTextWrapPos();
+            ImGui::EndTooltip();
+        }
+
+        // Overscan crop option
+        if (ImGui::Checkbox("Crop Overscan", &m_crop_overscan)) {
+            // Update PPU when option changes
+            if (m_ppu) {
+                m_ppu->set_crop_overscan(m_crop_overscan);
+            }
+        }
+        ImGui::SameLine();
+        ImGui::TextDisabled("(?)");
+        if (ImGui::IsItemHovered()) {
+            ImGui::BeginTooltip();
+            ImGui::PushTextWrapPos(ImGui::GetFontSize() * 25.0f);
+            ImGui::TextUnformatted(
+                "CRT TVs typically hide the top and bottom 8 rows of the NES "
+                "display (scanlines 0-7 and 232-239).\n\n"
+                "Games often have garbage or debug info in these areas. "
+                "Enable this to hide overscan like a real TV would."
+            );
+            ImGui::PopTextWrapPos();
+            ImGui::EndTooltip();
+        }
+    }
+
+    // System Information Section
+    if (ImGui::CollapsingHeader("System Information")) {
+        if (m_rom_loaded && m_cartridge) {
+            ImGui::Text("ROM CRC32: %08X", m_rom_crc32);
+        } else {
+            ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "No ROM loaded");
+        }
+        ImGui::Text("Frame: %llu", static_cast<unsigned long long>(m_frame_count));
+        ImGui::Text("Cycles: %llu", static_cast<unsigned long long>(m_total_cycles));
+    }
+}
+
+bool NESPlugin::save_config(const char* path) {
+    std::ofstream file(path);
+    if (!file) {
+        return false;
+    }
+
+    // Simple JSON format
+    file << "{\n";
+    file << "  \"fast_mode\": " << (m_fast_mode ? "true" : "false") << ",\n";
+    file << "  \"disable_sprite_limit\": " << (m_disable_sprite_limit ? "true" : "false") << ",\n";
+    file << "  \"crop_overscan\": " << (m_crop_overscan ? "true" : "false") << "\n";
+    file << "}\n";
+
+    return true;
+}
+
+bool NESPlugin::load_config(const char* path) {
+    std::ifstream file(path);
+    if (!file) {
+        // File doesn't exist - use defaults (not an error)
+        return true;
+    }
+
+    // Simple JSON parsing
+    std::string content((std::istreambuf_iterator<char>(file)),
+                         std::istreambuf_iterator<char>());
+
+    // Parse fast_mode
+    size_t pos = content.find("\"fast_mode\":");
+    if (pos != std::string::npos) {
+        size_t true_pos = content.find("true", pos);
+        size_t false_pos = content.find("false", pos);
+        m_fast_mode = (true_pos != std::string::npos && (false_pos == std::string::npos || true_pos < false_pos));
+    }
+
+    // Parse disable_sprite_limit
+    pos = content.find("\"disable_sprite_limit\":");
+    if (pos != std::string::npos) {
+        size_t true_pos = content.find("true", pos);
+        size_t false_pos = content.find("false", pos);
+        m_disable_sprite_limit = (true_pos != std::string::npos && (false_pos == std::string::npos || true_pos < false_pos));
+    }
+
+    // Parse crop_overscan
+    pos = content.find("\"crop_overscan\":");
+    if (pos != std::string::npos) {
+        size_t true_pos = content.find("true", pos);
+        size_t false_pos = content.find("false", pos);
+        m_crop_overscan = (true_pos != std::string::npos && (false_pos == std::string::npos || true_pos < false_pos));
+    }
+
+    // Apply loaded settings to PPU if it exists
+    if (m_ppu) {
+        m_ppu->set_sprite_limit_enabled(!m_disable_sprite_limit);
+        m_ppu->set_crop_overscan(m_crop_overscan);
+    }
+
+    return true;
 }
 
 } // namespace nes

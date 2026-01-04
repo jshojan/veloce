@@ -50,7 +50,16 @@ if(GB_PLUGIN_STANDALONE)
     endif()
 else()
     # When building as part of Veloce, use CMAKE_SOURCE_DIR
-    target_include_directories(gb_plugin PRIVATE ${CMAKE_SOURCE_DIR}/include)
+    target_include_directories(gb_plugin PRIVATE
+        ${CMAKE_SOURCE_DIR}/include
+        ${imgui_SOURCE_DIR}
+        ${imgui_SOURCE_DIR}/backends
+    )
+
+    # Link imgui for configuration GUI (only when building as part of Veloce)
+    if(TARGET imgui)
+        target_link_libraries(gb_plugin PRIVATE imgui)
+    endif()
 endif()
 
 # Set output name without 'lib' prefix on all platforms

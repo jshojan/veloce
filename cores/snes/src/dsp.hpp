@@ -73,7 +73,8 @@ private:
         // Envelope
         int envelope_mode;       // 0=release, 1=attack, 2=decay, 3=sustain
         int envelope_level;      // Current envelope value (0-0x7FF)
-        int envelope_rate;       // Current envelope rate
+        int envelope_rate;       // Current envelope rate (index into rate table)
+        int envelope_counter;    // Counter for rate-based envelope timing
 
         // ADSR/GAIN parameters
         uint8_t adsr1;
@@ -89,8 +90,8 @@ private:
         bool key_on_delay;       // Key-on needs 5 sample delay
         int key_on_counter;
 
-        // BRR buffer
-        std::array<int16_t, 4> brr_buffer;
+        // BRR buffer (16 samples per BRR block)
+        std::array<int16_t, 16> brr_buffer;
     };
     std::array<Voice, 8> m_voices;
 

@@ -3,7 +3,10 @@
 GBA Emulator Test Runner
 
 A comprehensive test suite runner for validating GBA emulator accuracy
-using the gba-tests collection from https://github.com/jsmolka/gba-tests
+using multiple test ROM collections:
+- jsmolka/gba-tests: Basic CPU, memory, BIOS, and save type tests
+- mgba-emu/suite: Comprehensive mGBA test suite with verbose debug output
+- nba-emu/hw-test: NanoBoyAdvance hardware tests (DMA, IRQ, timing)
 
 This runner uses the Veloce emulator directly with DEBUG=1 to run test ROMs
 and detect pass/fail based on emulator debug output.
@@ -18,6 +21,7 @@ Usage:
 Test Result Detection:
     The emulator outputs debug messages with [GBA] prefix:
     - "[GBA] PASSED" indicates all tests passed
+    - "[GBA/INFO]", "[GBA/DEBUG]", etc. from mGBA debug registers
     - "[GBA] Test result register..." shows intermediate test state
     - Timeout or crash indicates failure
 """
@@ -41,6 +45,12 @@ class TestResult(Enum):
     TIMEOUT = "timeout"
     SKIP = "skip"
     KNOWN_FAIL = "known_fail"
+    VISUAL = "visual"  # Visual test - requires screenshot analysis
+
+
+class TestType(Enum):
+    AUTOMATED = "automated"  # Has pass/fail detection via debug output
+    VISUAL = "visual"  # Requires visual verification (screenshot)
 
 
 @dataclass
@@ -49,12 +59,16 @@ class TestCase:
     name: str
     path: Path
     expected: str
+    repository: str = "jsmolka"  # Which repository this test belongs to
+    test_type: TestType = TestType.AUTOMATED
     description: str = ""
     notes: str = ""
     result: Optional[TestResult] = None
     output: str = ""
     exit_code: int = 0
     failed_test_number: Optional[int] = None
+    screenshot_frame: int = 300  # Frame to capture screenshot for visual tests
+    screenshot_path: Optional[Path] = None  # Path to captured screenshot
 
 
 @dataclass
@@ -85,6 +99,10 @@ class TestSuite:
     def timeouts(self) -> int:
         return sum(1 for t in self.tests if t.result == TestResult.TIMEOUT)
 
+    @property
+    def visual(self) -> int:
+        return sum(1 for t in self.tests if t.result == TestResult.VISUAL)
+
 
 class Colors:
     """ANSI color codes for terminal output."""
@@ -105,9 +123,6 @@ class Colors:
 class GBATestRunner:
     """Main test runner for GBA emulator tests using Veloce directly."""
 
-    TEST_ROMS_REPO = "https://github.com/jsmolka/gba-tests.git"
-    TIMEOUT_SECONDS = 30
-
     def __init__(
         self,
         keep_roms: bool = False,
@@ -119,10 +134,14 @@ class GBATestRunner:
         self.json_output = json_output
         self.script_dir = Path(__file__).parent
         self.project_root = self.script_dir.parent.parent.parent
-        self.test_roms_dir = self.script_dir / "gba-test-roms"
+        self.screenshots_dir = self.script_dir / "screenshots"
+        self.screenshots_dir.mkdir(parents=True, exist_ok=True)
         self.emulator = self._find_emulator()
         self.config = self._load_config()
+        # Use timeout from config, default to 60 seconds
+        self.TIMEOUT_SECONDS = self.config.get("timeout_seconds", 60)
         self.suites: list[TestSuite] = []
+        self.repo_dirs: dict[str, Path] = {}  # Maps repo name -> local path
 
         if json_output:
             Colors.disable()
@@ -150,42 +169,110 @@ class GBATestRunner:
         return {"test_suites": {}}
 
     def clone_test_roms(self):
-        """Clone the gba-tests repository if not present."""
-        if self.test_roms_dir.exists():
-            if self.verbose and not self.json_output:
-                print(f"{Colors.BLUE}Test ROMs already present{Colors.NC}")
+        """Clone all test ROM repositories defined in config."""
+        repositories = self.config.get("repositories", {})
+
+        if not repositories:
+            # Fallback to legacy single repo mode
+            legacy_dir = self.script_dir / "gba-test-roms"
+            if not legacy_dir.exists():
+                if not self.json_output:
+                    print(f"{Colors.BLUE}Cloning gba-tests repository...{Colors.NC}")
+                subprocess.run(
+                    ["git", "clone", "--depth", "1",
+                     "https://github.com/jsmolka/gba-tests.git", str(legacy_dir)],
+                    check=True,
+                    capture_output=not self.verbose,
+                )
+            self.repo_dirs["jsmolka"] = legacy_dir
             return
 
-        if not self.json_output:
-            print(f"{Colors.BLUE}Cloning gba-tests repository...{Colors.NC}")
-        subprocess.run(
-            ["git", "clone", "--depth", "1", self.TEST_ROMS_REPO, str(self.test_roms_dir)],
-            check=True,
-            capture_output=not self.verbose,
-        )
+        for repo_name, repo_config in repositories.items():
+            url = repo_config.get("url")
+            directory = repo_config.get("directory", repo_name)
+            local_path = self.script_dir / directory
+            self.repo_dirs[repo_name] = local_path
+
+            if local_path.exists():
+                if self.verbose and not self.json_output:
+                    print(f"{Colors.BLUE}Repository '{repo_name}' already present at {directory}{Colors.NC}")
+                continue
+
+            if not self.json_output:
+                desc = repo_config.get("description", "")
+                print(f"{Colors.BLUE}Cloning {repo_name}: {desc}{Colors.NC}")
+                print(f"  {Colors.CYAN}{url}{Colors.NC}")
+
+            try:
+                subprocess.run(
+                    ["git", "clone", "--depth", "1", url, str(local_path)],
+                    check=True,
+                    capture_output=not self.verbose,
+                )
+            except subprocess.CalledProcessError as e:
+                if not self.json_output:
+                    print(f"  {Colors.RED}Failed to clone: {e}{Colors.NC}")
+                # Don't fail entirely, just skip this repo
+
         if not self.json_output:
             print()
 
     def cleanup(self):
-        """Remove test ROMs directory."""
-        if not self.keep_roms and self.test_roms_dir.exists():
-            if not self.json_output:
-                print(f"\n{Colors.BLUE}Cleaning up test ROMs...{Colors.NC}")
-            shutil.rmtree(self.test_roms_dir)
+        """Remove all test ROM directories."""
+        if self.keep_roms:
+            return
+
+        for repo_name, repo_path in self.repo_dirs.items():
+            if repo_path.exists():
+                if not self.json_output:
+                    print(f"\n{Colors.BLUE}Cleaning up {repo_name} test ROMs...{Colors.NC}")
+                shutil.rmtree(repo_path)
 
     def run_test(self, test: TestCase) -> TestResult:
         """Run a single test ROM through Veloce and determine the result."""
-        rom_path = self.test_roms_dir / test.path
+        # Get the repository directory for this test
+        repo_dir = self.repo_dirs.get(test.repository)
+        if not repo_dir:
+            test.result = TestResult.SKIP
+            test.output = f"Repository '{test.repository}' not found"
+            return TestResult.SKIP
+
+        rom_path = repo_dir / test.path
 
         if not rom_path.exists():
             test.result = TestResult.SKIP
             test.output = "ROM not found"
             return TestResult.SKIP
 
-        # Build command - run veloce directly with DEBUG=1
+        # For save tests, clean up existing save files to ensure fresh state
+        # Save tests require blank memory to pass correctly
+        if "save" in str(test.path).lower():
+            save_dir = self.project_root / "saves"
+            save_file = save_dir / f"{rom_path.stem}.sav"
+            if save_file.exists():
+                save_file.unlink()
+
+        # Build command - run veloce in headless mode with DEBUG=1
+        # Use more frames for save tests which require multiple erase/write cycles
+        frame_limit = self.config.get("frame_limit", 300)
+        if "save" in str(test.path).lower():
+            frame_limit = max(frame_limit, 1000)  # Save tests need more frames
+
+        # Visual tests may need more frames and a screenshot
+        if test.test_type == TestType.VISUAL:
+            frame_limit = max(frame_limit, test.screenshot_frame + 10)
+
         cmd = [str(self.emulator), str(rom_path)]
         env = os.environ.copy()
         env["DEBUG"] = "1"
+        env["HEADLESS"] = "1"
+        env["FRAMES"] = str(frame_limit)
+
+        # For visual tests, capture a screenshot at the specified frame
+        if test.test_type == TestType.VISUAL:
+            screenshot_path = self.screenshots_dir / f"{test.name}.png"
+            env["SAVE_SCREENSHOT"] = str(screenshot_path)
+            test.screenshot_path = screenshot_path
 
         try:
             result = subprocess.run(
@@ -194,6 +281,7 @@ class GBATestRunner:
                 text=True,
                 timeout=self.TIMEOUT_SECONDS,
                 env=env,
+                cwd=self.project_root,  # Run from project root so plugins are found
             )
             test.exit_code = result.returncode
             test.output = result.stdout + result.stderr
@@ -206,7 +294,23 @@ class GBATestRunner:
             test.output = str(e)
             return TestResult.FAIL
 
-        # Analyze output for test results
+        # For visual tests, check if screenshot was captured and mark accordingly
+        if test.test_type == TestType.VISUAL:
+            if test.screenshot_path and test.screenshot_path.exists():
+                test.result = TestResult.VISUAL
+                return TestResult.VISUAL
+            elif test.exit_code == 0:
+                # Test ran but screenshot may not have been saved
+                test.result = TestResult.VISUAL
+                return TestResult.VISUAL
+            else:
+                if test.expected == "known_fail":
+                    test.result = TestResult.KNOWN_FAIL
+                else:
+                    test.result = TestResult.FAIL
+                return test.result
+
+        # Analyze output for test results (automated tests)
         # Look for [GBA] PASSED in debug output (indicates R12 == 0 in infinite loop)
         if "[GBA] PASSED" in test.output:
             test.result = TestResult.PASS
@@ -275,6 +379,7 @@ class GBATestRunner:
                     TestResult.KNOWN_FAIL: f"{Colors.YELLOW}KNOWN{Colors.NC}",
                     TestResult.TIMEOUT: f"{Colors.YELLOW}TIMEOUT{Colors.NC}",
                     TestResult.SKIP: f"{Colors.YELLOW}SKIP{Colors.NC}",
+                    TestResult.VISUAL: f"{Colors.CYAN}VISUAL{Colors.NC}",
                 }.get(result, "???")
                 print(f"  {symbol} {test.name}")
 
@@ -287,6 +392,11 @@ class GBATestRunner:
                     for line in test.output.split('\n'):
                         if '[GBA]' in line:
                             print(f"       {line.strip()}")
+                elif result == TestResult.VISUAL:
+                    if test.screenshot_path and test.screenshot_path.exists():
+                        print(f"       Screenshot: {test.screenshot_path}")
+                    if test.notes:
+                        print(f"       Note: {test.notes}")
 
         if not self.json_output:
             parts = [
@@ -295,6 +405,8 @@ class GBATestRunner:
             ]
             if suite.known_fails > 0:
                 parts.append(f"{Colors.YELLOW}Known: {suite.known_fails}{Colors.NC}")
+            if suite.visual > 0:
+                parts.append(f"{Colors.CYAN}Visual: {suite.visual}{Colors.NC}")
             if suite.timeouts > 0:
                 parts.append(f"{Colors.YELLOW}Timeout: {suite.timeouts}{Colors.NC}")
             if suite.skipped > 0:
@@ -308,10 +420,15 @@ class GBATestRunner:
             "arm": ["arm"],
             "thumb": ["thumb"],
             "memory": ["memory"],
-            "ppu": ["ppu"],
+            "ppu": ["ppu", "nba_ppu"],
             "bios": ["bios"],
             "save": ["save"],
             "unsafe": ["unsafe"],
+            "dma": ["nba_dma"],
+            "irq": ["nba_irq"],
+            "timer": ["nba_timer"],
+            "haltcnt": ["nba_haltcnt"],
+            "bus": ["nba_bus"],
         }
 
         # Determine which suites to load
@@ -337,13 +454,23 @@ class GBATestRunner:
                 priority=suite_config.get("priority", "medium"),
             )
 
+            # Get the repository for this suite
+            suite_repo = suite_config.get("repository", "jsmolka")
+
             for test_config in suite_config.get("tests", []):
+                # Parse test type
+                test_type_str = test_config.get("test_type", "automated")
+                test_type = TestType.VISUAL if test_type_str == "visual" else TestType.AUTOMATED
+
                 test = TestCase(
                     name=Path(test_config["path"]).stem,
                     path=Path(test_config["path"]),
                     expected=test_config.get("expected", "pass"),
+                    repository=suite_repo,
+                    test_type=test_type,
                     description=test_config.get("description", ""),
                     notes=test_config.get("notes", ""),
+                    screenshot_frame=test_config.get("screenshot_frame", 300),
                 )
                 suite.tests.append(test)
 
@@ -361,8 +488,13 @@ class GBATestRunner:
                 print(f"{Colors.BLUE}{'=' * 56}{Colors.NC}")
                 print(f"\nEmulator:    {self.emulator}")
                 print(f"Timeout:     {self.TIMEOUT_SECONDS}s per test")
-                print(f"Debug mode:  Enabled (DEBUG=1)")
-                print(f"Test ROMs:   {self.TEST_ROMS_REPO}")
+                print(f"Frame limit: {self.config.get('frame_limit', 300)} frames")
+                print(f"Debug mode:  Enabled (DEBUG=1, HEADLESS=1)")
+                repositories = self.config.get("repositories", {})
+                if repositories:
+                    print(f"Repositories: {len(repositories)}")
+                    for name, cfg in repositories.items():
+                        print(f"  - {name}: {cfg.get('description', cfg.get('url', ''))}")
 
             for suite in self.suites:
                 self.run_suite(suite)
@@ -378,6 +510,7 @@ class GBATestRunner:
         total_known = sum(s.known_fails for s in self.suites)
         total_skipped = sum(s.skipped for s in self.suites)
         total_timeouts = sum(s.timeouts for s in self.suites)
+        total_visual = sum(s.visual for s in self.suites)
         total_run = total_passed + total_failed + total_known
 
         if self.json_output:
@@ -386,9 +519,11 @@ class GBATestRunner:
                     "passed": total_passed,
                     "failed": total_failed,
                     "known_failures": total_known,
+                    "visual": total_visual,
                     "timeouts": total_timeouts,
                     "skipped": total_skipped,
                     "pass_rate": round(total_passed / total_run * 100, 1) if total_run > 0 else 0,
+                    "screenshots_dir": str(self.screenshots_dir) if total_visual > 0 else None,
                 },
                 "suites": [
                     {
@@ -398,6 +533,7 @@ class GBATestRunner:
                         "passed": s.passed,
                         "failed": s.failed,
                         "known_failures": s.known_fails,
+                        "visual": s.visual,
                         "timeouts": s.timeouts,
                         "tests": [
                             {
@@ -405,6 +541,7 @@ class GBATestRunner:
                                 "path": str(t.path),
                                 "result": t.result.value if t.result else "unknown",
                                 "failed_test_number": t.failed_test_number,
+                                "screenshot_path": str(t.screenshot_path) if t.screenshot_path else None,
                                 "notes": t.notes,
                             }
                             for t in s.tests
@@ -422,6 +559,9 @@ class GBATestRunner:
             print(f"  {Colors.GREEN}Passed:       {total_passed}{Colors.NC}")
             print(f"  {Colors.RED}Failed:       {total_failed}{Colors.NC}")
             print(f"  {Colors.YELLOW}Known Issues: {total_known}{Colors.NC}")
+            if total_visual > 0:
+                print(f"  {Colors.CYAN}Visual:       {total_visual}{Colors.NC}")
+                print(f"  Screenshots:  {self.screenshots_dir}")
             print(f"  Timeouts:     {total_timeouts}")
             print(f"  Skipped:      {total_skipped}")
             if total_run > 0:
@@ -441,10 +581,15 @@ Categories:
   arm       ARM instruction set tests
   thumb     Thumb instruction set tests
   memory    Memory access tests
-  ppu       PPU/graphics tests
+  ppu       PPU/graphics tests (jsmolka + NBA)
   bios      BIOS function tests
   save      Save type tests
   unsafe    Edge case tests (may not pass on hardware)
+  dma       DMA tests (NanoBoyAdvance)
+  irq       IRQ tests (NanoBoyAdvance)
+  timer     Timer tests (NanoBoyAdvance)
+  haltcnt   HALTCNT tests (NanoBoyAdvance)
+  bus       Bus tests (NanoBoyAdvance)
 
 Examples:
   python test_runner.py              # Run all tests
@@ -452,7 +597,10 @@ Examples:
   python test_runner.py --keep       # Keep test ROMs
   python test_runner.py --json       # JSON output for CI
 
-Test ROM Source: https://github.com/jsmolka/gba-tests
+Test ROM Sources:
+  - jsmolka/gba-tests: Basic CPU, memory, BIOS, and save type tests
+  - mgba-emu/suite: Comprehensive mGBA test suite
+  - nba-emu/hw-test: NanoBoyAdvance hardware tests
         """,
     )
     parser.add_argument(

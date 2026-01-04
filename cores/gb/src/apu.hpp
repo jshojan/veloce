@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <array>
 #include <vector>
+#include <functional>
 
 namespace gb {
 
@@ -25,6 +26,10 @@ public:
 
     // Get audio samples
     size_t get_samples(float* buffer, size_t max_samples);
+
+    // Streaming audio callback - called frequently with small batches for low latency
+    using AudioStreamCallback = std::function<void(const float*, size_t, int)>;
+    void set_audio_callback(AudioStreamCallback callback) { m_audio_callback = callback; }
 
     // Save state
     void save_state(std::vector<uint8_t>& data);
@@ -133,6 +138,22 @@ private:
     // Timing
     int m_cycles = 0;
     int m_sample_counter = 0;
+
+    // Audio filtering state (matches NES APU quality)
+    // High-pass filter removes DC offset (~37Hz cutoff)
+    float m_hp_filter_left = 0.0f;
+    float m_hp_filter_right = 0.0f;
+    float m_hp_prev_in_left = 0.0f;
+    float m_hp_prev_in_right = 0.0f;
+    // Low-pass filter for smoothing (~14kHz cutoff)
+    float m_lp_filter_left = 0.0f;
+    float m_lp_filter_right = 0.0f;
+
+    // Streaming audio callback and buffer
+    AudioStreamCallback m_audio_callback;
+    static constexpr size_t STREAM_BUFFER_SIZE = 64;  // Small buffer for low latency
+    float m_stream_buffer[STREAM_BUFFER_SIZE * 2];    // Stereo
+    size_t m_stream_pos = 0;
 
     // Duty patterns
     static const uint8_t s_duty_table[4][8];

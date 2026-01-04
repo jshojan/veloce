@@ -3,6 +3,7 @@
 #include "emu/plugin_types.hpp"
 #include <string>
 #include <vector>
+#include <memory>
 #include <unordered_map>
 #include <filesystem>
 #include <functional>
@@ -61,7 +62,14 @@ public:
     void unload_all();
 
     // Get loaded plugin handles
-    const std::vector<PluginHandle>& get_loaded_plugins() const { return m_loaded_plugins; }
+    std::vector<PluginHandle*> get_loaded_plugins() const {
+        std::vector<PluginHandle*> result;
+        result.reserve(m_loaded_plugins.size());
+        for (const auto& ptr : m_loaded_plugins) {
+            result.push_back(ptr.get());
+        }
+        return result;
+    }
 
     // Find a loaded plugin by path
     PluginHandle* find_loaded_plugin(const std::filesystem::path& path);
@@ -88,7 +96,7 @@ private:
     static const char* get_library_extension();
 
     std::vector<PluginMetadata> m_plugins;
-    std::vector<PluginHandle> m_loaded_plugins;
+    std::vector<std::unique_ptr<PluginHandle>> m_loaded_plugins;  // Use unique_ptr for stable pointers
     std::vector<std::filesystem::path> m_plugin_directories;
 };
 

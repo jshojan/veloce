@@ -51,14 +51,33 @@ int SPC700::step() {
 
     // Update timers
     // Timer 0/1: 8kHz (128 cycles), Timer 2: 64kHz (16 cycles)
+    // Reference: anomie's SPC700 docs:
+    // - Stage 1 (divider) runs constantly and cannot be stopped
+    // - Stage 2 (counter) only increments when timer is enabled
+    // - Stage 3 (output) increments when Stage 2 matches target
     for (int i = 0; i < 3; i++) {
-        if (m_timer_enabled[i]) {
-            int divider = (i < 2) ? 128 : 16;
-            m_timer_divider[i] += m_cycles;
-            while (m_timer_divider[i] >= divider) {
-                m_timer_divider[i] -= divider;
+        int divider = (i < 2) ? 128 : 16;
+        m_timer_divider[i] += m_cycles;
+
+        // Stage 1 runs constantly regardless of enable state
+        while (m_timer_divider[i] >= divider) {
+            m_timer_divider[i] -= divider;
+
+            // Stage 2 only increments when timer is enabled
+            if (m_timer_enabled[i]) {
+                // Increment counter (8-bit, wraps at 256)
                 m_timer_counter[i]++;
-                if (m_timer_counter[i] >= m_timer_target[i] || m_timer_target[i] == 0) {
+
+                // Timer fires when counter equals target (post-increment check)
+                // Target 0 means 256 (fire when counter wraps to 0)
+                bool fire = false;
+                if (m_timer_target[i] == 0) {
+                    fire = (m_timer_counter[i] == 0);
+                } else {
+                    fire = (m_timer_counter[i] == m_timer_target[i]);
+                }
+
+                if (fire) {
                     m_timer_counter[i] = 0;
                     m_timer_output[i] = (m_timer_output[i] + 1) & 0x0F;
                 }
@@ -112,19 +131,35 @@ void SPC700::write(uint16_t address, uint8_t value) {
             case 0x00F0:  // Test register (undocumented)
                 break;
             case 0x00F1:  // Control
-                m_control = value;
-                m_timer_enabled[0] = (value & 0x01) != 0;
-                m_timer_enabled[1] = (value & 0x02) != 0;
-                m_timer_enabled[2] = (value & 0x04) != 0;
-                if (value & 0x10) {
-                    m_port_in[0] = 0;
-                    m_port_in[1] = 0;
+                {
+                    // When a timer transitions from disabled to enabled, reset Stage 2 and 3
+                    // Reference: anomie's SPC700 docs - Stage 1 (divider) runs constantly
+                    // and should NOT be reset when timer is enabled
+                    bool new_enable[3] = {
+                        (value & 0x01) != 0,
+                        (value & 0x02) != 0,
+                        (value & 0x04) != 0
+                    };
+                    for (int i = 0; i < 3; i++) {
+                        if (new_enable[i] && !m_timer_enabled[i]) {
+                            // Timer being enabled - reset Stage 2 (counter) and Stage 3 (output)
+                            // Do NOT reset Stage 1 (divider) - it runs constantly
+                            m_timer_counter[i] = 0;
+                            m_timer_output[i] = 0;
+                        }
+                        m_timer_enabled[i] = new_enable[i];
+                    }
+                    m_control = value;
+                    if (value & 0x10) {
+                        m_port_in[0] = 0;
+                        m_port_in[1] = 0;
+                    }
+                    if (value & 0x20) {
+                        m_port_in[2] = 0;
+                        m_port_in[3] = 0;
+                    }
+                    m_ipl_rom_enabled = (value & 0x80) != 0;
                 }
-                if (value & 0x20) {
-                    m_port_in[2] = 0;
-                    m_port_in[3] = 0;
-                }
-                m_ipl_rom_enabled = (value & 0x80) != 0;
                 break;
             case 0x00F2:  // DSP address
                 if (m_dsp) m_dsp->write_address(value);
@@ -136,6 +171,14 @@ void SPC700::write(uint16_t address, uint8_t value) {
             case 0x00F5:
             case 0x00F6:
             case 0x00F7:
+                {
+                    static int port_write_count = 0;
+                    port_write_count++;
+                    if (port_write_count <= 5) {
+                        fprintf(stderr, "[SPC700] Port %d write: $%02X (count=%d, PC=$%04X)\n",
+                            (int)(address - 0x00F4), value, port_write_count, m_pc - 1);
+                    }
+                }
                 m_port_out[address - 0x00F4] = value;
                 break;
             case 0x00FA:

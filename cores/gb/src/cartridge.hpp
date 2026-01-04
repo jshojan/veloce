@@ -38,6 +38,7 @@ public:
     SystemType get_system_type() const { return m_system_type; }
     const std::string& get_title() const { return m_title; }
     bool is_cgb() const { return m_system_type == SystemType::GameBoyColor; }
+    const char* get_mapper_name() const;
 
     // Battery save support
     bool has_battery() const;

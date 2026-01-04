@@ -22,7 +22,9 @@ void PPU::reset() {
     m_vcount = 0;
     m_hcount = 0;
     m_dispcnt = 0;
-    m_dispstat = 0;
+    // Initialize DISPSTAT with VBlank IRQ enabled (bit 3)
+    // Some games expect this to be set by BIOS; when skipping BIOS we set it here
+    m_dispstat = 0x0008;
 
     m_bgcnt.fill(0);
     m_bghofs.fill(0);
@@ -58,14 +60,17 @@ void PPU::step(int cycles) {
             if (m_vcount < VDRAW_LINES) {
                 render_scanline();
 
+                // Trigger HBlank DMAs FIRST, so any writes to affine parameters
+                // (like BG2PD) take effect before the internal register update.
+                // This is required for per-scanline affine effects.
+                m_bus.trigger_hblank_dma();
+
                 // Update affine internal registers after each visible scanline
+                // Uses the potentially-updated m_bgpb/m_bgpd values from HBlank DMA
                 for (int bg = 0; bg < 2; bg++) {
                     m_bgx_internal[bg] += m_bgpb[bg];
                     m_bgy_internal[bg] += m_bgpd[bg];
                 }
-
-                // Trigger HBlank DMAs during visible lines only
-                m_bus.trigger_hblank_dma();
             }
 
             // HBlank interrupt
@@ -93,14 +98,16 @@ void PPU::step(int cycles) {
                 // Trigger VBlank DMAs
                 m_bus.trigger_vblank_dma();
 
-                // VBlank interrupt - request if enabled in DISPSTAT
-                // WORKAROUND: Also request if IE has VBlank enabled but DISPSTAT doesn't
-                // Some games (like Pokemon Fire Red) rely on VBlank interrupts but
-                // don't set DISPSTAT bit 3. This may be due to incorrect understanding
-                // of the hardware or a quirk in how their IRQ handler works.
-                // For compatibility, we request VBlank interrupt unconditionally here.
-                // The CPU will still check IE/IF/IME before actually handling it.
-                m_bus.request_interrupt(GBAInterrupt::VBlank);
+                // VBlank interrupt - request if VBlank IRQ is enabled in DISPSTAT (bit 3)
+                // GBATEK: "This interrupt is generated at the beginning of each VBlank interval"
+                // The interrupt is only requested if DISPSTAT bit 3 (VBlank IRQ Enable) is set.
+                // The CPU will then check IE and IME before actually handling the interrupt.
+                if (m_dispstat & 0x0008) {
+                    GBA_DEBUG_PRINT("PPU: VBlank IRQ requested (DISPSTAT=0x%04X)\n", m_dispstat);
+                    m_bus.request_interrupt(GBAInterrupt::VBlank);
+                } else {
+                    GBA_DEBUG_PRINT("PPU: VBlank occurred but IRQ disabled (DISPSTAT=0x%04X)\n", m_dispstat);
+                }
             }
 
             // Handle end of frame
@@ -163,14 +170,10 @@ void PPU::render_scanline() {
     m_bldcnt = m_bus.get_bldcnt();
     m_bldalpha = m_bus.get_bldalpha();
     m_bldy = m_bus.get_bldy();
+    m_mosaic = m_bus.get_mosaic();
 
-    // Initialize affine internal registers at start of frame
-    if (m_vcount == 0) {
-        m_bgx_internal[0] = m_bgx[0];
-        m_bgy_internal[0] = m_bgy[0];
-        m_bgx_internal[1] = m_bgx[1];
-        m_bgy_internal[1] = m_bgy[1];
-    }
+    // Note: Affine internal registers are reloaded at VBlank (line 160) in step(),
+    // NOT at the start of the frame. This is per GBATEK specifications.
 
     // Get display mode
     m_mode = static_cast<DisplayMode>(m_dispcnt & 7);
@@ -273,6 +276,7 @@ void PPU::render_background(int layer) {
     uint32_t screen_base = ((control >> 8) & 0x1F) * 0x800;
     bool palette_256 = control & 0x0080;
     int screen_size = (control >> 14) & 3;
+    bool mosaic_enabled = (control & 0x0040) != 0;
 
     int scroll_x = m_bghofs[layer] & 0x1FF;
     int scroll_y = m_bgvofs[layer] & 0x1FF;
@@ -285,10 +289,24 @@ void PPU::render_background(int layer) {
     int screen_width = (screen_size & 1) ? 512 : 256;
     int screen_height = (screen_size & 2) ? 512 : 256;
 
-    int y = (m_vcount + scroll_y) % screen_height;
+    // Calculate mosaic sizes (size = value + 1)
+    int mosaic_h = (m_mosaic & 0xF) + 1;
+    int mosaic_v = ((m_mosaic >> 4) & 0xF) + 1;
+
+    // Apply vertical mosaic to the source scanline if enabled
+    int src_y = m_vcount;
+    if (mosaic_enabled && mosaic_v > 1) {
+        src_y = (src_y / mosaic_v) * mosaic_v;
+    }
+    int y = (src_y + scroll_y) % screen_height;
 
     for (int screen_x = 0; screen_x < 240; screen_x++) {
-        int x = (screen_x + scroll_x) % screen_width;
+        // Apply horizontal mosaic to the source x coordinate if enabled
+        int src_x = screen_x;
+        if (mosaic_enabled && mosaic_h > 1) {
+            src_x = (src_x / mosaic_h) * mosaic_h;
+        }
+        int x = (src_x + scroll_x) % screen_width;
 
         // Determine which screen block we're in
         // Screen blocks are arranged as:
@@ -373,20 +391,43 @@ void PPU::render_affine_background(int layer) {
     int size_bits = (control >> 14) & 3;
     int size = 128 << size_bits;  // 128, 256, 512, or 1024 pixels
     bool wraparound = control & 0x2000;
+    bool mosaic_enabled = (control & 0x0040) != 0;
+
+    // Calculate mosaic sizes (size = value + 1)
+    int mosaic_h = (m_mosaic & 0xF) + 1;
+    int mosaic_v = ((m_mosaic >> 4) & 0xF) + 1;
 
     // Get transformation parameters
     int16_t pa = m_bgpa[affine_idx];
+    int16_t pb = m_bgpb[affine_idx];
     int16_t pc = m_bgpc[affine_idx];
+    int16_t pd = m_bgpd[affine_idx];
 
     // Use internal reference point (28.4 fixed point format)
+    // For mosaic, we need to use the reference point from the mosaic base scanline
     int32_t ref_x = m_bgx_internal[affine_idx];
     int32_t ref_y = m_bgy_internal[affine_idx];
 
+    if (mosaic_enabled && mosaic_v > 1) {
+        // Calculate the mosaic base scanline
+        int mosaic_base_y = (m_vcount / mosaic_v) * mosaic_v;
+        int lines_from_start = m_vcount - mosaic_base_y;
+        // Adjust reference point back to where it was at mosaic_base_y
+        ref_x -= pb * lines_from_start;
+        ref_y -= pd * lines_from_start;
+    }
+
     for (int screen_x = 0; screen_x < 240; screen_x++) {
+        // Apply horizontal mosaic if enabled
+        int src_x = screen_x;
+        if (mosaic_enabled && mosaic_h > 1) {
+            src_x = (src_x / mosaic_h) * mosaic_h;
+        }
+
         // Calculate texture coordinates
         // The reference point moves by PA/PC for each pixel
-        int32_t tex_x = ref_x + pa * screen_x;
-        int32_t tex_y = ref_y + pc * screen_x;
+        int32_t tex_x = ref_x + pa * src_x;
+        int32_t tex_y = ref_y + pc * src_x;
 
         // Convert from 28.4 fixed point to integer
         int x = tex_x >> 8;
@@ -488,14 +529,30 @@ void PPU::render_sprites() {
         bool h_flip = attr1 & 0x1000;
         bool v_flip = attr1 & 0x2000;
         int tile_id = attr2 & 0x3FF;
+
+        // In bitmap modes (3-5), sprite tiles with index < 512 are unavailable
+        // because the lower VRAM bank (0x06010000-0x06013FFF) is used by the bitmap framebuffer.
+        // Only tiles >= 512 (starting at 0x06014000) can be used for sprites.
+        if (static_cast<int>(m_mode) >= 3 && tile_id < 512) continue;
+
         uint8_t priority = (attr2 >> 10) & 3;
         int palette = (attr2 >> 12) & 0xF;
         bool is_256_color = attr0 & 0x2000;
         bool semi_transparent = (obj_mode == 1);  // Semi-transparent mode
         bool is_obj_window = (obj_mode == 2);     // Actually obj_mode == 2 is disabled, obj_mode == 3 is window
+        bool obj_mosaic = (attr0 & 0x1000) != 0;
 
         if (obj_mode == 3) {
             is_obj_window = true;
+        }
+
+        // OBJ mosaic sizes (bits 8-15 of MOSAIC register)
+        int obj_mosaic_h = ((m_mosaic >> 8) & 0xF) + 1;
+        int obj_mosaic_v = ((m_mosaic >> 12) & 0xF) + 1;
+
+        // Apply vertical mosaic
+        if (obj_mosaic && obj_mosaic_v > 1) {
+            sprite_y = (sprite_y / obj_mosaic_v) * obj_mosaic_v;
         }
 
         if (v_flip) sprite_y = height - 1 - sprite_y;
@@ -505,7 +562,13 @@ void PPU::render_sprites() {
             int screen_x = x + sprite_x;
             if (screen_x < 0 || screen_x >= 240) continue;
 
-            int pixel_x = h_flip ? (width - 1 - sprite_x) : sprite_x;
+            // Apply horizontal mosaic
+            int mosaic_sprite_x = sprite_x;
+            if (obj_mosaic && obj_mosaic_h > 1) {
+                mosaic_sprite_x = (sprite_x / obj_mosaic_h) * obj_mosaic_h;
+            }
+
+            int pixel_x = h_flip ? (width - 1 - mosaic_sprite_x) : mosaic_sprite_x;
 
             // Calculate tile offset
             int tile_row = sprite_y / 8;
@@ -536,8 +599,9 @@ void PPU::render_sprites() {
             uint32_t char_base = 0x10000;  // Sprite tiles start at 0x10000 in VRAM
 
             if (is_256_color) {
-                // 256-color: 64 bytes per tile
+                // 256-color: 64 bytes per tile (8x8 pixels, 1 byte per pixel)
                 uint32_t offset = char_base + current_tile * 32 + in_tile_y * 8 + in_tile_x;
+                // Note: current_tile already doubled for 256-color in tile calculation
                 if (offset >= m_vram.size()) continue;
                 color_index = m_vram[offset];
             } else {
@@ -567,10 +631,10 @@ void PPU::render_sprites() {
             if (pal_offset + 1 >= m_palette.size()) continue;
             uint16_t color = m_palette[pal_offset] | (m_palette[pal_offset + 1] << 8);
 
-            // Only draw if higher priority (lower number = higher priority)
-            // For sprites, lower OAM index also wins on same priority
-            if (priority < m_sprite_priority[screen_x] ||
-                (priority == m_sprite_priority[screen_x] && m_sprite_buffer[screen_x] == 0x8000)) {
+            // Only draw if higher or equal priority (lower number = higher priority)
+            // Since we iterate OAM 127->0, lower indices are processed last and should win
+            // at equal priority. Using <= allows this overwrite behavior.
+            if (priority <= m_sprite_priority[screen_x]) {
                 m_sprite_buffer[screen_x] = color;
                 m_sprite_priority[screen_x] = priority;
                 m_sprite_semi_transparent[screen_x] = semi_transparent;
@@ -581,6 +645,7 @@ void PPU::render_sprites() {
 
 void PPU::render_affine_sprite([[maybe_unused]] int sprite_idx, uint16_t attr0, uint16_t attr1, uint16_t attr2) {
     bool double_size = attr0 & 0x0200;
+    bool obj_mosaic = (attr0 & 0x1000) != 0;
 
     // Get sprite dimensions
     int shape = (attr0 >> 14) & 3;
@@ -613,6 +678,10 @@ void PPU::render_affine_sprite([[maybe_unused]] int sprite_idx, uint16_t attr0, 
 
     // Get other attributes
     int tile_id = attr2 & 0x3FF;
+
+    // In bitmap modes (3-5), sprite tiles with index < 512 are unavailable
+    if (static_cast<int>(m_mode) >= 3 && tile_id < 512) return;
+
     uint8_t priority = (attr2 >> 10) & 3;
     int palette = (attr2 >> 12) & 0xF;
     bool is_256_color = attr0 & 0x2000;
@@ -620,20 +689,34 @@ void PPU::render_affine_sprite([[maybe_unused]] int sprite_idx, uint16_t attr0, 
     bool semi_transparent = (obj_mode == 1);
     bool is_obj_window = (obj_mode == 3);
 
+    // OBJ mosaic sizes (bits 8-15 of MOSAIC register)
+    int obj_mosaic_h = ((m_mosaic >> 8) & 0xF) + 1;
+    int obj_mosaic_v = ((m_mosaic >> 12) & 0xF) + 1;
+
     // Calculate center of sprite
     int center_x = bounds_width / 2;
     int center_y = bounds_height / 2;
 
-    // Sprite Y relative to center
-    int sprite_y = m_vcount - y - center_y;
+    // Sprite Y relative to center (with mosaic if enabled)
+    int base_sprite_y = m_vcount - y;
+    if (obj_mosaic && obj_mosaic_v > 1) {
+        base_sprite_y = (base_sprite_y / obj_mosaic_v) * obj_mosaic_v;
+    }
+    int sprite_y = base_sprite_y - center_y;
 
     // Render each pixel in the bounding box
     for (int sprite_x = 0; sprite_x < bounds_width; sprite_x++) {
         int screen_x = x + sprite_x;
         if (screen_x < 0 || screen_x >= 240) continue;
 
+        // Apply horizontal mosaic
+        int mosaic_sprite_x = sprite_x;
+        if (obj_mosaic && obj_mosaic_h > 1) {
+            mosaic_sprite_x = (sprite_x / obj_mosaic_h) * obj_mosaic_h;
+        }
+
         // Offset from center
-        int dx = sprite_x - center_x;
+        int dx = mosaic_sprite_x - center_x;
         int dy = sprite_y;
 
         // Apply inverse transformation to get texture coordinates
@@ -696,8 +779,8 @@ void PPU::render_affine_sprite([[maybe_unused]] int sprite_idx, uint16_t attr0, 
         if (pal_offset + 1 >= m_palette.size()) continue;
         uint16_t color = m_palette[pal_offset] | (m_palette[pal_offset + 1] << 8);
 
-        if (priority < m_sprite_priority[screen_x] ||
-            (priority == m_sprite_priority[screen_x] && m_sprite_buffer[screen_x] == 0x8000)) {
+        // Same priority logic as non-affine sprites: <= allows lower OAM to win
+        if (priority <= m_sprite_priority[screen_x]) {
             m_sprite_buffer[screen_x] = color;
             m_sprite_priority[screen_x] = priority;
             m_sprite_semi_transparent[screen_x] = semi_transparent;
@@ -765,9 +848,7 @@ uint8_t PPU::get_window_flags(int x) {
     return m_winout & 0x3F;
 }
 
-void PPU::apply_blending(int x, uint16_t& top_color, uint16_t bottom_color) {
-    int blend_mode = (m_bldcnt >> 6) & 3;
-
+void PPU::apply_blending(int x, uint16_t& top_color, uint16_t bottom_color, int blend_mode) {
     if (blend_mode == 0) return;  // No blending
 
     // Check window blend enable
@@ -826,6 +907,7 @@ void PPU::compose_scanline() {
         uint16_t second_color = 0x8000;  // For blending
         int top_priority = 5;
         int top_layer = -1;  // -1 = backdrop, 0-3 = BG, 4 = sprite
+        int second_layer = -1;  // Track which layer is second for blend target check
         bool found_top = false;
         bool found_second = false;
 
@@ -861,6 +943,7 @@ void PPU::compose_scanline() {
                     found_top = true;
                 } else if (!found_second) {
                     second_color = m_bg_buffer[layer][x];
+                    second_layer = layer;
                     found_second = true;
                     break;
                 }
@@ -876,6 +959,7 @@ void PPU::compose_scanline() {
                 if (top_layer != 4 && m_sprite_buffer[x] != 0x8000 &&
                     m_sprite_priority[x] == priority && (win_flags & 0x10)) {
                     second_color = m_sprite_buffer[x];
+                    second_layer = 4;  // OBJ
                     found_second = true;
                     break;
                 }
@@ -888,6 +972,7 @@ void PPU::compose_scanline() {
                     if (!(win_flags & (1 << layer))) continue;
 
                     second_color = m_bg_buffer[layer][x];
+                    second_layer = layer;
                     found_second = true;
                     break;
                 }
@@ -900,30 +985,41 @@ void PPU::compose_scanline() {
         int blend_mode = (m_bldcnt >> 6) & 3;
         bool apply_blend = false;
 
-        if (blend_mode != 0 && found_top) {
+        if (blend_mode != 0) {
             // Check if top layer is a 1st target
             bool is_first_target = false;
-            if (top_layer == 4) {
-                is_first_target = m_bldcnt & 0x10;  // OBJ is 1st target
-                // Semi-transparent sprites force alpha blending
-                if (m_sprite_semi_transparent[x]) {
-                    apply_blend = true;
-                    blend_mode = 1;  // Force alpha blend
+            if (found_top) {
+                if (top_layer == 4) {
+                    is_first_target = m_bldcnt & 0x10;  // OBJ is 1st target
+                    // Semi-transparent sprites force alpha blending
+                    if (m_sprite_semi_transparent[x]) {
+                        apply_blend = true;
+                        blend_mode = 1;  // Force alpha blend
+                    }
+                } else if (top_layer >= 0 && top_layer < 4) {
+                    is_first_target = m_bldcnt & (1 << top_layer);
                 }
-            } else if (top_layer >= 0 && top_layer < 4) {
-                is_first_target = m_bldcnt & (1 << top_layer);
             } else {
+                // Only backdrop visible - check if backdrop is 1st target
                 is_first_target = m_bldcnt & 0x20;  // Backdrop
             }
 
             if (is_first_target || m_sprite_semi_transparent[x]) {
                 if (blend_mode == 1) {
                     // Alpha blending needs a valid 2nd target
+                    // BLDCNT bits 8-13: BG0, BG1, BG2, BG3, OBJ, Backdrop as 2nd targets
                     bool is_second_target = false;
                     if (found_second) {
-                        // Determine second layer type
-                        // (Simplified - in reality we'd need to track which layer is second)
-                        is_second_target = (m_bldcnt >> 8) != 0;  // Any 2nd target
+                        // Check if the actual second layer is marked as a 2nd target
+                        if (second_layer == 4) {
+                            is_second_target = (m_bldcnt >> 8) & 0x10;  // OBJ as 2nd target
+                        } else if (second_layer >= 0 && second_layer < 4) {
+                            is_second_target = (m_bldcnt >> 8) & (1 << second_layer);  // BG as 2nd target
+                        }
+                    } else {
+                        // No visible second layer - check if backdrop is a 2nd target
+                        is_second_target = (m_bldcnt >> 8) & 0x20;  // Backdrop as 2nd target
+                        second_color = backdrop;  // Use backdrop for blending
                     }
                     apply_blend = is_second_target;
                 } else {
@@ -934,7 +1030,7 @@ void PPU::compose_scanline() {
         }
 
         if (apply_blend) {
-            apply_blending(x, final_color, second_color);
+            apply_blending(x, final_color, second_color, blend_mode);
         }
 
         m_framebuffer[m_vcount * 240 + x] = palette_to_rgba(final_color);
@@ -953,6 +1049,8 @@ uint32_t PPU::palette_to_rgba(uint16_t color) {
     b |= b >> 5;
 
     // Return as RGBA (with full alpha)
+    // OpenGL GL_RGBA expects: byte0=R, byte1=G, byte2=B, byte3=A
+    // On little-endian, 0xAABBGGRR stores as R,G,B,A which is correct
     return 0xFF000000 | (b << 16) | (g << 8) | r;
 }
 

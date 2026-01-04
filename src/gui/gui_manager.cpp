@@ -1,21 +1,18 @@
 #include "gui_manager.hpp"
-#include "speedrun_panel.hpp"
 #include "debug_panel.hpp"
 #include "input_config_panel.hpp"
 #include "plugin_config_panel.hpp"
 #include "paths_config_panel.hpp"
 #include "notification_manager.hpp"
-#include "netplay_panel.hpp"
 #include "core/application.hpp"
 #include "core/window_manager.hpp"
 #include "core/renderer.hpp"
 #include "core/plugin_manager.hpp"
 #include "core/audio_manager.hpp"
 #include "core/input_manager.hpp"
-#include "core/speedrun_manager.hpp"
 #include "core/savestate_manager.hpp"
 #include "core/paths_config.hpp"
-#include "core/netplay_manager.hpp"
+#include "emu/game_plugin.hpp"
 
 #include <chrono>
 #include <cstring>
@@ -66,7 +63,7 @@ bool GuiManager::initialize(WindowManager& window_manager) {
     m_current_directory = std::filesystem::current_path().string();
 
     // Create GUI panels
-    m_speedrun_panel = std::make_unique<SpeedrunPanel>();
+    // Note: SpeedrunPanel has been moved into game plugins - they render their own GUI
     m_debug_panel = std::make_unique<DebugPanel>();
     m_input_config_panel = std::make_unique<InputConfigPanel>();
     m_plugin_config_panel = std::make_unique<PluginConfigPanel>();
@@ -121,9 +118,19 @@ void GuiManager::render(Application& app, Renderer& renderer) {
         render_settings(app);
     }
 
-    // Render speedrun panel
-    if (m_show_speedrun_panel && m_speedrun_panel) {
-        m_speedrun_panel->render(app.get_speedrun_manager(), m_show_speedrun_panel);
+    // Render all active game plugin GUI panels
+    // Each game plugin now renders its own ImGui window via render_gui()
+    if (m_show_speedrun_panel) {
+        auto& game_plugins = app.get_plugin_manager().get_game_plugins();
+        for (auto& inst : game_plugins) {
+            if (inst.plugin && inst.enabled) {
+                // Pass the ImGui context to the plugin before rendering
+                // This is required because plugins link ImGui statically and have
+                // their own context pointer that needs to point to our context
+                inst.plugin->set_imgui_context(ImGui::GetCurrentContext());
+                inst.plugin->render_gui(inst.visible);
+            }
+        }
     }
 
     // Render debug panel (also shown when debug mode is enabled)
@@ -141,12 +148,18 @@ void GuiManager::render(Application& app, Renderer& renderer) {
         m_plugin_config_panel->render(app, m_show_plugin_config);
     }
 
-    // Render netplay panel (create lazily if needed)
-    if (!m_netplay_panel) {
-        m_netplay_panel = std::make_unique<NetplayPanel>(app);
+    // Render core configuration window
+    if (m_show_core_config) {
+        render_core_config(app);
     }
-    // Always call render - the panel handles its own visibility for dialogs and overlays
-    m_netplay_panel->render();
+
+    // Render netplay GUI - handled by the netplay plugin
+    {
+        auto* netplay_plugin = app.get_plugin_manager().get_netplay_plugin();
+        if (netplay_plugin) {
+            netplay_plugin->render_gui();
+        }
+    }
 
     // Demo window for development
     if (m_show_demo_window) {
@@ -230,9 +243,36 @@ void GuiManager::render_main_menu(Application& app) {
         }
 
         if (ImGui::BeginMenu("Settings")) {
+            // Cores configuration - always available
+            if (ImGui::MenuItem("Cores...", nullptr, m_show_core_config)) {
+                if (!m_show_core_config) {
+                    // Opening the window - set initial selection based on active plugin
+                    auto& plugin_manager = app.get_plugin_manager();
+                    auto* active_plugin = plugin_manager.get_active_plugin();
+                    const auto& emu_plugins = plugin_manager.get_all_emulator_plugins();
+
+                    if (active_plugin && active_plugin->is_rom_loaded()) {
+                        // Find the index of the active plugin
+                        m_selected_core_index = -1;
+                        for (size_t i = 0; i < emu_plugins.size(); i++) {
+                            if (emu_plugins[i].plugin == active_plugin ||
+                                emu_plugins[i].name == active_plugin->get_info().name) {
+                                m_selected_core_index = static_cast<int>(i);
+                                break;
+                            }
+                        }
+                    } else {
+                        // No game running - no initial selection
+                        m_selected_core_index = -1;
+                    }
+                }
+                m_show_core_config = !m_show_core_config;
+            }
+
             if (ImGui::MenuItem("Plugins...", nullptr, m_show_plugin_config)) {
                 m_show_plugin_config = !m_show_plugin_config;
             }
+
             ImGui::Separator();
             if (ImGui::MenuItem("Video...")) {
                 m_show_settings = true;
@@ -249,52 +289,66 @@ void GuiManager::render_main_menu(Application& app) {
             ImGui::EndMenu();
         }
 
-        if (ImGui::BeginMenu("Netplay")) {
-            // Ensure netplay panel exists
-            if (!m_netplay_panel) {
-                m_netplay_panel = std::make_unique<NetplayPanel>(app);
+        // Netplay menu - rendered by the netplay plugin
+        {
+            auto* netplay_plugin = app.get_plugin_manager().get_netplay_plugin();
+            if (netplay_plugin) {
+                netplay_plugin->set_imgui_context(ImGui::GetCurrentContext());
+                netplay_plugin->render_menu();
+            }
+        }
+
+        // Window menu - all toggleable windows/panels
+        if (ImGui::BeginMenu("Window")) {
+            // Game plugins (speedrun timer, etc.)
+            auto& game_plugins = app.get_plugin_manager().get_game_plugins();
+            if (!game_plugins.empty()) {
+                for (auto& inst : game_plugins) {
+                    if (inst.plugin) {
+                        const char* panel_name = inst.plugin->get_panel_name();
+                        bool is_visible = inst.visible && m_show_speedrun_panel;
+                        if (ImGui::MenuItem(panel_name, nullptr, is_visible)) {
+                            if (is_visible) {
+                                // Currently visible - hide it
+                                inst.visible = false;
+                            } else {
+                                // Currently hidden - show it
+                                m_show_speedrun_panel = true;
+                                inst.visible = true;
+                            }
+                        }
+                    }
+                }
+                ImGui::Separator();
             }
 
-            auto& netplay = app.get_netplay_manager();
-            bool is_connected = netplay.is_connected();
-            bool rom_loaded = app.get_plugin_manager().is_rom_loaded();
-
-            if (ImGui::MenuItem("Netplay Panel", nullptr, m_show_netplay_panel)) {
-                m_show_netplay_panel = !m_show_netplay_panel;
+            // Debug Panel
+            if (ImGui::MenuItem("Debug Panel", "F12", m_show_debug_panel || app.is_debug_mode())) {
+                m_show_debug_panel = !m_show_debug_panel;
             }
 
-            ImGui::Separator();
-
-            if (ImGui::MenuItem("Host Game...", nullptr, false, rom_loaded && !is_connected)) {
-                m_netplay_panel->show_host_dialog();
+            // RAM Watch
+            if (ImGui::MenuItem("RAM Watch", nullptr, m_show_ram_watch)) {
+                m_show_ram_watch = !m_show_ram_watch;
             }
 
-            if (ImGui::MenuItem("Join Game...", nullptr, false, rom_loaded && !is_connected)) {
-                m_netplay_panel->show_join_dialog();
-            }
-
-            ImGui::Separator();
-
-            if (ImGui::MenuItem("Disconnect", nullptr, false, is_connected)) {
-                netplay.disconnect();
+            // Netplay Panel (controlled by plugin)
+            {
+                auto* netplay_plugin = app.get_plugin_manager().get_netplay_plugin();
+                if (netplay_plugin) {
+                    bool is_visible = netplay_plugin->is_panel_visible();
+                    if (ImGui::MenuItem("Netplay Panel", nullptr, is_visible)) {
+                        netplay_plugin->show_panel(!is_visible);
+                    }
+                }
             }
 
             ImGui::EndMenu();
         }
 
         if (ImGui::BeginMenu("Tools")) {
-            if (ImGui::MenuItem("Speedrun Timer", nullptr, m_show_speedrun_panel)) {
-                m_show_speedrun_panel = !m_show_speedrun_panel;
-            }
-            if (ImGui::MenuItem("Debug Panel", "F12", m_show_debug_panel || app.is_debug_mode())) {
-                m_show_debug_panel = !m_show_debug_panel;
-            }
-            if (ImGui::MenuItem("RAM Watch")) {
-                m_show_ram_watch = true;
-            }
-            ImGui::Separator();
-            if (ImGui::MenuItem("ImGui Demo")) {
-                m_show_demo_window = true;
+            if (ImGui::MenuItem("ImGui Demo", nullptr, m_show_demo_window)) {
+                m_show_demo_window = !m_show_demo_window;
             }
             ImGui::EndMenu();
         }
@@ -471,11 +525,138 @@ void GuiManager::render_rom_browser(Application& app) {
     ImGui::End();
 }
 
+void GuiManager::render_core_config(Application& app) {
+    ImGui::SetNextWindowSize(ImVec2(450, 400), ImGuiCond_FirstUseEver);
+
+    if (ImGui::Begin("Core Configuration", &m_show_core_config)) {
+        auto& plugin_manager = app.get_plugin_manager();
+        bool game_loaded = plugin_manager.is_rom_loaded();
+
+        // Get all loaded emulator plugin instances
+        const auto& emu_plugins = plugin_manager.get_all_emulator_plugins();
+
+        if (emu_plugins.empty()) {
+            ImGui::TextDisabled("No emulator cores loaded");
+            ImGui::End();
+            return;
+        }
+
+        // Build combo items
+        std::vector<const char*> core_names;
+        core_names.reserve(emu_plugins.size());
+        for (const auto& inst : emu_plugins) {
+            core_names.push_back(inst.name.c_str());
+        }
+
+        // When game is loaded, lock to active core
+        if (game_loaded) {
+            auto* active_plugin = plugin_manager.get_active_plugin();
+            if (active_plugin) {
+                // Find and force-select the active core
+                std::string active_name = active_plugin->get_info().name;
+                // Match by checking if the registry name starts with the same prefix
+                // (handles "GB" vs "GBC" dynamic naming)
+                for (size_t i = 0; i < emu_plugins.size(); i++) {
+                    // Check if this plugin instance is the active one
+                    // by comparing the actual plugin pointers or library paths
+                    if (emu_plugins[i].plugin == active_plugin ||
+                        emu_plugins[i].name == active_name) {
+                        m_selected_core_index = static_cast<int>(i);
+                        break;
+                    }
+                }
+            }
+
+            ImGui::Text("Active Core:");
+            ImGui::SameLine();
+            ImGui::TextColored(ImVec4(0.4f, 0.8f, 0.4f, 1.0f), "%s",
+                active_plugin ? active_plugin->get_info().name : "Unknown");
+            ImGui::TextDisabled("(Core is locked while a game is running)");
+        } else {
+            // No game loaded - allow selecting any core
+            ImGui::Text("Select Core:");
+            ImGui::SameLine();
+            ImGui::SetNextItemWidth(200);
+
+            const char* preview = (m_selected_core_index >= 0 && m_selected_core_index < static_cast<int>(core_names.size()))
+                ? core_names[m_selected_core_index]
+                : "Select a core...";
+
+            if (ImGui::BeginCombo("##CoreSelector", preview)) {
+                for (int i = 0; i < static_cast<int>(core_names.size()); i++) {
+                    bool is_selected = (m_selected_core_index == i);
+                    if (ImGui::Selectable(core_names[i], is_selected)) {
+                        m_selected_core_index = i;
+                    }
+                    if (is_selected) {
+                        ImGui::SetItemDefaultFocus();
+                    }
+                }
+                ImGui::EndCombo();
+            }
+        }
+
+        ImGui::Separator();
+
+        // Render the selected core's configuration
+        if (m_selected_core_index >= 0 && m_selected_core_index < static_cast<int>(emu_plugins.size())) {
+            // IMPORTANT: When a game is loaded, use the ACTIVE plugin instance, not the one
+            // from the registry. The registry contains separate instances created for browsing,
+            // while the active plugin is the one actually running the emulation.
+            emu::IEmulatorPlugin* plugin = nullptr;
+            std::string plugin_name;
+
+            if (game_loaded) {
+                // Use the active emulator plugin (the one running the game)
+                plugin = plugin_manager.get_active_plugin();
+                plugin_name = plugin ? plugin->get_info().name : "";
+            } else {
+                // No game loaded - use the registry instance for preview
+                const auto& selected_inst = emu_plugins[m_selected_core_index];
+                plugin = selected_inst.plugin;
+                plugin_name = selected_inst.name;
+            }
+
+            if (plugin && plugin->has_config_gui()) {
+                // Pass ImGui context to the plugin
+                plugin->set_imgui_context(ImGui::GetCurrentContext());
+
+                // Create a child region for the plugin's config
+                if (ImGui::BeginChild("CoreConfigContent", ImVec2(0, 0), true)) {
+                    // Let the plugin render its config content (without window wrapper)
+                    plugin->render_config_gui_content();
+                }
+                ImGui::EndChild();
+            } else if (plugin) {
+                ImGui::TextDisabled("%s has no configuration options.", plugin_name.c_str());
+            } else {
+                ImGui::TextDisabled("Plugin instance not available.");
+            }
+        } else {
+            ImGui::TextDisabled("Select a core from the dropdown above to view its settings.");
+        }
+    }
+    ImGui::End();
+}
+
 void GuiManager::render_settings(Application& app) {
     ImGui::SetNextWindowSize(ImVec2(500, 400), ImGuiCond_FirstUseEver);
 
     if (ImGui::Begin("Settings", &m_show_settings)) {
         if (ImGui::BeginTabBar("SettingsTabs")) {
+            if (ImGui::BeginTabItem("General")) {
+                // Pause on focus loss
+                bool pause_on_focus = app.get_pause_on_focus_loss();
+                if (ImGui::Checkbox("Pause when window loses focus", &pause_on_focus)) {
+                    app.set_pause_on_focus_loss(pause_on_focus);
+                }
+                if (ImGui::IsItemHovered()) {
+                    ImGui::SetTooltip("Automatically pause emulation when you click outside the window");
+                }
+
+                ImGui::EndTabItem();
+            }
+
             if (ImGui::BeginTabItem("Video")) {
                 // Video settings
                 static int scale = 2;
@@ -531,18 +712,6 @@ void GuiManager::render_settings(Application& app) {
 
 NotificationManager& GuiManager::get_notification_manager() {
     return *m_notification_manager;
-}
-
-NetplayPanel& GuiManager::get_netplay_panel() {
-    // This should only be called after render() has been called at least once
-    // but we create lazily just in case
-    if (!m_netplay_panel) {
-        // This is a fallback - normally the panel is created during render()
-        // We need an Application reference which we don't have here
-        // This should never happen in normal usage
-        throw std::runtime_error("NetplayPanel accessed before initialization");
-    }
-    return *m_netplay_panel;
 }
 
 std::string GuiManager::format_savestate_slot_label(int slot, bool has_save, int64_t timestamp) const {

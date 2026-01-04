@@ -1,5 +1,6 @@
 #include "dma.hpp"
 #include "bus.hpp"
+#include "ppu.hpp"
 #include "debug.hpp"
 #include <cstring>
 
@@ -59,6 +60,17 @@ void DMA::write(uint16_t address, uint8_t value) {
 
     auto& ch = m_channels[channel];
 
+    // Debug: trace DMA register writes for channel 0 when setting up VRAM transfers
+    static int dma_write_trace = 0;
+    bool trace_this = is_debug_mode() && channel == 0 && dma_write_trace < 100;
+    if (trace_this) {
+        static const char* reg_names[] = {"DMAP", "BBAD", "A1TL", "A1TH", "A1B", "DASL", "DASH", "DASB", "A2AL", "A2AH", "NLTR"};
+        if (reg <= 0x0A) {
+            SNES_DEBUG_PRINT("DMA ch0 write $%04X (%s) = $%02X\n", 0x4300 + address, reg_names[reg], value);
+        }
+        dma_write_trace++;
+    }
+
     switch (reg) {
         case 0x00: ch.dmap = value; break;
         case 0x01: ch.bbad = value; break;
@@ -88,10 +100,48 @@ void DMA::write_mdmaen(uint8_t value) {
     }
 
     m_dma_active = false;
+
+    // Reference: bsnes dma.cpp - sets IRQ lock after DMA completion
+    // This prevents NMI/IRQ from being serviced immediately after DMA,
+    // which is important for timing-sensitive games.
+    m_bus.set_irq_lock();
 }
 
 void DMA::write_hdmaen(uint8_t value) {
+    // Detect newly-enabled channels and initialize them immediately.
+    // On real hardware, HDMA channels must be enabled before hdma_init()
+    // (at V=0) to participate in the frame. But games often enable HDMA
+    // during their init code which runs after V=0, so we need to init
+    // newly-enabled channels to work on the current frame.
+    uint8_t newly_enabled = value & ~m_hdmaen;
     m_hdmaen = value;
+
+    // Initialize any newly-enabled channels
+    for (int i = 0; i < 8; i++) {
+        if (newly_enabled & (1 << i)) {
+            auto& ch = m_channels[i];
+
+            ch.a2a = ch.a1t;  // Table address = A1T
+            ch.hdma_terminated = false;
+            ch.hdma_do_transfer = false;
+
+            // Read first entry
+            ch.nltr = hdma_read_table(i);
+            ch.hdma_line_counter = ch.nltr & 0x7F;
+
+            if (ch.nltr == 0) {
+                ch.hdma_terminated = true;
+            } else {
+                ch.hdma_do_transfer = true;
+
+                // For indirect mode, read indirect address
+                if (ch.dmap & 0x40) {
+                    ch.das = hdma_read_table(i);
+                    ch.das |= hdma_read_table(i) << 8;
+                }
+            }
+        }
+    }
 }
 
 void DMA::do_dma_transfer(int channel) {
@@ -113,33 +163,34 @@ void DMA::do_dma_transfer(int channel) {
     int count = ch.das;
     if (count == 0) count = 0x10000;
 
-    // For VRAM DMAs (b=$18 or $19), also show the current VRAM address
-    if (is_debug_mode() && (b_addr == 0x18 || b_addr == 0x19)) {
-        // Read PPU's VRAM address via $2116/$2117 state
-        // We can't directly access PPU, but we can note this is a VRAM DMA
-        fprintf(stderr, "[SNES/DMA] VRAM DMA ch%d: mode=%d a=$%06X count=%d (b=$%02X)\n",
-                channel, transfer_mode, a_addr, count, b_addr);
-    }
-    // For CGRAM DMAs (b=$22), trace the transfer - always show frame number
-    static int cgram_dma_trace = 0;
-    if (is_debug_mode() && b_addr == 0x22) {
-        // Read first few bytes from source to see what's being transferred
-        uint8_t src_bytes[8];
-        for (int i = 0; i < 8; i++) {
-            src_bytes[i] = m_bus.read((a_addr + i) & 0xFFFFFF);
-        }
-        // Always trace if src_bytes are different from proper palette or all zero
-        bool all_zero = (src_bytes[2] == 0);  // Palette color 1 should be non-zero ($FF $7F)
-        // Note: We can't easily access PPU frame from here, so trace unconditionally
-        fprintf(stderr, "[SNES/DMA] CGRAM DMA ch%d: a=$%06X count=%d, src=[%02X %02X %02X %02X %02X %02X %02X %02X]%s (trace #%d)\n",
-                channel, a_addr, count,
-                src_bytes[0], src_bytes[1], src_bytes[2], src_bytes[3],
-                src_bytes[4], src_bytes[5], src_bytes[6], src_bytes[7],
-                all_zero ? " **BAD**" : "", cgram_dma_trace);
-        cgram_dma_trace++;
-    }
     SNES_DMA_DEBUG("DMA ch%d: mode=%d dir=%d a=$%06X b=$%02X count=%d\n",
                    channel, transfer_mode, direction, a_addr, b_addr, count);
+
+    // Debug: Log VRAM DMAs with destination address
+    if (is_debug_mode() && (b_addr == 0x18 || b_addr == 0x19)) {
+        // Read VRAM address from PPU
+        uint16_t vram_addr = m_bus.ppu().get_vram_addr();
+        uint8_t vmain = m_bus.ppu().get_vmain();
+        fprintf(stderr, "[SNES/DMA] VRAM DMA ch%d: src=$%06X -> vram=$%04X (byte $%05X) count=%d vmain=$%02X\n",
+                channel, a_addr, vram_addr, vram_addr * 2, count, vmain);
+        fprintf(stderr, "[SNES/DMA]   Source first 8: ");
+        for (int i = 0; i < 8 && i < count; i++) {
+            uint32_t src = (a_addr & 0xFF0000) | ((a_addr + i) & 0xFFFF);
+            fprintf(stderr, "%02X ", m_bus.read(src));
+        }
+        fprintf(stderr, "\n");
+    }
+
+    // Debug: Log all CGDATA DMAs for palette tracking
+    if (is_debug_mode() && b_addr == 0x22) {
+        // Read a few source bytes to show what's being transferred
+        fprintf(stderr, "[SNES/DMA] CGDATA DMA from $%06X (%d bytes), first 8: ", a_addr, count);
+        for (int i = 0; i < 8 && i < count; i++) {
+            uint32_t src = (a_addr & 0xFF0000) | ((a_addr + i) & 0xFFFF);
+            fprintf(stderr, "%02X ", m_bus.read(src));
+        }
+        fprintf(stderr, "\n");
+    }
 
     // Transfer patterns for each mode
     // Mode 0: 1 byte  (p)
@@ -243,7 +294,33 @@ void DMA::do_hdma_channel(int channel) {
 
     if (ch.hdma_terminated) return;
 
-    // Do transfer if needed
+    // bsnes-accurate HDMA timing:
+    // 1. Check if line_counter == 0 FIRST - if so, reload next table entry
+    // 2. Do transfer if do_transfer flag is set
+    // 3. Decrement line_counter
+    // 4. Update do_transfer based on new line_counter value
+
+    // Step 1: Check for reload BEFORE transfer (bsnes hdmaAdvance checks first)
+    if (ch.hdma_line_counter == 0) {
+        // Read next table entry
+        ch.nltr = hdma_read_table(channel);
+
+        if (ch.nltr == 0) {
+            ch.hdma_terminated = true;
+            return;  // Terminate - no transfer on this scanline
+        }
+
+        ch.hdma_line_counter = ch.nltr & 0x7F;
+        ch.hdma_do_transfer = true;
+
+        // For indirect mode, read new indirect address
+        if (ch.dmap & 0x40) {
+            ch.das = hdma_read_table(channel);
+            ch.das |= hdma_read_table(channel) << 8;
+        }
+    }
+
+    // Step 2: Do transfer if needed
     if (ch.hdma_do_transfer) {
         int transfer_mode = ch.dmap & 0x07;
         bool indirect = (ch.dmap & 0x40) != 0;
@@ -258,15 +335,6 @@ void DMA::do_hdma_channel(int channel) {
 
         // B-bus address
         uint8_t b_addr = ch.bbad;
-
-        // Debug: trace HDMA to CGRAM ($22)
-        static int hdma_cgram_trace = 0;
-        if (is_debug_mode() && b_addr == 0x22 && hdma_cgram_trace < 20) {
-            uint8_t first_byte = m_bus.read(src_addr);
-            fprintf(stderr, "[HDMA] CGRAM ch%d: mode=%d src=$%06X first_byte=$%02X\n",
-                channel, transfer_mode, src_addr, first_byte);
-            hdma_cgram_trace++;
-        }
 
         // Transfer pattern based on mode
         static const int transfer_size[8] = {1, 2, 2, 4, 4, 4, 2, 4};
@@ -290,36 +358,25 @@ void DMA::do_hdma_channel(int channel) {
             src_addr++;
         }
 
-        // Update indirect address if used
+        // Update address pointer after transfer
         if (indirect) {
             ch.das = src_addr & 0xFFFF;
+        } else {
+            // For direct mode, update table pointer A2A since data comes from table
+            ch.a2a = src_addr & 0xFFFF;
         }
     }
 
-    // Decrement line counter
+    // Step 3: Decrement line counter
     ch.hdma_line_counter--;
 
-    // Check if we need to reload
+    // Step 4: Update do_transfer for next scanline
+    // If line_counter is now 0, set do_transfer = true (reload will happen next time)
+    // Otherwise, use repeat flag
     if (ch.hdma_line_counter == 0) {
-        // Read next table entry
-        ch.nltr = hdma_read_table(channel);
-
-        if (ch.nltr == 0) {
-            ch.hdma_terminated = true;
-            return;
-        }
-
-        ch.hdma_line_counter = ch.nltr & 0x7F;
-        ch.hdma_do_transfer = true;
-
-        // For indirect mode, read new indirect address
-        if (ch.dmap & 0x40) {
-            ch.das = hdma_read_table(channel);
-            ch.das |= hdma_read_table(channel) << 8;
-        }
+        ch.hdma_do_transfer = true;  // Force transfer on reload scanline
     } else {
-        // Check repeat flag
-        ch.hdma_do_transfer = (ch.nltr & 0x80) != 0;
+        ch.hdma_do_transfer = (ch.nltr & 0x80) != 0;  // Use repeat flag
     }
 }
 

@@ -172,6 +172,7 @@ void Cartridge::unload() {
 
 void Cartridge::reset() {
     reset_flash_state();
+    reset_eeprom_state();
 }
 
 void Cartridge::reset_flash_state() {
@@ -404,6 +405,144 @@ void Cartridge::write_flash(uint32_t address, uint8_t value) {
     }
 }
 
+void Cartridge::reset_eeprom_state() {
+    m_eeprom_state = EEPROMState::Idle;
+    m_eeprom_address = 0;
+    m_eeprom_buffer = 0;
+    m_eeprom_bits_received = 0;
+    m_eeprom_bits_to_send = 0;
+    m_eeprom_command = 0;
+    m_eeprom_ready = true;
+}
+
+uint8_t Cartridge::read_eeprom() {
+    // EEPROM reads return bit 0 only, other bits are 0
+    switch (m_eeprom_state) {
+        case EEPROMState::SendDummy:
+            // Sending 4 dummy bits (always 0)
+            m_eeprom_bits_to_send--;
+            if (m_eeprom_bits_to_send == 0) {
+                m_eeprom_state = EEPROMState::SendData;
+                m_eeprom_bits_to_send = 64;
+            }
+            return 0;
+
+        case EEPROMState::SendData:
+            // Sending 64 data bits (MSB first)
+            {
+                int bit_index = m_eeprom_bits_to_send - 1;
+                uint8_t bit = (m_eeprom_buffer >> bit_index) & 1;
+                m_eeprom_bits_to_send--;
+                if (m_eeprom_bits_to_send == 0) {
+                    m_eeprom_state = EEPROMState::Idle;
+                }
+                return bit;
+            }
+
+        case EEPROMState::WriteComplete:
+            // Polling for write completion - return 1 when ready
+            // In real hardware this takes ~6.5ms, but we complete instantly
+            m_eeprom_ready = true;
+            m_eeprom_state = EEPROMState::Idle;
+            return 1;  // Ready
+
+        default:
+            // Return 1 when idle (ready state)
+            return m_eeprom_ready ? 1 : 0;
+    }
+}
+
+void Cartridge::write_eeprom(uint8_t value) {
+    // Only bit 0 is used for EEPROM communication
+    uint8_t bit = value & 1;
+
+    // Determine address bit width based on EEPROM size
+    int addr_bits = (m_save_type == SaveType::EEPROM_8K) ? 14 : 6;
+
+    switch (m_eeprom_state) {
+        case EEPROMState::Idle:
+            // First bit of command
+            m_eeprom_command = bit << 1;
+            m_eeprom_bits_received = 1;
+            m_eeprom_state = EEPROMState::ReceiveAddress;
+            m_eeprom_address = 0;
+            m_eeprom_buffer = 0;
+            break;
+
+        case EEPROMState::ReceiveAddress:
+            if (m_eeprom_bits_received == 1) {
+                // Second bit of command
+                m_eeprom_command |= bit;
+                m_eeprom_bits_received = 2;
+            } else {
+                // Address bits (MSB first)
+                int addr_bit = m_eeprom_bits_received - 2;
+                if (addr_bit < addr_bits) {
+                    m_eeprom_address = (m_eeprom_address << 1) | bit;
+                    m_eeprom_bits_received++;
+
+                    if (addr_bit == addr_bits - 1) {
+                        // Address complete, check command
+                        if (m_eeprom_command == 0x03) {
+                            // Read command (11) - next is stop bit, then we send data
+                            // Wait for stop bit in next write
+                        } else if (m_eeprom_command == 0x02) {
+                            // Write command (10) - start receiving 64 data bits
+                            m_eeprom_state = EEPROMState::ReceiveData;
+                            m_eeprom_bits_received = 0;
+                            m_eeprom_buffer = 0;
+                        } else {
+                            // Invalid command, reset
+                            m_eeprom_state = EEPROMState::Idle;
+                        }
+                    }
+                } else if (addr_bit == addr_bits) {
+                    // Stop bit after address for read command
+                    if (m_eeprom_command == 0x03) {
+                        // Load data from EEPROM for reading
+                        uint32_t byte_addr = m_eeprom_address * 8;  // 8 bytes per block
+                        m_eeprom_buffer = 0;
+                        for (int i = 0; i < 8 && (byte_addr + i) < m_save_data.size(); i++) {
+                            m_eeprom_buffer = (m_eeprom_buffer << 8) | m_save_data[byte_addr + i];
+                        }
+                        m_eeprom_state = EEPROMState::SendDummy;
+                        m_eeprom_bits_to_send = 4;
+                    }
+                }
+            }
+            break;
+
+        case EEPROMState::ReceiveData:
+            // Receiving 64 data bits for write (MSB first)
+            m_eeprom_buffer = (m_eeprom_buffer << 1) | bit;
+            m_eeprom_bits_received++;
+
+            if (m_eeprom_bits_received == 64) {
+                // Data complete, wait for stop bit
+                // The next write should be the stop bit (0)
+                m_eeprom_bits_received = 65;  // Mark that we're waiting for stop
+            } else if (m_eeprom_bits_received == 65) {
+                // This is the stop bit - perform the write
+                uint32_t byte_addr = m_eeprom_address * 8;
+                for (int i = 0; i < 8 && (byte_addr + i) < m_save_data.size(); i++) {
+                    int shift = (7 - i) * 8;
+                    m_save_data[byte_addr + i] = (m_eeprom_buffer >> shift) & 0xFF;
+                }
+                m_eeprom_ready = false;
+                m_eeprom_state = EEPROMState::WriteComplete;
+            }
+            break;
+
+        case EEPROMState::WriteComplete:
+            // Ignore writes while write is in progress
+            break;
+
+        default:
+            m_eeprom_state = EEPROMState::Idle;
+            break;
+    }
+}
+
 uint8_t Cartridge::read_sram(uint32_t address) {
     switch (m_save_type) {
         case SaveType::Flash_64K:
@@ -419,9 +558,8 @@ uint8_t Cartridge::read_sram(uint32_t address) {
 
         case SaveType::EEPROM_512:
         case SaveType::EEPROM_8K:
-            // EEPROM is accessed via special protocol - not simple memory mapped
-            // For now, return 0xFF
-            return 0xFF;
+            // EEPROM uses serial protocol via DMA
+            return read_eeprom();
 
         default:
             return 0xFF;
@@ -429,6 +567,7 @@ uint8_t Cartridge::read_sram(uint32_t address) {
 }
 
 void Cartridge::write_sram(uint32_t address, uint8_t value) {
+    (void)address;  // EEPROM doesn't use address for protocol
     switch (m_save_type) {
         case SaveType::Flash_64K:
         case SaveType::Flash_128K:
@@ -444,7 +583,8 @@ void Cartridge::write_sram(uint32_t address, uint8_t value) {
 
         case SaveType::EEPROM_512:
         case SaveType::EEPROM_8K:
-            // EEPROM uses special protocol - ignored for now
+            // EEPROM uses serial protocol via DMA
+            write_eeprom(value);
             break;
 
         default:
@@ -530,6 +670,18 @@ void Cartridge::save_state(std::vector<uint8_t>& data) {
     data.push_back(static_cast<uint8_t>(m_flash_state));
     data.push_back(m_flash_bank);
     data.push_back(m_flash_id_mode ? 1 : 0);
+
+    // Save EEPROM state
+    data.push_back(static_cast<uint8_t>(m_eeprom_state));
+    data.push_back(static_cast<uint8_t>(m_eeprom_address & 0xFF));
+    data.push_back(static_cast<uint8_t>((m_eeprom_address >> 8) & 0xFF));
+    for (int i = 0; i < 8; i++) {
+        data.push_back(static_cast<uint8_t>((m_eeprom_buffer >> (i * 8)) & 0xFF));
+    }
+    data.push_back(static_cast<uint8_t>(m_eeprom_bits_received));
+    data.push_back(static_cast<uint8_t>(m_eeprom_bits_to_send));
+    data.push_back(m_eeprom_command);
+    data.push_back(m_eeprom_ready ? 1 : 0);
 }
 
 void Cartridge::load_state(const uint8_t*& data, size_t& remaining) {
@@ -544,6 +696,24 @@ void Cartridge::load_state(const uint8_t*& data, size_t& remaining) {
     m_flash_id_mode = data[2] != 0;
     data += 3;
     remaining -= 3;
+
+    // Load EEPROM state (if present - backwards compatibility)
+    if (remaining >= 14) {
+        m_eeprom_state = static_cast<EEPROMState>(data[0]);
+        m_eeprom_address = data[1] | (data[2] << 8);
+        m_eeprom_buffer = 0;
+        for (int i = 0; i < 8; i++) {
+            m_eeprom_buffer |= static_cast<uint64_t>(data[3 + i]) << (i * 8);
+        }
+        m_eeprom_bits_received = data[11];
+        m_eeprom_bits_to_send = data[12];
+        m_eeprom_command = data[13];
+        m_eeprom_ready = data[14] != 0;
+        data += 15;
+        remaining -= 15;
+    } else {
+        reset_eeprom_state();
+    }
 }
 
 // RTC helper: convert BCD to binary

@@ -31,24 +31,68 @@ public:
     // NMI check (returns true if NMI should be triggered)
     bool check_nmi();
 
+    // NMI enable control (from NMITIMEN $4200 bit 7)
+    void set_nmi_enabled(bool enabled) { m_nmi_enabled = enabled; }
+
     // Get framebuffer (256x224 or 512x448 in hi-res)
     const uint32_t* get_framebuffer() const { return m_framebuffer.data(); }
 
     // Current scanline/dot for timing
     int get_scanline() const { return m_scanline; }
     int get_dot() const { return m_dot; }
+    void set_scanline(int scanline) { m_scanline = scanline; }
+    void set_dot(int dot) { m_dot = dot; }
     uint32_t get_frame_cycle() const { return m_scanline * 340 + m_dot; }
+
+    // ========================================================================
+    // CATCH-UP RENDERING SYSTEM
+    // ========================================================================
+    // Reference: Mesen-S, bsnes-hd, other cycle-accurate emulators
+    //
+    // Instead of rendering entire scanlines at once, we track the current
+    // dot position and render pixels on-demand when:
+    // 1. CPU cycles advance the PPU clock
+    // 2. A PPU register is written (sync before the write takes effect)
+    //
+    // This allows mid-scanline register changes to affect rendering correctly.
+    // ========================================================================
+
+    // Advance the PPU clock by the given number of master cycles
+    // This renders any pixels that have become "due" since the last call
+    void advance(int master_cycles);
+
+    // Sync rendering up to the current dot position
+    // Called before PPU register writes to ensure previous pixels
+    // are rendered with the old register values
+    void sync_to_current();
+
+    // Pre-evaluate sprites for a visible scanline (called at scanline start)
+    // This ensures sprites are evaluated using the register state from
+    // the end of the previous scanline (matching hardware timing)
+    void prepare_scanline_sprites(int scanline);
+
+    // Set current timing position (for main loop synchronization)
+    void set_timing(int scanline, int dot);
+
+    // Check if we're in the visible rendering area
+    bool is_rendering() const;
 
     // Debug getters
     bool is_force_blank() const { return m_force_blank; }
     uint8_t get_brightness() const { return m_brightness; }
     uint8_t get_main_screen_layers() const { return m_tm; }
+    uint16_t get_vram_addr() const { return m_vram_addr; }
+    uint8_t get_vmain() const { return m_vmain; }
 
     // Display mode getters (for frontend resolution handling)
     bool is_pseudo_hires() const { return m_pseudo_hires; }
     bool is_interlace() const { return m_interlace; }
     bool is_overscan() const { return m_overscan; }
-    int get_screen_width() const { return m_pseudo_hires ? 512 : 256; }
+    // Mode 5/6 always output 512 pixels wide (true hi-res), same as pseudo-hires
+    bool is_hires_output() const { return m_pseudo_hires || m_bg_mode == 5 || m_bg_mode == 6; }
+    // Always return 512 - framebuffer is always 512 pixels wide to handle mixed modes
+    // Non-hi-res scanlines duplicate pixels; hi-res scanlines use full resolution
+    int get_screen_width() const { return 512; }
     int get_screen_height() const { return m_overscan ? 239 : 224; }
 
     // OAM access for DMA
@@ -71,19 +115,25 @@ public:
     void render_scanline(int scanline);
 
     // Notify end of frame (called by plugin after all scanlines rendered)
-    void end_frame() { m_frame++; }
+    void end_frame();
 
 private:
     void render_scanline();
     void render_pixel(int x);
     void render_background_pixel(int bg, int x, uint8_t& pixel, uint8_t& priority);
+    void render_background_pixel(int bg, int x, uint8_t& pixel, uint8_t& priority, uint8_t& palette);
+    void render_background_pixel(int bg, int x, uint8_t& pixel, uint8_t& priority,
+                                  bool hires_mode, bool hires_odd_pixel);  // Hi-res Mode 5/6
     void render_mode7_pixel(int x, uint8_t& pixel, uint8_t& priority);
     void render_sprite_pixel(int x, uint8_t& pixel, uint8_t& priority, bool& is_palette_4_7);
     void evaluate_sprites();
     uint16_t get_bg_tile_address(int bg, int tile_x, int tile_y);
     uint16_t get_color(uint8_t palette, uint8_t index, bool sprite = false);
+    uint16_t get_direct_color(uint8_t palette, uint8_t color_index);
     uint16_t remap_vram_address(uint16_t addr) const;
     bool get_color_window(int x) const;  // Returns true if pixel is inside color window
+    bool get_bg_window(int bg, int x) const;  // Returns true if BG pixel is masked by window
+    bool get_obj_window(int x) const;  // Returns true if OBJ pixel is masked by window
 
     Bus& m_bus;
 
@@ -92,6 +142,66 @@ private:
     int m_dot = 0;
     uint64_t m_frame = 0;
     bool m_frame_complete = false;
+
+    // Catch-up rendering state
+    // ========================================================================
+    // The PPU tracks two positions:
+    // - Current position (m_scanline, m_dot): Where the PPU "clock" is now
+    // - Rendered position (m_rendered_scanline, m_rendered_dot): Last pixel rendered
+    //
+    // When advance() is called, we render from rendered position to current position.
+    // When a register write occurs, sync_to_current() renders up to the current
+    // dot before applying the new register value.
+    // ========================================================================
+    int m_rendered_scanline = 0;   // Last scanline that was fully/partially rendered
+    int m_rendered_dot = 0;        // Last dot position rendered on that scanline
+
+    // Sprite evaluation tracking
+    // ========================================================================
+    // Reference: Mesen-S, nesdev forum research on HblankEmuTest
+    //
+    // SNES sprite rendering has two distinct phases with separate timing:
+    //
+    // 1. SPRITE EVALUATION (OAM range scan): H=0-270
+    //    - PPU scans all 128 OAM entries to find up to 32 sprites on this line
+    //    - If force_blank is enabled DURING evaluation, the scan is paused/blocked
+    //    - We latch force_blank state at dot 270 for this phase
+    //
+    // 2. SPRITE TILE FETCH: H=272-339
+    //    - PPU fetches tile data from VRAM for the sprites found in phase 1
+    //    - If force_blank is enabled DURING tile fetch, tiles are NOT loaded
+    //    - We latch force_blank state at dot 272 for this phase
+    //
+    // HblankEmuTest specifically tests the case where:
+    // - force_blank is OFF during evaluation (sprites get found)
+    // - force_blank is ON during tile fetch (tiles not loaded)
+    // - Result: sprites should NOT appear (no tile data)
+    //
+    // This requires tracking both latch states separately.
+    // ========================================================================
+    int m_sprites_for_scanline = -1;  // Scanline that m_sprite_buffer contains sprites for (-1 = none)
+
+    // Latched force_blank state for sprite evaluation (range scan)
+    // Checked at dot 270 - determines if sprites are found on this scanline
+    bool m_force_blank_latched_eval = true;
+
+    // Latched force_blank state for sprite tile fetching
+    // Checked at dot 272 - determines if sprite tiles are loaded from VRAM
+    bool m_force_blank_latched_fetch = true;
+
+    // Track recent force_blank activity for sprite timing
+    // HblankEmuTest toggles force_blank briefly via H-IRQ. Due to CPU timing
+    // drift, the toggle can span scanline boundaries. We track the last N
+    // master cycles where force_blank was ON.
+    //
+    // For sprite rendering on scanline N, if force_blank was ON at any point
+    // during scanline N-1's H-blank period (roughly the last 256 dots), we
+    // block sprite tile loading.
+    uint64_t m_force_blank_on_cycle = 0;    // Cycle count when force_blank was last enabled
+    uint64_t m_total_ppu_cycles = 0;        // Running cycle counter for timing
+
+    // Dot accumulator for sub-dot timing (persists across calls to advance())
+    int m_dot_accumulator = 0;
 
     // Screen dimensions
     static constexpr int SCREEN_WIDTH = 256;
@@ -235,6 +345,7 @@ private:
     bool m_obj_interlace = false;
     bool m_overscan = false;
     bool m_pseudo_hires = false;
+    bool m_extbg = false;         // Mode 7 EXTBG - BG2 uses bit 7 as priority
     bool m_external_sync = false;
 
     // Mode 7 registers ($211A-$2120)

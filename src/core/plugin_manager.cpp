@@ -10,7 +10,119 @@ namespace emu {
 
 namespace fs = std::filesystem;
 
-PluginManager::PluginManager() = default;
+// ============================================================
+// GamePluginHost implementation
+// ============================================================
+
+uint8_t GamePluginHost::read_memory(uint16_t address) {
+    if (m_plugin_manager && m_plugin_manager->get_emulator_plugin()) {
+        return m_plugin_manager->get_emulator_plugin()->read_memory(address);
+    }
+    return 0;
+}
+
+uint16_t GamePluginHost::read_memory_16(uint16_t address) {
+    // Little-endian read
+    uint16_t lo = read_memory(address);
+    uint16_t hi = read_memory(address + 1);
+    return lo | (hi << 8);
+}
+
+uint32_t GamePluginHost::read_memory_32(uint16_t address) {
+    // Little-endian read
+    uint32_t b0 = read_memory(address);
+    uint32_t b1 = read_memory(address + 1);
+    uint32_t b2 = read_memory(address + 2);
+    uint32_t b3 = read_memory(address + 3);
+    return b0 | (b1 << 8) | (b2 << 16) | (b3 << 24);
+}
+
+void GamePluginHost::write_memory(uint16_t address, uint8_t value) {
+    if (m_plugin_manager && m_plugin_manager->get_emulator_plugin()) {
+        m_plugin_manager->get_emulator_plugin()->write_memory(address, value);
+    }
+}
+
+bool GamePluginHost::is_emulator_running() const {
+    if (m_plugin_manager && m_plugin_manager->get_emulator_plugin()) {
+        return m_plugin_manager->get_emulator_plugin()->is_rom_loaded();
+    }
+    return false;
+}
+
+bool GamePluginHost::is_emulator_paused() const {
+    return m_paused;
+}
+
+uint64_t GamePluginHost::get_frame_count() const {
+    if (m_plugin_manager && m_plugin_manager->get_emulator_plugin()) {
+        return m_plugin_manager->get_emulator_plugin()->get_frame_count();
+    }
+    return 0;
+}
+
+double GamePluginHost::get_fps() const {
+    if (m_plugin_manager && m_plugin_manager->get_emulator_plugin()) {
+        return m_plugin_manager->get_emulator_plugin()->get_info().native_fps;
+    }
+    return 60.0;
+}
+
+const char* GamePluginHost::get_rom_name() const {
+    return m_rom_name.c_str();
+}
+
+uint32_t GamePluginHost::get_rom_crc32() const {
+    return m_rom_crc32;
+}
+
+const char* GamePluginHost::get_platform_name() const {
+    if (m_plugin_manager && m_plugin_manager->get_emulator_plugin()) {
+        return m_plugin_manager->get_emulator_plugin()->get_info().name;
+    }
+    return "Unknown";
+}
+
+const char* GamePluginHost::get_selected_category() const {
+    return m_category.c_str();
+}
+
+void GamePluginHost::log_message(const char* message) {
+    std::cout << "[GamePlugin] " << message << std::endl;
+}
+
+void GamePluginHost::on_timer_started() {
+    std::cout << "[GamePluginHost] Timer started" << std::endl;
+}
+
+void GamePluginHost::on_timer_stopped() {
+    std::cout << "[GamePluginHost] Timer stopped" << std::endl;
+}
+
+void GamePluginHost::on_split_triggered(int split_index) {
+    std::cout << "[GamePluginHost] Split " << split_index << " triggered" << std::endl;
+}
+
+void GamePluginHost::on_run_completed(uint64_t final_time_ms) {
+    std::cout << "[GamePluginHost] Run completed: " << final_time_ms << "ms" << std::endl;
+}
+
+void GamePluginHost::on_run_reset() {
+    std::cout << "[GamePluginHost] Run reset" << std::endl;
+}
+
+void GamePluginHost::set_rom_info(const std::string& name, uint32_t crc32) {
+    m_rom_name = name;
+    m_rom_crc32 = crc32;
+}
+
+// ============================================================
+// PluginManager implementation
+// ============================================================
+
+PluginManager::PluginManager()
+    : m_game_host(std::make_unique<GamePluginHost>(this)) {
+}
 
 PluginManager::~PluginManager() {
     shutdown();
@@ -32,7 +144,7 @@ bool PluginManager::initialize(const std::string& plugin_dir) {
     };
 
     // Search paths for other plugins (plugins/ directory)
-    // These contain: audio, input, TAS, speedrun tools, game-specific plugins
+    // These contain: audio, input, TAS, game plugins (timer, auto-splitters)
     std::vector<fs::path> plugin_search_paths = {
         exe_path / "plugins",
         exe_path / ".." / "plugins",
@@ -91,6 +203,9 @@ bool PluginManager::initialize(const std::string& plugin_dir) {
     // Build legacy plugin list for backward compatibility
     build_legacy_plugin_list();
 
+    // Load all emulator plugins (for configuration access)
+    load_all_emulator_plugins();
+
     // Activate default/configured plugins
     // Only activate emulator plugin by default; others can be activated later
     auto emulator_plugins = m_registry.get_plugins_of_type(PluginType::Emulator);
@@ -102,7 +217,80 @@ bool PluginManager::initialize(const std::string& plugin_dir) {
         }
     }
 
+    // Auto-activate netplay plugin if available (for GUI integration)
+    auto netplay_plugins = m_registry.get_plugins_of_type(PluginType::Netplay);
+    if (!netplay_plugins.empty()) {
+        std::string selected = m_config.get_selected_plugin(PluginType::Netplay);
+        if (selected.empty() || !activate_netplay_plugin(selected)) {
+            // Use first available
+            activate_netplay_plugin(netplay_plugins[0].name);
+        }
+    }
+
     return true;
+}
+
+void PluginManager::load_all_emulator_plugins() {
+    auto emulator_plugins = m_registry.get_plugins_of_type(PluginType::Emulator);
+
+    for (const auto& metadata : emulator_plugins) {
+        // Load the plugin library
+        PluginHandle* handle = m_registry.load_plugin(metadata);
+        if (!handle || !handle->create_func) {
+            std::cerr << "Failed to load emulator plugin for config: " << metadata.name << std::endl;
+            continue;
+        }
+
+        // Create instance
+        using CreateFunc = IEmulatorPlugin* (*)();
+        auto create = reinterpret_cast<CreateFunc>(handle->create_func);
+        IEmulatorPlugin* instance = create();
+        if (!instance) {
+            std::cerr << "Failed to create emulator plugin instance for config: " << metadata.name << std::endl;
+            continue;
+        }
+
+        // Load configuration for this plugin
+        fs::path config_path = get_core_config_path(metadata.name);
+        if (instance->load_config(config_path.string().c_str())) {
+            if (fs::exists(config_path)) {
+                std::cout << "Loaded config for " << metadata.name << " from " << config_path << std::endl;
+            }
+        }
+
+        // Store in our list
+        EmulatorPluginInstance inst;
+        inst.plugin = instance;
+        inst.handle = handle;
+        inst.name = metadata.name;
+        inst.library_path = metadata.path.string();
+        m_emulator_plugins.push_back(std::move(inst));
+    }
+}
+
+fs::path PluginManager::get_core_config_path(const std::string& core_name) const {
+    // Put core configs in config/cores/<name>.json
+    fs::path config_dir = fs::current_path() / "config" / "cores";
+
+    // Create directory if it doesn't exist
+    if (!fs::exists(config_dir)) {
+        fs::create_directories(config_dir);
+    }
+
+    // Normalize name to lowercase for file
+    std::string filename = core_name;
+    std::transform(filename.begin(), filename.end(), filename.begin(), ::tolower);
+
+    return config_dir / (filename + ".json");
+}
+
+IEmulatorPlugin* PluginManager::get_emulator_plugin_by_name(const std::string& name) const {
+    for (const auto& inst : m_emulator_plugins) {
+        if (inst.name == name) {
+            return inst.plugin;
+        }
+    }
+    return nullptr;
 }
 
 void PluginManager::shutdown() {
@@ -114,13 +302,32 @@ void PluginManager::shutdown() {
 
     // Deactivate all plugins
     deactivate_plugin(PluginType::Netplay);
-    deactivate_plugin(PluginType::Game);
-    deactivate_plugin(PluginType::SpeedrunTools);
+    deactivate_all_game_plugins();  // Use new method for multiple game plugins
     deactivate_plugin(PluginType::TAS);
     deactivate_plugin(PluginType::Input);
     deactivate_plugin(PluginType::Audio);
     deactivate_plugin(PluginType::Video);
     deactivate_plugin(PluginType::Emulator);
+
+    // Save and destroy all emulator plugin instances (used for configuration)
+    for (auto& inst : m_emulator_plugins) {
+        if (inst.plugin) {
+            // Save configuration before destroying
+            fs::path config_path = get_core_config_path(inst.name);
+            if (inst.plugin->save_config(config_path.string().c_str())) {
+                std::cout << "Saved config for " << inst.name << " to " << config_path << std::endl;
+            }
+
+            if (inst.handle) {
+                using DestroyFunc = void (*)(IEmulatorPlugin*);
+                auto destroy = reinterpret_cast<DestroyFunc>(inst.handle->destroy_func);
+                if (destroy) {
+                    destroy(inst.plugin);
+                }
+            }
+        }
+    }
+    m_emulator_plugins.clear();
 
     // Clear legacy list
     m_legacy_plugins.clear();
@@ -148,7 +355,6 @@ bool PluginManager::set_active_plugin(PluginType type, const std::string& name) 
         case PluginType::Audio:         return activate_audio_plugin(name);
         case PluginType::Input:         return activate_input_plugin(name);
         case PluginType::TAS:           return activate_tas_plugin(name);
-        case PluginType::SpeedrunTools: return activate_speedrun_tools_plugin(name);
         case PluginType::Game:          return activate_game_plugin(name);
         case PluginType::Netplay:       return activate_netplay_plugin(name);
         default: return false;
@@ -156,17 +362,10 @@ bool PluginManager::set_active_plugin(PluginType type, const std::string& name) 
 }
 
 bool PluginManager::activate_game_plugin_for_rom(uint32_t crc32) {
-    // Deactivate current game plugin
-    deactivate_plugin(PluginType::Game);
-
-    // Find matching game plugins
-    auto matching = m_registry.find_game_plugins_for_rom(crc32);
-    if (matching.empty()) {
-        return false;
-    }
-
-    // Use the first matching plugin
-    return activate_game_plugin(matching[0].name);
+    // For now, load all enabled game plugins and let them check matches_rom()
+    // Don't deactivate - keep all enabled game plugins active
+    load_enabled_game_plugins();
+    return !m_active.game_plugins.empty();
 }
 
 std::vector<std::string> PluginManager::get_available_plugins(PluginType type) const {
@@ -357,39 +556,17 @@ bool PluginManager::activate_tas_plugin(const std::string& name) {
     return true;
 }
 
-bool PluginManager::activate_speedrun_tools_plugin(const std::string& name) {
-    const PluginMetadata* metadata = m_registry.find_plugin(PluginType::SpeedrunTools, name);
-    if (!metadata) {
-        std::cerr << "SpeedrunTools plugin not found: " << name << std::endl;
-        return false;
-    }
-
-    PluginHandle* handle = m_registry.load_plugin(*metadata);
-    if (!handle || !handle->create_func) {
-        std::cerr << "Failed to load SpeedrunTools plugin: " << name << std::endl;
-        return false;
-    }
-
-    using CreateFunc = ISpeedrunToolsPlugin* (*)();
-    auto create = reinterpret_cast<CreateFunc>(handle->create_func);
-    ISpeedrunToolsPlugin* instance = create();
-    if (!instance) {
-        std::cerr << "Failed to create SpeedrunTools plugin instance: " << name << std::endl;
-        return false;
-    }
-
-    deactivate_plugin(PluginType::SpeedrunTools);
-
-    m_active.speedrun_tools = instance;
-    m_active.speedrun_tools_handle = handle;
-    m_config.set_selected_plugin(PluginType::SpeedrunTools, name);
-
-    notify_plugin_changed(PluginType::SpeedrunTools, name);
-    std::cout << "Activated SpeedrunTools plugin: " << name << std::endl;
-    return true;
+bool PluginManager::activate_game_plugin(const std::string& name) {
+    // Delegate to the new multi-plugin method
+    return activate_game_plugin_by_name(name);
 }
 
-bool PluginManager::activate_game_plugin(const std::string& name) {
+bool PluginManager::activate_game_plugin_by_name(const std::string& name) {
+    // Check if already active
+    if (is_game_plugin_active(name)) {
+        return true;
+    }
+
     const PluginMetadata* metadata = m_registry.find_plugin(PluginType::Game, name);
     if (!metadata) {
         std::cerr << "Game plugin not found: " << name << std::endl;
@@ -410,15 +587,139 @@ bool PluginManager::activate_game_plugin(const std::string& name) {
         return false;
     }
 
-    deactivate_plugin(PluginType::Game);
-
-    m_active.game = instance;
-    m_active.game_handle = handle;
-    m_config.set_selected_plugin(PluginType::Game, name);
+    // Add to active game plugins list
+    GamePluginInstance plugin_instance;
+    plugin_instance.plugin = instance;
+    plugin_instance.handle = handle;
+    plugin_instance.name = name;
+    plugin_instance.enabled = true;
+    plugin_instance.visible = true;
+    m_active.game_plugins.push_back(std::move(plugin_instance));
 
     notify_plugin_changed(PluginType::Game, name);
     std::cout << "Activated game plugin: " << name << std::endl;
     return true;
+}
+
+bool PluginManager::deactivate_game_plugin_by_name(const std::string& name) {
+    auto it = std::find_if(m_active.game_plugins.begin(), m_active.game_plugins.end(),
+        [&name](const GamePluginInstance& inst) { return inst.name == name; });
+
+    if (it == m_active.game_plugins.end()) {
+        return false;
+    }
+
+    // Destroy the plugin instance
+    if (it->plugin && it->handle) {
+        using DestroyFunc = void (*)(IGamePlugin*);
+        auto destroy = reinterpret_cast<DestroyFunc>(it->handle->destroy_func);
+        if (destroy) {
+            destroy(it->plugin);
+        }
+    }
+
+    m_active.game_plugins.erase(it);
+    std::cout << "Deactivated game plugin: " << name << std::endl;
+    return true;
+}
+
+bool PluginManager::is_game_plugin_active(const std::string& name) const {
+    return std::find_if(m_active.game_plugins.begin(), m_active.game_plugins.end(),
+        [&name](const GamePluginInstance& inst) { return inst.name == name; })
+        != m_active.game_plugins.end();
+}
+
+void PluginManager::load_enabled_game_plugins() {
+    // Get list of enabled game plugins from config
+    auto enabled = m_config.get_enabled_game_plugins();
+
+    // If no config, load all available game plugins
+    if (enabled.empty()) {
+        auto available = get_available_plugins(PluginType::Game);
+        for (const auto& name : available) {
+            if (!is_game_plugin_active(name)) {
+                activate_game_plugin_by_name(name);
+            }
+        }
+    } else {
+        // Load only enabled plugins
+        for (const auto& name : enabled) {
+            if (!is_game_plugin_active(name)) {
+                activate_game_plugin_by_name(name);
+            }
+        }
+    }
+}
+
+void PluginManager::deactivate_all_game_plugins() {
+    // Shutdown all game plugin instances before destroying
+    for (auto& inst : m_active.game_plugins) {
+        if (inst.plugin) {
+            inst.plugin->shutdown();
+        }
+    }
+
+    // Destroy all game plugin instances
+    for (auto& inst : m_active.game_plugins) {
+        if (inst.plugin && inst.handle) {
+            using DestroyFunc = void (*)(IGamePlugin*);
+            auto destroy = reinterpret_cast<DestroyFunc>(inst.handle->destroy_func);
+            if (destroy) {
+                destroy(inst.plugin);
+            }
+        }
+    }
+    m_active.game_plugins.clear();
+}
+
+void PluginManager::initialize_game_plugins() {
+    // Initialize all active game plugins with the host interface
+    for (auto& inst : m_active.game_plugins) {
+        if (inst.plugin) {
+            inst.plugin->initialize(m_game_host.get());
+            std::cout << "[PluginManager] Initialized game plugin: " << inst.name << std::endl;
+        }
+    }
+}
+
+void PluginManager::update_game_plugins() {
+    // Update all active game plugins (for timer updates and auto-split detection)
+    for (auto& inst : m_active.game_plugins) {
+        if (inst.plugin && inst.enabled) {
+            inst.plugin->on_frame();
+        }
+    }
+}
+
+void PluginManager::notify_game_plugins_rom_loaded() {
+    // Get ROM info from emulator and update the host
+    if (m_active.emulator && m_active.emulator->is_rom_loaded()) {
+        // Extract ROM name from path (filename without extension)
+        fs::path rom_path(m_current_rom_path);
+        std::string rom_name = rom_path.stem().string();
+        uint32_t crc32 = m_active.emulator->get_rom_crc32();
+
+        m_game_host->set_rom_info(rom_name, crc32);
+
+        // Notify all game plugins about ROM load
+        for (auto& inst : m_active.game_plugins) {
+            if (inst.plugin) {
+                // Check if plugin matches this ROM
+                if (inst.plugin->matches_rom(crc32, rom_name.c_str())) {
+                    inst.plugin->on_rom_loaded();
+                }
+            }
+        }
+    }
+}
+
+void PluginManager::notify_game_plugins_rom_unloaded() {
+    // Notify all game plugins about ROM unload
+    for (auto& inst : m_active.game_plugins) {
+        if (inst.plugin) {
+            inst.plugin->on_rom_unloaded();
+        }
+    }
 }
 
 bool PluginManager::activate_netplay_plugin(const std::string& name) {
@@ -447,6 +748,11 @@ bool PluginManager::activate_netplay_plugin(const std::string& name) {
     m_active.netplay = instance;
     m_active.netplay_handle = handle;
     m_config.set_selected_plugin(PluginType::Netplay, name);
+
+    // Initialize the plugin with the netplay host if available
+    if (m_netplay_host) {
+        instance->initialize(m_netplay_host);
+    }
 
     notify_plugin_changed(PluginType::Netplay, name);
     std::cout << "Activated netplay plugin: " << name << std::endl;
@@ -500,23 +806,9 @@ void PluginManager::deactivate_plugin(PluginType type) {
                 m_active.tas_handle = nullptr;
             }
             break;
-        case PluginType::SpeedrunTools:
-            if (m_active.speedrun_tools && m_active.speedrun_tools_handle) {
-                using DestroyFunc = void (*)(ISpeedrunToolsPlugin*);
-                auto destroy = reinterpret_cast<DestroyFunc>(m_active.speedrun_tools_handle->destroy_func);
-                if (destroy) destroy(m_active.speedrun_tools);
-                m_active.speedrun_tools = nullptr;
-                m_active.speedrun_tools_handle = nullptr;
-            }
-            break;
         case PluginType::Game:
-            if (m_active.game && m_active.game_handle) {
-                using DestroyFunc = void (*)(IGamePlugin*);
-                auto destroy = reinterpret_cast<DestroyFunc>(m_active.game_handle->destroy_func);
-                if (destroy) destroy(m_active.game);
-                m_active.game = nullptr;
-                m_active.game_handle = nullptr;
-            }
+            // Use the multi-plugin deactivation method
+            deactivate_all_game_plugins();
             break;
         case PluginType::Netplay:
             if (m_active.netplay && m_active.netplay_handle) {
@@ -647,6 +939,12 @@ bool PluginManager::load_rom(const uint8_t* data, size_t size) {
     if (result) {
         uint32_t crc32 = m_active.emulator->get_rom_crc32();
         activate_game_plugin_for_rom(crc32);
+
+        // Initialize game plugins with the host interface
+        initialize_game_plugins();
+
+        // Notify game plugins about ROM load
+        notify_game_plugins_rom_loaded();
     }
 
     return result;
@@ -656,8 +954,12 @@ void PluginManager::unload_rom() {
     // Save battery-backed data before unloading
     save_battery_save();
 
-    // Deactivate game plugin first
-    deactivate_plugin(PluginType::Game);
+    // Notify game plugins about ROM unload
+    notify_game_plugins_rom_unloaded();
+
+    // Note: We don't deactivate game plugins on ROM unload
+    // They remain loaded and can be used for the next ROM
+    // The plugin visibility state is preserved
 
     if (m_active.emulator && m_active.emulator->is_rom_loaded()) {
         m_active.emulator->unload_rom();

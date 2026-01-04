@@ -1,0 +1,1161 @@
+#include "emu/netplay_plugin.hpp"
+
+#include <imgui.h>
+#include <nlohmann/json.hpp>
+#include <string>
+#include <deque>
+#include <vector>
+#include <array>
+#include <chrono>
+#include <sstream>
+#include <random>
+#include <cstring>
+#include <iostream>
+#include <fstream>
+#include <filesystem>
+#include <algorithm>
+#include <cctype>
+
+namespace {
+
+// ============================================================================
+// Session Code Helper
+// ============================================================================
+
+struct SessionCode {
+    std::string code;
+    bool valid = false;
+
+    static SessionCode generate() {
+        SessionCode sc;
+        static const char* letters = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+        static const char* digits = "0123456789";
+        std::random_device rd;
+        std::mt19937 gen(rd());
+        std::uniform_int_distribution<> letter_dist(0, 23);
+        std::uniform_int_distribution<> digit_dist(0, 9);
+
+        char buf[8];
+        buf[0] = letters[letter_dist(gen)];
+        buf[1] = letters[letter_dist(gen)];
+        buf[2] = letters[letter_dist(gen)];
+        buf[3] = '-';
+        buf[4] = digits[digit_dist(gen)];
+        buf[5] = digits[digit_dist(gen)];
+        buf[6] = digits[digit_dist(gen)];
+        buf[7] = '\0';
+        sc.code = buf;
+        sc.valid = true;
+        return sc;
+    }
+
+    static bool validate(const std::string& code) {
+        if (code.length() != 7) return false;
+        if (code[3] != '-') return false;
+        for (int i = 0; i < 3; i++) {
+            if (!std::isalpha(static_cast<unsigned char>(code[i]))) return false;
+        }
+        for (int i = 4; i < 7; i++) {
+            if (!std::isdigit(static_cast<unsigned char>(code[i]))) return false;
+        }
+        return true;
+    }
+};
+
+// ============================================================================
+// Chat Message
+// ============================================================================
+
+struct ChatMessage {
+    std::string sender;
+    std::string message;
+    std::chrono::steady_clock::time_point timestamp;
+    int player_id;
+    bool is_system;
+};
+
+// ============================================================================
+// Recent Connection
+// ============================================================================
+
+struct RecentConnection {
+    std::string name;
+    std::string ip;
+    int port;
+};
+
+// ============================================================================
+// Input Manager Constants
+// ============================================================================
+
+static constexpr int MAX_NETPLAY_PLAYERS = 8;
+static constexpr int CONTROLLER_NONE = -1;
+static constexpr int CONTROLLER_KEYBOARD = -2;
+
+struct InputSlot {
+    int controller_id = CONTROLLER_NONE;
+    bool is_local = false;
+    uint32_t current_input = 0;
+};
+
+// ============================================================================
+// Default Netplay Plugin
+// ============================================================================
+
+class DefaultNetplayPlugin : public emu::INetplayPlugin {
+public:
+    DefaultNetplayPlugin() {
+        std::strncpy(m_host_name, "Player", sizeof(m_host_name) - 1);
+        std::strncpy(m_join_name, "Player", sizeof(m_join_name) - 1);
+        std::strncpy(m_join_ip, "127.0.0.1", sizeof(m_join_ip) - 1);
+    }
+
+    ~DefaultNetplayPlugin() override {
+        save_settings();
+    }
+
+    // =========================================================================
+    // Plugin Info
+    // =========================================================================
+
+    emu::NetplayPluginInfo get_info() override {
+        return {
+            "Default Netplay",
+            "1.0.0",
+            "Veloce Team",
+            "Rollback netplay with full GUI integration",
+            0,  // capabilities
+            4,  // max players
+            4   // max spectators
+        };
+    }
+
+    bool initialize(emu::INetplayHost* host) override {
+        m_host = host;
+        m_initialized = true;
+        load_settings();
+        return true;
+    }
+
+    void shutdown() override {
+        save_settings();
+        m_host = nullptr;
+        m_initialized = false;
+        m_connection_state = emu::NetplayConnectionState::Disconnected;
+    }
+
+    // =========================================================================
+    // Session Management
+    // =========================================================================
+
+    bool host_session(uint16_t port, const char* player_name, bool is_public) override {
+        m_player_name = player_name ? player_name : "Player";
+        m_port = port;
+        m_role = emu::NetplayRole::Host;
+        m_connection_state = emu::NetplayConnectionState::Connected;
+        m_local_player_id = 0;
+        m_session_code = SessionCode::generate();
+
+        // Initialize player 1 (self)
+        m_players[0] = {0, {}, emu::NetplayRole::Host, 0, true, false};
+        std::strncpy(m_players[0].name, m_player_name.c_str(), 63);
+        m_player_count = 1;
+
+        add_system_message("Session started - waiting for players...");
+
+        if (m_host) {
+            m_host->show_notification(emu::NetplayNotificationType::Success,
+                ("Hosting on port " + std::to_string(port)).c_str(), 4.0f);
+        }
+
+        (void)is_public;
+        return true;
+    }
+
+    bool join_session(const char* host_addr, uint16_t port, const char* player_name) override {
+        m_player_name = player_name ? player_name : "Player";
+        m_port = port;
+        m_host_address = host_addr ? host_addr : "";
+        m_role = emu::NetplayRole::Client;
+        m_connection_state = emu::NetplayConnectionState::Connecting;
+
+        // Simulate connection
+        m_connection_state = emu::NetplayConnectionState::Connected;
+        m_local_player_id = 1;
+
+        // Simulate players
+        m_players[0] = {0, {}, emu::NetplayRole::Host, 30, false, true};
+        std::strncpy(m_players[0].name, "Host", 63);
+        m_players[1] = {1, {}, emu::NetplayRole::Client, 0, true, false};
+        std::strncpy(m_players[1].name, m_player_name.c_str(), 63);
+        m_player_count = 2;
+
+        // Add to recent connections
+        add_recent_connection(m_player_name, m_host_address, port);
+
+        add_system_message("Connected to session");
+
+        if (m_host) {
+            m_host->show_notification(emu::NetplayNotificationType::Info,
+                ("Connected to " + std::string(host_addr)).c_str(), 3.0f);
+        }
+
+        return true;
+    }
+
+    void disconnect() override {
+        if (m_connection_state != emu::NetplayConnectionState::Disconnected) {
+            add_system_message("Disconnected from session");
+            if (m_host) {
+                m_host->show_notification(emu::NetplayNotificationType::Info, "Disconnected from netplay session");
+            }
+        }
+        m_connection_state = emu::NetplayConnectionState::Disconnected;
+        m_role = emu::NetplayRole::None;
+        m_player_count = 0;
+        m_is_ready = false;
+    }
+
+    emu::NetplayConnectionState get_connection_state() const override {
+        return m_connection_state;
+    }
+
+    emu::NetplayRole get_role() const override {
+        return m_role;
+    }
+
+    emu::NetplaySessionInfo get_session_info() const override {
+        emu::NetplaySessionInfo info = {};
+        std::strncpy(info.session_id, m_session_code.code.c_str(), 63);
+        std::strncpy(info.host_name, m_player_name.c_str(), 63);
+        if (m_host) {
+            std::strncpy(info.game_name, m_host->get_rom_name(), 255);
+            std::strncpy(info.platform, m_host->get_platform_name(), 31);
+            info.game_crc32 = m_host->get_rom_crc32();
+        }
+        info.player_count = m_player_count;
+        info.max_players = 4;
+        info.input_delay = m_input_delay;
+        info.rollback_frames = m_rollback_window;
+        return info;
+    }
+
+    const char* get_session_code() const override {
+        return m_session_code.valid ? m_session_code.code.c_str() : nullptr;
+    }
+
+    int get_local_player_id() const override { return m_local_player_id; }
+    int get_player_count() const override { return m_player_count; }
+
+    emu::NetplayPlayer get_player(int player_id) const override {
+        if (player_id >= 0 && player_id < m_player_count) {
+            return m_players[player_id];
+        }
+        return {};
+    }
+
+    void set_ready(bool ready) override {
+        m_is_ready = ready;
+        if (m_local_player_id >= 0 && m_local_player_id < m_player_count) {
+            m_players[m_local_player_id].is_ready = ready;
+        }
+    }
+
+    void send_chat_message(const char* message) override {
+        if (message && strlen(message) > 0) {
+            add_chat_message(m_player_name, message, m_local_player_id);
+        }
+    }
+
+    // =========================================================================
+    // Input Synchronization (stub - would need actual networking)
+    // =========================================================================
+
+    bool begin_frame() override { return true; }
+    void send_input(int player, uint32_t buttons, uint64_t frame) override {
+        (void)player; (void)buttons; (void)frame;
+    }
+    bool get_input(int player, uint32_t& buttons, uint64_t frame) override {
+        (void)player; (void)frame;
+        buttons = 0;
+        return true;
+    }
+    void end_frame() override {}
+
+    void request_state_sync() override {}
+    void send_state(const std::vector<uint8_t>& state, uint64_t frame) override {
+        (void)state; (void)frame;
+    }
+
+    void set_input_delay(int frames) override { m_input_delay = frames; }
+    int get_input_delay() const override { return m_input_delay; }
+    void set_rollback_window(int frames) override { m_rollback_window = frames; }
+    int get_rollback_window() const override { return m_rollback_window; }
+    int get_current_rollback_depth() const override { return 0; }
+    bool is_rolling_back() const override { return false; }
+
+    emu::NetplayStats get_stats() const override { return {}; }
+    int get_ping(int player_id) const override {
+        if (player_id >= 0 && player_id < m_player_count) {
+            return m_players[player_id].ping_ms;
+        }
+        return 0;
+    }
+
+    // =========================================================================
+    // GUI Integration
+    // =========================================================================
+
+    void set_imgui_context(void* context) override {
+        ImGui::SetCurrentContext(static_cast<ImGuiContext*>(context));
+    }
+
+    bool render_menu() override {
+        if (ImGui::BeginMenu("Netplay")) {
+            bool rom_loaded = m_host && m_host->is_rom_loaded();
+            bool is_conn = is_connected();
+
+            if (ImGui::MenuItem("Host Game...", nullptr, false, rom_loaded && !is_conn)) {
+                m_show_host_dialog = true;
+                m_session_code = SessionCode::generate();
+            }
+
+            if (ImGui::MenuItem("Join Game...", nullptr, false, rom_loaded && !is_conn)) {
+                m_show_join_dialog = true;
+            }
+
+            ImGui::Separator();
+
+            if (ImGui::MenuItem("Netplay Panel", nullptr, m_show_panel)) {
+                m_show_panel = !m_show_panel;
+            }
+
+            ImGui::Separator();
+
+            if (ImGui::MenuItem("Disconnect", nullptr, false, is_conn)) {
+                disconnect();
+            }
+
+            ImGui::EndMenu();
+            return true;
+        }
+        return false;
+    }
+
+    void render_gui() override {
+        if (m_show_host_dialog) {
+            render_host_dialog();
+        }
+
+        if (m_show_join_dialog) {
+            render_join_dialog();
+        }
+
+        if (m_show_panel) {
+            render_main_panel();
+        }
+
+        if (m_show_overlay && is_connected()) {
+            render_status_overlay();
+        }
+    }
+
+    void show_host_dialog() override {
+        m_show_host_dialog = true;
+        m_session_code = SessionCode::generate();
+    }
+
+    void show_join_dialog() override {
+        m_show_join_dialog = true;
+    }
+
+    void show_panel(bool show) override {
+        m_show_panel = show;
+    }
+
+    bool is_panel_visible() const override {
+        return m_show_panel;
+    }
+
+private:
+    // =========================================================================
+    // GUI Rendering
+    // =========================================================================
+
+    void render_host_dialog() {
+        ImGui::SetNextWindowSize(ImVec2(380, 320), ImGuiCond_FirstUseEver);
+
+        if (ImGui::Begin("Host Game", &m_show_host_dialog, ImGuiWindowFlags_NoCollapse)) {
+            ImGui::Text("Host a new netplay session");
+            ImGui::Separator();
+            ImGui::Spacing();
+
+            ImGui::InputText("Your Name", m_host_name, sizeof(m_host_name));
+            ImGui::InputInt("Port", &m_host_port);
+            if (m_host_port < 1024) m_host_port = 1024;
+            if (m_host_port > 65535) m_host_port = 65535;
+
+            ImGui::Checkbox("Generate Session Code", &m_use_session_code);
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetTooltip("Generate a short code that others can use to join easily");
+            }
+
+            if (m_use_session_code && m_session_code.valid) {
+                ImGui::Spacing();
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.4f, 0.8f, 1.0f, 1.0f));
+                ImGui::Text("Session Code: %s", m_session_code.code.c_str());
+                ImGui::PopStyleColor();
+
+                ImGui::SameLine();
+                if (ImGui::SmallButton("Copy")) {
+                    ImGui::SetClipboardText(m_session_code.code.c_str());
+                    if (m_host) {
+                        m_host->show_notification(emu::NetplayNotificationType::Success,
+                            "Session code copied to clipboard");
+                    }
+                }
+
+                ImGui::TextDisabled("Share this code with your opponent");
+            }
+
+            ImGui::Checkbox("Allow Spectators", &m_allow_spectators);
+
+            ImGui::Spacing();
+            ImGui::Separator();
+            ImGui::Spacing();
+
+            float button_width = 100;
+            float spacing = ImGui::GetStyle().ItemSpacing.x;
+            float total_width = button_width * 2 + spacing;
+            float offset = (ImGui::GetContentRegionAvail().x - total_width) * 0.5f;
+            if (offset > 0) ImGui::SetCursorPosX(ImGui::GetCursorPosX() + offset);
+
+            bool can_host = m_host && m_host->is_rom_loaded();
+
+            if (ImGui::Button("Start Host", ImVec2(button_width, 0)) && can_host) {
+                if (host_session(static_cast<uint16_t>(m_host_port), m_host_name, false)) {
+                    m_show_host_dialog = false;
+                    m_show_panel = true;
+                    save_settings();
+                }
+            }
+
+            ImGui::SameLine();
+
+            if (ImGui::Button("Cancel", ImVec2(button_width, 0))) {
+                m_show_host_dialog = false;
+            }
+
+            if (!can_host) {
+                ImGui::TextColored(ImVec4(1.0f, 0.5f, 0.0f, 1.0f), "Load a ROM first to host.");
+            }
+        }
+        ImGui::End();
+    }
+
+    void render_join_dialog() {
+        ImGui::SetNextWindowSize(ImVec2(380, 350), ImGuiCond_FirstUseEver);
+
+        if (ImGui::Begin("Join Game", &m_show_join_dialog, ImGuiWindowFlags_NoCollapse)) {
+            ImGui::Text("Join an existing netplay session");
+            ImGui::Separator();
+            ImGui::Spacing();
+
+            ImGui::InputText("Your Name", m_join_name, sizeof(m_join_name));
+
+            ImGui::Checkbox("Join by Session Code", &m_join_by_code);
+
+            if (m_join_by_code) {
+                ImGui::InputText("Session Code", m_join_code, sizeof(m_join_code));
+                if (ImGui::IsItemHovered()) {
+                    ImGui::SetTooltip("Enter the session code provided by the host (e.g., ABC-123)");
+                }
+            } else {
+                ImGui::InputText("Host IP", m_join_ip, sizeof(m_join_ip));
+                ImGui::InputInt("Port", &m_join_port);
+                if (m_join_port < 1024) m_join_port = 1024;
+                if (m_join_port > 65535) m_join_port = 65535;
+            }
+
+            ImGui::Checkbox("Join as Spectator", &m_join_as_spectator);
+
+            ImGui::Spacing();
+            ImGui::Separator();
+            ImGui::Spacing();
+
+            float button_width = 100;
+            float spacing = ImGui::GetStyle().ItemSpacing.x;
+            float total_width = button_width * 2 + spacing;
+            float offset = (ImGui::GetContentRegionAvail().x - total_width) * 0.5f;
+            if (offset > 0) ImGui::SetCursorPosX(ImGui::GetCursorPosX() + offset);
+
+            bool can_join = m_host && m_host->is_rom_loaded();
+
+            // Validate session code
+            if (m_join_by_code && strlen(m_join_code) > 0) {
+                std::string code_upper = m_join_code;
+                for (char& c : code_upper) c = std::toupper(static_cast<unsigned char>(c));
+                if (!SessionCode::validate(code_upper)) {
+                    ImGui::TextColored(ImVec4(1.0f, 0.5f, 0.0f, 1.0f),
+                        "Invalid code format (use ABC-123)");
+                }
+            }
+
+            if (ImGui::Button("Join", ImVec2(button_width, 0)) && can_join) {
+                bool success = false;
+                if (m_join_by_code) {
+                    // Would need matchmaking server for code-based joining
+                    if (m_host) {
+                        m_host->show_notification(emu::NetplayNotificationType::Warning,
+                            "Session code joining requires matchmaking server");
+                    }
+                } else {
+                    success = join_session(m_join_ip, static_cast<uint16_t>(m_join_port), m_join_name);
+                }
+
+                if (success) {
+                    m_show_join_dialog = false;
+                    m_show_panel = true;
+                    save_settings();
+                }
+            }
+
+            ImGui::SameLine();
+
+            if (ImGui::Button("Cancel", ImVec2(button_width, 0))) {
+                m_show_join_dialog = false;
+            }
+
+            if (!can_join) {
+                ImGui::TextColored(ImVec4(1.0f, 0.5f, 0.0f, 1.0f),
+                    "Load the same ROM as the host first.");
+            }
+        }
+        ImGui::End();
+    }
+
+    void render_main_panel() {
+        ImGui::SetNextWindowSize(ImVec2(420, 600), ImGuiCond_FirstUseEver);
+
+        if (ImGui::Begin("Netplay", &m_show_panel)) {
+            if (is_connected()) {
+                render_connection_status();
+                ImGui::Separator();
+                render_session_info();
+                ImGui::Separator();
+                render_player_list();
+                ImGui::Separator();
+                render_chat_window();
+
+                if (ImGui::CollapsingHeader("Advanced Settings")) {
+                    render_settings();
+                }
+
+                ImGui::Spacing();
+                ImGui::Spacing();
+
+                // Ready / Disconnect buttons
+                float button_width = 120;
+                float spacing = ImGui::GetStyle().ItemSpacing.x;
+                float total_width = button_width * 2 + spacing;
+                float offset = (ImGui::GetContentRegionAvail().x - total_width) * 0.5f;
+                if (offset > 0) ImGui::SetCursorPosX(ImGui::GetCursorPosX() + offset);
+
+                if (m_is_ready) {
+                    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.6f, 0.2f, 1.0f));
+                    if (ImGui::Button("Ready!", ImVec2(button_width, 0))) {
+                        set_ready(false);
+                    }
+                    ImGui::PopStyleColor();
+                } else {
+                    if (ImGui::Button("Ready", ImVec2(button_width, 0))) {
+                        set_ready(true);
+                    }
+                }
+
+                ImGui::SameLine();
+
+                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.6f, 0.2f, 0.2f, 1.0f));
+                if (ImGui::Button("Disconnect", ImVec2(button_width, 0))) {
+                    disconnect();
+                }
+                ImGui::PopStyleColor();
+
+            } else {
+                ImGui::TextWrapped("Connect to another player to start a netplay session.");
+                ImGui::Spacing();
+                ImGui::Spacing();
+
+                bool rom_loaded = m_host && m_host->is_rom_loaded();
+
+                if (!rom_loaded) {
+                    ImGui::TextColored(ImVec4(1.0f, 0.5f, 0.0f, 1.0f),
+                        "Please load a ROM before starting netplay.");
+                    ImGui::Spacing();
+                }
+
+                float button_width = 150;
+                float spacing = ImGui::GetStyle().ItemSpacing.x;
+                float total_width = button_width * 2 + spacing;
+                float offset = (ImGui::GetContentRegionAvail().x - total_width) * 0.5f;
+                if (offset > 0) ImGui::SetCursorPosX(ImGui::GetCursorPosX() + offset);
+
+                if (ImGui::Button("Host Game", ImVec2(button_width, 40)) && rom_loaded) {
+                    m_show_host_dialog = true;
+                    m_session_code = SessionCode::generate();
+                }
+
+                ImGui::SameLine();
+
+                if (ImGui::Button("Join Game", ImVec2(button_width, 40)) && rom_loaded) {
+                    m_show_join_dialog = true;
+                }
+
+                // Recent connections
+                if (!m_recent_connections.empty()) {
+                    ImGui::Spacing();
+                    ImGui::Separator();
+                    ImGui::Spacing();
+                    render_recent_connections();
+                }
+            }
+        }
+        ImGui::End();
+    }
+
+    void render_connection_status() {
+        auto state = m_connection_state;
+        ImVec4 status_color;
+        const char* status_text;
+
+        switch (state) {
+            case emu::NetplayConnectionState::Connected:
+            case emu::NetplayConnectionState::Playing:
+                status_color = ImVec4(0.2f, 0.8f, 0.2f, 1.0f);
+                status_text = "Connected";
+                break;
+            case emu::NetplayConnectionState::Connecting:
+            case emu::NetplayConnectionState::Synchronizing:
+                status_color = ImVec4(0.8f, 0.8f, 0.2f, 1.0f);
+                status_text = "Connecting...";
+                break;
+            case emu::NetplayConnectionState::Desynced:
+                status_color = ImVec4(0.8f, 0.2f, 0.2f, 1.0f);
+                status_text = "DESYNC!";
+                break;
+            default:
+                status_color = ImVec4(0.6f, 0.6f, 0.6f, 1.0f);
+                status_text = "Disconnected";
+                break;
+        }
+
+        ImGui::TextColored(status_color, "Status: %s", status_text);
+
+        // Show average ping
+        int avg_ping = 0;
+        int remote_count = 0;
+        for (int i = 0; i < m_player_count; i++) {
+            if (!m_players[i].is_local) {
+                avg_ping += m_players[i].ping_ms;
+                remote_count++;
+            }
+        }
+        if (remote_count > 0) {
+            avg_ping /= remote_count;
+            ImGui::SameLine();
+            ImVec4 ping_color = get_ping_color(avg_ping);
+            ImGui::TextColored(ping_color, "[%dms %s]", avg_ping, get_ping_quality(avg_ping));
+        }
+    }
+
+    void render_session_info() {
+        auto info = get_session_info();
+
+        ImGui::Text("Game: %s", info.game_name);
+        ImGui::Text("Platform: %s", info.platform);
+        ImGui::Text("Players: %d / %d", info.player_count, info.max_players);
+
+        if (m_role == emu::NetplayRole::Host) {
+            ImGui::TextColored(ImVec4(0.4f, 0.7f, 1.0f, 1.0f), "(You are the host)");
+
+            if (m_session_code.valid) {
+                ImGui::SameLine();
+                ImGui::TextColored(ImVec4(0.4f, 0.8f, 1.0f, 1.0f), "| Code: %s", m_session_code.code.c_str());
+            }
+        }
+    }
+
+    void render_player_list() {
+        ImGui::Text("Players:");
+
+        if (ImGui::BeginTable("PlayerList", 4,
+            ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_SizingStretchProp)) {
+
+            ImGui::TableSetupColumn("Slot", ImGuiTableColumnFlags_WidthFixed, 40);
+            ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthStretch);
+            ImGui::TableSetupColumn("Ping", ImGuiTableColumnFlags_WidthFixed, 70);
+            ImGui::TableSetupColumn("Status", ImGuiTableColumnFlags_WidthFixed, 60);
+            ImGui::TableHeadersRow();
+
+            for (int i = 0; i < m_player_count; i++) {
+                const auto& player = m_players[i];
+
+                ImGui::TableNextRow();
+
+                if (player.is_local) {
+                    ImGui::TableSetBgColor(ImGuiTableBgTarget_RowBg0,
+                        ImGui::GetColorU32(ImVec4(0.2f, 0.3f, 0.5f, 0.5f)));
+                }
+
+                ImGui::TableNextColumn();
+                ImGui::Text("P%d", player.player_id + 1);
+
+                ImGui::TableNextColumn();
+                ImGui::TextUnformatted(player.name);
+                if (player.is_local) {
+                    ImGui::SameLine();
+                    ImGui::TextDisabled("(you)");
+                }
+
+                ImGui::TableNextColumn();
+                if (!player.is_local) {
+                    ImVec4 ping_color = get_ping_color(player.ping_ms);
+                    ImGui::TextColored(ping_color, "%dms", player.ping_ms);
+                } else {
+                    ImGui::TextDisabled("-");
+                }
+
+                ImGui::TableNextColumn();
+                if (player.is_ready) {
+                    ImGui::TextColored(ImVec4(0.2f, 0.8f, 0.2f, 1.0f), "[OK]");
+                } else {
+                    ImGui::TextDisabled("...");
+                }
+            }
+
+            ImGui::EndTable();
+        }
+    }
+
+    void render_chat_window() {
+        ImGui::Text("Chat:");
+
+        float chat_height = 120.0f;
+        ImGui::BeginChild("ChatHistory", ImVec2(0, chat_height), true,
+            ImGuiWindowFlags_HorizontalScrollbar);
+
+        for (const auto& msg : m_chat_messages) {
+            std::string timestamp = format_timestamp(msg.timestamp);
+            ImGui::TextDisabled("[%s]", timestamp.c_str());
+            ImGui::SameLine();
+
+            ImVec4 sender_color = msg.is_system ?
+                ImVec4(0.7f, 0.7f, 0.7f, 1.0f) :
+                get_player_color(msg.player_id);
+            ImGui::TextColored(sender_color, "%s:", msg.sender.c_str());
+            ImGui::SameLine();
+
+            if (msg.is_system) {
+                ImGui::TextColored(ImVec4(0.8f, 0.8f, 0.5f, 1.0f), "%s", msg.message.c_str());
+            } else {
+                ImGui::TextWrapped("%s", msg.message.c_str());
+            }
+        }
+
+        if (m_chat_scroll_to_bottom) {
+            ImGui::SetScrollHereY(1.0f);
+            m_chat_scroll_to_bottom = false;
+        }
+
+        ImGui::EndChild();
+
+        ImGui::PushItemWidth(-60);
+        ImGuiInputTextFlags input_flags = ImGuiInputTextFlags_EnterReturnsTrue;
+        if (ImGui::InputText("##ChatInput", m_chat_input, sizeof(m_chat_input), input_flags)) {
+            if (strlen(m_chat_input) > 0) {
+                send_chat_message(m_chat_input);
+                m_chat_input[0] = '\0';
+            }
+            ImGui::SetKeyboardFocusHere(-1);
+        }
+        ImGui::PopItemWidth();
+
+        ImGui::SameLine();
+        if (ImGui::Button("Send", ImVec2(50, 0))) {
+            if (strlen(m_chat_input) > 0) {
+                send_chat_message(m_chat_input);
+                m_chat_input[0] = '\0';
+            }
+        }
+    }
+
+    void render_settings() {
+        ImGui::SliderInt("Input Delay", &m_input_delay, 0, 10, "%d frames");
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip(
+                "Frames of input delay before processing.\n"
+                "Higher values reduce rollbacks but increase latency.\n"
+                "Recommended: 1-3 for good connections, 3-5 for worse connections.");
+        }
+
+        ImGui::SliderInt("Max Rollback", &m_rollback_window, 0, 15, "%d frames");
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip(
+                "Maximum frames to roll back for late inputs.\n"
+                "Higher values handle worse connections but use more CPU.\n"
+                "Recommended: 6-8 for most cases.");
+        }
+
+        if (ImGui::Button("Apply Settings")) {
+            if (m_host) {
+                m_host->show_notification(emu::NetplayNotificationType::Success,
+                    "Netplay settings applied");
+            }
+            save_settings();
+        }
+
+        ImGui::SameLine();
+        ImGui::TextDisabled("(Changes apply immediately)");
+    }
+
+    void render_recent_connections() {
+        ImGui::Text("Recent Connections:");
+
+        for (size_t i = 0; i < m_recent_connections.size() && i < 5; i++) {
+            const auto& conn = m_recent_connections[i];
+
+            ImGui::PushID(static_cast<int>(i));
+
+            std::ostringstream label;
+            label << conn.name << " @ " << conn.ip << ":" << conn.port;
+
+            if (ImGui::Button(label.str().c_str(), ImVec2(-1, 0))) {
+                std::strncpy(m_join_ip, conn.ip.c_str(), sizeof(m_join_ip) - 1);
+                m_join_port = conn.port;
+                m_join_by_code = false;
+
+                if (join_session(conn.ip.c_str(), static_cast<uint16_t>(conn.port), m_join_name)) {
+                    m_show_panel = true;
+                }
+            }
+
+            ImGui::PopID();
+        }
+    }
+
+    void render_status_overlay() {
+        ImGuiIO& io = ImGui::GetIO();
+        float padding = 10.0f;
+        ImVec2 window_pos(io.DisplaySize.x - padding, padding);
+        ImVec2 pivot(1.0f, 0.0f);
+
+        ImGui::SetNextWindowPos(window_pos, ImGuiCond_Always, pivot);
+        ImGui::SetNextWindowBgAlpha(0.7f);
+
+        ImGuiWindowFlags flags =
+            ImGuiWindowFlags_NoDecoration |
+            ImGuiWindowFlags_AlwaysAutoResize |
+            ImGuiWindowFlags_NoSavedSettings |
+            ImGuiWindowFlags_NoFocusOnAppearing |
+            ImGuiWindowFlags_NoNav |
+            ImGuiWindowFlags_NoMove;
+
+        if (ImGui::Begin("NetplayOverlay", nullptr, flags)) {
+            ImVec4 state_color(0.2f, 0.8f, 0.2f, 1.0f);
+            if (m_connection_state == emu::NetplayConnectionState::Desynced) {
+                state_color = ImVec4(0.8f, 0.2f, 0.2f, 1.0f);
+            }
+
+            ImGui::TextColored(state_color, "NETPLAY");
+
+            for (int i = 0; i < m_player_count; i++) {
+                const auto& player = m_players[i];
+                if (player.is_local) {
+                    ImGui::Text("P%d: %s (you)", i + 1, player.name);
+                } else {
+                    ImVec4 ping_color = get_ping_color(player.ping_ms);
+                    ImGui::TextColored(ping_color, "P%d: %s %dms", i + 1, player.name, player.ping_ms);
+                }
+            }
+        }
+        ImGui::End();
+    }
+
+    // =========================================================================
+    // Helpers
+    // =========================================================================
+
+    void add_chat_message(const std::string& sender, const std::string& message, int player_id) {
+        ChatMessage msg;
+        msg.sender = sender;
+        msg.message = message;
+        msg.timestamp = std::chrono::steady_clock::now();
+        msg.player_id = player_id;
+        msg.is_system = false;
+
+        m_chat_messages.push_back(msg);
+        while (m_chat_messages.size() > 100) {
+            m_chat_messages.pop_front();
+        }
+        m_chat_scroll_to_bottom = true;
+    }
+
+    void add_system_message(const std::string& message) {
+        ChatMessage msg;
+        msg.sender = "System";
+        msg.message = message;
+        msg.timestamp = std::chrono::steady_clock::now();
+        msg.player_id = -1;
+        msg.is_system = true;
+
+        m_chat_messages.push_back(msg);
+        while (m_chat_messages.size() > 100) {
+            m_chat_messages.pop_front();
+        }
+        m_chat_scroll_to_bottom = true;
+    }
+
+    std::string format_timestamp(const std::chrono::steady_clock::time_point& time) const {
+        auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(time.time_since_epoch());
+        int hours = static_cast<int>((elapsed.count() / 3600) % 24);
+        int minutes = static_cast<int>((elapsed.count() / 60) % 60);
+        int seconds = static_cast<int>(elapsed.count() % 60);
+
+        char buf[16];
+        std::snprintf(buf, sizeof(buf), "%02d:%02d:%02d", hours, minutes, seconds);
+        return buf;
+    }
+
+    ImVec4 get_player_color(int player_id) const {
+        static const ImVec4 colors[] = {
+            ImVec4(0.4f, 0.8f, 1.0f, 1.0f),   // Cyan
+            ImVec4(1.0f, 0.6f, 0.4f, 1.0f),   // Orange
+            ImVec4(0.6f, 1.0f, 0.6f, 1.0f),   // Green
+            ImVec4(1.0f, 0.8f, 0.4f, 1.0f),   // Yellow
+        };
+        if (player_id >= 0 && player_id < 4) {
+            return colors[player_id];
+        }
+        return ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
+    }
+
+    ImVec4 get_ping_color(int ping_ms) const {
+        if (ping_ms < 30) return ImVec4(0.2f, 0.9f, 0.2f, 1.0f);
+        if (ping_ms < 60) return ImVec4(0.5f, 0.9f, 0.2f, 1.0f);
+        if (ping_ms < 100) return ImVec4(0.9f, 0.9f, 0.2f, 1.0f);
+        if (ping_ms < 150) return ImVec4(0.9f, 0.6f, 0.2f, 1.0f);
+        return ImVec4(0.9f, 0.2f, 0.2f, 1.0f);
+    }
+
+    const char* get_ping_quality(int ping_ms) const {
+        if (ping_ms < 30) return "Excellent";
+        if (ping_ms < 60) return "Good";
+        if (ping_ms < 100) return "Fair";
+        if (ping_ms < 150) return "Poor";
+        return "Bad";
+    }
+
+    void add_recent_connection(const std::string& name, const std::string& ip, int port) {
+        // Remove existing entry
+        m_recent_connections.erase(
+            std::remove_if(m_recent_connections.begin(), m_recent_connections.end(),
+                [&](const RecentConnection& rc) {
+                    return rc.ip == ip && rc.port == port;
+                }),
+            m_recent_connections.end());
+
+        // Add to front
+        RecentConnection conn;
+        conn.name = name;
+        conn.ip = ip;
+        conn.port = port;
+        m_recent_connections.insert(m_recent_connections.begin(), conn);
+
+        // Limit size
+        if (m_recent_connections.size() > 10) {
+            m_recent_connections.resize(10);
+        }
+    }
+
+    // =========================================================================
+    // Settings Persistence
+    // =========================================================================
+
+    std::string get_settings_path() const {
+        std::string config_dir;
+        if (m_host) {
+            config_dir = m_host->get_config_directory();
+        } else {
+            config_dir = (std::filesystem::current_path() / "config").string();
+        }
+        return (std::filesystem::path(config_dir) / "netplay.json").string();
+    }
+
+    void load_settings() {
+        std::string path = get_settings_path();
+        if (!std::filesystem::exists(path)) {
+            return;
+        }
+
+        try {
+            std::ifstream file(path);
+            if (!file.is_open()) return;
+
+            nlohmann::json json;
+            file >> json;
+
+            if (json.contains("player_name") && json["player_name"].is_string()) {
+                std::string name = json["player_name"];
+                std::strncpy(m_host_name, name.c_str(), sizeof(m_host_name) - 1);
+                std::strncpy(m_join_name, name.c_str(), sizeof(m_join_name) - 1);
+            }
+            if (json.contains("default_port") && json["default_port"].is_number()) {
+                m_host_port = json["default_port"];
+                m_join_port = json["default_port"];
+            }
+            if (json.contains("input_delay") && json["input_delay"].is_number()) {
+                m_input_delay = json["input_delay"];
+            }
+            if (json.contains("rollback_frames") && json["rollback_frames"].is_number()) {
+                m_rollback_window = json["rollback_frames"];
+            }
+            if (json.contains("allow_spectators") && json["allow_spectators"].is_boolean()) {
+                m_allow_spectators = json["allow_spectators"];
+            }
+
+            if (json.contains("recent_connections") && json["recent_connections"].is_array()) {
+                m_recent_connections.clear();
+                for (const auto& conn : json["recent_connections"]) {
+                    if (conn.contains("name") && conn.contains("ip") && conn.contains("port")) {
+                        RecentConnection rc;
+                        rc.name = conn["name"];
+                        rc.ip = conn["ip"];
+                        rc.port = conn["port"];
+                        m_recent_connections.push_back(rc);
+                    }
+                }
+            }
+
+            std::cout << "Loaded netplay settings from " << path << std::endl;
+        }
+        catch (const std::exception& e) {
+            std::cerr << "Error loading netplay settings: " << e.what() << std::endl;
+        }
+    }
+
+    void save_settings() {
+        std::string path = get_settings_path();
+
+        try {
+            std::filesystem::path config_path(path);
+            if (config_path.has_parent_path()) {
+                std::filesystem::create_directories(config_path.parent_path());
+            }
+
+            nlohmann::json json;
+            json["player_name"] = m_host_name;
+            json["default_port"] = m_host_port;
+            json["input_delay"] = m_input_delay;
+            json["rollback_frames"] = m_rollback_window;
+            json["allow_spectators"] = m_allow_spectators;
+
+            nlohmann::json recent = nlohmann::json::array();
+            for (const auto& conn : m_recent_connections) {
+                nlohmann::json c;
+                c["name"] = conn.name;
+                c["ip"] = conn.ip;
+                c["port"] = conn.port;
+                recent.push_back(c);
+            }
+            json["recent_connections"] = recent;
+
+            std::ofstream file(path);
+            if (file.is_open()) {
+                file << json.dump(4);
+                std::cout << "Saved netplay settings to " << path << std::endl;
+            }
+        }
+        catch (const std::exception& e) {
+            std::cerr << "Error saving netplay settings: " << e.what() << std::endl;
+        }
+    }
+
+    // =========================================================================
+    // Member Variables
+    // =========================================================================
+
+    // Host interface
+    emu::INetplayHost* m_host = nullptr;
+    bool m_initialized = false;
+
+    // Session state
+    emu::NetplayConnectionState m_connection_state = emu::NetplayConnectionState::Disconnected;
+    emu::NetplayRole m_role = emu::NetplayRole::None;
+    std::string m_player_name = "Player";
+    std::string m_host_address;
+    uint16_t m_port = 7845;
+    int m_local_player_id = 0;
+    int m_player_count = 0;
+    emu::NetplayPlayer m_players[4] = {};
+    SessionCode m_session_code;
+    bool m_is_ready = false;
+
+    // Settings
+    int m_input_delay = 2;
+    int m_rollback_window = 7;
+    bool m_allow_spectators = false;
+
+    // Input management
+    std::array<InputSlot, MAX_NETPLAY_PLAYERS> m_input_slots;
+    int m_active_player_count = 2;
+    uint32_t m_keyboard_input = 0;
+
+    // GUI state
+    bool m_show_host_dialog = false;
+    bool m_show_join_dialog = false;
+    bool m_show_panel = false;
+    bool m_show_overlay = true;
+
+    // Host dialog
+    char m_host_name[64] = "Player";
+    int m_host_port = 7845;
+    bool m_use_session_code = true;
+
+    // Join dialog
+    char m_join_name[64] = "Player";
+    char m_join_ip[64] = "127.0.0.1";
+    char m_join_code[16] = "";
+    int m_join_port = 7845;
+    bool m_join_by_code = false;
+    bool m_join_as_spectator = false;
+
+    // Chat
+    std::deque<ChatMessage> m_chat_messages;
+    char m_chat_input[256] = "";
+    bool m_chat_scroll_to_bottom = false;
+
+    // Recent connections
+    std::vector<RecentConnection> m_recent_connections;
+};
+
+} // anonymous namespace
+
+// ============================================================================
+// C interface
+// ============================================================================
+
+extern "C" {
+
+EMU_PLUGIN_EXPORT emu::INetplayPlugin* create_netplay_plugin() {
+    return new DefaultNetplayPlugin();
+}
+
+EMU_PLUGIN_EXPORT void destroy_netplay_plugin(emu::INetplayPlugin* plugin) {
+    delete plugin;
+}
+
+EMU_PLUGIN_EXPORT uint32_t get_netplay_plugin_api_version() {
+    return EMU_NETPLAY_PLUGIN_API_VERSION;
+}
+
+} // extern "C"

@@ -53,7 +53,7 @@ private:
     void compose_scanline();
     bool is_inside_window(int x, int window_id);
     uint8_t get_window_flags(int x);
-    void apply_blending(int x, uint16_t& top_color, uint16_t bottom_color);
+    void apply_blending(int x, uint16_t& top_color, uint16_t bottom_color, int blend_mode);
 
     uint32_t palette_to_rgba(uint16_t color);
 
@@ -100,6 +100,20 @@ public:
     // Get current DISPSTAT for bus to read (with PPU's status bits)
     uint16_t get_dispstat() const { return m_dispstat; }
 
+    // Immediate update of affine reference points (called by Bus on register writes)
+    // Per GBATEK: "Writing to a reference point register by software outside of the Vblank
+    // period does immediately copy the new value to the corresponding internal register"
+    void update_bgx_internal(int idx, int32_t value) {
+        if (idx >= 0 && idx < 2) {
+            m_bgx_internal[idx] = value;
+        }
+    }
+    void update_bgy_internal(int idx, int32_t value) {
+        if (idx >= 0 && idx < 2) {
+            m_bgy_internal[idx] = value;
+        }
+    }
+
 private:
     std::array<uint16_t, 4> m_bgcnt;
     std::array<uint16_t, 4> m_bghofs;
@@ -126,6 +140,9 @@ private:
     uint16_t m_bldcnt = 0;
     uint16_t m_bldalpha = 0;
     uint16_t m_bldy = 0;
+
+    // Mosaic register
+    uint16_t m_mosaic = 0;
 
     // Constants
     static constexpr int HDRAW_CYCLES = 960;    // HBlank starts at cycle 960

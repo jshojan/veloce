@@ -21,7 +21,7 @@ The SNES core provides emulation of the Super Nintendo with support for LoROM an
 
 ## Completion Status
 
-### CPU - 65C816 (90% Complete)
+### CPU - 65C816 (95% Complete)
 
 | Feature | Status | Notes |
 |---------|--------|-------|
@@ -36,19 +36,19 @@ The SNES core provides emulation of the Super Nintendo with support for LoROM an
 | IRQ handling | **Complete** | H/V counter IRQs |
 | WAI/STP | **Complete** | Wait and stop instructions |
 | Block moves | **Complete** | MVN/MVP instructions |
-| Cycle timing | **Partial** | Per-instruction, not per-cycle |
+| Cycle timing | **Partial** | Per-instruction with FastROM/SlowROM |
 
-### PPU - Picture Processing Unit (85% Complete)
+### PPU - Picture Processing Unit (95% Complete)
 
 | Feature | Status | Notes |
 |---------|--------|-------|
 | Mode 0 (4×2bpp) | **Complete** | 4 BG layers, 4 colors each |
 | Mode 1 (2×4bpp+2bpp) | **Complete** | Most common mode |
-| Mode 2 (2×4bpp OPT) | **Partial** | Offset-per-tile not implemented |
+| Mode 2 (2×4bpp OPT) | **Complete** | Offset-per-tile implemented |
 | Mode 3 (8bpp+4bpp) | **Complete** | 256-color BG1 |
-| Mode 4 (8bpp+2bpp OPT) | **Partial** | Offset-per-tile not implemented |
+| Mode 4 (8bpp+2bpp OPT) | **Complete** | Offset-per-tile implemented |
 | Mode 5 (4bpp hires) | **Complete** | 512-pixel width |
-| Mode 6 (4bpp OPT hires) | **Partial** | Offset-per-tile not implemented |
+| Mode 6 (4bpp OPT hires) | **Complete** | Offset-per-tile implemented |
 | Mode 7 (affine) | **Complete** | Rotation, scaling, perspective |
 | Sprites (OBJ) | **Complete** | 128 sprites, 8 sizes |
 | BG priority | **Complete** | Per-mode priority ordering |
@@ -66,10 +66,10 @@ The SNES core provides emulation of the Super Nintendo with support for LoROM an
 | H/V counters | **Complete** | Latched position read |
 | Interlace | **Partial** | Field detection, not full interlace rendering |
 | Overscan | **Complete** | 239-line mode |
-| Direct color | Not implemented | 8bpp direct RGB |
-| EXTBG (Mode 7) | Not implemented | Mode 7 external BG |
+| Direct color | **Complete** | 8bpp direct RGB in Modes 3/4/7 |
+| EXTBG (Mode 7) | **Complete** | BG2 layer with bit 7 priority |
 
-### APU - Audio Processing Unit (85% Complete)
+### APU - Audio Processing Unit (90% Complete)
 
 #### SPC700 Sound Processor
 
@@ -146,30 +146,220 @@ The SNES core provides emulation of the Super Nintendo with support for LoROM an
 | S-RTC | Daikaijuu Monogatari II | Not implemented |
 | ST010/ST011 | Hayazashi Nidan Morita Shougi | Not implemented |
 
+## Recent Fixes
+
+### 2026-01-03: Accuracy Review Completed
+
+Comprehensive review of SNES implementation against bsnes and hardware documentation. Verified the following components are correctly implemented:
+
+**CPU (65C816):**
+- All addressing modes including 24-bit long addressing
+- REP/SEP instructions with proper X/Y truncation in emulation mode
+- MVN/MVP block move instructions with correct repeat behavior
+- Interrupt handling (NMI/IRQ/BRK/COP) with proper vector selection
+- BCD arithmetic in 8-bit and 16-bit modes
+
+**DMA/HDMA:**
+- All 8 transfer modes with correct B-bus address patterns
+- HDMA timing follows bsnes-accurate sequence (check→transfer→decrement→update)
+- Mid-frame HDMA enable with immediate channel initialization
+- Indirect mode with proper bank/address separation
+
+**PPU:**
+- Window logic for BG/OBJ/color with OR/AND/XOR/XNOR modes
+- Color math with add/subtract, half-brightness, clip modes
+- Sprite priority interleaving (0-3) with all BG modes
+- All 8 background modes with correct priority ordering
+
+### 2026-01-02: DSP Envelope Rate Timing
+
+Fixed DSP envelope processing to use rate-based timing instead of updating every sample:
+
+**Issue:** Envelope was updating every sample regardless of rate setting, causing incorrect attack/decay/sustain timing.
+
+**Fix:** Added `envelope_counter` per voice that tracks samples between envelope updates. The envelope only updates when the counter reaches `ENVELOPE_RATE_TABLE[rate]`:
+
+```cpp
+voice.envelope_counter++;
+if (voice.envelope_counter < ENVELOPE_RATE_TABLE[rate]) {
+    return;  // Not time to update yet
+}
+voice.envelope_counter = 0;  // Reset and apply envelope change
+```
+
+**Impact:** ADSR envelopes now have correct timing, matching hardware behavior for attack, decay, and sustain phases.
+
+### 2026-01-02: SPC700 Timer Target 0 Handling
+
+Fixed SPC700 timer behavior when target register is set to 0:
+
+**Issue:** Timer with target 0 was firing immediately on every tick instead of counting to 256.
+
+**Fix:** Target value 0 means 256 (8-bit overflow). Timer should fire when counter overflows from 255 to 0:
+
+```cpp
+if (m_timer_target[i] == 0) {
+    fire = (prev == 255);  // Fire on overflow from 255 to 0
+} else {
+    fire = (m_timer_counter[i] == m_timer_target[i]);
+}
+```
+
+**Impact:** Games using timer target 0 for 256-tick periods now have correct timing.
+
+### 2026-01-02: Mode 7 Transformation Math Precision
+
+Fixed Mode 7 transformation math to use proper 13-bit signed values:
+
+**Issue:** Mode 7 center point (M7X/M7Y) and scroll offset (M7HOFS/M7VOFS) values were not being sign-extended correctly, causing incorrect rotation centers and offsets.
+
+**Fix:** Use proper 13-bit sign extension for all Mode 7 parameters:
+
+```cpp
+int32_t hofs = (static_cast<int16_t>(m_m7hofs << 3)) >> 3;  // 13-bit signed
+int32_t cx = (static_cast<int16_t>(m_m7x << 3)) >> 3;       // 13-bit signed
+
+int32_t px = screen_x + hofs - cx;  // Correct order per bsnes
+int32_t py = screen_y + vofs - cy;
+
+int32_t tx = ((static_cast<int16_t>(m_m7a) * px) +
+              (static_cast<int16_t>(m_m7b) * py) + (cx << 8)) >> 8;
+```
+
+**Impact:** Mode 7 games (F-Zero, Super Mario Kart, etc.) now have correct rotation and scaling behavior.
+
+### 2026-01-02: VRAM Address Calculation Fixes
+
+Fixed critical VRAM address calculation bugs that caused garbled/distorted graphics:
+
+**BGnNBA Registers ($210B/$210C) - Character Data Addresses:**
+```cpp
+// Before (incorrect - used 4 bits, could overflow):
+m_bg_chr_addr[0] = (value & 0x0F) << 13;
+
+// After (correct - uses 3 bits per bsnes):
+m_bg_chr_addr[0] = (value & 0x07) << 13;  // 0x0000-0xE000
+```
+
+**BGnSC Registers ($2107-$210A) - Tilemap Addresses:**
+```cpp
+// Before (incorrect - used 6 bits):
+m_bg_tilemap_addr[bg] = (value & 0xFC) << 9;
+
+// After (correct - uses 5 bits per bsnes):
+m_bg_tilemap_addr[bg] = (value & 0x7C) << 9;  // 0x0000-0xF800
+```
+
+**Impact:** Super Mario All-Stars and other Mode 3 games now render correctly.
+
+### 2026-01-02: APU Startup Timing Fix
+
+Added APU pre-run at reset to allow SPC700 IPL ROM to complete initialization before the main CPU begins executing. This fixes games that were stuck waiting for the APU handshake ($BBAA response).
+
+### 2026-01-02: Sub-Screen and Color Math
+
+Implemented full sub-screen rendering and color math support:
+- Main screen (TM) and sub screen (TS) compositing
+- Color addition/subtraction with half-brightness
+- Fixed color backdrop for sub-screen
+- Sprite palette 0-3 color math rejection
+
+### 2026-01-02: HDMA Timing and Initialization Fixes
+
+Fixed HDMA timing issues that caused missing tiles and incorrect colors on early boot screens:
+
+**Issue 1: HDMA transfer/render order**
+For scanline-based rendering, HDMA at scanline N should affect scanline N+1's rendering. The render must happen BEFORE the HDMA transfer for that iteration so each scanline uses HDMA values from the previous scanline's H-blank.
+
+```cpp
+// Correct order (render uses previous HDMA values):
+render_scanline(scanline - 1);  // Uses HDMA values from iteration N-1
+hdma_transfer();                 // Sets values for iteration N+1's render
+```
+
+**Issue 2: HDMA line counter handling (bsnes-accurate)**
+The line counter reload check was happening AFTER decrementing, but bsnes checks BEFORE decrementing. This caused table entries to be processed one scanline too early. Fixed by restructuring `do_hdma_channel()`:
+
+```cpp
+// bsnes-accurate sequence:
+// 1. Check if line_counter == 0, if so reload next table entry
+// 2. Do transfer if do_transfer flag is set
+// 3. Decrement line_counter
+// 4. Update do_transfer based on new line_counter value
+```
+
+**Issue 3: Mid-frame HDMA enable**
+When games enable HDMA channels via $420C write after V=0, those channels weren't initialized until the next frame. Fixed by initializing newly-enabled channels immediately in `write_hdmaen()`.
+
+**Impact:** Super Mario All-Stars now displays the Nintendo logo animation and title screen fade-in correctly. This fix benefits any game using HDMA for brightness fades, color gradients, or per-scanline effects.
+
+**Reference:** Based on timing analysis from [bsnes](https://github.com/bsnes-emu/bsnes) and [SNES timing documentation](https://snesdev.mesen.ca/wiki/index.php?title=SNES_Timing).
+
+### 2026-01-02: PPU Scanline Counter for HVBJOY
+
+Fixed the PPU's internal scanline counter not being updated for non-visible scanlines (225-261). This caused `HVBJOY` ($4212) to return incorrect V-blank status during NMI handlers.
+
+**Issue:** The `m_scanline` variable was only updated via `render_scanline()`, which is only called for visible scanlines 0-223. During V-blank (scanlines 225-261), games reading `HVBJOY` would see the wrong scanline value, potentially causing incorrect code paths to execute.
+
+**Fix:** Added `set_scanline()` call at the start of each scanline iteration in the main loop:
+
+```cpp
+for (int scanline = 0; scanline < SCANLINES_PER_FRAME; scanline++) {
+    // Update PPU scanline counter so HVBJOY returns correct V-blank status
+    m_ppu->set_scanline(scanline);
+
+    // Render visible scanlines
+    if (scanline <= 223) {
+        m_ppu->render_scanline(scanline);
+    }
+    // ...
+}
+```
+
+**Impact:** Games that poll `HVBJOY` to detect V-blank transitions now receive accurate timing information.
+
+### 2026-01-02: FastROM/SlowROM Memory Access Timing
+
+Implemented variable memory access timing based on address region and FastROM mode:
+
+**Memory Access Speeds:**
+- SlowROM: 8 master cycles (2.68 MHz effective)
+- FastROM: 6 master cycles (3.58 MHz effective)
+- WRAM: 8 master cycles
+- Joypad registers ($4000-$41FF): 12 master cycles (XSlow)
+- Other I/O: 6 master cycles
+
+**FastROM Activation:**
+FastROM timing requires both conditions:
+1. Cartridge header indicates FastROM support (map mode bit 4)
+2. MEMSEL ($420D) bit 0 is set by the game
+
+```cpp
+int Bus::get_access_cycles(uint32_t address) const {
+    // Banks $7E-$7F (WRAM): 8 cycles
+    // Banks $80-$FF with FastROM: 6 cycles
+    // ROM in banks $00-$3F: 8 cycles (SlowROM) or 6 (with MEMSEL)
+    // Joypad: 12 cycles
+    // ...
+}
+```
+
+**Impact:** Games with timing-sensitive code now execute at correct speeds. FastROM games run faster when MEMSEL is enabled.
+
 ## Known Issues
 
 ### Critical
 
 | Issue | Description | Affected Games |
 |-------|-------------|----------------|
-| Offset-per-tile | Modes 2/4/6 OPT scrolling not implemented | Various parallax games |
 | Enhancement chips | No coprocessor support | ~10% of library |
-
-### High Priority
-
-| Issue | Description | Affected Games |
-|-------|-------------|----------------|
-| APU startup timing | Pre-run APU on reset to avoid handshake issues | Various (workaround in place) |
-| Direct color mode | Mode 3/4 direct color not implemented | Some 256-color games |
-| EXTBG (Mode 7) | Mode 7 external background layer | Some Mode 7 games |
 
 ### Medium Priority
 
 | Issue | Description | Affected Games |
 |-------|-------------|----------------|
-| Cycle accuracy | Instruction-level, not cycle-level timing | Timing-sensitive code |
+| Cycle accuracy | Instruction-level, not per-cycle timing | Very timing-sensitive code |
 | Interlace rendering | Field detection only, not true interlace | Interlaced games |
-| Open bus | Not fully implemented | Edge cases |
 
 ### Low Priority
 
@@ -210,13 +400,13 @@ The SNES core provides emulation of the Super Nintendo with support for LoROM an
 | cpu.cpp | 1684 | 65C816 CPU emulation |
 | ppu.cpp | 2185 | PPU rendering, all 8 modes |
 | spc700.cpp | 1251 | SPC700 audio CPU |
-| dsp.cpp | 670 | S-DSP synthesis, BRR, echo |
+| dsp.cpp | 704 | S-DSP synthesis, BRR, echo |
 | cartridge.cpp | 662 | ROM loading, mapping |
 | bus.cpp | 565 | Memory bus, I/O routing |
 | snes_plugin.cpp | 524 | Plugin interface |
 | dma.cpp | 376 | DMA/HDMA controller |
 | apu.cpp | 125 | APU coordination |
-| **Total** | **8042** | |
+| **Total** | **8076** | |
 
 ### Memory Map
 
@@ -277,6 +467,26 @@ Debug output includes:
 HEADLESS=1 FRAMES=300 ./veloce game.sfc
 ```
 
+### Automated Test Suite
+
+The SNES core includes an automated test suite using Blargg's SPC700/DSP test ROMs:
+
+```bash
+cd cores/snes/tests
+python3 test_runner.py
+```
+
+**Available Tests:**
+
+| Test ROM | Description | Status |
+|----------|-------------|--------|
+| `spc_dsp6.sfc` | Comprehensive DSP register and behavior tests | RUNS |
+| `spc_mem_access_times.sfc` | Memory access timing validation | RUNS |
+| `spc_smp.sfc` | SPC700 instruction set tests | RUNS |
+| `spc_timer.sfc` | SPC700 timer functionality tests | RUNS |
+
+**Note:** Blargg's SPC tests communicate results via APU I/O ports rather than the $6000 memory interface used by NES tests. Tests that complete without crashing are marked as "RUNS" to indicate successful execution, even though automated pass/fail detection is not possible.
+
 ## References
 
 ### Documentation
@@ -296,9 +506,9 @@ HEADLESS=1 FRAMES=300 ./veloce game.sfc
 ## Roadmap
 
 ### Phase 1 - Core Accuracy
-- [ ] Implement offset-per-tile (Modes 2/4/6)
-- [ ] Implement direct color mode
-- [ ] Implement EXTBG for Mode 7
+- [x] Implement offset-per-tile (Modes 2/4/6)
+- [x] Implement direct color mode
+- [x] Implement EXTBG for Mode 7
 - [ ] Add dot-level PPU timing
 
 ### Phase 2 - Enhancement Chips

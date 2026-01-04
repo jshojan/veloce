@@ -39,6 +39,16 @@ enum class RTCState {
     SendData
 };
 
+// EEPROM state machine states
+enum class EEPROMState {
+    Idle,              // Waiting for command
+    ReceiveAddress,    // Receiving address bits
+    ReceiveData,       // Receiving data bits for write
+    SendDummy,         // Sending 4 dummy bits before read data
+    SendData,          // Sending 64 data bits
+    WriteComplete      // Write in progress, polling for completion
+};
+
 // GBA Cartridge loader with Flash/EEPROM and RTC/GPIO support
 class Cartridge {
 public:
@@ -66,6 +76,7 @@ public:
     bool is_loaded() const { return m_loaded; }
     const std::string& get_title() const { return m_title; }
     SaveType get_save_type() const { return m_save_type; }
+    size_t get_rom_size() const { return m_rom.size(); }
 
     // Battery save support
     bool has_battery() const;
@@ -84,6 +95,11 @@ private:
     uint8_t read_flash(uint32_t address);
     void write_flash(uint32_t address, uint8_t value);
     void reset_flash_state();
+
+    // EEPROM handling
+    uint8_t read_eeprom();
+    void write_eeprom(uint8_t value);
+    void reset_eeprom_state();
 
     std::vector<uint8_t> m_rom;
     std::vector<uint8_t> m_save_data;  // SRAM or Flash data
@@ -106,6 +122,15 @@ private:
     // For 64KB Flash (Panasonic MN63F805MNP)
     static constexpr uint8_t FLASH_64K_MANUFACTURER = 0x32;
     static constexpr uint8_t FLASH_64K_DEVICE = 0x1B;
+
+    // EEPROM state
+    EEPROMState m_eeprom_state = EEPROMState::Idle;
+    uint16_t m_eeprom_address = 0;        // Current address (6 or 14 bits)
+    uint64_t m_eeprom_buffer = 0;         // Data buffer for read/write
+    int m_eeprom_bits_received = 0;       // Bits received in current phase
+    int m_eeprom_bits_to_send = 0;        // Bits remaining to send
+    uint8_t m_eeprom_command = 0;         // Current command (2 = read, 3 = write)
+    bool m_eeprom_ready = true;           // Ready for operations (false during write)
 
     // GPIO/RTC support
     bool m_has_rtc = false;

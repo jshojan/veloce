@@ -96,14 +96,15 @@ void CPU::set_irq_line(bool active) {
     }
 }
 
-// Memory access
+// Memory access with proper timing based on address region
+// Reference: bsnes/sfc/cpu/timing.cpp, anomie's SNES docs
 uint8_t CPU::read(uint32_t address) {
-    m_cycles += 6;  // Base memory access time (can vary with FastROM)
+    m_cycles += m_bus.get_access_cycles(address);
     return m_bus.read(address);
 }
 
 void CPU::write(uint32_t address, uint8_t value) {
-    m_cycles += 6;
+    m_cycles += m_bus.get_access_cycles(address);
     m_bus.write(address, value);
 }
 
@@ -685,8 +686,8 @@ void CPU::execute() {
     // Trace first 100 unique instructions or if stuck in a loop
     if (is_debug_mode() && (s_trace_count < 100 || current_pc == s_last_pc)) {
         if (current_pc != s_last_pc || s_trace_count < 10) {
-            fprintf(stderr, "[SNES/CPU] %02X:%04X op=%02X A=%04X X=%04X Y=%04X SP=%04X P=%02X%s\n",
-                m_pbr, current_pc, opcode, m_a, m_x, m_y, m_sp, m_status,
+            fprintf(stderr, "[SNES/CPU] %02X:%04X op=%02X A=%04X X=%04X Y=%04X SP=%04X P=%02X DBR=%02X%s\n",
+                m_pbr, current_pc, opcode, m_a, m_x, m_y, m_sp, m_status, m_dbr,
                 m_emulation ? " (E)" : "");
             s_trace_count++;
         }

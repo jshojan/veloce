@@ -78,7 +78,7 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(json)
 
-# ImGui library
+# ImGui library (with PIC for shared library linking)
 add_library(imgui STATIC
     ${imgui_SOURCE_DIR}/imgui.cpp
     ${imgui_SOURCE_DIR}/imgui_demo.cpp
@@ -88,6 +88,8 @@ add_library(imgui STATIC
     ${imgui_SOURCE_DIR}/backends/imgui_impl_sdl2.cpp
     ${imgui_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp
 )
+# Enable position-independent code so imgui can be linked into shared libraries (plugins)
+set_target_properties(imgui PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_include_directories(imgui PUBLIC
     ${imgui_SOURCE_DIR}
     ${imgui_SOURCE_DIR}/backends
@@ -107,23 +109,21 @@ set(CORE_SOURCES
     src/core/plugin_registry.cpp
     src/core/plugin_config.cpp
     src/core/paths_config.cpp
-    src/core/speedrun_manager.cpp
     src/core/savestate_manager.cpp
-    src/core/netplay_manager.cpp
-    src/core/netplay_input_manager.cpp
+    src/core/screenshot.cpp
+    # netplay_manager and netplay_input_manager moved to plugins/netplay_default
 )
 
 set(GUI_SOURCES
     src/gui/gui_manager.cpp
     src/gui/main_menu.cpp
     src/gui/game_view.cpp
-    src/gui/speedrun_panel.cpp
     src/gui/debug_panel.cpp
     src/gui/input_config_panel.cpp
     src/gui/plugin_config_panel.cpp
     src/gui/paths_config_panel.cpp
     src/gui/notification_manager.cpp
-    src/gui/netplay_panel.cpp
+    # Note: netplay_panel.cpp has been removed - GUI now rendered by netplay plugin
 )
 
 # Main executable
@@ -135,6 +135,7 @@ add_executable(veloce
 target_include_directories(veloce PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/external
     ${SDL2_INCLUDE_DIRS}
 )
 
@@ -181,10 +182,15 @@ add_subdirectory(cores/snes)
 add_subdirectory(cores/gb)
 add_subdirectory(cores/gba)
 
+# Shared plugin libraries
+add_subdirectory(plugins/game_plugin_common)
+
 # Auxiliary plugins (plugins/ directory)
 add_subdirectory(plugins/audio_default)
 add_subdirectory(plugins/input_default)
 add_subdirectory(plugins/tas_default)
+add_subdirectory(plugins/speedrun_tools_default)
+add_subdirectory(plugins/netplay_default)
 
 # Install rules
 install(TARGETS veloce RUNTIME DESTINATION bin)

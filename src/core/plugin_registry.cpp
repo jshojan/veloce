@@ -4,8 +4,8 @@
 #include "emu/audio_plugin.hpp"
 #include "emu/input_plugin.hpp"
 #include "emu/tas_plugin.hpp"
-#include "emu/speedrun_tools_plugin.hpp"
 #include "emu/game_plugin.hpp"
+#include "emu/netplay_plugin.hpp"
 
 #include <iostream>
 #include <algorithm>
@@ -221,76 +221,68 @@ bool PluginRegistry::probe_plugin(const std::filesystem::path& path, PluginMetad
             auto get_version = reinterpret_cast<VersionFunc>(get_symbol(handle, "get_tas_plugin_api_version"));
             metadata.api_version = get_version ? get_version() : 0;
         }
-        // Check for speedrun tools plugin
-        else if (get_symbol(handle, "create_speedrun_tools_plugin")) {
-            metadata.type = PluginType::SpeedrunTools;
+        // Check for game plugin (unified interface)
+        else if (get_symbol(handle, "create_game_plugin")) {
+            metadata.type = PluginType::Game;
 
-            using CreateFunc = ISpeedrunToolsPlugin* (*)();
-            using DestroyFunc = void (*)(ISpeedrunToolsPlugin*);
-            auto create = reinterpret_cast<CreateFunc>(get_symbol(handle, "create_speedrun_tools_plugin"));
-            auto destroy = reinterpret_cast<DestroyFunc>(get_symbol(handle, "destroy_speedrun_tools_plugin"));
+            using CreateFunc = IGamePlugin* (*)();
+            using DestroyFunc = void (*)(IGamePlugin*);
+            auto create = reinterpret_cast<CreateFunc>(get_symbol(handle, "create_game_plugin"));
+            auto destroy = reinterpret_cast<DestroyFunc>(get_symbol(handle, "destroy_game_plugin"));
 
             if (create && destroy) {
-                ISpeedrunToolsPlugin* plugin = create();
+                IGamePlugin* plugin = create();
                 if (plugin) {
-                    SpeedrunToolsInfo info = plugin->get_info();
+                    GamePluginInfo info = plugin->get_info();
                     metadata.name = info.name ? info.name : "";
                     metadata.version = info.version ? info.version : "";
                     metadata.description = info.description ? info.description : "";
+                    metadata.author = info.author ? info.author : "";
+                    metadata.capabilities = info.capabilities;
+
+                    // Store supported ROM CRCs
+                    if (info.game_crc32 != 0) {
+                        metadata.supported_roms.push_back(info.game_crc32);
+                    }
+                    if (info.alt_crc32s && info.alt_crc32_count > 0) {
+                        for (int i = 0; i < info.alt_crc32_count; ++i) {
+                            metadata.supported_roms.push_back(info.alt_crc32s[i]);
+                        }
+                    }
+
+                    destroy(plugin);
+                }
+            }
+
+            using VersionFunc = uint32_t (*)();
+            auto get_version = reinterpret_cast<VersionFunc>(get_symbol(handle, "get_game_plugin_api_version"));
+            metadata.api_version = get_version ? get_version() : 0;
+        }
+        // Check for netplay plugin
+        else if (get_symbol(handle, "create_netplay_plugin")) {
+            metadata.type = PluginType::Netplay;
+
+            using CreateFunc = INetplayPlugin* (*)();
+            using DestroyFunc = void (*)(INetplayPlugin*);
+            auto create = reinterpret_cast<CreateFunc>(get_symbol(handle, "create_netplay_plugin"));
+            auto destroy = reinterpret_cast<DestroyFunc>(get_symbol(handle, "destroy_netplay_plugin"));
+
+            if (create && destroy) {
+                INetplayPlugin* plugin = create();
+                if (plugin) {
+                    NetplayPluginInfo info = plugin->get_info();
+                    metadata.name = info.name ? info.name : "";
+                    metadata.version = info.version ? info.version : "";
+                    metadata.description = info.description ? info.description : "";
+                    metadata.author = info.author ? info.author : "";
                     metadata.capabilities = info.capabilities;
                     destroy(plugin);
                 }
             }
 
             using VersionFunc = uint32_t (*)();
-            auto get_version = reinterpret_cast<VersionFunc>(get_symbol(handle, "get_speedrun_tools_plugin_api_version"));
+            auto get_version = reinterpret_cast<VersionFunc>(get_symbol(handle, "get_netplay_plugin_api_version"));
             metadata.api_version = get_version ? get_version() : 0;
-        }
-        // Check for game plugin (new) or speedrun plugin (legacy)
-        else if (get_symbol(handle, "create_game_plugin") || get_symbol(handle, "create_speedrun_plugin")) {
-            metadata.type = PluginType::Game;
-
-            // Try new interface first
-            if (get_symbol(handle, "create_game_plugin")) {
-                using CreateFunc = IGamePlugin* (*)();
-                using DestroyFunc = void (*)(IGamePlugin*);
-                auto create = reinterpret_cast<CreateFunc>(get_symbol(handle, "create_game_plugin"));
-                auto destroy = reinterpret_cast<DestroyFunc>(get_symbol(handle, "destroy_game_plugin"));
-
-                if (create && destroy) {
-                    IGamePlugin* plugin = create();
-                    if (plugin) {
-                        GamePluginInfo info = plugin->get_info();
-                        metadata.name = info.name ? info.name : "";
-                        metadata.version = info.version ? info.version : "";
-                        metadata.description = info.description ? info.description : "";
-                        metadata.author = info.author ? info.author : "";
-
-                        // Store supported ROM CRCs
-                        if (info.game_crc32 != 0) {
-                            metadata.supported_roms.push_back(info.game_crc32);
-                        }
-                        if (info.alt_crc32s && info.alt_crc32_count > 0) {
-                            for (int i = 0; i < info.alt_crc32_count; ++i) {
-                                metadata.supported_roms.push_back(info.alt_crc32s[i]);
-                            }
-                        }
-
-                        destroy(plugin);
-                    }
-                }
-
-                using VersionFunc = uint32_t (*)();
-                auto get_version = reinterpret_cast<VersionFunc>(get_symbol(handle, "get_game_plugin_api_version"));
-                metadata.api_version = get_version ? get_version() : 0;
-            }
-            // Legacy speedrun plugin interface
-            else {
-                // Legacy plugin - we'll handle this for backwards compatibility
-                // but won't instantiate it here
-                metadata.name = path.stem().string();
-                metadata.api_version = 0;
-            }
         }
         else {
             // Unknown plugin type
@@ -313,6 +305,57 @@ bool PluginRegistry::probe_plugin(const std::filesystem::path& path, PluginMetad
             metadata.author = info.author ? info.author : "";
             metadata.description = info.description ? info.description : "";
             metadata.capabilities = info.capabilities;
+        }
+
+        // For game plugins, also get ROM-specific info
+        if (metadata.type == PluginType::Game) {
+            using CreateFunc = IGamePlugin* (*)();
+            using DestroyFunc = void (*)(IGamePlugin*);
+            auto create = reinterpret_cast<CreateFunc>(get_symbol(handle, "create_game_plugin"));
+            auto destroy = reinterpret_cast<DestroyFunc>(get_symbol(handle, "destroy_game_plugin"));
+
+            if (create && destroy) {
+                IGamePlugin* plugin = create();
+                if (plugin) {
+                    GamePluginInfo info = plugin->get_info();
+
+                    // Store supported ROM CRCs
+                    if (info.game_crc32 != 0) {
+                        metadata.supported_roms.push_back(info.game_crc32);
+                    }
+                    if (info.alt_crc32s && info.alt_crc32_count > 0) {
+                        for (int i = 0; i < info.alt_crc32_count; ++i) {
+                            metadata.supported_roms.push_back(info.alt_crc32s[i]);
+                        }
+                    }
+
+                    destroy(plugin);
+                }
+            }
+        }
+
+        // For emulator plugins, also get file extensions
+        if (metadata.type == PluginType::Emulator) {
+            using CreateFunc = IEmulatorPlugin* (*)();
+            using DestroyFunc = void (*)(IEmulatorPlugin*);
+            auto create = reinterpret_cast<CreateFunc>(get_symbol(handle, "create_emulator_plugin"));
+            auto destroy = reinterpret_cast<DestroyFunc>(get_symbol(handle, "destroy_emulator_plugin"));
+
+            if (create && destroy) {
+                IEmulatorPlugin* plugin = create();
+                if (plugin) {
+                    EmulatorInfo info = plugin->get_info();
+
+                    // Get file extensions
+                    if (info.file_extensions) {
+                        for (const char** ext = info.file_extensions; *ext; ++ext) {
+                            metadata.file_extensions.push_back(*ext);
+                        }
+                    }
+
+                    destroy(plugin);
+                }
+            }
         }
     }
 
@@ -433,9 +476,9 @@ std::vector<PluginMetadata> PluginRegistry::find_game_plugins_for_rom(uint32_t c
 
 PluginHandle* PluginRegistry::load_plugin(const PluginMetadata& metadata) {
     // Check if already loaded
-    for (auto& handle : m_loaded_plugins) {
-        if (handle.path == metadata.path) {
-            return &handle;
+    for (auto& handle_ptr : m_loaded_plugins) {
+        if (handle_ptr->path == metadata.path) {
+            return handle_ptr.get();
         }
     }
 
@@ -448,63 +491,59 @@ PluginHandle* PluginRegistry::load_plugin(const PluginMetadata& metadata) {
         return nullptr;
     }
 
-    PluginHandle handle;
-    handle.library_handle = lib_handle;
-    handle.path = metadata.path;
-    handle.metadata = metadata;
+    auto handle = std::make_unique<PluginHandle>();
+    handle->library_handle = lib_handle;
+    handle->path = metadata.path;
+    handle->metadata = metadata;
 
     // Get create/destroy functions based on type
     switch (metadata.type) {
         case PluginType::Emulator:
-            handle.create_func = get_symbol(lib_handle, "create_emulator_plugin");
-            handle.destroy_func = get_symbol(lib_handle, "destroy_emulator_plugin");
+            handle->create_func = get_symbol(lib_handle, "create_emulator_plugin");
+            handle->destroy_func = get_symbol(lib_handle, "destroy_emulator_plugin");
             break;
         case PluginType::Video:
-            handle.create_func = get_symbol(lib_handle, "create_video_plugin");
-            handle.destroy_func = get_symbol(lib_handle, "destroy_video_plugin");
+            handle->create_func = get_symbol(lib_handle, "create_video_plugin");
+            handle->destroy_func = get_symbol(lib_handle, "destroy_video_plugin");
             break;
         case PluginType::Audio:
-            handle.create_func = get_symbol(lib_handle, "create_audio_plugin");
-            handle.destroy_func = get_symbol(lib_handle, "destroy_audio_plugin");
+            handle->create_func = get_symbol(lib_handle, "create_audio_plugin");
+            handle->destroy_func = get_symbol(lib_handle, "destroy_audio_plugin");
             break;
         case PluginType::Input:
-            handle.create_func = get_symbol(lib_handle, "create_input_plugin");
-            handle.destroy_func = get_symbol(lib_handle, "destroy_input_plugin");
+            handle->create_func = get_symbol(lib_handle, "create_input_plugin");
+            handle->destroy_func = get_symbol(lib_handle, "destroy_input_plugin");
             break;
         case PluginType::TAS:
-            handle.create_func = get_symbol(lib_handle, "create_tas_plugin");
-            handle.destroy_func = get_symbol(lib_handle, "destroy_tas_plugin");
-            break;
-        case PluginType::SpeedrunTools:
-            handle.create_func = get_symbol(lib_handle, "create_speedrun_tools_plugin");
-            handle.destroy_func = get_symbol(lib_handle, "destroy_speedrun_tools_plugin");
+            handle->create_func = get_symbol(lib_handle, "create_tas_plugin");
+            handle->destroy_func = get_symbol(lib_handle, "destroy_tas_plugin");
             break;
         case PluginType::Game:
-            // Try new interface first, fall back to legacy
-            handle.create_func = get_symbol(lib_handle, "create_game_plugin");
-            handle.destroy_func = get_symbol(lib_handle, "destroy_game_plugin");
-            if (!handle.create_func) {
-                handle.create_func = get_symbol(lib_handle, "create_speedrun_plugin");
-                handle.destroy_func = get_symbol(lib_handle, "destroy_speedrun_plugin");
-            }
+            handle->create_func = get_symbol(lib_handle, "create_game_plugin");
+            handle->destroy_func = get_symbol(lib_handle, "destroy_game_plugin");
+            break;
+        case PluginType::Netplay:
+            handle->create_func = get_symbol(lib_handle, "create_netplay_plugin");
+            handle->destroy_func = get_symbol(lib_handle, "destroy_netplay_plugin");
             break;
     }
 
-    if (!handle.create_func || !handle.destroy_func) {
+    if (!handle->create_func || !handle->destroy_func) {
         unload_library(lib_handle);
         return nullptr;
     }
 
+    PluginHandle* result = handle.get();
     m_loaded_plugins.push_back(std::move(handle));
-    return &m_loaded_plugins.back();
+    return result;
 }
 
 void PluginRegistry::unload_plugin(PluginHandle* handle) {
     if (!handle) return;
 
     for (auto it = m_loaded_plugins.begin(); it != m_loaded_plugins.end(); ++it) {
-        if (&(*it) == handle) {
-            unload_library(it->library_handle);
+        if (it->get() == handle) {
+            unload_library((*it)->library_handle);
             m_loaded_plugins.erase(it);
             return;
         }
@@ -512,16 +551,16 @@ void PluginRegistry::unload_plugin(PluginHandle* handle) {
 }
 
 void PluginRegistry::unload_all() {
-    for (auto& handle : m_loaded_plugins) {
-        unload_library(handle.library_handle);
+    for (auto& handle_ptr : m_loaded_plugins) {
+        unload_library(handle_ptr->library_handle);
     }
     m_loaded_plugins.clear();
 }
 
 PluginHandle* PluginRegistry::find_loaded_plugin(const std::filesystem::path& path) {
-    for (auto& handle : m_loaded_plugins) {
-        if (handle.path == path) {
-            return &handle;
+    for (auto& handle_ptr : m_loaded_plugins) {
+        if (handle_ptr->path == path) {
+            return handle_ptr.get();
         }
     }
     return nullptr;

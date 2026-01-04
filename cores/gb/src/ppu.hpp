@@ -28,12 +28,23 @@ public:
     uint8_t read_oam(uint16_t offset);
     void write_oam(uint16_t offset, uint8_t value);
 
+    // OAM bug emulation (DMG only)
+    // Called when a 16-bit register pair pointing to OAM is accessed during mode 2
+    // This triggers OAM corruption on real DMG hardware
+    void trigger_oam_bug(uint16_t address, bool is_read);
+    bool is_oam_bug_triggered() const { return !m_cgb_mode && m_mode == Mode::OAMScan && (m_lcdc & 0x80); }
+
     // Register access
     uint8_t read_register(uint16_t address);
     void write_register(uint16_t address, uint8_t value);
 
     // Get framebuffer
     const uint32_t* get_framebuffer() const { return m_framebuffer.data(); }
+
+    // DMG palette configuration (for non-CGB games)
+    // Each color is in ABGR format (0xAABBGGRR)
+    void set_dmg_palette(const uint32_t colors[4]);
+    void get_dmg_palette(uint32_t colors[4]) const;
 
     // Save state
     void save_state(std::vector<uint8_t>& data);
@@ -96,8 +107,9 @@ private:
     bool m_cgb_mode = false;
     int m_vram_bank = 0;
 
-    // DMG color palette (greenish LCD)
-    static const uint32_t s_dmg_palette[4];
+    // DMG color palette - configurable, defaults to classic greenish LCD
+    uint32_t m_dmg_palette[4] = {0, 0, 0, 0};  // Zero-init so reset() can detect and set defaults
+    static const uint32_t s_default_dmg_palette[4];
 
     // Timing constants
     static constexpr int OAM_SCAN_CYCLES = 80;

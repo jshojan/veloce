@@ -49,6 +49,12 @@ private:
     uint8_t fetch();
     uint16_t fetch16();
 
+    // Internal cycle (no memory access) - used for operations that take time without bus activity
+    void internal_cycle();
+
+    // OAM bug trigger for 16-bit register pair operations
+    void check_oam_bug(uint16_t addr, bool is_read);
+
     // Register pair access
     uint16_t get_af() const { return (static_cast<uint16_t>(m_a) << 8) | m_f; }
     uint16_t get_bc() const { return (static_cast<uint16_t>(m_b) << 8) | m_c; }

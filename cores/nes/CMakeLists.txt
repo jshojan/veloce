@@ -40,7 +40,14 @@ add_library(nes_plugin SHARED
 target_include_directories(nes_plugin PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_SOURCE_DIR}/include
+    ${imgui_SOURCE_DIR}
+    ${imgui_SOURCE_DIR}/backends
 )
+
+# Link imgui for configuration GUI (only when building as part of Veloce)
+if(TARGET imgui)
+    target_link_libraries(nes_plugin PRIVATE imgui)
+endif()
 
 # Set output name without 'lib' prefix on all platforms
 # Emulator cores go to the cores/ directory

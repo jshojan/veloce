@@ -52,6 +52,10 @@ APU::APU(Bus& bus) : m_bus(bus) {
 
 APU::~APU() = default;
 
+void APU::set_cpu_cycle(uint64_t cycle) {
+    m_global_cpu_cycle = cycle;
+}
+
 void APU::set_region(Region region) {
     m_region = region;
     switch (region) {
@@ -59,27 +63,33 @@ void APU::set_region(Region region) {
             m_cpu_freq = 1789773;
             m_noise_period_table = s_noise_period_ntsc;
             m_dmc_rate_table_ptr = s_dmc_rate_ntsc;
-            // NTSC frame counter timing
-            m_frame_step1 = 7457;
-            m_frame_step2 = 14913;
-            m_frame_step3 = 22371;
-            m_frame_step4 = 29829;
-            m_frame_step5 = 37281;
-            m_frame_reset4 = 29830;
-            m_frame_reset5 = 37282;
+            // NTSC frame counter timing (in CPU cycles after $4017 write)
+            // Per blargg's apu_test:
+            // - Length counters clocked at: 14916, 29832 (mode 0); 14916, 37284 (mode 1)
+            // - IRQ flag set at: 29831 (1 cycle before length clock at step 4)
+            // Note: envelope/linear counters are clocked at all 4 steps
+            m_frame_step1 = 7458;   // Quarter frame 1: envelope/linear
+            m_frame_step2 = 14916;  // Quarter frame 2: envelope/linear, length/sweep
+            m_frame_step3 = 22374;  // Quarter frame 3: envelope/linear
+            m_frame_step4 = 29832;  // Quarter frame 4: envelope/linear, length/sweep
+            m_frame_irq_cycle = 29831;  // IRQ flag set 1 cycle before step 4
+            m_frame_step5 = 37284;  // 5-step mode only: envelope/linear, length/sweep
+            m_frame_reset4 = 29833; // Reset after step 4 + 1
+            m_frame_reset5 = 37285;
             break;
         case Region::PAL:
             m_cpu_freq = 1662607;
             m_noise_period_table = s_noise_period_pal;
             m_dmc_rate_table_ptr = s_dmc_rate_pal;
-            // PAL frame counter timing
-            m_frame_step1 = 8313;
-            m_frame_step2 = 16627;
-            m_frame_step3 = 24939;
-            m_frame_step4 = 33252;
-            m_frame_step5 = 41565;
-            m_frame_reset4 = 33253;
-            m_frame_reset5 = 41566;
+            // PAL frame counter timing (scaled from NTSC)
+            m_frame_step1 = 8315;
+            m_frame_step2 = 16629;
+            m_frame_step3 = 24943;
+            m_frame_step4 = 33257;
+            m_frame_irq_cycle = 33256;
+            m_frame_step5 = 41571;
+            m_frame_reset4 = 33258;
+            m_frame_reset5 = 41572;
             break;
         case Region::Dendy:
             // Dendy uses PAL-like timing but with slightly different clock
@@ -87,13 +97,14 @@ void APU::set_region(Region region) {
             m_noise_period_table = s_noise_period_pal;  // Uses PAL tables
             m_dmc_rate_table_ptr = s_dmc_rate_pal;
             // Dendy uses PAL frame counter timing
-            m_frame_step1 = 8313;
-            m_frame_step2 = 16627;
-            m_frame_step3 = 24939;
-            m_frame_step4 = 33252;
-            m_frame_step5 = 41565;
-            m_frame_reset4 = 33253;
-            m_frame_reset5 = 41566;
+            m_frame_step1 = 8315;
+            m_frame_step2 = 16629;
+            m_frame_step3 = 24943;
+            m_frame_step4 = 33257;
+            m_frame_irq_cycle = 33256;
+            m_frame_step5 = 41571;
+            m_frame_reset4 = 33258;
+            m_frame_reset5 = 41572;
             break;
     }
 
@@ -107,6 +118,9 @@ void APU::reset() {
     m_frame_counter_cycles = 0;
     m_irq_inhibit = false;
     m_frame_irq = false;
+    m_frame_counter_reset_delay = 0;
+    m_frame_counter_reset_pending = false;
+    m_pending_frame_counter_mode = 0;
 
     m_pulse[0] = Pulse{};
     m_pulse[1] = Pulse{};
@@ -158,6 +172,25 @@ void APU::step(int cpu_cycles) {
     for (int i = 0; i < cpu_cycles; i++) {
         m_cycles++;
 
+        // Handle pending frame counter reset (from $4017 write)
+        // The reset happens after a 3-4 cycle delay depending on CPU cycle parity
+        if (m_frame_counter_reset_pending) {
+            m_frame_counter_reset_delay--;
+            if (m_frame_counter_reset_delay <= 0) {
+                m_frame_counter_reset_pending = false;
+                m_frame_counter_mode = m_pending_frame_counter_mode;
+                m_frame_counter_step = 0;
+                m_frame_counter_cycles = 0;
+
+                // In 5-step mode, clock counters immediately when reset takes effect
+                if (m_frame_counter_mode == 1) {
+                    clock_envelopes();
+                    clock_length_counters();
+                    clock_sweeps();
+                }
+            }
+        }
+
         // Clock triangle timer every CPU cycle
         if (m_triangle.timer == 0) {
             m_triangle.timer = m_triangle.timer_period;
@@ -193,13 +226,19 @@ void APU::step(int cpu_cycles) {
             }
         }
 
-        // Frame counter - more accurate step timing
-        // Uses region-specific timing values set by set_region()
-        // NTSC 4-step: 7457, 14913, 22371, 29829 (29830 resets)
-        // PAL 4-step:  8313, 16627, 24939, 33252 (33253 resets)
+        // Frame counter - accurate step timing per blargg's apu_test
+        // IRQ is set 1 cycle before the step 4 length clock
         m_frame_counter_cycles++;
-        bool should_clock = false;
 
+        // Check for IRQ (mode 0 only)
+        if (m_frame_counter_mode == 0 &&
+            m_frame_counter_cycles == m_frame_irq_cycle &&
+            !m_irq_inhibit) {
+            m_frame_irq = true;
+        }
+
+        // Check for frame counter clock events
+        bool should_clock = false;
         if (m_frame_counter_mode == 0) {
             // 4-step mode
             should_clock = (m_frame_counter_cycles == m_frame_step1 ||
@@ -281,22 +320,23 @@ void APU::step(int cpu_cycles) {
             m_prev_output_sample = sample;
             sample = interp_sample;
 
-            // Write sample to buffer, wrapping around if buffer is full
-            // This prevents audio dropouts by maintaining continuous output
-            if (m_audio_write_pos < AUDIO_BUFFER_SIZE * 2 - 1) {
-                m_audio_buffer[m_audio_write_pos++] = sample;
-                m_audio_buffer[m_audio_write_pos++] = sample;  // Stereo
-            } else {
-                // Buffer full - this indicates the consumer isn't keeping up
-                // Keep the most recent samples by shifting buffer contents
-                // This is expensive but preferable to audio glitches
-                size_t shift_amount = AUDIO_BUFFER_SIZE / 2;  // Shift half the buffer
-                for (size_t j = 0; j < AUDIO_BUFFER_SIZE * 2 - shift_amount * 2; j++) {
-                    m_audio_buffer[j] = m_audio_buffer[j + shift_amount * 2];
+            // If streaming callback is set, use low-latency path
+            if (m_audio_callback) {
+                m_stream_buffer[m_stream_pos * 2] = sample;
+                m_stream_buffer[m_stream_pos * 2 + 1] = sample;  // Stereo
+                m_stream_pos++;
+
+                // Flush when buffer is full (every 64 samples = ~1.5ms)
+                if (m_stream_pos >= STREAM_BUFFER_SIZE) {
+                    m_audio_callback(m_stream_buffer, m_stream_pos, SAMPLE_RATE);
+                    m_stream_pos = 0;
                 }
-                m_audio_write_pos = AUDIO_BUFFER_SIZE * 2 - shift_amount * 2;
-                m_audio_buffer[m_audio_write_pos++] = sample;
-                m_audio_buffer[m_audio_write_pos++] = sample;
+            } else {
+                // Legacy path: buffer until get_samples() is called
+                if (m_audio_write_pos < AUDIO_BUFFER_SIZE * 2 - 1) {
+                    m_audio_buffer[m_audio_write_pos++] = sample;
+                    m_audio_buffer[m_audio_write_pos++] = sample;  // Stereo
+                }
             }
         }
     }
@@ -307,10 +347,11 @@ void APU::clock_frame_counter() {
 
     if (m_frame_counter_mode == 0) {
         // 4-step mode: envelope/linear counter on all steps, length/sweep on steps 2 and 4
-        // Step 1 (7457):   envelope, linear counter
-        // Step 2 (14913):  envelope, linear counter, length, sweep
-        // Step 3 (22371):  envelope, linear counter
-        // Step 4 (29829):  envelope, linear counter, length, sweep, IRQ
+        // Step 1: envelope, linear counter
+        // Step 2: envelope, linear counter, length, sweep
+        // Step 3: envelope, linear counter
+        // Step 4: envelope, linear counter, length, sweep
+        // Note: IRQ is handled separately in step() at m_frame_irq_cycle
         clock_envelopes();
         if (m_frame_counter_step == 2 || m_frame_counter_step == 4) {
             clock_length_counters();
@@ -318,17 +359,14 @@ void APU::clock_frame_counter() {
         }
         if (m_frame_counter_step >= 4) {
             m_frame_counter_step = 0;
-            if (!m_irq_inhibit) {
-                m_frame_irq = true;
-            }
         }
     } else {
         // 5-step mode: same as 4-step but step 4 is skipped, step 5 clocks length/sweep
-        // Step 1 (7457):   envelope, linear counter
-        // Step 2 (14913):  envelope, linear counter, length, sweep
-        // Step 3 (22371):  envelope, linear counter
-        // Step 4 (29829):  (skipped - no clock happens here)
-        // Step 5 (37281):  envelope, linear counter, length, sweep (no IRQ)
+        // Step 1: envelope, linear counter
+        // Step 2: envelope, linear counter, length, sweep
+        // Step 3: envelope, linear counter
+        // Step 4: (skipped in 5-step mode - but we call this for step 5)
+        // Note: In 5-step mode there is no frame IRQ
         clock_envelopes();
         if (m_frame_counter_step == 2 || m_frame_counter_step == 4) {
             clock_length_counters();
@@ -752,15 +790,34 @@ void APU::cpu_write(uint16_t address, uint8_t value) {
 
         // Frame counter
         case 0x4017:
-            m_frame_counter_mode = (value & 0x80) ? 1 : 0;
+            // Per nesdev wiki and blargg's apu_test:
+            // Writing to $4017 resets the frame counter with a delay:
+            // - On odd CPU cycle: reset happens 3 cycles later
+            // - On even CPU cycle: reset happens 4 cycles later
+            // The APU runs at half CPU speed (every 2 CPU cycles = 1 APU cycle),
+            // so we track based on whether total CPU cycles is even/odd.
+            //
+            // For accurate timing, we defer the reset using a countdown.
+            // CRITICAL: Use the global CPU cycle counter for jitter test accuracy.
+            // The bus sets this before calling cpu_write to ensure we see the
+            // exact cycle when the write occurred.
             m_irq_inhibit = (value & 0x40) != 0;
             if (m_irq_inhibit) m_frame_irq = false;
-            m_frame_counter_step = 0;
-            if (m_frame_counter_mode == 1) {
-                clock_envelopes();
-                clock_length_counters();
-                clock_sweeps();
-            }
+
+            // Store the pending mode - actual mode change happens after delay
+            m_pending_frame_counter_mode = (value & 0x80) ? 1 : 0;
+
+            // Determine delay based on CPU cycle parity
+            // Use global CPU cycle for accurate timing - m_global_cpu_cycle is set
+            // by the bus right before this write
+            // On odd CPU cycle: delay is 3 cycles
+            // On even CPU cycle: delay is 4 cycles
+            m_frame_counter_reset_delay = (m_global_cpu_cycle & 1) ? 3 : 4;
+            m_frame_counter_reset_pending = true;
+
+            // Note: In 5-step mode, the immediate clock happens AFTER the delay
+            // expires (when reset actually occurs), not immediately on write.
+            // This is handled in the step() function.
             break;
     }
 }
@@ -813,6 +870,10 @@ void APU::save_state(std::vector<uint8_t>& data) {
     write_value(data, m_frame_counter_cycles);
     write_value(data, static_cast<uint8_t>(m_irq_inhibit ? 1 : 0));
     write_value(data, static_cast<uint8_t>(m_frame_irq ? 1 : 0));
+    // Frame counter reset delay fields
+    write_value(data, m_frame_counter_reset_delay);
+    write_value(data, static_cast<uint8_t>(m_frame_counter_reset_pending ? 1 : 0));
+    write_value(data, m_pending_frame_counter_mode);
 
     // Pulse channels
     for (int i = 0; i < 2; i++) {
@@ -906,6 +967,11 @@ void APU::load_state(const uint8_t*& data, size_t& remaining) {
     m_irq_inhibit = flag != 0;
     read_value(data, remaining, flag);
     m_frame_irq = flag != 0;
+    // Frame counter reset delay fields
+    read_value(data, remaining, m_frame_counter_reset_delay);
+    read_value(data, remaining, flag);
+    m_frame_counter_reset_pending = flag != 0;
+    read_value(data, remaining, m_pending_frame_counter_mode);
 
     // Pulse channels
     for (int i = 0; i < 2; i++) {

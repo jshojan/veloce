@@ -118,6 +118,77 @@ void AudioManager::push_samples(const float* samples, size_t count) {
     m_write_pos.store(write_pos, std::memory_order_release);
 }
 
+void AudioManager::push_samples_resampled(const float* samples, size_t count, int source_rate) {
+    if (!m_initialized || !samples || count == 0) return;
+
+    // If source rate matches output rate, just push directly
+    if (source_rate == m_sample_rate) {
+        push_samples(samples, count);
+        return;
+    }
+
+    // Linear interpolation resampling
+    // Ratio = source_rate / target_rate
+    // If source is 32000 and target is 44100, ratio = 0.7256
+    // We need to produce more output samples than input
+    double ratio = static_cast<double>(source_rate) / static_cast<double>(m_sample_rate);
+
+    const size_t buffer_capacity = RING_BUFFER_SIZE * 2;
+    size_t write_pos = m_write_pos.load(std::memory_order_relaxed);
+    size_t read_pos = m_read_pos.load(std::memory_order_acquire);
+
+    // count is stereo sample count (pairs), so count*2 is individual samples
+    size_t input_samples = count / 2;  // Number of stereo pairs in input
+    size_t input_idx = 0;
+
+    while (input_idx < input_samples) {
+        // Calculate output samples for this input position
+        while (m_resample_accumulator < 1.0 && input_idx < input_samples) {
+            // Get current and next samples for interpolation
+            size_t curr = input_idx * 2;
+            size_t next = std::min((input_idx + 1) * 2, count - 2);
+
+            float curr_left = samples[curr];
+            float curr_right = samples[curr + 1];
+            float next_left = samples[next];
+            float next_right = samples[next + 1];
+
+            // Linear interpolation
+            float t = static_cast<float>(m_resample_accumulator);
+            float out_left = curr_left + t * (next_left - curr_left);
+            float out_right = curr_right + t * (next_right - curr_right);
+
+            // Push to buffer
+            size_t next_write_l = (write_pos + 1) % buffer_capacity;
+            if (next_write_l == read_pos) {
+                m_overrun_count.fetch_add(1, std::memory_order_relaxed);
+                goto done;  // Buffer full
+            }
+            m_ring_buffer[write_pos] = out_left * m_volume;
+            write_pos = next_write_l;
+
+            size_t next_write_r = (write_pos + 1) % buffer_capacity;
+            if (next_write_r == read_pos) {
+                m_overrun_count.fetch_add(1, std::memory_order_relaxed);
+                goto done;  // Buffer full
+            }
+            m_ring_buffer[write_pos] = out_right * m_volume;
+            write_pos = next_write_r;
+
+            m_resample_accumulator += ratio;
+        }
+
+        // Move to next input sample
+        while (m_resample_accumulator >= 1.0 && input_idx < input_samples) {
+            m_resample_accumulator -= 1.0;
+            input_idx++;
+        }
+    }
+
+done:
+    m_write_pos.store(write_pos, std::memory_order_release);
+}
+
 void AudioManager::audio_callback(void* userdata, uint8_t* stream, int len) {
     AudioManager* self = static_cast<AudioManager*>(userdata);
     float* buffer = reinterpret_cast<float*>(stream);
@@ -130,17 +201,29 @@ void AudioManager::update_rate_control() {
     // Get current buffer level
     size_t buffered = get_buffered_samples();
 
-    // Calculate error from target
+    // Calculate error from target (in samples)
     double error = static_cast<double>(buffered) - static_cast<double>(TARGET_BUFFER_SAMPLES);
 
-    // Use proportional control with damping
-    // Negative error (buffer low) -> increase rate (consume slower)
-    // Positive error (buffer high) -> decrease rate (consume faster)
-    // The rate adjustment affects how fast we consume samples, not produce
-    double adjustment = error * 0.00001;  // Very gentle adjustment
+    // Proportional-Integral (PI) control for smooth, responsive rate adjustment
+    // The proportional term responds quickly to deviations
+    // The integral term (accumulated in m_rate_adjustment) prevents steady-state error
+    //
+    // When buffer is HIGH (positive error):
+    //   - We need to consume samples FASTER -> rate_adjustment > 1.0
+    // When buffer is LOW (negative error):
+    //   - We need to consume samples SLOWER -> rate_adjustment < 1.0
 
-    // Apply smooth exponential moving average to prevent jitter
-    m_rate_adjustment = m_rate_adjustment * 0.99 + (1.0 + adjustment) * 0.01;
+    // Proportional gain: more aggressive for faster response
+    // 0.0001 means 500 samples of error = 5% adjustment contribution
+    double p_gain = 0.0001;
+
+    // Calculate proportional term
+    double p_term = error * p_gain;
+
+    // Use fast exponential smoothing for quick response to buffer changes
+    // 0.85/0.15 means we adapt quickly to prevent buffer drift
+    double smoothing = 0.85;
+    m_rate_adjustment = m_rate_adjustment * smoothing + (1.0 + p_term) * (1.0 - smoothing);
 
     // Clamp to maximum adjustment range
     m_rate_adjustment = std::clamp(m_rate_adjustment, 1.0 - MAX_RATE_ADJUSTMENT, 1.0 + MAX_RATE_ADJUSTMENT);
@@ -294,9 +377,12 @@ size_t AudioManager::get_buffered_samples() const {
 }
 
 double AudioManager::get_latency_ms() const {
-    // Total latency = buffered samples + SDL buffer
-    size_t total_samples = get_buffered_samples() / 2;  // Convert stereo to mono count
-    total_samples += m_buffer_size;  // Add SDL's internal buffer
+    // Total latency = ring buffer samples + SDL buffer
+    // get_buffered_samples() returns float count (L+R individual samples)
+    // Divide by 2 to get stereo pair count (actual audio samples)
+    size_t ring_buffer_samples = get_buffered_samples() / 2;
+    // SDL buffer is already in samples (stereo pairs)
+    size_t total_samples = ring_buffer_samples + m_buffer_size;
     return (static_cast<double>(total_samples) / m_sample_rate) * 1000.0;
 }
 
@@ -323,21 +409,30 @@ void AudioManager::clear_buffer() {
 bool AudioManager::is_buffer_ready() const {
     if (!m_initialized) return false;
 
-    // The minimum buffer threshold depends on the sync mode
+    // The minimum buffer threshold depends on the sync mode.
+    // We want to start playback as soon as possible to minimize latency,
+    // while ensuring we have enough samples to avoid immediate underrun.
+    //
+    // get_buffered_samples() returns count of floats (L/R individual samples).
+    // At 44100Hz stereo: 256 floats = 128 stereo pairs = ~2.9ms
     size_t min_samples;
     switch (m_sync_mode) {
         case AudioSyncMode::AudioDriven:
             // For audio-driven, we can start almost immediately
-            min_samples = m_buffer_size;  // Just enough for one SDL callback
+            // Just need enough for one SDL callback (m_buffer_size * 2 for stereo floats)
+            min_samples = m_buffer_size * 2;
             break;
         case AudioSyncMode::DynamicRate:
-            // For dynamic rate, we want some buffer to allow rate adjustments
-            min_samples = MIN_BUFFER_SAMPLES * 2;  // ~24ms
+            // For dynamic rate, start quickly - rate control will adapt.
+            // We only need enough to fill one SDL callback without underrun.
+            // m_buffer_size is 256 samples, so we need 256*2 = 512 floats minimum.
+            // Start with exactly one SDL buffer worth to minimize latency.
+            min_samples = m_buffer_size * 2;  // ~5.8ms - one SDL buffer, rate control compensates
             break;
         case AudioSyncMode::LargeBuffer:
         default:
-            // Legacy mode needs more buffer
-            min_samples = MIN_STARTUP_SAMPLES * 2;  // ~92ms
+            // Legacy mode needs more buffer for stability
+            min_samples = MIN_STARTUP_SAMPLES * 2;  // ~46ms pre-buffer
             break;
     }
 

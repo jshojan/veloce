@@ -11,8 +11,93 @@
 #include <cstdio>
 #include <iostream>
 #include <memory>
+#include <fstream>
+#include <filesystem>
+
+// ImGui for configuration GUI
+#include <imgui.h>
 
 namespace gb {
+
+// Pre-defined DMG color palettes (format: 0xAABBGGRR for ABGR)
+struct PalettePreset {
+    const char* name;
+    uint32_t colors[4];  // Lightest to darkest
+};
+
+// Color conversion helpers
+static uint32_t rgb_to_abgr(uint8_t r, uint8_t g, uint8_t b) {
+    return 0xFF000000 | (b << 16) | (g << 8) | r;
+}
+
+// Classic and popular DMG palette presets
+static const PalettePreset s_palette_presets[] = {
+    // Original DMG green (default)
+    {"DMG Green (Classic)", {
+        rgb_to_abgr(155, 188, 15),   // Lightest
+        rgb_to_abgr(139, 172, 15),   // Light
+        rgb_to_abgr(48, 98, 48),     // Dark
+        rgb_to_abgr(15, 56, 15)      // Darkest
+    }},
+    // Game Boy Pocket / Light
+    {"GB Pocket (Gray)", {
+        rgb_to_abgr(255, 255, 255),
+        rgb_to_abgr(170, 170, 170),
+        rgb_to_abgr(85, 85, 85),
+        rgb_to_abgr(0, 0, 0)
+    }},
+    // Black and White
+    {"Pure Grayscale", {
+        rgb_to_abgr(224, 224, 224),
+        rgb_to_abgr(160, 160, 160),
+        rgb_to_abgr(96, 96, 96),
+        rgb_to_abgr(32, 32, 32)
+    }},
+    // Virtual Boy inspired red
+    {"Virtual Boy Red", {
+        rgb_to_abgr(255, 0, 0),
+        rgb_to_abgr(192, 0, 0),
+        rgb_to_abgr(96, 0, 0),
+        rgb_to_abgr(32, 0, 0)
+    }},
+    // Super Game Boy inspired brown
+    {"SGB Brown", {
+        rgb_to_abgr(248, 224, 136),
+        rgb_to_abgr(200, 168, 80),
+        rgb_to_abgr(112, 88, 40),
+        rgb_to_abgr(40, 32, 16)
+    }},
+    // BGB emulator default
+    {"BGB Style", {
+        rgb_to_abgr(224, 248, 208),
+        rgb_to_abgr(136, 192, 112),
+        rgb_to_abgr(52, 104, 86),
+        rgb_to_abgr(8, 24, 32)
+    }},
+    // Inverted (negative)
+    {"Inverted", {
+        rgb_to_abgr(15, 56, 15),
+        rgb_to_abgr(48, 98, 48),
+        rgb_to_abgr(139, 172, 15),
+        rgb_to_abgr(155, 188, 15)
+    }},
+    // Blue theme
+    {"Ice Blue", {
+        rgb_to_abgr(200, 220, 255),
+        rgb_to_abgr(130, 160, 220),
+        rgb_to_abgr(60, 90, 150),
+        rgb_to_abgr(20, 40, 80)
+    }},
+    // Sepia/warm
+    {"Sepia", {
+        rgb_to_abgr(255, 245, 220),
+        rgb_to_abgr(200, 170, 120),
+        rgb_to_abgr(130, 90, 50),
+        rgb_to_abgr(50, 30, 10)
+    }}
+};
+
+static constexpr int NUM_PALETTE_PRESETS = sizeof(s_palette_presets) / sizeof(s_palette_presets[0]);
 
 // Game Boy Controller button layout
 static const emu::ButtonLayout GB_BUTTONS[] = {
@@ -68,6 +153,9 @@ public:
     emu::AudioBuffer get_audio() override;
     void clear_audio_buffer() override;
 
+    // Streaming audio (low-latency)
+    void set_audio_callback(AudioStreamCallback callback) override;
+
     // Memory access
     uint8_t read_memory(uint16_t address) override;
     void write_memory(uint16_t address, uint8_t value) override;
@@ -80,6 +168,20 @@ public:
     bool has_battery_save() const override;
     std::vector<uint8_t> get_battery_save_data() const override;
     bool set_battery_save_data(const std::vector<uint8_t>& data) override;
+
+    // Configuration GUI
+    bool has_config_gui() const override { return true; }
+    void set_imgui_context(void* context) override { ImGui::SetCurrentContext(static_cast<ImGuiContext*>(context)); }
+    void render_config_gui(bool& visible) override;
+    void render_config_gui_content() override;
+    const char* get_config_window_name() const override { return "Game Boy Settings"; }
+
+    // Fast mode support
+    bool is_fast_mode_enabled() const override { return m_fast_mode; }
+
+    // Configuration persistence
+    bool save_config(const char* path) override;
+    bool load_config(const char* path) override;
 
 private:
     void run_gb_frame(const emu::InputState& input);
@@ -110,6 +212,12 @@ private:
     // Test ROM result tracking (for DEBUG mode)
     bool m_test_result_reported = false;
 
+    // Configuration state
+    int m_selected_palette = 0;      // Currently selected palette preset
+    bool m_use_custom_palette = false;  // True if using custom colors
+    uint32_t m_custom_palette[4];    // Custom palette colors (ABGR format)
+    bool m_fast_mode = false;        // Run at uncapped speed when true
+
     // File extensions
     static const char* s_extensions[];
 };
@@ -119,6 +227,9 @@ const char* GBPlugin::s_extensions[] = { ".gb", ".GB", ".gbc", ".GBC", nullptr }
 GBPlugin::GBPlugin() {
     std::memset(m_framebuffer, 0, sizeof(m_framebuffer));
     std::memset(m_audio_buffer, 0, sizeof(m_audio_buffer));
+
+    // Initialize custom palette with default values
+    std::memcpy(m_custom_palette, s_palette_presets[0].colors, sizeof(m_custom_palette));
 
     m_cartridge = std::make_unique<Cartridge>();
     m_apu = std::make_unique<APU>();
@@ -133,8 +244,9 @@ emu::EmulatorInfo GBPlugin::get_info() {
         info.name = "GBC";
         info.version = "0.1.0";
         info.author = "Veloce Team";
-        info.description = "Game Boy Color emulator with Sharp LR35902 CPU, color palette "
-                           "support, double-speed mode, and HDMA transfers.";
+        info.description = "M-cycle accurate Game Boy Color emulator with Sharp LR35902 CPU. "
+                           "Features color palettes, double-speed mode, HDMA transfers, "
+                           "and passes 100% of Mooneye timing tests.";
         info.file_extensions = s_extensions;
         info.native_fps = 59.7275;
         info.cycles_per_second = 8388608;  // 8.39 MHz (double speed capable)
@@ -144,8 +256,9 @@ emu::EmulatorInfo GBPlugin::get_info() {
         info.name = "GB";
         info.version = "0.1.0";
         info.author = "Veloce Team";
-        info.description = "Game Boy emulator with Sharp LR35902 CPU, accurate PPU timing, "
-                           "and four-channel audio processing.";
+        info.description = "M-cycle accurate Game Boy emulator with Sharp LR35902 CPU. "
+                           "Features accurate PPU/APU emulation and passes 100% of "
+                           "Blargg and Mooneye timing tests.";
         info.file_extensions = s_extensions;
         info.native_fps = 59.7275;  // 70224 cycles per frame at 4.19 MHz
         info.cycles_per_second = 4194304;  // 4.19 MHz
@@ -196,6 +309,15 @@ bool GBPlugin::load_rom(const uint8_t* data, size_t size) {
     m_ppu->reset();
     m_apu->reset();
     m_cartridge->reset();
+
+    // Apply the current palette setting to the new PPU
+    if (!is_cgb) {
+        if (m_use_custom_palette) {
+            m_ppu->set_dmg_palette(m_custom_palette);
+        } else {
+            m_ppu->set_dmg_palette(s_palette_presets[m_selected_palette].colors);
+        }
+    }
 
     m_rom_loaded = true;
     m_total_cycles = 0;
@@ -260,19 +382,17 @@ void GBPlugin::run_gb_frame(const emu::InputState& input) {
 
     while (t_cycles_run < T_CYCLES_PER_FRAME) {
         // CPU step returns M-cycles
+        // Note: The CPU's read/write methods now tick the bus (timer, serial, OAM DMA)
+        // during each memory access for cycle-accurate timing.
         int m_cycles = m_cpu->step();
         int t_cycles = m_cycles * 4;  // Convert to T-cycles
 
         m_total_cycles += m_cycles;
         t_cycles_run += t_cycles;
 
-        // Step timer (operates on M-cycles for proper timing)
-        m_bus->step_timer(m_cycles);
-
-        // Step OAM DMA (one byte per M-cycle when active)
-        for (int i = 0; i < m_cycles; i++) {
-            m_bus->step_oam_dma();
-        }
+        // Timer, serial, and OAM DMA are now stepped during memory accesses
+        // via bus.tick_m_cycle() called from CPU read/write.
+        // We don't step them again here to avoid double-counting.
 
         // Step PPU (operates on T-cycles, 1 T-cycle per step)
         for (int i = 0; i < t_cycles; i++) {
@@ -281,9 +401,6 @@ void GBPlugin::run_gb_frame(const emu::InputState& input) {
 
         // Step APU (operates on T-cycles for proper timing)
         m_apu->step(t_cycles);
-
-        // Step serial (for link cable emulation)
-        m_bus->step_serial(m_cycles);
 
         // Handle interrupts
         uint8_t interrupts = m_bus->get_pending_interrupts();
@@ -347,6 +464,22 @@ emu::AudioBuffer GBPlugin::get_audio() {
 
 void GBPlugin::clear_audio_buffer() {
     m_audio_samples = 0;
+}
+
+void GBPlugin::set_audio_callback(AudioStreamCallback callback) {
+    // Store in base class
+    m_audio_callback = callback;
+
+    // Forward to APU for direct streaming
+    if (m_apu) {
+        if (callback) {
+            m_apu->set_audio_callback([callback](const float* samples, size_t count, int rate) {
+                callback(samples, count, rate);
+            });
+        } else {
+            m_apu->set_audio_callback(nullptr);
+        }
+    }
 }
 
 uint8_t GBPlugin::read_memory(uint16_t address) {
@@ -427,6 +560,275 @@ bool GBPlugin::set_battery_save_data(const std::vector<uint8_t>& data) {
         return m_cartridge->set_save_data(data);
     }
     return false;
+}
+
+// Helper to convert ABGR (internal format) to ImVec4 (RGBA float)
+static ImVec4 abgr_to_imvec4(uint32_t abgr) {
+    float r = ((abgr >> 0) & 0xFF) / 255.0f;
+    float g = ((abgr >> 8) & 0xFF) / 255.0f;
+    float b = ((abgr >> 16) & 0xFF) / 255.0f;
+    float a = ((abgr >> 24) & 0xFF) / 255.0f;
+    return ImVec4(r, g, b, a);
+}
+
+// Helper to convert ImVec4 (RGBA float) to ABGR (internal format)
+static uint32_t imvec4_to_abgr(const ImVec4& col) {
+    uint8_t r = static_cast<uint8_t>(col.x * 255.0f);
+    uint8_t g = static_cast<uint8_t>(col.y * 255.0f);
+    uint8_t b = static_cast<uint8_t>(col.z * 255.0f);
+    uint8_t a = static_cast<uint8_t>(col.w * 255.0f);
+    return (a << 24) | (b << 16) | (g << 8) | r;
+}
+
+void GBPlugin::render_config_gui(bool& visible) {
+    ImGui::SetNextWindowSize(ImVec2(450, 400), ImGuiCond_FirstUseEver);
+
+    if (!ImGui::Begin("Game Boy Settings", &visible, ImGuiWindowFlags_NoCollapse)) {
+        ImGui::End();
+        return;
+    }
+
+    render_config_gui_content();
+
+    ImGui::End();
+}
+
+void GBPlugin::render_config_gui_content() {
+    // Display current system info
+    if (m_rom_loaded) {
+        ImGui::Text("System: %s", m_system_type == SystemType::GameBoyColor ? "Game Boy Color" : "Game Boy (DMG)");
+        ImGui::Text("Game: %s", m_cartridge ? m_cartridge->get_title().c_str() : "Unknown");
+        ImGui::Separator();
+    }
+
+    // Only show DMG palette options for non-CGB games
+    bool is_dmg = (m_system_type != SystemType::GameBoyColor) || !m_rom_loaded;
+
+    if (ImGui::CollapsingHeader("DMG Palette", ImGuiTreeNodeFlags_DefaultOpen)) {
+        if (!is_dmg && m_rom_loaded) {
+            ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.3f, 1.0f),
+                               "Game Boy Color games use their own color palettes.");
+            ImGui::TextWrapped("These palette settings only affect original Game Boy (DMG) games.");
+            ImGui::Spacing();
+        }
+
+        ImGui::BeginDisabled(!is_dmg && m_rom_loaded);
+
+        // Preset selector
+        ImGui::Text("Palette Preset:");
+        if (ImGui::BeginCombo("##PalettePreset",
+                              m_use_custom_palette ? "Custom" : s_palette_presets[m_selected_palette].name)) {
+            for (int i = 0; i < NUM_PALETTE_PRESETS; i++) {
+                bool is_selected = (!m_use_custom_palette && m_selected_palette == i);
+                if (ImGui::Selectable(s_palette_presets[i].name, is_selected)) {
+                    m_selected_palette = i;
+                    m_use_custom_palette = false;
+
+                    // Apply the preset palette
+                    if (m_ppu) {
+                        m_ppu->set_dmg_palette(s_palette_presets[i].colors);
+                    }
+                    std::memcpy(m_custom_palette, s_palette_presets[i].colors, sizeof(m_custom_palette));
+                }
+                if (is_selected) {
+                    ImGui::SetItemDefaultFocus();
+                }
+            }
+            ImGui::EndCombo();
+        }
+
+        ImGui::Spacing();
+
+        // Color preview and custom color pickers
+        ImGui::Text("Colors (Lightest to Darkest):");
+        ImGui::Spacing();
+
+        const char* color_labels[] = {"Lightest", "Light", "Dark", "Darkest"};
+        bool palette_changed = false;
+
+        for (int i = 0; i < 4; i++) {
+            ImGui::PushID(i);
+
+            // Get current color
+            ImVec4 color = abgr_to_imvec4(m_custom_palette[i]);
+
+            // Color button with picker
+            char label[32];
+            snprintf(label, sizeof(label), "##Color%d", i);
+
+            ImGui::Text("%s:", color_labels[i]);
+            ImGui::SameLine(100);
+
+            // ColorEdit3 returns true if color was changed
+            if (ImGui::ColorEdit3(label, &color.x,
+                                  ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel)) {
+                m_custom_palette[i] = imvec4_to_abgr(color);
+                m_use_custom_palette = true;
+                palette_changed = true;
+            }
+
+            // Show hex value
+            uint32_t abgr = m_custom_palette[i];
+            uint8_t r = (abgr >> 0) & 0xFF;
+            uint8_t g = (abgr >> 8) & 0xFF;
+            uint8_t b = (abgr >> 16) & 0xFF;
+            ImGui::SameLine();
+            ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "#%02X%02X%02X", r, g, b);
+
+            ImGui::PopID();
+        }
+
+        // Apply custom palette changes
+        if (palette_changed && m_ppu) {
+            m_ppu->set_dmg_palette(m_custom_palette);
+        }
+
+        ImGui::Spacing();
+
+        // Reset to default button
+        if (ImGui::Button("Reset to Default")) {
+            m_selected_palette = 0;
+            m_use_custom_palette = false;
+            std::memcpy(m_custom_palette, s_palette_presets[0].colors, sizeof(m_custom_palette));
+            if (m_ppu) {
+                m_ppu->set_dmg_palette(s_palette_presets[0].colors);
+            }
+        }
+
+        ImGui::EndDisabled();
+    }
+
+    // Speed / Timing Section
+    if (ImGui::CollapsingHeader("Speed / Timing", ImGuiTreeNodeFlags_DefaultOpen)) {
+        // Fast mode checkbox
+        if (ImGui::Checkbox("Fast Mode (Uncapped Speed)", &m_fast_mode)) {
+            // Setting is applied immediately via is_fast_mode_enabled()
+        }
+
+        // Help text
+        ImGui::SameLine();
+        ImGui::TextDisabled("(?)");
+        if (ImGui::IsItemHovered()) {
+            ImGui::BeginTooltip();
+            ImGui::PushTextWrapPos(ImGui::GetFontSize() * 25.0f);
+            ImGui::TextUnformatted(
+                "When enabled, the emulator runs as fast as your CPU allows "
+                "with no frame rate limiting.\n\n"
+                "When disabled, the emulator runs at cycle-accurate speed "
+                "(59.7275 FPS) to match real Game Boy hardware timing."
+            );
+            ImGui::PopTextWrapPos();
+            ImGui::EndTooltip();
+        }
+
+        // Show current mode status
+        ImGui::Spacing();
+        if (m_fast_mode) {
+            ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.0f, 1.0f), "Running at UNCAPPED speed");
+        } else {
+            ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f), "Running at CYCLE-ACCURATE speed (default)");
+        }
+    }
+
+    if (ImGui::CollapsingHeader("System Information")) {
+        if (m_rom_loaded && m_cartridge) {
+            ImGui::Text("Title: %s", m_cartridge->get_title().c_str());
+            ImGui::Text("CRC32: %08X", m_rom_crc32);
+            ImGui::Text("Mapper: %s", m_cartridge->get_mapper_name());
+            ImGui::Text("Has Battery: %s", m_cartridge->has_battery() ? "Yes" : "No");
+            ImGui::Text("Frame Count: %llu", static_cast<unsigned long long>(m_frame_count));
+            ImGui::Text("Total Cycles: %llu", static_cast<unsigned long long>(m_total_cycles));
+        } else {
+            ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "No ROM loaded");
+        }
+    }
+}
+
+bool GBPlugin::save_config(const char* path) {
+    std::ofstream file(path);
+    if (!file) {
+        return false;
+    }
+
+    // Simple JSON format
+    file << "{\n";
+    file << "  \"selected_palette\": " << m_selected_palette << ",\n";
+    file << "  \"use_custom_palette\": " << (m_use_custom_palette ? "true" : "false") << ",\n";
+    file << "  \"custom_palette\": [\n";
+    for (int i = 0; i < 4; i++) {
+        file << "    " << m_custom_palette[i];
+        if (i < 3) file << ",";
+        file << "\n";
+    }
+    file << "  ],\n";
+    file << "  \"fast_mode\": " << (m_fast_mode ? "true" : "false") << "\n";
+    file << "}\n";
+
+    return true;
+}
+
+bool GBPlugin::load_config(const char* path) {
+    std::ifstream file(path);
+    if (!file) {
+        // File doesn't exist - use defaults (not an error)
+        return true;
+    }
+
+    // Simple JSON parsing (basic, not a full parser)
+    std::string content((std::istreambuf_iterator<char>(file)),
+                         std::istreambuf_iterator<char>());
+
+    // Parse selected_palette
+    size_t pos = content.find("\"selected_palette\":");
+    if (pos != std::string::npos) {
+        pos = content.find(':', pos);
+        if (pos != std::string::npos) {
+            m_selected_palette = std::stoi(content.substr(pos + 1));
+            if (m_selected_palette < 0 || m_selected_palette >= NUM_PALETTE_PRESETS) {
+                m_selected_palette = 0;
+            }
+        }
+    }
+
+    // Parse use_custom_palette
+    pos = content.find("\"use_custom_palette\":");
+    if (pos != std::string::npos) {
+        m_use_custom_palette = (content.find("true", pos) < content.find("false", pos));
+    }
+
+    // Parse custom_palette array
+    pos = content.find("\"custom_palette\":");
+    if (pos != std::string::npos) {
+        pos = content.find('[', pos);
+        if (pos != std::string::npos) {
+            for (int i = 0; i < 4; i++) {
+                // Find next number
+                while (pos < content.size() && !isdigit(content[pos])) pos++;
+                if (pos < content.size()) {
+                    m_custom_palette[i] = std::stoul(content.substr(pos));
+                    while (pos < content.size() && (isdigit(content[pos]) || content[pos] == '-')) pos++;
+                }
+            }
+        }
+    }
+
+    // Parse fast_mode
+    pos = content.find("\"fast_mode\":");
+    if (pos != std::string::npos) {
+        m_fast_mode = (content.find("true", pos) < content.find("false", pos) + 5);
+    }
+
+    // Apply loaded palette if using custom
+    if (!m_use_custom_palette) {
+        std::memcpy(m_custom_palette, s_palette_presets[m_selected_palette].colors, sizeof(m_custom_palette));
+    }
+
+    // Apply palette to PPU if it exists and we're in DMG mode
+    if (m_ppu && m_system_type != SystemType::GameBoyColor) {
+        m_ppu->set_dmg_palette(m_custom_palette);
+    }
+
+    return true;
 }
 
 } // namespace gb

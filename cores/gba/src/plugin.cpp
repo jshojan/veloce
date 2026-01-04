@@ -71,6 +71,9 @@ public:
     emu::AudioBuffer get_audio() override;
     void clear_audio_buffer() override;
 
+    // Streaming audio (low-latency)
+    void set_audio_callback(AudioStreamCallback callback) override;
+
     // Memory access
     uint8_t read_memory(uint16_t address) override;
     void write_memory(uint16_t address, uint8_t value) override;
@@ -187,6 +190,12 @@ bool GBAPlugin::load_rom(const uint8_t* data, size_t size) {
 
     m_apu->set_system_type(SystemType::GameBoyAdvance);
 
+    // Set up Direct Sound FIFO DMA callback
+    Bus* bus_ptr = m_bus.get();
+    m_apu->set_fifo_dma_callback([bus_ptr](int fifo_idx) {
+        bus_ptr->trigger_sound_fifo_dma(fifo_idx);
+    });
+
     m_rom_loaded = true;
     m_rom_crc32 = m_cartridge->get_crc32();
     reset();
@@ -250,17 +259,23 @@ void GBAPlugin::run_gba_frame(const emu::InputState& input) {
     while (cycles_run < CYCLES_PER_FRAME) {
         int cpu_cycles = m_cpu->step();
         instr_count++;
-        m_total_cycles += cpu_cycles;
-        cycles_run += cpu_cycles;
+
+        // Run DMA after CPU step - DMA halts CPU while active
+        int dma_cycles = m_bus->run_dma();
+
+        // Total cycles for this iteration
+        int total_cycles = cpu_cycles + dma_cycles;
+        m_total_cycles += total_cycles;
+        cycles_run += total_cycles;
 
         // Step PPU
-        m_ppu->step(cpu_cycles);
+        m_ppu->step(total_cycles);
 
         // Step timers
-        m_bus->step_timers(cpu_cycles);
+        m_bus->step_timers(total_cycles);
 
         // Step APU
-        m_apu->step(cpu_cycles);
+        m_apu->step(total_cycles);
 
         // Handle interrupts
         if (m_bus->check_interrupts()) {
@@ -308,6 +323,7 @@ void GBAPlugin::run_gba_frame(const emu::InputState& input) {
                     fprintf(stderr, "[GBA] FAILED - Failed at test #%u\n", r12);
                 }
                 fprintf(stderr, "===========================\n");
+                fflush(stderr);  // Ensure output is flushed immediately for test detection
             }
         } else {
             same_pc_frames = 0;
@@ -315,10 +331,17 @@ void GBAPlugin::run_gba_frame(const emu::InputState& input) {
         }
     }
 
-    // Debug logging: frame count and Fire Red polling loop debug
+    // Debug logging: frame count
     if (is_debug_mode()) {
         uint32_t pc = m_cpu->get_pc();
+        uint32_t cpsr = m_cpu->get_cpsr();
         static uint64_t last_cycles = 0;
+
+        // Print PC every 10 frames
+        if ((m_frame_count + 1) % 10 == 0 || m_frame_count < 20) {
+            fprintf(stderr, "[GBA] Frame %llu, PC: 0x%08X, CPSR: 0x%08X\n",
+                    static_cast<unsigned long long>(m_frame_count + 1), pc, cpsr);
+        }
         if ((m_frame_count + 1) % 60 == 0) {
             uint64_t cycles_this_frame = m_total_cycles - last_cycles;
             fprintf(stderr, "[GBA] Frame %llu, cycles: %llu (delta=%llu), PC: 0x%08X\n",
@@ -357,6 +380,22 @@ emu::AudioBuffer GBAPlugin::get_audio() {
 
 void GBAPlugin::clear_audio_buffer() {
     m_audio_samples = 0;
+}
+
+void GBAPlugin::set_audio_callback(AudioStreamCallback callback) {
+    // Store in base class
+    m_audio_callback = callback;
+
+    // Forward to APU for direct streaming
+    if (m_apu) {
+        if (callback) {
+            m_apu->set_audio_callback([callback](const float* samples, size_t count, int rate) {
+                callback(samples, count, rate);
+            });
+        } else {
+            m_apu->set_audio_callback(nullptr);
+        }
+    }
 }
 
 uint8_t GBAPlugin::read_memory(uint16_t address) {

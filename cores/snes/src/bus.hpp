@@ -27,6 +27,9 @@ public:
     void connect_dma(DMA* dma) { m_dma = dma; }
     void connect_cartridge(Cartridge* cart) { m_cartridge = cart; }
 
+    // Component access (for debug)
+    PPU& ppu() { return *m_ppu; }
+
     // Memory access (24-bit address)
     uint8_t read(uint32_t address);
     void write(uint32_t address, uint8_t value);
@@ -36,14 +39,27 @@ public:
 
     // Frame timing
     void start_frame();
+    void start_scanline();  // Check V-IRQ at start of each scanline
     void start_hblank();
     void start_vblank();
+    void add_cycles(int master_cycles);
 
     // NMI/IRQ management
-    bool nmi_pending() const { return m_nmi_pending; }
+    // Reference: bsnes irq.cpp - NMI uses edge detection with hold period
+    // NMI/IRQ can only be serviced if the IRQ lock is not active
+    bool nmi_pending() const { return m_nmi_pending && !m_irq_lock; }
     void clear_nmi() { m_nmi_pending = false; }
+    void poll_nmi();           // Called every ~4 cycles to update NMI state
+    bool test_nmi();           // Returns true if NMI should fire (edge detected)
     bool irq_pending() const;
+    void set_irq_lock();       // Lock interrupts for ~12 cycles (after DMA/NMITIMEN writes)
     void set_irq_line(bool active);
+
+    // Cycle-accurate IRQ timing
+    // Updates H-counter and checks if H-IRQ/V-IRQ should fire
+    // Returns true if IRQ was triggered this update
+    void update_hcounter(int master_cycles);
+    bool check_irq_trigger();
 
     // CPU I/O register access ($4200-$421F)
     uint8_t read_cpu_io(uint16_t address);
@@ -51,6 +67,13 @@ public:
 
     // Get/set open bus value
     uint8_t get_open_bus() const { return m_open_bus; }
+
+    // Memory access timing (returns master cycles for a given address)
+    // Reference: bsnes/sfc/cpu/timing.cpp, anomie's SNES docs
+    int get_access_cycles(uint32_t address) const;
+
+    // Check if FastROM is enabled (MEMSEL bit 0 and cartridge supports it)
+    bool is_fast_rom_enabled() const;
 
     // Blargg test detection
     BlarggTestState& get_blargg_state() { return m_blargg_state; }
@@ -101,15 +124,29 @@ private:
 
     // Status
     bool m_nmi_pending = false;
-    bool m_nmi_flag = false;
+    bool m_nmi_flag = false;       // Internal NMI flag (set at VBlank start, cleared at V=0)
+    bool m_nmi_line = false;       // NMI output line to CPU (edge-detected)
+    bool m_nmi_hold = false;       // NMI hold flag - protects NMI during 4-cycle window
+    int m_nmi_hold_cycles = 0;     // Countdown for NMI hold period
+    bool m_nmi_transition = false; // Edge detection: true when NMI transitioned low->high
+    bool m_prev_nmi_active = false; // Previous combined NMI state for edge detection
     bool m_irq_flag = false;
     bool m_irq_line = false;
-    uint8_t m_rdnmi = 0;       // $4210 - NMI flag
+
+    // IRQ lock mechanism (prevents interrupt servicing for ~10-14 cycles)
+    // Reference: bsnes irq.cpp - prevents interrupt servicing after DMA/NMITIMEN writes
+    // This is different from the NMI hold period - IRQ lock blocks servicing,
+    // while NMI hold protects the RDNMI flag from being cleared.
+    bool m_irq_lock = false;
+    int m_irq_lock_cycles = 0;
+    uint8_t m_rdnmi = 0x02;    // $4210 - NMI flag (bits 0-3 = CPU version 2)
     uint8_t m_timeup = 0;      // $4211 - IRQ flag
 
     // H/V counters for IRQ timing
     int m_hcounter = 0;
     int m_vcounter = 0;
+    int m_prev_hcounter = 0;  // Previous H-counter for crossing detection
+    bool m_irq_triggered_this_line = false;  // Prevent duplicate IRQ per scanline
 
     // WRAM access port ($2180-$2183)
     uint32_t m_wram_addr = 0;  // 17-bit address for WRAM data port

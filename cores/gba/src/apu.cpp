@@ -41,8 +41,19 @@ void APU::reset() {
     m_noise = {};
     m_noise.lfsr = 0x7FFF;
 
-    m_fifo_a = {};
-    m_fifo_b = {};
+    // Reset Direct Sound FIFOs
+    for (auto& fifo : m_dsound_fifo) fifo.reset();
+    for (auto& pipe : m_dsound_pipe) pipe = {};
+
+    // Reset SOUNDCNT_H state
+    m_soundcnt_h = 0;
+    m_dmg_volume = 2;  // 100% by default
+    m_dsound_a_vol = false;
+    m_dsound_b_vol = false;
+    m_dsound_a_left = m_dsound_a_right = false;
+    m_dsound_b_left = m_dsound_b_right = false;
+    m_dsound_a_timer = 0;
+    m_dsound_b_timer = 0;
 
     m_frame_counter = 0;
     m_frame_counter_step = 0;
@@ -122,12 +133,27 @@ void APU::step(int cycles) {
         if (m_sample_counter >= cpu_freq) {
             m_sample_counter -= cpu_freq;
 
-            if (m_audio_write_pos < AUDIO_BUFFER_SIZE) {
-                float left, right;
-                mix_output(left, right);
-                m_audio_buffer[m_audio_write_pos * 2] = left;
-                m_audio_buffer[m_audio_write_pos * 2 + 1] = right;
-                m_audio_write_pos++;
+            float left, right;
+            mix_output(left, right);
+
+            // If streaming callback is set, use low-latency path
+            if (m_audio_callback) {
+                m_stream_buffer[m_stream_pos * 2] = left;
+                m_stream_buffer[m_stream_pos * 2 + 1] = right;
+                m_stream_pos++;
+
+                // Flush when buffer is full (every 64 samples = ~1.5ms)
+                if (m_stream_pos >= STREAM_BUFFER_SIZE) {
+                    m_audio_callback(m_stream_buffer, m_stream_pos, 44100);
+                    m_stream_pos = 0;
+                }
+            } else {
+                // Legacy path: buffer until get_samples() is called
+                if (m_audio_write_pos < AUDIO_BUFFER_SIZE) {
+                    m_audio_buffer[m_audio_write_pos * 2] = left;
+                    m_audio_buffer[m_audio_write_pos * 2 + 1] = right;
+                    m_audio_write_pos++;
+                }
             }
         }
     }
@@ -347,6 +373,52 @@ void APU::mix_output(float& left, float& right) {
     // The division by 4 normalizes for when all channels are active
     left = (left / 4.0f) * ((left_vol + 1) / 8.0f);
     right = (right / 4.0f) * ((right_vol + 1) / 8.0f);
+
+    // Apply DMG volume ratio for GBA mode
+    if (m_system_type == SystemType::GameBoyAdvance) {
+        float dmg_scale = 0.0f;
+        switch (m_dmg_volume) {
+            case 0: dmg_scale = 0.25f; break;
+            case 1: dmg_scale = 0.50f; break;
+            case 2: dmg_scale = 1.00f; break;
+            case 3: dmg_scale = 0.00f; break;  // Prohibited, treat as mute
+        }
+        left *= dmg_scale;
+        right *= dmg_scale;
+
+        // Add Direct Sound channels (GBA only)
+        // Use linear interpolation between samples to reduce aliasing artifacts
+        // Direct Sound samples are signed 8-bit, normalize to -1.0 to +1.0
+
+        // Interpolation step: output_rate / typical_input_rate
+        // Most GBA games use timer rates around 16384-32768 Hz
+        // We use a fixed step that provides smooth interpolation
+        constexpr float INTERP_STEP = 0.4f;  // ~44100/16384 samples per step
+
+        // Channel A interpolation
+        DSPipe& pipe_a = m_dsound_pipe[0];
+        float t_a = std::min(pipe_a.interp_pos, 1.0f);
+        float raw_a = pipe_a.prev_sample + (pipe_a.sample - pipe_a.prev_sample) * t_a;
+        float ds_a = raw_a / 128.0f;
+        pipe_a.interp_pos += INTERP_STEP;
+
+        // Channel B interpolation
+        DSPipe& pipe_b = m_dsound_pipe[1];
+        float t_b = std::min(pipe_b.interp_pos, 1.0f);
+        float raw_b = pipe_b.prev_sample + (pipe_b.sample - pipe_b.prev_sample) * t_b;
+        float ds_b = raw_b / 128.0f;
+        pipe_b.interp_pos += INTERP_STEP;
+
+        // Apply volume (50% or 100%)
+        if (!m_dsound_a_vol) ds_a *= 0.5f;
+        if (!m_dsound_b_vol) ds_b *= 0.5f;
+
+        // Mix into left/right channels based on enable flags
+        if (m_dsound_a_left) left += ds_a;
+        if (m_dsound_a_right) right += ds_a;
+        if (m_dsound_b_left) left += ds_b;
+        if (m_dsound_b_right) right += ds_b;
+    }
 
     // Clamp to prevent clipping (shouldn't be necessary with proper scaling, but safety)
     left = std::clamp(left, -1.0f, 1.0f);
@@ -618,6 +690,128 @@ void APU::load_state(const uint8_t*& data, size_t& remaining) {
     std::memcpy(m_wave.wave_ram.data(), data, 16);
     data += 16;
     remaining -= 16;
+}
+
+// ============================================================================
+// Direct Sound Implementation (GBA-specific)
+// ============================================================================
+
+void APU::write_fifo_a(uint32_t value) {
+    m_dsound_fifo[0].write_word(value);
+}
+
+void APU::write_fifo_b(uint32_t value) {
+    m_dsound_fifo[1].write_word(value);
+}
+
+void APU::write_soundcnt_h(uint16_t value) {
+    m_soundcnt_h = value;
+
+    // Bits 0-1: DMG volume ratio (0=25%, 1=50%, 2=100%, 3=prohibited)
+    m_dmg_volume = value & 3;
+
+    // Bit 2: Direct Sound A volume (0=50%, 1=100%)
+    m_dsound_a_vol = (value & 0x04) != 0;
+
+    // Bit 3: Direct Sound B volume (0=50%, 1=100%)
+    m_dsound_b_vol = (value & 0x08) != 0;
+
+    // Bit 8: Direct Sound A enable right
+    m_dsound_a_right = (value & 0x100) != 0;
+
+    // Bit 9: Direct Sound A enable left
+    m_dsound_a_left = (value & 0x200) != 0;
+
+    // Bit 10: Direct Sound A timer select (0=Timer0, 1=Timer1)
+    m_dsound_a_timer = (value & 0x400) ? 1 : 0;
+
+    // Bit 11: Direct Sound A FIFO reset
+    if (value & 0x800) {
+        m_dsound_fifo[0].reset();
+        m_dsound_pipe[0] = {};
+    }
+
+    // Bit 12: Direct Sound B enable right
+    m_dsound_b_right = (value & 0x1000) != 0;
+
+    // Bit 13: Direct Sound B enable left
+    m_dsound_b_left = (value & 0x2000) != 0;
+
+    // Bit 14: Direct Sound B timer select (0=Timer0, 1=Timer1)
+    m_dsound_b_timer = (value & 0x4000) ? 1 : 0;
+
+    // Bit 15: Direct Sound B FIFO reset
+    if (value & 0x8000) {
+        m_dsound_fifo[1].reset();
+        m_dsound_pipe[1] = {};
+    }
+
+    if (is_debug_mode()) {
+        fprintf(stderr, "[APU] SOUNDCNT_H = 0x%04X: DMG_vol=%d, A_vol=%d%%, A_timer=%d, B_vol=%d%%, B_timer=%d\n",
+                value, m_dmg_volume, m_dsound_a_vol ? 100 : 50, m_dsound_a_timer,
+                m_dsound_b_vol ? 100 : 50, m_dsound_b_timer);
+    }
+}
+
+uint16_t APU::read_soundcnt_h() const {
+    // Reconstruct from state (reset bits 11 and 15 are write-only)
+    uint16_t value = m_dmg_volume;
+    if (m_dsound_a_vol) value |= 0x04;
+    if (m_dsound_b_vol) value |= 0x08;
+    if (m_dsound_a_right) value |= 0x100;
+    if (m_dsound_a_left) value |= 0x200;
+    if (m_dsound_a_timer) value |= 0x400;
+    if (m_dsound_b_right) value |= 0x1000;
+    if (m_dsound_b_left) value |= 0x2000;
+    if (m_dsound_b_timer) value |= 0x4000;
+    return value;
+}
+
+void APU::consume_fifo_sample(int idx) {
+    DSPipe& pipe = m_dsound_pipe[idx];
+    DSFIFO& fifo = m_dsound_fifo[idx];
+
+    // If pipe is empty, try to refill from FIFO
+    if (pipe.bytes_left == 0) {
+        if (!fifo.empty()) {
+            pipe.word = fifo.read_word();
+            pipe.bytes_left = 4;
+        } else {
+            // FIFO underrun - output silence (or last sample)
+            pipe.prev_sample = pipe.sample;
+            pipe.sample = 0;
+            pipe.interp_pos = 0.0f;
+            return;
+        }
+    }
+
+    // Save previous sample for interpolation
+    pipe.prev_sample = pipe.sample;
+
+    // Consume one byte from the pipe (samples are signed 8-bit)
+    pipe.sample = static_cast<int8_t>(pipe.word & 0xFF);
+    pipe.word >>= 8;
+    pipe.bytes_left--;
+
+    // Reset interpolation position - we just got a new sample
+    pipe.interp_pos = 0.0f;
+
+    // Request DMA refill when FIFO is half-empty (4 or fewer words)
+    if (fifo.size() <= 4 && m_request_fifo_dma) {
+        m_request_fifo_dma(idx);
+    }
+}
+
+void APU::on_timer_overflow(int timer_id) {
+    // Check if Direct Sound A uses this timer
+    if (m_dsound_a_timer == timer_id) {
+        consume_fifo_sample(0);
+    }
+
+    // Check if Direct Sound B uses this timer
+    if (m_dsound_b_timer == timer_id) {
+        consume_fifo_sample(1);
+    }
 }
 
 } // namespace gba

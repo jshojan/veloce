@@ -46,8 +46,16 @@ public:
     void step_oam_dma();
     bool is_oam_dma_active() const { return m_oam_dma_active; }
 
+    // OAM bug trigger (DMG only)
+    // Called by CPU when 16-bit register pair operations occur with OAM-range addresses
+    void trigger_oam_bug(uint16_t address, bool is_read);
+
     // Timer
     void step_timer(int cycles);
+
+    // Tick system by 1 M-cycle (4 T-cycles) - used for cycle-accurate timing
+    // This ticks timer, serial, PPU, and APU
+    void tick_m_cycle();
 
     // Serial
     void step_serial(int cycles);
@@ -103,9 +111,10 @@ private:
     uint16_t m_oam_dma_src = 0;
     uint8_t m_oam_dma_offset = 0;
 
-    // Timer internals
-    uint16_t m_div_counter = 0;  // Full 16-bit DIV counter
-    int m_timer_counter = 0;
+    // Timer internals - using falling edge detection like real hardware
+    uint16_t m_div_counter = 0;  // Full 16-bit DIV counter (system counter)
+    bool m_prev_timer_bit = false;  // Previous state of selected bit for falling edge detection
+    uint8_t m_tima_overflow_cycle = 0;  // Countdown for delayed TMA reload (0 = no overflow pending)
 
     // Serial internals
     int m_serial_counter = 0;
@@ -116,8 +125,15 @@ private:
     bool m_cgb_mode = false;
     bool m_double_speed = false;
 
-    // Timer period lookup
-    static constexpr int TIMER_PERIODS[] = {1024, 16, 64, 256};
+    // Bit positions in div_counter for each TAC clock select
+    // TAC bits 1-0: 00=bit 9 (4096Hz), 01=bit 3 (262144Hz), 10=bit 5 (65536Hz), 11=bit 7 (16384Hz)
+    static constexpr int TIMER_DIV_BITS[] = {9, 3, 5, 7};
+
+    // Helper to get the current timer tick bit from DIV counter
+    bool get_timer_bit() const;
+
+    // Check for falling edge and increment TIMA if needed
+    void check_timer_falling_edge(bool new_bit);
 
     // I/O helpers
     uint8_t read_io(uint16_t address);

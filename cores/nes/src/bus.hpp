@@ -12,6 +12,7 @@ class APU;
 class Cartridge;
 
 // NES Memory Bus - connects all components
+// Implements cycle-accurate CPU/PPU/APU synchronization
 class Bus {
 public:
     Bus();
@@ -23,9 +24,13 @@ public:
     void connect_apu(APU* apu) { m_apu = apu; }
     void connect_cartridge(Cartridge* cart) { m_cartridge = cart; }
 
-    // CPU memory access
+    // CPU memory access - these tick PPU/APU for cycle accuracy
+    // Each memory access takes 1 CPU cycle = 3 PPU cycles
     uint8_t cpu_read(uint16_t address);
     void cpu_write(uint16_t address, uint8_t value);
+
+    // Non-ticking memory access (for save states, debugging, etc.)
+    uint8_t cpu_peek(uint16_t address) const;
 
     // PPU memory access (for CHR ROM/RAM)
     uint8_t ppu_read(uint16_t address, uint32_t frame_cycle = 0);
@@ -35,9 +40,11 @@ public:
     void set_controller_state(int controller, uint32_t buttons);
     uint8_t read_controller(int controller);
 
-    // DMA
-    void oam_dma(uint8_t page);
-    int get_pending_dma_cycles();  // Returns and clears pending DMA cycles
+    // DMA - OAM DMA is handled cycle-by-cycle now
+    void start_oam_dma(uint8_t page);
+    bool is_dma_active() const { return m_dma_active; }
+    void run_dma_cycle();  // Run one DMA cycle, ticking PPU/APU
+    int get_pending_dma_cycles();  // Legacy - returns 0 now since DMA is inline
 
     // Mapper scanline counter (for MMC3, etc.)
     void mapper_scanline();
@@ -56,10 +63,7 @@ public:
     void mapper_irq_clear();
 
     // CPU cycle notification for mappers (IRQ counters, expansion audio)
-    // PERFORMANCE: Batched version - receives cycle count to process at once
     void mapper_cpu_cycles(int count);
-
-    // Legacy single-cycle version (deprecated)
     void mapper_cpu_cycle();
 
     // Get expansion audio output from mapper (-1.0 to 1.0)
@@ -67,6 +71,32 @@ public:
 
     // Get current mirror mode (0=H, 1=V, 2=SingleScreen0, 3=SingleScreen1, 4=FourScreen)
     int get_mirror_mode() const;
+
+    // Tick PPU and APU for one CPU cycle (3 PPU cycles)
+    // This is the core synchronization mechanism
+    // Returns true if an NMI edge was detected during this cycle
+    bool tick();
+
+    // Tick only PPU (for internal use)
+    void tick_ppu_only(int ppu_cycles);
+
+    // Enable/disable cycle-accurate mode
+    // When disabled, PPU/APU are not ticked during memory accesses (legacy mode)
+    void set_cycle_accurate(bool enabled) { m_cycle_accurate = enabled; }
+    bool is_cycle_accurate() const { return m_cycle_accurate; }
+
+    // Check and handle NMI/IRQ after ticking
+    void check_interrupts();
+
+    // Poll IRQ status (for cycle-accurate interrupt detection)
+    // Returns true if any IRQ source is active
+    bool poll_irq_status();
+
+    // Get the current CPU cycle count (for APU jitter timing)
+    uint64_t get_current_cpu_cycle() const { return m_cpu_cycles; }
+
+    // Get total CPU cycles elapsed (for debugging)
+    uint64_t get_cpu_cycles() const { return m_cpu_cycles; }
 
     // Save state
     void save_state(std::vector<uint8_t>& data);
@@ -90,8 +120,21 @@ private:
     uint8_t m_controller_shift[2] = {0, 0};
     bool m_controller_strobe = false;
 
-    // DMA cycles pending (set by oam_dma, consumed by main loop)
+    // OAM DMA state - cycle-accurate handling
+    bool m_dma_active = false;
+    uint8_t m_dma_page = 0;
+    int m_dma_cycle = 0;      // Current DMA cycle (0-513)
+    uint8_t m_dma_data = 0;   // Data being transferred
+    bool m_dma_dummy_cycle = false;  // Whether we need an extra alignment cycle
+
+    // Legacy DMA cycles (kept for compatibility, always 0 now)
     int m_pending_dma_cycles = 0;
+
+    // Cycle-accurate mode flag
+    bool m_cycle_accurate = true;
+
+    // CPU cycle counter
+    uint64_t m_cpu_cycles = 0;
 };
 
 } // namespace nes

@@ -617,9 +617,18 @@ void PPU::step() {
     // This means the clear takes effect after cycle 1 starts being processed.
     // The clear happens AFTER the cycle advance, and the flag becomes invisible
     // at cycle 1. Reads during cycle 0 see VBL set, reads at cycle 1+ see VBL clear.
+    //
+    // HOWEVER, for 07-nmi_on_timing, m_nmi_occurred must be cleared 1 cycle EARLIER
+    // than the VBL status flag. This allows the VBL flag to be visible for reading
+    // while preventing new NMI triggers. Offsets in 07-nmi_on_timing:
+    //   04 N (NMI fires - m_nmi_occurred still true)
+    //   05 - (NMI doesn't fire - m_nmi_occurred cleared)
+    // This corresponds to clearing m_nmi_occurred at cycle 0, VBL at cycle 1.
+    if (m_scanline == m_prerender_scanline && m_cycle == 0) {
+        m_nmi_occurred = false;  // Clear 1 cycle before VBL status flag
+    }
     if (m_scanline == m_prerender_scanline && m_cycle == 1) {
-        m_status &= ~0xE0;  // Clear VBlank, Sprite 0, Overflow
-        m_nmi_occurred = false;
+        m_status &= ~0xE0;  // Clear VBlank, Sprite 0, Overflow at cycle 1
     }
 
     // VBlank flag is set at the START of dot 1 (cycle 1) of scanline 241.
@@ -1038,6 +1047,12 @@ void PPU::render_pixel() {
 
     if (x < 0 || x >= 256 || y < 0 || y >= 240) return;
 
+    // Overscan cropping: render black for top/bottom 8 rows
+    if (m_crop_overscan && (y < 8 || y >= 232)) {
+        m_framebuffer[y * 256 + x] = 0xFF000000;  // Black with full alpha
+        return;
+    }
+
     uint8_t bg_pixel = 0;
     uint8_t bg_palette = 0;
 
@@ -1167,16 +1182,19 @@ void PPU::evaluate_sprites_for_next_scanline(int scanline) {
     m_sprite_zero_hit_possible = false;
     m_sprite_zero_index = -1;
 
-    for (int i = 0; i < 8; i++) {
+    // Sprite limit: 8 when enabled (accurate), 64 when disabled (no flicker)
+    int sprite_limit = m_sprite_limit_enabled ? 8 : MAX_SPRITES_PER_SCANLINE;
+
+    for (int i = 0; i < sprite_limit; i++) {
         m_sprite_shifter_lo[i] = 0;
         m_sprite_shifter_hi[i] = 0;
     }
 
     uint8_t sprite_height = (m_ctrl & 0x20) ? 16 : 8;
 
-    // Phase 1: Normal sprite evaluation (find first 8 sprites on scanline)
+    // Phase 1: Normal sprite evaluation (find sprites on scanline up to limit)
     int m = 0;  // OAM sprite index (0-63)
-    while (m < 64 && m_sprite_count < 8) {
+    while (m < 64 && m_sprite_count < sprite_limit) {
         int y = m_oam[m * 4];
         int diff = scanline - y;
 
@@ -1198,7 +1216,8 @@ void PPU::evaluate_sprites_for_next_scanline(int scanline) {
 
     // Phase 2: Buggy overflow evaluation (only if we found 8 sprites and there are more to check)
     // This implements the hardware bug in sprite overflow detection.
-    if (m_sprite_count == 8 && m < 64) {
+    // Skip this phase if sprite limit is disabled (no overflow possible)
+    if (m_sprite_limit_enabled && m_sprite_count == 8 && m < 64) {
         int n = 0;  // Byte offset within sprite (should always be 0, but PPU bug increments it)
 
         while (m < 64) {

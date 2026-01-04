@@ -162,26 +162,35 @@ python test_runner.py --json
 
 ### Test Results Summary
 
-#### CPU Instructions (Critical) - 16/16 Pass
+**Overall: 80/90 Pass (88.9%)**
+
+#### CPU Instructions (Critical) - 15/16 Pass
+
+| Test | Status | Notes |
+|------|--------|-------|
+| 01-basics.nes | Pass | |
+| 02-implied.nes | Pass | |
+| 03-immediate.nes | Known Fail | Unofficial opcode edge case |
+| 04-zero_page.nes | Pass | |
+| 05-zp_xy.nes | Pass | |
+| 06-absolute.nes | Pass | |
+| 07-abs_xy.nes | Pass | |
+| 08-ind_x.nes | Pass | |
+| 09-ind_y.nes | Pass | |
+| 10-branches.nes | Pass | |
+| 11-stack.nes | Pass | |
+| 12-jmp_jsr.nes | Pass | |
+| 13-rts.nes | Pass | |
+| 14-rti.nes | Pass | |
+| 15-brk.nes | Pass | |
+| 16-special.nes | Pass | |
+
+#### Blargg CPU Test5 (Critical) - 2/2 Pass
 
 | Test | Status |
 |------|--------|
-| 01-basics.nes | Pass |
-| 02-implied.nes | Pass |
-| 03-immediate.nes | Pass |
-| 04-zero_page.nes | Pass |
-| 05-zp_xy.nes | Pass |
-| 06-absolute.nes | Pass |
-| 07-abs_xy.nes | Pass |
-| 08-ind_x.nes | Pass |
-| 09-ind_y.nes | Pass |
-| 10-branches.nes | Pass |
-| 11-stack.nes | Pass |
-| 12-jmp_jsr.nes | Pass |
-| 13-rts.nes | Pass |
-| 14-rti.nes | Pass |
-| 15-brk.nes | Pass |
-| 16-special.nes | Pass |
+| official.nes | Pass |
+| cpu.nes | Pass |
 
 #### CPU Timing (High) - 6/6 Pass
 
@@ -194,15 +203,37 @@ python test_runner.py --json
 | 1-instr_timing.nes | Pass |
 | 2-branch_timing.nes | Pass |
 
-#### CPU Interrupts (High) - 5/5 Pass
+#### CPU Interrupts (High) - 2/5 Pass
+
+| Test | Status | Notes |
+|------|--------|-------|
+| 1-cli_latency.nes | Pass | |
+| 2-nmi_and_brk.nes | Known Fail | NMI/BRK interaction |
+| 3-nmi_and_irq.nes | Known Fail | NMI/IRQ interaction |
+| 4-irq_and_dma.nes | Known Fail | IRQ/DMA interaction |
+| 5-branch_delays_irq.nes | Pass | |
+
+#### CPU Dummy Reads (High) - 1/1 Pass
 
 | Test | Status |
 |------|--------|
-| 1-cli_latency.nes | Pass |
-| 2-nmi_and_brk.nes | Pass |
-| 3-nmi_and_irq.nes | Pass |
-| 4-irq_and_dma.nes | Pass |
-| 5-branch_delays_irq.nes | Pass |
+| cpu_dummy_reads.nes | Pass |
+
+#### CPU Dummy Writes (High) - 2/2 Pass
+
+| Test | Status |
+|------|--------|
+| cpu_dummy_writes_oam.nes | Pass |
+| cpu_dummy_writes_ppumem.nes | Pass |
+
+#### Instruction Miscellaneous (Medium) - 4/4 Pass
+
+| Test | Status |
+|------|--------|
+| 01-abs_x_wrap.nes | Pass |
+| 02-branch_wrap.nes | Pass |
+| 03-dummy_reads.nes | Pass |
+| 04-dummy_reads_apu.nes | Pass |
 
 #### PPU VBlank/NMI (Critical) - 9/10 Pass
 
@@ -210,9 +241,9 @@ python test_runner.py --json
 |------|--------|-------|
 | 01-vbl_basics.nes | Pass | |
 | 02-vbl_set_time.nes | Pass | |
-| 03-vbl_clear_time.nes | Known Fail | Off by 1-2 cycles |
+| 03-vbl_clear_time.nes | Pass | |
 | 04-nmi_control.nes | Pass | |
-| 05-nmi_timing.nes | Pass | |
+| 05-nmi_timing.nes | Known Fail | NMI timing edge case |
 | 06-suppression.nes | Pass | |
 | 07-nmi_on_timing.nes | Pass | |
 | 08-nmi_off_timing.nes | Pass | |
@@ -235,39 +266,83 @@ python test_runner.py --json
 | 10.timing_order.nes | Pass |
 | 11.edge_timing.nes | Pass |
 
+#### Sprite Overflow (High) - 5/5 Pass
+
+| Test | Status |
+|------|--------|
+| 1.Basics.nes | Pass |
+| 2.Details.nes | Pass |
+| 3.Timing.nes | Pass |
+| 4.Obscure.nes | Pass |
+| 5.Emulator.nes | Pass |
+
+#### PPU Miscellaneous (Medium) - 3/3 Pass
+
+| Test | Status |
+|------|--------|
+| ppu_open_bus.nes | Pass |
+| oam_read.nes | Pass |
+| oam_stress.nes | Pass |
+
+#### PPU Read Buffer (Medium) - 1/1 Pass
+
+| Test | Status |
+|------|--------|
+| test_ppu_read_buffer.nes | Pass |
+
 #### MMC3 Mapper (Critical) - 4/6 Pass
 
 | Test | Status | Notes |
 |------|--------|-------|
 | 1-clocking.nes | Pass | |
-| 2-details.nes | Known Fail | Counter clocking count precision |
+| 2-details.nes | Pass | |
 | 3-A12_clocking.nes | Pass | |
 | 4-scanline_timing.nes | Known Fail | Scanline 0 timing edge case |
 | 5-MMC3.nes | Pass | |
 | 6-MMC3_alt.nes | Known Fail | Alternate behavior variant |
 
-#### APU (Medium) - 8/8 Pass
+#### MMC3 IRQ Tests (High) - 6/6 Pass
 
 | Test | Status |
 |------|--------|
-| 1-len_ctr.nes | Pass |
-| 2-len_table.nes | Pass |
-| 3-irq_flag.nes | Pass |
-| 4-jitter.nes | Pass |
-| 5-len_timing.nes | Pass |
-| 6-irq_flag_timing.nes | Pass |
-| 7-dmc_basics.nes | Pass |
-| 8-dmc_rates.nes | Pass |
+| 1.Clocking.nes | Pass |
+| 2.Details.nes | Pass |
+| 3.A12_clocking.nes | Pass |
+| 4.Scanline_timing.nes | Pass |
+| 5.MMC3_rev_A.nes | Pass |
+| 6.MMC3_rev_B.nes | Pass |
+
+#### APU (Medium) - 5/8 Pass
+
+| Test | Status | Notes |
+|------|--------|-------|
+| 1-len_ctr.nes | Pass | |
+| 2-len_table.nes | Pass | |
+| 3-irq_flag.nes | Pass | |
+| 4-jitter.nes | Known Fail | Frame counter jitter |
+| 5-len_timing.nes | Known Fail | Length counter timing |
+| 6-irq_flag_timing.nes | Known Fail | IRQ flag timing |
+| 7-dmc_basics.nes | Pass | |
+| 8-dmc_rates.nes | Pass | |
+
+#### DMC Channel (Medium) - 4/4 Pass
+
+| Test | Status |
+|------|--------|
+| buffer_retained.nes | Pass |
+| latency.nes | Pass |
+| status.nes | Pass |
+| status_irq.nes | Pass |
 
 ### Known Test Failures
 
 | Test | Issue | Impact |
 |------|-------|--------|
-| ppu_vbl_nmi/03-vbl_clear_time | VBL flag clear timing off by 1-2 cycles | Minimal - no known game issues |
-| ppu_open_bus | Open bus decay not implemented | Very few games require this |
-| mmc3_test_2/2-details | Counter clocking count precision | Rare edge case |
+| cpu_interrupts_v2/2-4 | NMI/IRQ hijacking edge cases | Minimal - affects very few games |
+| ppu_vbl_nmi/05-nmi_timing | NMI timing edge case | Rare edge case |
 | mmc3_test_2/4-scanline_timing | Scanline 0 IRQ timing edge case | Uncommon scenario |
 | mmc3_test_2/6-MMC3_alt | Alternate MMC3 behavior variant | Clone-specific behavior |
+| apu_test/4-6 | Frame counter/IRQ timing precision | Minimal audio impact |
 
 ## Architecture
 

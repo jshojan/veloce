@@ -28,6 +28,7 @@ void APU::reset() {
     m_sample_counter = 0;
     m_last_left = 0;
     m_last_right = 0;
+    m_stream_pos = 0;
 }
 
 void APU::step(int master_cycles) {
@@ -65,12 +66,28 @@ void APU::step(int master_cycles) {
             int16_t left = m_dsp->get_output_left();
             int16_t right = m_dsp->get_output_right();
 
-            // Store sample for output
-            if (m_audio_write_pos < AUDIO_BUFFER_SIZE) {
-                // Convert to float (-1.0 to 1.0)
-                m_audio_buffer[m_audio_write_pos * 2] = left / 32768.0f;
-                m_audio_buffer[m_audio_write_pos * 2 + 1] = right / 32768.0f;
-                m_audio_write_pos++;
+            // Convert to float (-1.0 to 1.0)
+            float left_f = left / 32768.0f;
+            float right_f = right / 32768.0f;
+
+            // If streaming callback is set, use low-latency path
+            if (m_audio_callback) {
+                m_stream_buffer[m_stream_pos * 2] = left_f;
+                m_stream_buffer[m_stream_pos * 2 + 1] = right_f;
+                m_stream_pos++;
+
+                // Flush when buffer is full (every 64 samples = ~2ms at 32kHz)
+                if (m_stream_pos >= STREAM_BUFFER_SIZE) {
+                    m_audio_callback(m_stream_buffer, m_stream_pos, DSP_RATE);
+                    m_stream_pos = 0;
+                }
+            } else {
+                // Legacy path: buffer until get_samples() is called
+                if (m_audio_write_pos < AUDIO_BUFFER_SIZE) {
+                    m_audio_buffer[m_audio_write_pos * 2] = left_f;
+                    m_audio_buffer[m_audio_write_pos * 2 + 1] = right_f;
+                    m_audio_write_pos++;
+                }
             }
 
             m_last_left = left;

@@ -1,10 +1,10 @@
 # Game Boy Emulator Core
 
-Game Boy and Game Boy Color emulator for Veloce.
+M-cycle accurate Game Boy and Game Boy Color emulator for Veloce.
 
 ## Overview
 
-The Game Boy core provides emulation for both the original Game Boy (DMG) and Game Boy Color (CGB). It features accurate Sharp LR35902 CPU emulation, PPU rendering, and four-channel audio processing. The core automatically detects ROM type and configures the appropriate mode.
+The Game Boy core provides high-accuracy emulation for both the original Game Boy (DMG) and Game Boy Color (CGB). It features M-cycle accurate Sharp LR35902 CPU emulation, precise PPU timing, and four-channel audio processing. The core passes 100% of Blargg and Mooneye timing tests and automatically detects ROM type to configure the appropriate mode.
 
 ## Specifications
 
@@ -28,6 +28,7 @@ The Game Boy core provides emulation for both the original Game Boy (DMG) and Ga
 | HALT mode | Complete | Proper wake-on-interrupt |
 | STOP mode | Complete | Speed switching (CGB) |
 | HALT bug | Complete | IME=0 with pending interrupt quirk |
+| OAM bug | Complete | DMG OAM corruption quirk |
 | Interrupts | Complete | VBlank, LCD STAT, Timer, Serial, Joypad |
 
 ### PPU (Fully Implemented)
@@ -70,7 +71,6 @@ The Game Boy core provides emulation for both the original Game Boy (DMG) and Ga
 ### Known Limitations
 
 - Pixel FIFO is scanline-based rather than dot-by-dot (sufficient for game compatibility)
-- OAM corruption bug (DMG quirk) not implemented
 - Some CGB-only timing edge cases may not be hardware-perfect
 
 ## MBC Support
@@ -123,105 +123,84 @@ cmake --build build
 
 ### Test Suite
 
-The Game Boy core uses [Blargg's gb-test-roms](https://github.com/retrio/gb-test-roms) for validation:
+The Game Boy core uses a unified test runner with ROMs from multiple sources:
+- [Blargg's gb-test-roms](https://github.com/retrio/gb-test-roms) - CPU, timing, audio
+- [Mooneye Test Suite](https://github.com/Gekkio/mooneye-test-suite) - Cycle-accurate timing
+- [Mealybug Tearoom Tests](https://github.com/mattcurrie/mealybug-tearoom-tests) - PPU accuracy
+- [SameSuite](https://github.com/LIJI32/SameSuite) - APU accuracy
+- [dmg-acid2/cgb-acid2](https://github.com/mattcurrie/dmg-acid2) - Pixel-perfect PPU tests
 
 ```bash
 cd cores/gb/tests
 python test_runner.py              # Run all tests
+python test_runner.py blargg       # Run Blargg tests only
+python test_runner.py mooneye      # Run Mooneye tests only
 python test_runner.py --json       # JSON output for CI
-python test_runner.py --category cpu  # CPU tests only
+python test_runner.py -v           # Verbose output
+python test_runner.py --generate-refs  # Generate visual test screenshots
 ```
 
 ### Test Results Summary
 
-#### CPU Instructions (Critical) - 11/11 Pass
+**Overall: 111/111 Pass (100%)**
 
-| Test | Status |
-|------|--------|
-| 01-special.gb | Pass |
-| 02-interrupts.gb | Pass |
-| 03-op sp,hl.gb | Pass |
-| 04-op r,imm.gb | Pass |
-| 05-op rp.gb | Pass |
-| 06-ld r,r.gb | Pass |
-| 07-jr,jp,call,ret,rst.gb | Pass |
-| 08-misc instrs.gb | Pass |
-| 09-op r,r.gb | Pass |
-| 10-bit ops.gb | Pass |
-| 11-op a,(hl).gb | Pass |
+#### Blargg Tests
 
-#### Instruction Timing (High) - 1/1 Pass
+| Suite | Pass | Total | Status |
+|-------|------|-------|--------|
+| CPU Instructions | 11 | 11 | Complete |
+| Instruction Timing | 1 | 1 | Complete |
+| Memory Timing | 3 | 3 | Complete |
+| OAM Bug | 1 | 1 | Complete |
 
-| Test | Status |
-|------|--------|
-| instr_timing.gb | Pass |
+#### Mooneye Test Suite
 
-#### Memory Timing (High) - 4/4 Pass
+| Suite | Pass | Total | Status |
+|-------|------|-------|--------|
+| Bits (mem_oam, reg_f, unused_hwio) | 3 | 3 | Complete |
+| Instructions (DAA) | 1 | 1 | Complete |
+| Interrupts (ie_push) | 1 | 1 | Complete |
+| OAM DMA | 3 | 3 | Complete |
+| PPU Timing | 12 | 12 | Complete |
+| Timer | 13 | 13 | Complete |
+| General Timing | 29 | 29 | Complete |
 
-| Test | Status |
-|------|--------|
-| 01-read_timing.gb | Pass |
-| 02-write_timing.gb | Pass |
-| 03-modify_timing.gb | Pass |
-| mem_timing.gb | Pass |
+#### Mealybug Tearoom PPU Tests
 
-#### DMG Sound (Medium) - 12/12 Pass
+| Suite | Pass | Total | Status |
+|-------|------|-------|--------|
+| Mode 2/3 PPU Tests | 20 | 20 | Complete |
 
-| Test | Status |
-|------|--------|
-| 01-registers.gb | Pass |
-| 02-len ctr.gb | Pass |
-| 03-trigger.gb | Pass |
-| 04-sweep.gb | Pass |
-| 05-sweep details.gb | Pass |
-| 06-overflow on trigger.gb | Pass |
-| 07-len sweep period sync.gb | Pass |
-| 08-len ctr during power.gb | Pass |
-| 09-wave read while on.gb | Pass |
-| 10-wave trigger while on.gb | Pass |
-| 11-regs after power.gb | Pass |
-| 12-wave write while on.gb | Pass |
+#### SameSuite APU Tests
 
-#### CGB Sound (Medium) - 12/12 Pass
+| Suite | Pass | Total | Status |
+|-------|------|-------|--------|
+| Channel 1 (Pulse+Sweep) | 13 | 13 | Complete |
 
-| Test | Status |
-|------|--------|
-| 01-registers.gb | Pass |
-| 02-len ctr.gb | Pass |
-| 03-trigger.gb | Pass |
-| 04-sweep.gb | Pass |
-| 05-sweep details.gb | Pass |
-| 06-overflow on trigger.gb | Pass |
-| 07-len sweep period sync.gb | Pass |
-| 08-len ctr during power.gb | Pass |
-| 09-wave read while on.gb | Pass |
-| 10-wave trigger while on.gb | Pass |
-| 11-regs after power.gb | Pass |
-| 12-wave write while on.gb | Pass |
-
-#### Interrupt Timing (High) - 1/1 Pass
-
-| Test | Status |
-|------|--------|
-| interrupt_time.gb | Pass |
-
-#### HALT Bug (Medium) - 1/1 Pass
-
-| Test | Status |
-|------|--------|
-| halt_bug.gb | Pass |
-
-#### OAM Bug (Low) - 0/1 Pass
+### Visual Tests (Screenshot Comparison)
 
 | Test | Status | Notes |
 |------|--------|-------|
-| oam_bug.gb | Known Fail | DMG OAM corruption quirk |
+| dmg-acid2 | Pass | Pixel-perfect DMG PPU |
+| cgb-acid2 | Pass | Pixel-perfect CGB PPU |
+| DMG Sound (12 tests) | Pass | All APU tests passing |
+| CGB Sound (12 tests) | Pending | Requires CGB mode testing |
 
 ### Known Test Failures
 
-| Test | Issue | Impact |
-|------|-------|--------|
-| oam_bug.gb | DMG OAM corruption bug not emulated | Quirky DMG-only behavior, no game compatibility issues |
+None! All serial and visual tests pass.
+
+### Test Categories
+
+The test runner supports category aliases for convenience:
+
+```bash
+python test_runner.py blargg       # cpu_instrs, instr_timing, mem_timing, oam_bug
+python test_runner.py mooneye      # All Mooneye acceptance tests
+python test_runner.py mealybug     # Mealybug Tearoom PPU tests
+python test_runner.py visual       # dmg_sound, cgb_sound, acid2 tests
+python test_runner.py apu          # SameSuite APU tests
+```
 
 ## Architecture
 

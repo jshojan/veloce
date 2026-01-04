@@ -165,6 +165,19 @@ bool Cartridge::has_battery() const {
     return m_loaded && m_has_battery;
 }
 
+const char* Cartridge::get_mapper_name() const {
+    if (!m_loaded) return "None";
+
+    switch (m_mbc_type) {
+        case 0: return "ROM Only";
+        case 1: return "MBC1";
+        case 2: return "MBC2";
+        case 3: return m_has_rtc ? "MBC3+RTC" : "MBC3";
+        case 5: return "MBC5";
+        default: return "Unknown";
+    }
+}
+
 std::vector<uint8_t> Cartridge::get_save_data() const {
     if (!m_loaded) return {};
     return m_ram;

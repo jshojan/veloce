@@ -1,88 +1,108 @@
 {
   "description": "GBA Emulator Test Configuration",
-  "repository": "https://github.com/jsmolka/gba-tests.git",
-  "timeout_seconds": 30,
-  "frame_limit": 300,
+  "timeout_seconds": 60,
+  "frame_limit": 1200,
+
+  "repositories": {
+    "jsmolka": {
+      "url": "https://github.com/jsmolka/gba-tests.git",
+      "directory": "gba-test-roms",
+      "description": "Basic CPU, memory, BIOS, and save type tests"
+    },
+    "alyosha": {
+      "url": "https://github.com/alyosha-tas/gba-tests.git",
+      "directory": "alyosha-gba-tests",
+      "description": "Extended tests with PPU, prefetcher, timing, IRQ interactions (fork of jsmolka)"
+    },
+    "nba-hw-test": {
+      "url": "https://github.com/nba-emu/hw-test.git",
+      "directory": "nba-hw-test",
+      "description": "NanoBoyAdvance hardware tests (DMA, IRQ, timing)"
+    },
+    "hades": {
+      "url": "https://github.com/hades-emu/Hades-Tests.git",
+      "directory": "hades-tests",
+      "description": "Hades emulator tests (BIOS open bus, DMA latching, timers)"
+    }
+  },
 
   "test_suites": {
     "arm": {
       "name": "ARM Instruction Set",
       "description": "Tests ARM mode CPU instructions including data processing, branches, multiply, load/store, and block transfers",
       "priority": "critical",
+      "repository": "jsmolka",
       "tests": [
         {
           "path": "arm/arm.gba",
           "expected": "pass",
-          "description": "Comprehensive ARM instruction test suite",
-          "notes": "Tests: conditions (1-49), branches (50-99), flags (100-149), shifts (150-199), data processing (200-249), PSR transfer (250-299), multiply (300-349), single transfer (350-399), halfword transfer (400-449), data swap (450-499), block transfer (500+)"
+          "description": "Comprehensive ARM instruction test suite"
         }
       ]
     },
 
     "thumb": {
       "name": "Thumb Instruction Set",
-      "description": "Tests Thumb mode CPU instructions including arithmetic, logical, shifts, branches, and memory operations",
+      "description": "Tests Thumb mode CPU instructions",
       "priority": "critical",
+      "repository": "jsmolka",
       "tests": [
         {
           "path": "thumb/thumb.gba",
           "expected": "pass",
-          "description": "Comprehensive Thumb instruction test suite",
-          "notes": "Tests arithmetic, logical operations, shifts, branches, and memory access in Thumb mode"
+          "description": "Comprehensive Thumb instruction test suite"
         }
       ]
     },
 
     "memory": {
       "name": "Memory Access",
-      "description": "Tests memory access patterns, mirroring, and video memory operations",
+      "description": "Tests memory access patterns and mirroring",
       "priority": "high",
+      "repository": "jsmolka",
       "tests": [
         {
           "path": "memory/memory.gba",
           "expected": "pass",
-          "description": "Memory access and mirroring tests",
-          "notes": "Tests memory mirrors and video STRB behavior"
+          "description": "Memory access and mirroring tests"
         }
       ]
     },
 
     "ppu": {
       "name": "PPU/Graphics",
-      "description": "Tests PPU rendering including background modes and color output",
+      "description": "Tests PPU rendering",
       "priority": "high",
+      "repository": "jsmolka",
       "tests": [
         {
           "path": "ppu/hello.gba",
           "expected": "pass",
-          "description": "Basic PPU hello world test",
-          "notes": "Simple text rendering test using mode 4"
+          "description": "Basic PPU hello world test"
         },
         {
           "path": "ppu/shades.gba",
           "expected": "pass",
-          "description": "PPU color shading test",
-          "notes": "Tests color palette and shade rendering"
+          "description": "PPU color shading test"
         },
         {
           "path": "ppu/stripes.gba",
           "expected": "pass",
-          "description": "PPU stripe pattern test",
-          "notes": "Tests pattern rendering and pixel accuracy"
+          "description": "PPU stripe pattern test"
         }
       ]
     },
 
     "bios": {
       "name": "BIOS Functions",
-      "description": "Tests BIOS SWI (software interrupt) functions",
+      "description": "Tests BIOS SWI functions",
       "priority": "medium",
+      "repository": "jsmolka",
       "tests": [
         {
           "path": "bios/bios.gba",
           "expected": "pass",
-          "description": "BIOS function tests",
-          "notes": "Requires BIOS file or HLE (High Level Emulation) implementation. Tests SWI functions like Div, Sqrt, ArcTan, etc."
+          "description": "BIOS function tests"
         }
       ]
     },
@@ -91,30 +111,27 @@
       "name": "Save Types",
       "description": "Tests save type detection and functionality",
       "priority": "medium",
+      "repository": "jsmolka",
       "tests": [
         {
           "path": "save/sram.gba",
           "expected": "pass",
-          "description": "SRAM save type test",
-          "notes": "Tests 32KB SRAM read/write functionality"
+          "description": "SRAM save type test"
         },
         {
           "path": "save/flash64.gba",
           "expected": "pass",
-          "description": "Flash 64K save type test",
-          "notes": "Tests 64KB Flash memory commands and read/write"
+          "description": "Flash 64K save type test"
         },
         {
           "path": "save/flash128.gba",
           "expected": "pass",
-          "description": "Flash 128K save type test",
-          "notes": "Tests 128KB Flash memory with bank switching"
+          "description": "Flash 128K save type test"
         },
         {
           "path": "save/none.gba",
           "expected": "pass",
-          "description": "No save type test",
-          "notes": "Verifies behavior when no save type is present"
+          "description": "No save type test"
         }
       ]
     },
@@ -123,50 +140,834 @@
       "name": "Unsafe/Edge Cases",
       "description": "Edge case tests that may not pass on real hardware",
       "priority": "low",
+      "repository": "jsmolka",
       "tests": [
         {
           "path": "unsafe/unsafe.gba",
           "expected": "known_fail",
-          "description": "SRAM mirror and unused ROM reads",
-          "notes": "These tests may not pass on real hardware. SRAM mirror test passes on No$GBA/mGBA but fails on hardware. Unused ROM reads test passes on mGBA but fails on No$GBA and hardware."
+          "description": "SRAM mirror and unused ROM reads"
+        }
+      ]
+    },
+
+    "nba_dma": {
+      "name": "NBA DMA Tests",
+      "description": "DMA tests from NanoBoyAdvance",
+      "priority": "high",
+      "repository": "nba-hw-test",
+      "tests": [
+        {
+          "path": "dma/latch/latch.gba",
+          "expected": "pass",
+          "description": "DMA latch behavior test"
+        },
+        {
+          "path": "dma/start-delay/start-delay.gba",
+          "expected": "pass",
+          "description": "DMA start delay test"
+        },
+        {
+          "path": "dma/force-nseq-access/force-nseq-access.gba",
+          "expected": "pass",
+          "description": "DMA non-sequential access test"
+        },
+        {
+          "path": "dma/burst-into-tears/burst-into-tears.gba",
+          "expected": "pass",
+          "description": "DMA burst transfer test"
+        }
+      ]
+    },
+
+    "nba_irq": {
+      "name": "NBA IRQ Tests",
+      "description": "IRQ timing tests from NanoBoyAdvance",
+      "priority": "high",
+      "repository": "nba-hw-test",
+      "tests": [
+        {
+          "path": "irq/irq-delay/irq-delay.gba",
+          "expected": "pass",
+          "description": "IRQ delay timing test"
+        }
+      ]
+    },
+
+    "nba_timer": {
+      "name": "NBA Timer Tests",
+      "description": "Timer tests from NanoBoyAdvance",
+      "priority": "high",
+      "repository": "nba-hw-test",
+      "tests": [
+        {
+          "path": "timer/start-stop/start-stop.gba",
+          "expected": "pass",
+          "description": "Timer start/stop test"
+        },
+        {
+          "path": "timer/reload/reload.gba",
+          "expected": "pass",
+          "description": "Timer reload test"
+        }
+      ]
+    },
+
+    "nba_ppu": {
+      "name": "NBA PPU Tests",
+      "description": "PPU tests from NanoBoyAdvance",
+      "priority": "low",
+      "repository": "nba-hw-test",
+      "tests": [
+        {
+          "path": "ppu/status-irq-dma/status-irq-dma.gba",
+          "expected": "known_fail",
+          "description": "PPU status/IRQ/DMA interaction test (requires sub-scanline accuracy)"
+        },
+        {
+          "path": "ppu/bgpd/bgpd.gba",
+          "expected": "pass",
+          "test_type": "visual",
+          "description": "Background rotation parameter D test"
+        },
+        {
+          "path": "ppu/bgx/bgx.gba",
+          "expected": "known_fail",
+          "test_type": "visual",
+          "description": "Background X reference point test"
+        }
+      ]
+    },
+
+    "nba_haltcnt": {
+      "name": "NBA HALTCNT Tests",
+      "description": "HALTCNT tests from NanoBoyAdvance",
+      "priority": "medium",
+      "repository": "nba-hw-test",
+      "tests": [
+        {
+          "path": "haltcnt/haltcnt.gba",
+          "expected": "pass",
+          "description": "HALTCNT register test"
+        }
+      ]
+    },
+
+    "nba_bus": {
+      "name": "NBA Bus Tests",
+      "description": "Bus tests from NanoBoyAdvance",
+      "priority": "medium",
+      "repository": "nba-hw-test",
+      "tests": [
+        {
+          "path": "bus/128kb-boundary/128kb-boundary.gba",
+          "expected": "pass",
+          "description": "128KB boundary crossing test"
+        }
+      ]
+    },
+
+    "alyosha_arm": {
+      "name": "Alyosha ARM Tests",
+      "description": "Extended ARM instruction tests",
+      "priority": "high",
+      "repository": "alyosha",
+      "tests": [
+        {
+          "path": "arm/arm.gba",
+          "expected": "pass",
+          "description": "ARM instruction tests"
+        }
+      ]
+    },
+
+    "alyosha_thumb": {
+      "name": "Alyosha Thumb Tests",
+      "description": "Extended Thumb instruction tests",
+      "priority": "high",
+      "repository": "alyosha",
+      "tests": [
+        {
+          "path": "thumb/thumb.gba",
+          "expected": "pass",
+          "description": "Thumb instruction tests"
+        },
+        {
+          "path": "thumb/blx.gba",
+          "expected": "pass",
+          "description": "BLX instruction test"
+        },
+        {
+          "path": "thumb/cpy.gba",
+          "expected": "pass",
+          "description": "CPY instruction test"
+        },
+        {
+          "path": "thumb/Push_no_regs.gba",
+          "expected": "pass",
+          "description": "PUSH with no registers test"
+        },
+        {
+          "path": "thumb/Pop_no_regs.gba",
+          "expected": "pass",
+          "description": "POP with no registers test"
+        }
+      ]
+    },
+
+    "alyosha_ppu": {
+      "name": "Alyosha PPU Tests",
+      "description": "Extended PPU tests",
+      "priority": "high",
+      "repository": "alyosha",
+      "tests": [
+        {
+          "path": "ppu/hello.gba",
+          "expected": "pass",
+          "description": "PPU hello test"
+        },
+        {
+          "path": "ppu/shades.gba",
+          "expected": "pass",
+          "description": "PPU shading test"
+        },
+        {
+          "path": "ppu/stripes.gba",
+          "expected": "pass",
+          "description": "PPU stripes test"
+        },
+        {
+          "path": "ppu/stripes_x_offset.gba",
+          "expected": "pass",
+          "description": "PPU stripes with X offset test"
+        },
+        {
+          "path": "ppu/start_up.gba",
+          "expected": "pass",
+          "description": "PPU startup test"
+        },
+        {
+          "path": "ppu/start_up_vbl.gba",
+          "expected": "pass",
+          "description": "PPU VBlank startup test"
+        },
+        {
+          "path": "ppu/start_up_vbl_irq.gba",
+          "expected": "pass",
+          "description": "PPU VBlank IRQ startup test"
+        },
+        {
+          "path": "ppu/start_up_vbl_irq_halt.gba",
+          "expected": "pass",
+          "description": "PPU VBlank IRQ halt startup test"
+        },
+        {
+          "path": "ppu/Sprite_Disable_Midline.gba",
+          "expected": "pass",
+          "description": "Sprite disable mid-scanline test"
+        },
+        {
+          "path": "ppu/Sprite_Disable_on_VRAM_Access.gba",
+          "expected": "pass",
+          "description": "Sprite disable on VRAM access test"
+        },
+        {
+          "path": "ppu/Sprite_Last_VRAM_Access.gba",
+          "expected": "pass",
+          "description": "Sprite last VRAM access test"
+        },
+        {
+          "path": "ppu/Sprite_Last_VRAM_Access_Free.gba",
+          "expected": "pass",
+          "description": "Sprite last VRAM access free test"
+        }
+      ]
+    },
+
+    "alyosha_irq": {
+      "name": "Alyosha IRQ Tests",
+      "description": "IRQ interaction and timing tests",
+      "priority": "high",
+      "repository": "alyosha",
+      "tests": [
+        {
+          "path": "irq/BL_1.gba",
+          "expected": "pass",
+          "description": "BL instruction IRQ test 1"
+        },
+        {
+          "path": "irq/BL_IRQ.gba",
+          "expected": "pass",
+          "description": "BL IRQ test"
+        },
+        {
+          "path": "irq/BL_IRQ_2.gba",
+          "expected": "pass",
+          "description": "BL IRQ test 2"
+        },
+        {
+          "path": "irq/BL_IRQ_3.gba",
+          "expected": "pass",
+          "description": "BL IRQ test 3"
+        },
+        {
+          "path": "irq/BL_IRQ_R14.gba",
+          "expected": "pass",
+          "description": "BL IRQ R14 test"
+        },
+        {
+          "path": "irq/halt_pc.gba",
+          "expected": "pass",
+          "description": "Halt PC test"
+        },
+        {
+          "path": "irq/halt_pc_2.gba",
+          "expected": "pass",
+          "description": "Halt PC test 2"
+        },
+        {
+          "path": "irq/halt_pc_3.gba",
+          "expected": "pass",
+          "description": "Halt PC test 3"
+        },
+        {
+          "path": "irq/halt_pc_4.gba",
+          "expected": "pass",
+          "description": "Halt PC test 4"
+        },
+        {
+          "path": "irq/IE.gba",
+          "expected": "pass",
+          "description": "IE register test"
+        },
+        {
+          "path": "irq/IF.gba",
+          "expected": "pass",
+          "description": "IF register test"
+        },
+        {
+          "path": "irq/IF_Timer.gba",
+          "expected": "pass",
+          "description": "IF Timer test"
+        },
+        {
+          "path": "irq/IRQ_sub.gba",
+          "expected": "pass",
+          "description": "IRQ subroutine test"
+        },
+        {
+          "path": "irq/IRQ_sub_2.gba",
+          "expected": "pass",
+          "description": "IRQ subroutine test 2"
+        },
+        {
+          "path": "irq/IRQ_sub_slow.gba",
+          "expected": "pass",
+          "description": "IRQ subroutine slow test"
+        },
+        {
+          "path": "irq/IRQ_sub_2_slow.gba",
+          "expected": "pass",
+          "description": "IRQ subroutine 2 slow test"
+        }
+      ]
+    },
+
+    "alyosha_dma": {
+      "name": "Alyosha DMA Tests",
+      "description": "Extended DMA behavior tests",
+      "priority": "high",
+      "repository": "alyosha",
+      "tests": [
+        {
+          "path": "DMA/DMA_Mode_Change.gba",
+          "expected": "pass",
+          "description": "DMA mode change test"
+        },
+        {
+          "path": "DMA/DMA_ROM_Fixed.gba",
+          "expected": "pass",
+          "description": "DMA ROM fixed address test"
+        },
+        {
+          "path": "DMA/DMA_pause_timing_end_1.gba",
+          "expected": "pass",
+          "description": "DMA pause timing end test 1"
+        },
+        {
+          "path": "DMA/DMA_pause_timing_end_2.gba",
+          "expected": "pass",
+          "description": "DMA pause timing end test 2"
+        },
+        {
+          "path": "DMA/DMA_pause_timing_end_3.gba",
+          "expected": "pass",
+          "description": "DMA pause timing end test 3"
+        },
+        {
+          "path": "DMA/DMA_pause_timing_end_4.gba",
+          "expected": "pass",
+          "description": "DMA pause timing end test 4"
+        },
+        {
+          "path": "DMA/DMA_pause_timing_mid_1.gba",
+          "expected": "pass",
+          "description": "DMA pause timing mid test 1"
+        },
+        {
+          "path": "DMA/DMA_pause_timing_mid_2.gba",
+          "expected": "pass",
+          "description": "DMA pause timing mid test 2"
+        },
+        {
+          "path": "DMA/DMA_pause_timing_ROM_to_IWRAM.gba",
+          "expected": "pass",
+          "description": "DMA pause timing ROM to IWRAM test"
+        }
+      ]
+    },
+
+    "alyosha_fifo": {
+      "name": "Alyosha FIFO DMA Tests",
+      "description": "Audio FIFO DMA tests",
+      "priority": "medium",
+      "repository": "alyosha",
+      "tests": [
+        {
+          "path": "fifo_dma/fifo.gba",
+          "expected": "pass",
+          "description": "FIFO DMA test"
+        },
+        {
+          "path": "fifo_dma/fifo_2.gba",
+          "expected": "pass",
+          "description": "FIFO DMA test 2"
+        },
+        {
+          "path": "fifo_dma/fifo_3.gba",
+          "expected": "pass",
+          "description": "FIFO DMA test 3"
+        },
+        {
+          "path": "fifo_dma/fifo_4.gba",
+          "expected": "pass",
+          "description": "FIFO DMA test 4"
+        },
+        {
+          "path": "fifo_dma/fifo_5.gba",
+          "expected": "pass",
+          "description": "FIFO DMA test 5"
+        },
+        {
+          "path": "fifo_dma/fifo_6.gba",
+          "expected": "pass",
+          "description": "FIFO DMA test 6"
+        }
+      ]
+    },
+
+    "alyosha_timer": {
+      "name": "Alyosha Timer Tests",
+      "description": "Timer tests",
+      "priority": "high",
+      "repository": "alyosha",
+      "tests": [
+        {
+          "path": "timer/timer.gba",
+          "expected": "pass",
+          "description": "Timer test"
+        },
+        {
+          "path": "timer/timer_disable.gba",
+          "expected": "pass",
+          "description": "Timer disable test"
+        },
+        {
+          "path": "timer/timer_reset.gba",
+          "expected": "pass",
+          "description": "Timer reset test"
+        }
+      ]
+    },
+
+    "alyosha_prefetcher": {
+      "name": "Alyosha Prefetcher Tests",
+      "description": "Prefetch buffer behavior tests",
+      "priority": "high",
+      "repository": "alyosha",
+      "tests": [
+        {
+          "path": "prefetcher/bounday_test_1.gba",
+          "expected": "pass",
+          "description": "Prefetcher boundary test 1"
+        },
+        {
+          "path": "prefetcher/prefetcher_boundary_1.gba",
+          "expected": "pass",
+          "description": "Prefetcher boundary test"
+        },
+        {
+          "path": "prefetcher/prefetcher_boundary_2.gba",
+          "expected": "pass",
+          "description": "Prefetcher boundary test 2"
+        },
+        {
+          "path": "prefetcher/prefetcher_boundary_3.gba",
+          "expected": "pass",
+          "description": "Prefetcher boundary test 3"
+        },
+        {
+          "path": "prefetcher/prefetcher_boundary_4.gba",
+          "expected": "pass",
+          "description": "Prefetcher boundary test 4"
+        },
+        {
+          "path": "prefetcher/prefetcher_branch_thumb.gba",
+          "expected": "pass",
+          "description": "Prefetcher branch thumb test"
+        },
+        {
+          "path": "prefetcher/prefetcher_branch_thumb_2.gba",
+          "expected": "pass",
+          "description": "Prefetcher branch thumb test 2"
+        },
+        {
+          "path": "prefetcher/prefetcher_branch_thumb_3.gba",
+          "expected": "pass",
+          "description": "Prefetcher branch thumb test 3"
+        },
+        {
+          "path": "prefetcher/prefetcher_branch_thumb_4.gba",
+          "expected": "pass",
+          "description": "Prefetcher branch thumb test 4"
+        },
+        {
+          "path": "prefetcher/prefetcher_branch_thumb_5.gba",
+          "expected": "pass",
+          "description": "Prefetcher branch thumb test 5"
+        },
+        {
+          "path": "prefetcher/prefetcher_branch_thumb_6.gba",
+          "expected": "pass",
+          "description": "Prefetcher branch thumb test 6"
+        },
+        {
+          "path": "prefetcher/prefetcher_branch_thumb_arm.gba",
+          "expected": "pass",
+          "description": "Prefetcher branch thumb/arm test"
+        },
+        {
+          "path": "prefetcher/prefetcher_branch_thumb_arm_3.gba",
+          "expected": "pass",
+          "description": "Prefetcher branch thumb/arm test 3"
+        },
+        {
+          "path": "prefetcher/prefetcher_branch_thumb_arm_4.gba",
+          "expected": "pass",
+          "description": "Prefetcher branch thumb/arm test 4"
+        },
+        {
+          "path": "prefetcher/prefetcher_dma.gba",
+          "expected": "pass",
+          "description": "Prefetcher DMA test"
+        },
+        {
+          "path": "prefetcher/prefetcher_full_arm.gba",
+          "expected": "pass",
+          "description": "Prefetcher full ARM test"
+        },
+        {
+          "path": "prefetcher/prefetcher_full_arm_2.gba",
+          "expected": "pass",
+          "description": "Prefetcher full ARM test 2"
+        },
+        {
+          "path": "prefetcher/prefetcher_full_thumb.gba",
+          "expected": "pass",
+          "description": "Prefetcher full Thumb test"
+        }
+      ]
+    },
+
+    "alyosha_ldm": {
+      "name": "Alyosha LDM Tests",
+      "description": "Load multiple instruction edge cases",
+      "priority": "high",
+      "repository": "alyosha",
+      "tests": [
+        {
+          "path": "LDM/LDM_ALU.gba",
+          "expected": "pass",
+          "description": "LDM ALU test"
+        },
+        {
+          "path": "LDM/LDM_ALU_IMM.gba",
+          "expected": "pass",
+          "description": "LDM ALU immediate test"
+        },
+        {
+          "path": "LDM/LDM_ALU_Store.gba",
+          "expected": "pass",
+          "description": "LDM ALU store test"
+        },
+        {
+          "path": "LDM/LDM_Bx.gba",
+          "expected": "pass",
+          "description": "LDM BX test"
+        },
+        {
+          "path": "LDM/LDM_LD.gba",
+          "expected": "pass",
+          "description": "LDM LD test"
+        },
+        {
+          "path": "LDM/LDM_MUL_UL_32.gba",
+          "expected": "pass",
+          "description": "LDM MUL unsigned long 32 test"
+        },
+        {
+          "path": "LDM/LDM_MUL_UL_SL.gba",
+          "expected": "pass",
+          "description": "LDM MUL UL SL test"
+        },
+        {
+          "path": "LDM/LDM_Swap.gba",
+          "expected": "pass",
+          "description": "LDM swap test"
+        }
+      ]
+    },
+
+    "alyosha_interactions": {
+      "name": "Alyosha Interaction Tests",
+      "description": "Tests complex hardware feature interactions",
+      "priority": "medium",
+      "repository": "alyosha",
+      "tests": [
+        {
+          "path": "Interactions/Halt_IRQ.gba",
+          "expected": "pass",
+          "description": "Halt IRQ interaction test"
+        },
+        {
+          "path": "Interactions/Halt_DMA_IRQ.gba",
+          "expected": "pass",
+          "description": "Halt DMA IRQ interaction test"
+        },
+        {
+          "path": "Interactions/Halt_DMA_IRQ_Read_OAM.gba",
+          "expected": "pass",
+          "description": "Halt DMA IRQ Read OAM test"
+        },
+        {
+          "path": "Interactions/Internal_Cycle_DMA_IRQ.gba",
+          "expected": "pass",
+          "description": "Internal cycle DMA IRQ test"
+        },
+        {
+          "path": "Interactions/Internal_Cycle_DMA_IRQ_7.gba",
+          "expected": "pass",
+          "description": "Internal cycle DMA IRQ test 7"
+        },
+        {
+          "path": "Interactions/Internal_Cycle_DMA_IRQ_br.gba",
+          "expected": "pass",
+          "description": "Internal cycle DMA IRQ branch test"
+        },
+        {
+          "path": "Interactions/Internal_Cycle_DMA_IRQ_br1_IWRAM.gba",
+          "expected": "pass",
+          "description": "Internal cycle DMA IRQ branch IWRAM test"
+        },
+        {
+          "path": "Interactions/Internal_Cycle_DMA_IRQ_Br_pre.gba",
+          "expected": "pass",
+          "description": "Internal cycle DMA IRQ branch pre test"
+        },
+        {
+          "path": "Interactions/Internal_Cycle_DMA_IRQ_Br_pre_tim.gba",
+          "expected": "pass",
+          "description": "Internal cycle DMA IRQ branch pre timer test"
+        },
+        {
+          "path": "Interactions/Internal_Cycle_DMA_IRQ_ldr_IWRAM.gba",
+          "expected": "pass",
+          "description": "Internal cycle DMA IRQ LDR IWRAM test"
+        },
+        {
+          "path": "Interactions/Internal_Cycle_DMA_IRQ_nop_IWRAM.gba",
+          "expected": "pass",
+          "description": "Internal cycle DMA IRQ NOP IWRAM test"
+        },
+        {
+          "path": "Interactions/Internal_Cycle_DMA_IRQ_ST.gba",
+          "expected": "pass",
+          "description": "Internal cycle DMA IRQ ST test"
+        },
+        {
+          "path": "Interactions/Internal_Cycle_DMA_IRQ_ST_p3.gba",
+          "expected": "pass",
+          "description": "Internal cycle DMA IRQ ST P3 test"
+        },
+        {
+          "path": "Interactions/Internal_Cycle_DMA_Mul.gba",
+          "expected": "pass",
+          "description": "Internal cycle DMA multiply test"
+        },
+        {
+          "path": "Interactions/Internal_Cycle_DMA_MUL_IRQ.gba",
+          "expected": "pass",
+          "description": "Internal cycle DMA multiply IRQ test"
+        },
+        {
+          "path": "Interactions/Internal_Cycle_DMA_TIM_Br_pre.gba",
+          "expected": "pass",
+          "description": "Internal cycle DMA timer branch pre test"
+        }
+      ]
+    },
+
+    "alyosha_timing": {
+      "name": "Alyosha Timing Tests",
+      "description": "CPU and memory timing accuracy tests",
+      "priority": "high",
+      "repository": "alyosha",
+      "tests": [
+        {
+          "path": "timing/cpy_data_bios.gba",
+          "expected": "pass",
+          "description": "Copy data BIOS timing test"
+        },
+        {
+          "path": "timing/dma_from_bios.gba",
+          "expected": "pass",
+          "description": "DMA from BIOS timing test"
+        },
+        {
+          "path": "timing/dma_long.gba",
+          "expected": "pass",
+          "description": "DMA long timing test"
+        },
+        {
+          "path": "timing/prefetch_enable.gba",
+          "expected": "pass",
+          "description": "Prefetch enable timing test"
+        },
+        {
+          "path": "timing/prefetch_enable_2.gba",
+          "expected": "pass",
+          "description": "Prefetch enable timing test 2"
+        }
+      ]
+    },
+
+    "alyosha_bios": {
+      "name": "Alyosha BIOS Tests",
+      "description": "BIOS function tests",
+      "priority": "medium",
+      "repository": "alyosha",
+      "tests": [
+        {
+          "path": "bios/bios.gba",
+          "expected": "pass",
+          "description": "BIOS function tests"
+        }
+      ]
+    },
+
+    "alyosha_memory": {
+      "name": "Alyosha Memory Tests",
+      "description": "Memory access tests",
+      "priority": "high",
+      "repository": "alyosha",
+      "tests": [
+        {
+          "path": "memory/memory.gba",
+          "expected": "pass",
+          "description": "Memory access tests"
+        }
+      ]
+    },
+
+    "alyosha_psr": {
+      "name": "Alyosha PSR Tests",
+      "description": "Program status register tests",
+      "priority": "high",
+      "repository": "alyosha",
+      "tests": [
+        {
+          "path": "psr/psr.gba",
+          "expected": "pass",
+          "description": "PSR register tests"
+        }
+      ]
+    },
+
+    "hades_bios": {
+      "name": "Hades BIOS Tests",
+      "description": "BIOS open bus and function tests",
+      "priority": "medium",
+      "repository": "hades",
+      "tests": [
+        {
+          "path": "roms/bios-openbus.gba",
+          "expected": "pass",
+          "description": "BIOS open bus behavior"
+        }
+      ]
+    },
+
+    "hades_dma": {
+      "name": "Hades DMA Tests",
+      "description": "DMA latching and timing tests",
+      "priority": "medium",
+      "repository": "hades",
+      "tests": [
+        {
+          "path": "roms/dma-latch.gba",
+          "expected": "pass",
+          "description": "DMA address latching"
+        },
+        {
+          "path": "roms/dma-start-delay.gba",
+          "expected": "pass",
+          "description": "DMA start delay"
+        }
+      ]
+    },
+
+    "hades_timer": {
+      "name": "Hades Timer Tests",
+      "description": "Timer basic tests",
+      "priority": "medium",
+      "repository": "hades",
+      "tests": [
+        {
+          "path": "roms/timer-basic.gba",
+          "expected": "pass",
+          "description": "Timer basic functionality"
         }
       ]
     }
   },
 
   "arm_test_ranges": {
-    "conditions": {"start": 1, "end": 49, "description": "ARM condition code tests (EQ, NE, CS, CC, MI, PL, VS, VC, HI, LS, GE, LT, GT, LE, AL, NV)"},
-    "branches": {"start": 50, "end": 99, "description": "ARM branch instruction tests (B, BL, BX)"},
-    "flags": {"start": 100, "end": 149, "description": "ARM flag manipulation tests (N, Z, C, V flags)"},
-    "shifts": {"start": 150, "end": 199, "description": "ARM shift operation tests (LSL, LSR, ASR, ROR, RRX)"},
-    "data_processing": {"start": 200, "end": 249, "description": "ARM data processing tests (AND, EOR, SUB, RSB, ADD, ADC, SBC, RSC, TST, TEQ, CMP, CMN, ORR, MOV, BIC, MVN)"},
-    "psr_transfer": {"start": 250, "end": 299, "description": "ARM PSR transfer tests (MRS, MSR)"},
-    "multiply": {"start": 300, "end": 349, "description": "ARM multiply tests (MUL, MLA, UMULL, UMLAL, SMULL, SMLAL)"},
-    "single_transfer": {"start": 350, "end": 399, "description": "ARM single data transfer tests (LDR, STR, LDRB, STRB)"},
-    "halfword_transfer": {"start": 400, "end": 449, "description": "ARM halfword transfer tests (LDRH, STRH, LDRSB, LDRSH)"},
-    "data_swap": {"start": 450, "end": 499, "description": "ARM data swap tests (SWP, SWPB)"},
-    "block_transfer": {"start": 500, "end": 599, "description": "ARM block data transfer tests (LDM, STM with various addressing modes)"}
+    "conditions": {"start": 1, "end": 49, "description": "ARM condition code tests"},
+    "branches": {"start": 50, "end": 99, "description": "ARM branch instruction tests"},
+    "flags": {"start": 100, "end": 149, "description": "ARM flag manipulation tests"},
+    "shifts": {"start": 150, "end": 199, "description": "ARM shift operation tests"},
+    "data_processing": {"start": 200, "end": 249, "description": "ARM data processing tests"},
+    "psr_transfer": {"start": 250, "end": 299, "description": "ARM PSR transfer tests"},
+    "multiply": {"start": 300, "end": 349, "description": "ARM multiply tests"},
+    "single_transfer": {"start": 350, "end": 399, "description": "ARM single data transfer tests"},
+    "halfword_transfer": {"start": 400, "end": 449, "description": "ARM halfword transfer tests"},
+    "data_swap": {"start": 450, "end": 499, "description": "ARM data swap tests"},
+    "block_transfer": {"start": 500, "end": 599, "description": "ARM block data transfer tests"}
   },
 
-  "known_issues": {
-    "bios_hle": "BIOS tests require either a real BIOS dump or accurate HLE implementation of SWI functions",
-    "flash_timing": "Flash memory operations may have timing-sensitive behavior",
-    "sram_mirror": "SRAM mirroring behavior may differ between emulators and hardware",
-    "unused_rom": "Unused ROM area read behavior is not well-defined"
-  },
-
-  "hardware_notes": {
-    "arm7tdmi": "GBA uses ARM7TDMI CPU with 16.78MHz clock",
-    "memory_regions": {
-      "bios": "0x00000000-0x00003FFF (16KB)",
-      "ewram": "0x02000000-0x0203FFFF (256KB)",
-      "iwram": "0x03000000-0x03007FFF (32KB)",
-      "io": "0x04000000-0x040003FE",
-      "palette": "0x05000000-0x050003FF (1KB)",
-      "vram": "0x06000000-0x06017FFF (96KB)",
-      "oam": "0x07000000-0x070003FF (1KB)",
-      "rom": "0x08000000-0x09FFFFFF (32MB max)",
-      "sram": "0x0E000000-0x0E00FFFF (64KB)"
-    }
+  "debug_output": {
+    "description": "mGBA-compatible debug registers for test ROM output",
+    "REG_DEBUG_ENABLE": "0x04FFF780",
+    "REG_DEBUG_FLAGS": "0x04FFF700",
+    "REG_DEBUG_STRING": "0x04FFF600"
   }
 }

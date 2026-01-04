@@ -26,16 +26,16 @@ The GBA core provides Game Boy Advance emulation with an ARM7TDMI CPU supporting
 | ARM data processing | Implemented | ADD, SUB, AND, ORR, etc. |
 | ARM branching | Implemented | B, BL, BX |
 | ARM load/store | Implemented | LDR, STR, LDM, STM |
-| ARM multiply | Implemented | MUL, MLA, UMULL, SMULL |
+| ARM multiply | Implemented | MUL, MLA, UMULL, SMULL (variable timing) |
 | ARM swap | Implemented | SWP, SWPB |
 | ARM MRS/MSR | Implemented | Status register access |
 | Thumb instructions | Implemented | Full 16-bit instruction set |
 | Processor modes | Implemented | User, FIQ, IRQ, SVC, ABT, UND, System |
 | Register banking | Implemented | Banked R8-R14 for FIQ, R13-R14 for others |
 | Condition codes | Implemented | All 16 conditions |
-| IRQ handling | Partial | Return address calculation fixed |
-| Prefetch buffer | Not Implemented | Affects timing accuracy |
-| Wait states | Partial | Basic implementation only |
+| IRQ handling | Implemented | 7-cycle delay, edge-triggered detection |
+| Prefetch buffer | Implemented | 8-halfword buffer with fill/hit logic |
+| Wait states | Implemented | N/S cycles per region (WS0/WS1/WS2) |
 
 ### PPU (Partial)
 
@@ -54,12 +54,12 @@ The GBA core provides Game Boy Advance emulation with an ARM7TDMI CPU supporting
 | Windows (WIN0/WIN1) | Implemented | |
 | OBJ Window | Implemented | |
 | Forced blank | Implemented | DISPCNT bit 7 |
-| Mosaic | Not Implemented | |
+| Mosaic | Implemented | BG and OBJ horizontal/vertical |
 | Sprite semi-transparency | Implemented | |
 | HBlank DMA trigger | Implemented | |
 | VBlank DMA trigger | Implemented | |
 
-### APU (Partial)
+### APU (Mostly Complete)
 
 | Feature | Status | Notes |
 |---------|--------|-------|
@@ -68,12 +68,13 @@ The GBA core provides Game Boy Advance emulation with an ARM7TDMI CPU supporting
 | Channel 3 (Wave) | Implemented | 4-bit wave samples |
 | Channel 4 (Noise) | Implemented | LFSR noise |
 | Frame sequencer | Implemented | Length, envelope, sweep clocking |
-| Direct Sound A | Not Working | FIFO structure exists |
-| Direct Sound B | Not Working | FIFO structure exists |
-| Sound mixing | Partial | GB channels only |
-| Timer-driven audio | Not Working | Critical for GBA games |
+| Direct Sound A | Implemented | FIFO-based PCM audio |
+| Direct Sound B | Implemented | FIFO-based PCM audio |
+| Sound mixing | Implemented | DMG + Direct Sound mixing |
+| Timer-driven audio | Implemented | Timer0/1 overflow triggers |
+| Dynamic rate control | Implemented | Sync with host audio |
 
-### DMA (Partial)
+### DMA (Mostly Complete)
 
 | Feature | Status | Notes |
 |---------|--------|-------|
@@ -81,11 +82,11 @@ The GBA core provides Game Boy Advance emulation with an ARM7TDMI CPU supporting
 | Immediate trigger | Implemented | |
 | VBlank trigger | Implemented | |
 | HBlank trigger | Implemented | |
-| Sound FIFO (DMA1/2) | Partial | 4-word transfers |
+| Sound FIFO (DMA1/2) | Implemented | 4-sample transfers on timer overflow |
 | Word/Halfword size | Implemented | |
 | Address control | Implemented | Inc/Dec/Fixed/Reload |
 | Repeat mode | Implemented | Source address preserved |
-| IRQ on complete | Not Verified | |
+| IRQ on complete | Implemented | Fires DMA0-3 IRQs when enabled |
 
 ### Timers (Partial)
 
@@ -97,13 +98,14 @@ The GBA core provides Game Boy Advance emulation with an ARM7TDMI CPU supporting
 | IRQ generation | Not Verified | |
 | Overflow handling | Implemented | |
 
-### Interrupts (Partial)
+### Interrupts (Functional)
 
 | Feature | Status | Notes |
 |---------|--------|-------|
 | IE register | Implemented | Interrupt enable |
 | IF register | Implemented | Interrupt flags (write to acknowledge) |
 | IME register | Implemented | Master enable |
+| Edge detection | Implemented | Prevents same IRQ from re-triggering |
 | VBlank IRQ | Implemented | Generated at scanline 160 |
 | HBlank IRQ | Partial | |
 | VCount IRQ | Partial | |
@@ -116,21 +118,21 @@ The GBA core provides Game Boy Advance emulation with an ARM7TDMI CPU supporting
 
 | Function | SWI | Status | Notes |
 |---------|-----|--------|-------|
-| SoftReset | 0x00 | Not Implemented | |
-| RegisterRamReset | 0x01 | Not Implemented | |
+| SoftReset | 0x00 | Implemented | Full GBATEK spec, clears IWRAM, sets SPs |
+| RegisterRamReset | 0x01 | Implemented | EWRAM, IWRAM, Palette, VRAM, OAM |
 | Halt | 0x02 | Implemented | |
 | Stop | 0x03 | Not Implemented | |
 | IntrWait | 0x04 | Implemented | Clears flags at 0x03007FF8 |
 | VBlankIntrWait | 0x05 | Implemented | |
 | Div | 0x06 | Implemented | |
-| DivArm | 0x07 | Not Implemented | |
+| DivArm | 0x07 | Implemented | Swaps R0/R1 then calls Div |
 | Sqrt | 0x08 | Implemented | |
 | ArcTan | 0x09 | Implemented | |
 | ArcTan2 | 0x0A | Implemented | |
 | CpuSet | 0x0B | Implemented | |
 | CpuFastSet | 0x0C | Implemented | |
-| GetBiosChecksum | 0x0D | Not Implemented | |
-| BgAffineSet | 0x0E | Not Implemented | |
+| GetBiosChecksum | 0x0D | Implemented | Returns 0xBAAE187F |
+| BgAffineSet | 0x0E | Implemented | Full matrix calculation |
 | ObjAffineSet | 0x0F | Implemented | |
 | BitUnPack | 0x10 | Implemented | |
 | LZ77UnCompWram | 0x11 | Implemented | |
@@ -138,9 +140,9 @@ The GBA core provides Game Boy Advance emulation with an ARM7TDMI CPU supporting
 | HuffUnComp | 0x13 | Partial | May have bugs |
 | RLUnCompWram | 0x14 | Implemented | |
 | RLUnCompVram | 0x15 | Partial | May have bugs |
-| Diff8bitUnFilterWram | 0x16 | Not Implemented | |
-| Diff8bitUnFilterVram | 0x17 | Not Implemented | |
-| Diff16bitUnFilter | 0x18 | Not Implemented | |
+| Diff8bitUnFilterWram | 0x16 | Implemented | 8-bit differential filter |
+| Diff8bitUnFilterVram | 0x17 | Implemented | 16-bit aligned writes |
+| Diff16bitUnFilter | 0x18 | Implemented | 16-bit differential filter |
 | SoundBias | 0x19 | Not Implemented | |
 | MidiKey2Freq | 0x1F | Not Implemented | |
 
@@ -151,8 +153,8 @@ The GBA core provides Game Boy Advance emulation with an ARM7TDMI CPU supporting
 | SRAM 32KB | Implemented | Auto-detected via string search |
 | Flash 64KB | Implemented | Full command sequence |
 | Flash 128KB | Implemented | Bank switching, chip ID |
-| EEPROM 512B | Not Implemented | |
-| EEPROM 8KB | Not Implemented | |
+| EEPROM 512B | Implemented | 6-bit addressing, serial protocol |
+| EEPROM 8KB | Implemented | 14-bit addressing, serial protocol |
 
 ### Other Features
 
@@ -168,59 +170,132 @@ The GBA core provides Game Boy Advance emulation with an ARM7TDMI CPU supporting
 
 ### Pokemon Fire Red
 
-**Status: NOT WORKING**
+**Status: BOOTS (Intro playable, stable to 6000+ frames)**
 
-Current issues:
-- White screen or freeze during boot
-- May be stuck waiting for interrupts
-- Graphics decompression may have issues
+The game boots successfully and runs through the intro sequence with stable performance.
 
-Attempted fixes:
-- IRQ return address calculation
-- VBlank interrupt generation
+Current state:
+- ROM loads successfully, CRC32 verified
+- Flash 128KB save type auto-detected
+- VBlank/Timer IRQs firing correctly
+- Direct Sound audio playing
+- Game boots through intro, Nintendo logo and Game Freak logo appear
+- Intro sequence plays stably (tested to 6000+ frames)
+- Prefetch buffer working correctly
+
+Implemented fixes:
+- 7-cycle IRQ delay (mGBA-style timing)
+- Edge-triggered IRQ detection to prevent nested IRQ loops
+- ObjAffineSet BIOS fix (output stride handling)
 - LZ77 decompression rewrite
-- DMA VBlank/HBlank triggers
+- Direct Sound implementation
+- Timer-driven audio DMA
+- Prefetch buffer fill/hit logic
+- Blending second target detection (proper layer verification)
+- Backdrop brightness effects (when only backdrop visible)
+- Affine reference point reload timing (VBlank only, not line 0)
 
-### What's Needed for Commercial Games
+### Known Accuracy Issues (from Code Analysis)
 
-Based on comparison with mGBA (https://github.com/mgba-emu/mgba):
+Based on comparison with GBATEK documentation and reference emulators (mGBA, NanoBoyAdvance):
 
-1. **Event Scheduler** - mGBA uses an event scheduler for accurate timing
-2. **IRQ Delay** - mGBA implements a 7-cycle delay before servicing IRQs
-3. **Prefetch Buffer** - Affects instruction fetch timing
-4. **Accurate Wait States** - Per-region wait state configuration
-5. **Direct Sound** - DMA-fed audio is essential for GBA games
+#### Rendering
+- **Scanline-based PPU** - Renders entire scanlines at HBlank, so mid-scanline raster effects don't work correctly. Games like Golden Sun (water effects) may have visual issues.
+- **No cycle-accurate pixel rendering** - Would need per-pixel rendering for proper mid-scanline effects.
+
+#### CPU Timing
+- **Simplified pipeline** - 3-stage pipeline behavior is approximated rather than cycle-accurate
+
+#### Audio
+- **Missing APU quirks** - Obscure GB sound behaviors (zombie mode, extra length clocking) not implemented
+
+#### BIOS
+- **Missing functions** - SWI 0x19 (SoundBias), 0x1F (MidiKey2Freq)
+- **Approximate math** - ArcTan/ArcTan2 use floating-point instead of BIOS lookup tables
+
+### What's Needed for Better Compatibility
+
+1. ~~**Prefetch Buffer** - The GBA has an 8-halfword prefetch buffer that affects instruction timing.~~ DONE
+
+2. ~~**Accurate Wait States** - Per-region configurable wait states with proper N/S cycle handling~~ DONE
+
+3. ~~**Variable multiply timing** - Based on operand bit count (1-4 cycles)~~ DONE
+
+4. ~~**IRQ Delay** - mGBA implements a 7-cycle delay before servicing IRQs~~ DONE
+
+5. ~~**Direct Sound** - DMA-fed audio is essential for GBA games~~ DONE
+
+6. **Event Scheduler** - For sub-frame precision timing of DMA, timers, and interrupts
+
+7. ~~**EEPROM Save Support** - Many games use EEPROM (512B or 8KB) instead of SRAM/Flash~~ DONE
+
+8. ~~**Audio interpolation** - For better Direct Sound quality~~ DONE
+
+9. **Cycle-accurate PPU** - For mid-scanline effects (major undertaking)
 
 ## Test Status
+
+**Pass Rate: 90.9% (20/22 tests pass, 2 known issues)**
+
+Run the test suite with:
+```bash
+cd cores/gba/tests
+python3 test_runner.py -v
+```
 
 ### CPU Tests (jsmolka gba-tests)
 
 | Category | Test | Status | Notes |
 |----------|------|--------|-------|
-| ARM | arm.gba | Needs Verify | ARM instruction tests |
-| Thumb | thumb.gba | Needs Verify | Thumb instruction tests |
-| Memory | memory.gba | Needs Verify | Memory access tests |
+| ARM | arm.gba | **PASS** | Full ARM instruction set (conditions, branches, flags, shifts, data processing, PSR transfer, multiply, single/block/halfword transfer, swap) |
+| Thumb | thumb.gba | **PASS** | Full Thumb instruction set |
+| Memory | memory.gba | **PASS** | Memory access patterns, mirroring, video STRB behavior |
 
 ### PPU Tests
 
 | Test | Status | Notes |
 |------|--------|-------|
-| hello.gba | Needs Verify | Basic rendering |
-| stripes.gba | Needs Verify | Mode 0 backgrounds |
+| hello.gba | **PASS** | Basic text rendering (Mode 4) |
+| shades.gba | **PASS** | Color palette and shade rendering |
+| stripes.gba | **PASS** | Pattern rendering and pixel accuracy |
 
 ### BIOS Tests
 
 | Test | Status | Notes |
 |------|--------|-------|
-| bios.gba | FAIL | Test #3 - decompression function |
+| bios.gba | **PASS** | HLE BIOS functions (Div, Sqrt, ArcTan, CpuSet, LZ77, etc.) |
 
 ### Save Tests
 
 | Test | Status | Notes |
 |------|--------|-------|
-| sram.gba | Needs Verify | 32KB SRAM |
-| flash64.gba | Needs Verify | 64KB Flash |
-| flash128.gba | Needs Verify | 128KB Flash |
+| sram.gba | **PASS** | 32KB SRAM read/write |
+| flash64.gba | **PASS** | 64KB Flash commands |
+| flash128.gba | **PASS** | 128KB Flash with bank switching |
+| none.gba | **PASS** | No save type behavior |
+
+### NanoBoyAdvance Hardware Tests
+
+| Category | Test | Status | Notes |
+|----------|------|--------|-------|
+| DMA | latch.gba | **PASS** | DMA SAD/DAD latch timing |
+| DMA | start-delay.gba | **PASS** | DMA enable to first transfer delay |
+| DMA | force-nseq-access.gba | **PASS** | DMA non-sequential access |
+| DMA | burst-into-tears.gba | **PASS** | DMA burst behavior |
+| IRQ | irq-delay.gba | **PASS** | IRQ trigger to handler entry cycles |
+| Timer | start-stop.gba | **PASS** | Timer enable/disable behavior |
+| Timer | reload.gba | **PASS** | Timer reload on overflow |
+| HALTCNT | haltcnt.gba | **PASS** | Halt/stop mode behavior |
+| Bus | 128kb-boundary.gba | **PASS** | Memory access across 128KB boundaries |
+| PPU | status-irq-dma.gba | KNOWN | Requires sub-scanline cycle accuracy |
+| PPU | bgpd.gba | VISUAL | HBlank DMA to BG2PD (screenshot captured) |
+| PPU | bgx.gba | VISUAL | HBlank DMA to BG2X (screenshot captured) |
+
+### Edge Case Tests
+
+| Test | Status | Notes |
+|------|--------|-------|
+| unsafe.gba | KNOWN | SRAM mirrors, unused ROM reads (hardware-undefined behavior) |
 
 ## Memory Map
 
@@ -294,20 +369,65 @@ cd cores/gba/tests
 ## TODO
 
 ### Priority 1 - Critical for Game Compatibility
-- [ ] Implement event scheduler for accurate timing
-- [ ] Add 7-cycle IRQ delay (like mGBA)
-- [ ] Implement Direct Sound channels A/B
-- [ ] Fix timer cascade for audio
-- [ ] Debug Pokemon Fire Red boot sequence
+- [x] Add 7-cycle IRQ delay (like mGBA) - DONE
+- [x] Edge-triggered IRQ detection - DONE
+- [x] Direct Sound channels A/B - DONE
+- [x] Timer-driven audio DMA - DONE
+- [x] **Prefetch Buffer Timing** - DONE (8-halfword buffer with fill/hit logic)
+- [x] **Accurate Wait State Timing** - DONE (N/S cycles per region WS0/WS1/WS2)
+- [x] **Fix IRQ return LR calculation** - DONE (Fixed for both ARM and Thumb modes)
+- [x] **Fix sprite priority for same-priority OAM** - DONE (Lower OAM indices win)
+- [x] **Add bitmap mode sprite tile restriction** - DONE (Tiles < 512 unavailable in modes 3-5)
+- [ ] **Cycle-Accurate Instruction Timing** - Partial (memory access delays partially implemented)
 
 ### Priority 2 - Important
-- [ ] Implement EEPROM save types
-- [ ] Add prefetch buffer emulation
-- [ ] Implement remaining BIOS functions
-- [ ] Verify all interrupt sources
+- [x] Implement EEPROM save types (512B and 8KB) - DONE
+- [ ] Event scheduler for sub-frame timing
+- [x] Implement remaining BIOS functions (Diff filters) - DONE
+- [ ] Implement SoundBias and MidiKey2Freq BIOS functions
+- [x] Verify timer cascade mode accuracy - DONE (NBA tests pass)
+- [x] Verify all interrupt source timing - DONE (NBA IRQ tests pass)
 
 ### Priority 3 - Polish
-- [ ] Implement mosaic effect
-- [ ] Accurate wait state timing
+- [x] Implement mosaic effect - DONE (BG and OBJ mosaic, regular and affine)
+- [x] Audio interpolation for Direct Sound - DONE (linear interpolation)
+- [x] Variable multiply timing - DONE (1-4 cycles based on operand)
+- [x] Comprehensive test suite validation - DONE (90.9% pass rate)
 - [ ] Serial/link cable support
-- [ ] Comprehensive test suite validation
+- [ ] GPIO/RTC full implementation
+
+### Reference Emulators to Study
+- [mGBA](https://github.com/mgba-emu/mgba) - High-accuracy, well-documented
+- [NanoBoyAdvance](https://github.com/nba-emu/NanoBoyAdvance) - Cycle-accurate
+- [SkyEmu](https://github.com/skylersaleh/SkyEmu) - Modern, well-structured
+
+## Technical Notes: Prefetch Buffer
+
+The GBA has an 8 x 16-bit prefetch buffer that significantly affects execution timing. This is now fully implemented.
+
+### How It Works
+1. **Capacity**: 8 halfwords (16-bit each)
+2. **Filling**: Buffer fills during I-cycles or when CPU isn't accessing ROM
+3. **Draining**: Provides 0-wait sequential ROM reads if data is prefetched
+4. **Branches**: Buffer becomes invalid on non-sequential access (branches)
+5. **Control**: WAITCNT bit 14 enables/disables the prefetch buffer
+
+### Current Implementation
+```cpp
+struct Prefetch {
+    uint32_t head_address;  // Start of prefetch region (first valid address)
+    uint32_t next_address;  // Next address to prefetch
+    int count = 0;          // Current halfwords in buffer (0-8)
+    int countdown = 0;      // Cycles until next prefetch completes
+    bool active = false;    // Is prefetcher currently filling?
+};
+```
+
+Key behaviors:
+- `prefetch_step(cycles)`: Advances buffer filling during execution cycles
+- `prefetch_read(address, size)`: Checks for hit, returns 1 cycle on hit, full wait on miss
+- `prefetch_invalidate()`: Clears buffer on branches/non-sequential access
+
+### References
+- [mGBA blog on cycle counting](https://mgba.io/2015/06/27/cycle-counting-prefetch/)
+- [NanoBoyAdvance](https://github.com/nba-emu/NanoBoyAdvance) - Cycle-accurate reference

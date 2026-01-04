@@ -2,6 +2,7 @@
 
 #include "emu/plugin_types.hpp"
 #include <string>
+#include <vector>
 #include <unordered_map>
 #include <filesystem>
 
@@ -36,6 +37,13 @@ public:
         return m_selections;
     }
 
+    // Game plugin multi-selection (multiple game plugins can be enabled)
+    std::vector<std::string> get_enabled_game_plugins() const;
+    void set_enabled_game_plugins(const std::vector<std::string>& plugins);
+    void add_enabled_game_plugin(const std::string& plugin_name);
+    void remove_enabled_game_plugin(const std::string& plugin_name);
+    bool is_game_plugin_enabled(const std::string& plugin_name) const;
+
     // Per-plugin configuration (plugin-specific settings)
     std::string get_plugin_setting(const std::string& plugin_name, const std::string& key) const;
     void set_plugin_setting(const std::string& plugin_name, const std::string& key, const std::string& value);
@@ -50,6 +58,7 @@ public:
 private:
     std::unordered_map<PluginType, std::string> m_selections;
     std::unordered_map<std::string, std::unordered_map<std::string, std::string>> m_plugin_settings;
+    std::vector<std::string> m_enabled_game_plugins;  // Multiple game plugins can be enabled
     std::filesystem::path m_config_path;
     bool m_modified = false;
 };

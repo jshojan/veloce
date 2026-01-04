@@ -9,10 +9,11 @@ namespace emu {
 
 // Default audio settings
 constexpr int DEFAULT_SAMPLE_RATE = 44100;
-// Smaller SDL buffer for lower latency. With dynamic rate control,
-// we can use a much smaller buffer without risking underruns.
-// 1024 samples = ~23ms at 44100Hz (about 1.5 frames)
-constexpr int DEFAULT_BUFFER_SIZE = 1024;
+// Minimum SDL buffer for lowest latency. With streaming audio and
+// dynamic rate control, we can use a very small buffer.
+// 128 samples = ~2.9ms at 44100Hz (about 1/6 of a frame)
+// This is the primary source of audio latency - keep it as small as possible.
+constexpr int DEFAULT_BUFFER_SIZE = 128;
 
 // Audio synchronization modes
 enum class AudioSyncMode {
@@ -50,6 +51,9 @@ public:
 
     // Push audio samples from emulator (for DynamicRate and LargeBuffer modes)
     void push_samples(const float* samples, size_t count);
+
+    // Push audio samples with resampling from source rate to output rate
+    void push_samples_resampled(const float* samples, size_t count, int source_rate);
 
     // For AudioDriven mode: set callback that produces samples on demand
     // The callback should run enough emulation to produce the requested samples
@@ -113,12 +117,16 @@ private:
     SampleCallback m_sample_callback;
 
     // Dynamic rate control state
-    // Target: keep buffer at ~50% capacity for headroom in both directions
+    // Target: keep buffer at minimal level for low latency while avoiding underruns
+    // Lower target = lower latency, but requires faster rate control response
+    //
+    // Note: These values are in FLOATS (individual L/R samples), not stereo pairs.
+    // At 44100Hz stereo: 128 floats = 64 stereo pairs = ~1.5ms
     double m_rate_adjustment = 1.0;  // 1.0 = no adjustment, 1.001 = 0.1% faster
-    static constexpr double MAX_RATE_ADJUSTMENT = 0.005;  // +/- 0.5% max (inaudible)
-    static constexpr size_t TARGET_BUFFER_SAMPLES = 2048;  // ~46ms target buffer level
-    static constexpr size_t MIN_BUFFER_SAMPLES = 512;      // ~12ms minimum before rate increase
-    static constexpr size_t MAX_BUFFER_SAMPLES = 4096;     // ~93ms maximum before rate decrease
+    static constexpr double MAX_RATE_ADJUSTMENT = 0.01;    // +/- 1% max (still inaudible)
+    static constexpr size_t TARGET_BUFFER_SAMPLES = 128;   // ~1.5ms target buffer level (minimum latency)
+    static constexpr size_t MIN_BUFFER_SAMPLES = 32;       // ~0.4ms minimum before rate increase
+    static constexpr size_t MAX_BUFFER_SAMPLES = 256;      // ~2.9ms maximum before rate decrease
 
     // Resampler state for fractional sample interpolation
     float m_resample_accumulator = 0.0f;
