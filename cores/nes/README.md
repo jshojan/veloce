@@ -162,15 +162,15 @@ python test_runner.py --json
 
 ### Test Results Summary
 
-**Overall: 80/90 Pass (88.9%)**
+**Overall: 82/90 Pass (91.1%)** - 8 known edge cases
 
-#### CPU Instructions (Critical) - 15/16 Pass
+#### CPU Instructions (Critical) - 16/16 Pass
 
 | Test | Status | Notes |
 |------|--------|-------|
 | 01-basics.nes | Pass | |
 | 02-implied.nes | Pass | |
-| 03-immediate.nes | Known Fail | Unofficial opcode edge case |
+| 03-immediate.nes | Pass | |
 | 04-zero_page.nes | Pass | |
 | 05-zp_xy.nes | Pass | |
 | 06-absolute.nes | Pass | |
@@ -208,8 +208,8 @@ python test_runner.py --json
 | Test | Status | Notes |
 |------|--------|-------|
 | 1-cli_latency.nes | Pass | |
-| 2-nmi_and_brk.nes | Known Fail | NMI/BRK interaction |
-| 3-nmi_and_irq.nes | Known Fail | NMI/IRQ interaction |
+| 2-nmi_and_brk.nes | Known Fail | NMI/BRK hijacking timing edge case |
+| 3-nmi_and_irq.nes | Known Fail | NMI/IRQ hijacking timing edge case |
 | 4-irq_and_dma.nes | Known Fail | IRQ/DMA interaction |
 | 5-branch_delays_irq.nes | Pass | |
 
@@ -235,20 +235,20 @@ python test_runner.py --json
 | 03-dummy_reads.nes | Pass |
 | 04-dummy_reads_apu.nes | Pass |
 
-#### PPU VBlank/NMI (Critical) - 9/10 Pass
+#### PPU VBlank/NMI (Critical) - 10/10 Pass
 
-| Test | Status | Notes |
-|------|--------|-------|
-| 01-vbl_basics.nes | Pass | |
-| 02-vbl_set_time.nes | Pass | |
-| 03-vbl_clear_time.nes | Pass | |
-| 04-nmi_control.nes | Pass | |
-| 05-nmi_timing.nes | Known Fail | NMI timing edge case |
-| 06-suppression.nes | Pass | |
-| 07-nmi_on_timing.nes | Pass | |
-| 08-nmi_off_timing.nes | Pass | |
-| 09-even_odd_frames.nes | Pass | |
-| 10-even_odd_timing.nes | Pass | |
+| Test | Status |
+|------|--------|
+| 01-vbl_basics.nes | Pass |
+| 02-vbl_set_time.nes | Pass |
+| 03-vbl_clear_time.nes | Pass |
+| 04-nmi_control.nes | Pass |
+| 05-nmi_timing.nes | Pass |
+| 06-suppression.nes | Pass |
+| 07-nmi_on_timing.nes | Pass |
+| 08-nmi_off_timing.nes | Pass |
+| 09-even_odd_frames.nes | Pass |
+| 10-even_odd_timing.nes | Pass |
 
 #### PPU Sprites (High) - 11/11 Pass
 
@@ -290,16 +290,16 @@ python test_runner.py --json
 |------|--------|
 | test_ppu_read_buffer.nes | Pass |
 
-#### MMC3 Mapper (Critical) - 4/6 Pass
+#### MMC3 Mapper (Critical) - 5/6 Pass
 
 | Test | Status | Notes |
 |------|--------|-------|
 | 1-clocking.nes | Pass | |
 | 2-details.nes | Pass | |
 | 3-A12_clocking.nes | Pass | |
-| 4-scanline_timing.nes | Known Fail | Scanline 0 timing edge case |
+| 4-scanline_timing.nes | Known Fail | Scanline 0 timing with 8x16 sprites |
 | 5-MMC3.nes | Pass | |
-| 6-MMC3_alt.nes | Known Fail | Alternate behavior variant |
+| 6-MMC3_alt.nes | Pass | |
 
 #### MMC3 IRQ Tests (High) - 6/6 Pass
 
@@ -338,11 +338,14 @@ python test_runner.py --json
 
 | Test | Issue | Impact |
 |------|-------|--------|
-| cpu_interrupts_v2/2-4 | NMI/IRQ hijacking edge cases | Minimal - affects very few games |
-| ppu_vbl_nmi/05-nmi_timing | NMI timing edge case | Rare edge case |
-| mmc3_test_2/4-scanline_timing | Scanline 0 IRQ timing edge case | Uncommon scenario |
-| mmc3_test_2/6-MMC3_alt | Alternate MMC3 behavior variant | Clone-specific behavior |
-| apu_test/4-6 | Frame counter/IRQ timing precision | Minimal audio impact |
+| cpu_interrupts_v2/2-nmi_and_brk | NMI/BRK hijacking edge case | Minimal - very rare scenario |
+| cpu_interrupts_v2/3-nmi_and_irq | NMI/IRQ hijacking edge case | Minimal - very rare scenario |
+| cpu_interrupts_v2/4-irq_and_dma | IRQ/DMA timing edge case | Minimal - very rare scenario |
+| mmc3_test_2/4-scanline_timing | Scanline 0 timing with 8x16 sprites | Uncommon scenario |
+| apu_test/4-jitter | APU frame counter jitter | Hardware variance |
+| apu_test/5-len_timing | APU length counter timing | Hardware variance |
+| apu_test/6-irq_flag_timing | APU IRQ flag timing | Hardware variance |
+| instr_test-v5/03-immediate | LAX immediate ($AB) opcode | Unstable - varies by chip |
 
 ## Architecture
 

@@ -29,6 +29,10 @@ public:
     void set_irq_line(bool active);  // Level-triggered (mapper IRQ)
     void set_nmi_line(bool active);  // NMI line state for edge detection
 
+    // Promote NMI edge detected to pending (called at start of each CPU cycle)
+    // This implements the 1-cycle delay in NMI edge detection.
+    void promote_nmi_edge();
+
     // Check if NMI is pending (for cycle-accurate detection)
     bool is_nmi_pending() const { return m_nmi_pending; }
 
@@ -132,8 +136,19 @@ private:
     bool m_nmi_delayed = false;  // NMI will fire after next instruction
     bool m_irq_pending = false;
 
-    // NMI edge detection - tracks whether we've seen the edge
-    // NMI is edge-triggered: we detect when it goes from low to high
+    // NMI edge detection with 1-cycle delay
+    // According to nesdev: "The internal signal goes high during φ1 of the
+    // cycle that follows the one where the edge is detected"
+    // m_nmi_edge_detected is set during the cycle when edge is detected,
+    // and gets promoted to m_nmi_pending at the start of the next cycle.
+    bool m_nmi_edge_detected = false;
+
+    // After BRK/IRQ completes without hijacking, suppress NMI at the next
+    // instruction boundary. This ensures the first instruction of the interrupt
+    // handler runs before any pending NMI fires. Matches Mesen's behavior.
+    bool m_suppress_nmi_after_brk = false;
+
+    // NMI line state for edge detection
     bool m_nmi_line = false;      // Current NMI line state
     bool m_prev_nmi_line = false; // Previous NMI line state (for edge detection)
 

@@ -35,38 +35,108 @@ int CPU::step() {
     // Reset cycle counter for this instruction
     m_cycles = 0;
 
+    // CLI/SEI/PLP latency: Save current I flag state at START of instruction.
+    // We'll update m_prev_irq_inhibit at the END, so the NEXT instruction
+    // will use this value for IRQ polling. This creates the one-instruction
+    // delay required by 6502 hardware (IRQ polling uses I flag from start
+    // of previous instruction).
+    bool i_flag_at_start = get_flag(FLAG_I);
+
     // Handle interrupts
     // Note: NMI takes priority over IRQ
-    if (m_nmi_pending) {
+    //
+    // After BRK/IRQ completes, m_suppress_nmi_after_brk is set. This ensures the
+    // first instruction of the interrupt handler runs before any pending NMI.
+    // We clear the flag here but don't fire NMI this time.
+    if (m_suppress_nmi_after_brk) {
+        m_suppress_nmi_after_brk = false;
+        // Don't fire NMI this instruction boundary - let handler's first
+        // instruction execute. If NMI is still pending, it will fire after.
+    } else if (m_nmi_pending) {
         m_nmi_pending = false;
-        push16(m_pc);
+
+        // NMI sequence (7 cycles):
+        // 1. Dummy opcode fetch (internal)
+        // 2. Dummy operand fetch (internal)
+        tick_internal();  // Cycle 1: dummy opcode fetch
+        tick_internal();  // Cycle 2: dummy operand fetch
+
+        // 3. Push PCH
+        push(static_cast<uint8_t>(m_pc >> 8));
+
+        // 4. Push PCL
+        push(static_cast<uint8_t>(m_pc & 0xFF));
+
+        // 5. Push status (without B flag for hardware interrupt)
         push(m_status & ~FLAG_B);
         set_flag(FLAG_I, true);
+
+        // 6-7. Read NMI vector
         uint8_t lo = read(0xFFFA);
         uint8_t hi = read(0xFFFB);
         m_pc = (static_cast<uint16_t>(hi) << 8) | lo;
+        // NMI doesn't have CLI latency - update prev to match current I=1
+        m_prev_irq_inhibit = true;
         return 7;
     }
 
-    if (m_irq_pending && !get_flag(FLAG_I)) {
+    // CLI/SEI/PLP latency: IRQ polling uses m_prev_irq_inhibit which contains
+    // the I flag value from the START of the PREVIOUS instruction.
+    // This implements the one-instruction delay: when CLI clears I, the NEXT
+    // instruction still sees m_prev_irq_inhibit=1 (from before CLI modified I),
+    // so it executes normally. Only the instruction AFTER that sees I=0.
+    if (m_irq_pending && !m_prev_irq_inhibit) {
         m_irq_pending = false;
-        push16(m_pc);
+
+        bool nmi_hijacked = false;
+
+        // IRQ sequence (7 cycles):
+        // 1. Dummy opcode fetch (internal)
+        // 2. Dummy operand fetch (internal)
+        tick_internal();  // Cycle 1: dummy opcode fetch
+        tick_internal();  // Cycle 2: dummy operand fetch
+
+        // 3. Push PCH
+        push(static_cast<uint8_t>(m_pc >> 8));
+
+        // 4. Push PCL
+        push(static_cast<uint8_t>(m_pc & 0xFF));
+
+        // 5. Push status (without B flag for hardware interrupt)
         push(m_status & ~FLAG_B);
         set_flag(FLAG_I, true);
 
-        // NMI hijacking: If NMI became pending during IRQ handling (e.g., during
-        // the push operations), NMI takes over and uses NMI vector instead.
+        // NMI hijacking: Check if NMI is pending AFTER cycle 5's tick completes.
+        // According to nesdev, hijacking occurs if NMI is detected during cycles 1-4,
+        // which with the internal signal delay means the check happens after cycle 5.
         uint16_t vector;
         if (m_nmi_pending) {
             m_nmi_pending = false;
-            vector = 0xFFFA;  // NMI vector
+            m_nmi_edge_detected = false;
+            vector = 0xFFFA;  // NMI vector (hijacked)
+            nmi_hijacked = true;
         } else {
             vector = 0xFFFE;  // IRQ vector
         }
 
+        // 6. Read vector low
         uint8_t lo = read(vector);
+
+        // NOTE: Skip late NMI hijacking for same reason as BRK
+        // (corrupted PC causes issues with most tests)
+
+        // 7. Read vector high
         uint8_t hi = read(vector + 1);
         m_pc = (static_cast<uint16_t>(hi) << 8) | lo;
+
+        // If IRQ was NOT hijacked, suppress NMI at the next instruction boundary
+        // to let the first instruction of the handler run first.
+        if (!nmi_hijacked) {
+            m_suppress_nmi_after_brk = true;
+        }
+
+        // IRQ doesn't have CLI latency - update prev to match current I=1
+        m_prev_irq_inhibit = true;
         return 7;
     }
 
@@ -74,6 +144,10 @@ int CPU::step() {
     uint8_t opcode = read(m_pc++);
     int cycles = 0;
     bool page_crossed = false;
+
+    // RTI takes effect immediately (no latency), unlike CLI/SEI/PLP.
+    // Track whether this instruction is RTI for proper prev update at end.
+    bool is_rti = (opcode == 0x40);
 
     // Decode and execute
     switch (opcode) {
@@ -426,8 +500,11 @@ int CPU::step() {
         // Unofficial SBC immediate (duplicate of 0xE9)
         case 0xEB: op_sbc(read(addr_immediate())); cycles = 2; break;
 
-        // LAX immediate (unstable - uses (A | 0xEE) & X & imm, but many emulators use simpler behavior)
-        case 0xAB: { uint8_t v = read(addr_immediate()); m_a = m_x = (m_a | 0xEE) & v; update_zero_negative(m_a); cycles = 2; break; }
+        // LAX immediate (also called ATX, OAL, LXA - highly unstable, behavior varies by chip)
+        // Behavior: A = X = (A | const) & imm
+        // The magic constant varies by chip (0x00, 0xEE, 0xFF, etc.)
+        // Using 0xEE is most commonly accepted for games and passes most tests
+        case 0xAB: { uint8_t v = read(addr_immediate()); m_a = (m_a | 0xEE) & v; m_x = m_a; update_zero_negative(m_a); cycles = 2; break; }
 
         // Unofficial NOPs (various addressing modes)
         // These actually perform the addressing mode reads but discard the result
@@ -558,10 +635,45 @@ int CPU::step() {
         m_nmi_pending = true;
     }
 
+    // CLI/SEI/PLP latency implementation:
+    // These instructions delay changes to IRQ inhibition until after the next
+    // instruction. We achieve this by using i_flag_at_start for m_prev_irq_inhibit.
+    //
+    // RTI is different - it takes effect IMMEDIATELY. The I flag from the popped
+    // status should be used right away for the next instruction's IRQ polling.
+    //
+    // Trace for CLI with IRQ pending:
+    // 1. Instruction before CLI: I=1, prev=1, step checks prev=1 (no IRQ), runs
+    //    At end: prev = i_flag_at_start = 1
+    // 2. CLI: I=1 at start, prev=1, step checks prev=1 (no IRQ), CLI sets I=0
+    //    At end: prev = i_flag_at_start = 1 (from START, not current I=0)
+    // 3. Next instruction: I=0 at start, prev=1, step checks prev=1 (no IRQ), runs
+    //    At end: prev = i_flag_at_start = 0
+    // 4. Instruction after: I=0 at start, prev=0, step checks prev=0 -> IRQ fires!
+    //
+    // Trace for RTI clearing I (returning to code with I=0):
+    // 1. RTI: prev=1, step checks prev=1 (no IRQ), RTI pops status with I=0
+    //    At end: prev = get_flag(FLAG_I) = 0 (CURRENT value, immediate effect)
+    // 2. Next instruction: prev=0, step checks prev=0 -> IRQ fires if pending
+    if (is_rti) {
+        // RTI takes effect immediately
+        m_prev_irq_inhibit = get_flag(FLAG_I);
+    } else {
+        // CLI/SEI/PLP have one-instruction delay
+        m_prev_irq_inhibit = i_flag_at_start;
+    }
+
     return cycles;
 }
 
 void CPU::trigger_nmi() {
+    // Set NMI pending immediately. The PPU's check_nmi() mechanism handles
+    // the delayed vs immediate NMI cases. For the normal case (VBL occurs
+    // and NMI is enabled), we want immediate pending.
+    //
+    // The 1-cycle edge delay is handled separately for line-based edge
+    // detection (detect_nmi_edge sets m_nmi_edge_detected which gets
+    // promoted to m_nmi_pending via promote_nmi_edge in tick()).
     m_nmi_pending = true;
 }
 
@@ -569,6 +681,16 @@ void CPU::trigger_nmi_delayed() {
     // NMI will fire after the NEXT instruction completes
     // This is used when NMI is enabled via PPUCTRL while VBL is already set
     m_nmi_delayed = true;
+}
+
+void CPU::promote_nmi_edge() {
+    // Promote NMI edge detected to pending
+    // This implements the 1-cycle delay: edge detected in cycle N,
+    // signal goes high at start of cycle N+1
+    if (m_nmi_edge_detected) {
+        m_nmi_edge_detected = false;
+        m_nmi_pending = true;
+    }
 }
 
 void CPU::trigger_irq() {
@@ -826,30 +948,59 @@ void CPU::op_branch(bool condition) {
 void CPU::op_brk() {
     // BRK is 7 cycles:
     // 1. Fetch opcode (already done in step())
+    //
+    // NMI hijacking: According to nesdev and Mesen, NMI can hijack BRK/IRQ if
+    // it becomes pending during cycles 1-4. The hijacking check happens AFTER
+    // cycle 4 (push PCL) but BEFORE cycle 5 (push status).
+
+    bool nmi_hijacked = false;  // Track if NMI hijacks this BRK
+
     // 2. Read next byte and throw away (padding byte)
-    read(m_pc);  // Dummy read of padding byte
+    read(m_pc);  // cycle 2
     m_pc++;
-    // 3-4. Push PCH, PCL
-    push16(m_pc);
+
+    // 3. Push PCH
+    push(static_cast<uint8_t>(m_pc >> 8));  // cycle 3
+
+    // 4. Push PCL
+    push(static_cast<uint8_t>(m_pc & 0xFF));  // cycle 4
+
     // 5. Push status with B flag set
-    push(m_status | FLAG_B | FLAG_U);
+    push(m_status | FLAG_B | FLAG_U);  // cycle 5
     set_flag(FLAG_I, true);
 
-    // NMI hijacking: If NMI is pending when we're about to read the vector,
-    // NMI takes over and uses the NMI vector instead of the IRQ/BRK vector.
-    // The B flag is still set on stack (from BRK), but we jump to NMI handler.
+    // NMI hijacking decision: Check NMI state AFTER cycle 5's tick completes.
+    // According to nesdev, hijacking occurs if NMI is detected during cycles 1-4,
+    // which with the internal signal delay means the check happens after cycle 5.
     uint16_t vector;
     if (m_nmi_pending) {
         m_nmi_pending = false;
-        vector = 0xFFFA;  // NMI vector
+        m_nmi_edge_detected = false;  // Also clear edge in case it was set
+        vector = 0xFFFA;  // NMI vector (hijacked)
+        nmi_hijacked = true;
     } else {
         vector = 0xFFFE;  // IRQ/BRK vector
     }
 
-    // 6-7. Read vector low, high
-    uint8_t lo = read(vector);
-    uint8_t hi = read(vector + 1);
+    // 6. Read vector low
+    uint8_t lo = read(vector);  // cycle 6
+
+    // NOTE: According to nesdev, late NMI hijacking CAN occur during cycle 6,
+    // but it creates a corrupted PC (IRQ lo byte + NMI hi byte). In practice,
+    // most test ROMs don't expect this behavior and it causes test failures.
+    // We skip late hijacking and let NMI fire after the first instruction
+    // of the interrupt handler instead (via m_suppress_nmi_after_brk).
+
+    // 7. Read vector high
+    uint8_t hi = read(vector + 1);  // cycle 7
     m_pc = (static_cast<uint16_t>(hi) << 8) | lo;
+
+    // If BRK was NOT hijacked (went to IRQ handler), suppress NMI at the next
+    // instruction boundary. This ensures the first instruction of the interrupt
+    // handler runs before any pending NMI fires. Matches Mesen's behavior.
+    if (!nmi_hijacked) {
+        m_suppress_nmi_after_brk = true;
+    }
 }
 
 void CPU::op_cmp(uint8_t reg, uint8_t value) {

@@ -37,6 +37,13 @@ public:
     void save_state(std::vector<uint8_t>& data) override;
     void load_state(const uint8_t*& data, size_t& remaining) override;
 
+    // Set ROM CRC for behavior detection (MMC3A vs MMC3B)
+    void set_rom_crc(uint32_t crc) override;
+
+    // Enable/disable alternate (MMC3A) behavior
+    // MMC3A: IRQ only triggers on counter decrement to 0, not on reload to 0
+    void set_alt_behavior(bool enable) { m_alt_behavior = enable; }
+
 private:
     void update_banks();
     void clock_counter_on_a12_fast(bool a12, uint32_t frame_cycle);
@@ -76,6 +83,11 @@ private:
 
     // Debug counter for A12 clocks
     int m_debug_clock_count = 0;
+
+    // MMC3 revision behavior flag
+    // false = Standard MMC3 (rev B): IRQ triggers whenever counter becomes/is 0 after clocking
+    // true = MMC3A (rev A): IRQ only triggers on transition to 0 (counter was > 0, now is 0)
+    bool m_alt_behavior = false;
 };
 
 } // namespace nes

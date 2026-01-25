@@ -52,6 +52,7 @@ bool AudioManager::initialize(int sample_rate, int buffer_size) {
     // Reset rate control state
     m_rate_adjustment = 1.0;
     m_resample_accumulator = 0.0f;
+    m_input_resample_accumulator = 0.0;
     m_prev_sample_left = 0.0f;
     m_prev_sample_right = 0.0f;
     m_underrun_count = 0;
@@ -143,7 +144,8 @@ void AudioManager::push_samples_resampled(const float* samples, size_t count, in
 
     while (input_idx < input_samples) {
         // Calculate output samples for this input position
-        while (m_resample_accumulator < 1.0 && input_idx < input_samples) {
+        // Use m_input_resample_accumulator (separate from output resampler)
+        while (m_input_resample_accumulator < 1.0 && input_idx < input_samples) {
             // Get current and next samples for interpolation
             size_t curr = input_idx * 2;
             size_t next = std::min((input_idx + 1) * 2, count - 2);
@@ -154,7 +156,7 @@ void AudioManager::push_samples_resampled(const float* samples, size_t count, in
             float next_right = samples[next + 1];
 
             // Linear interpolation
-            float t = static_cast<float>(m_resample_accumulator);
+            float t = static_cast<float>(m_input_resample_accumulator);
             float out_left = curr_left + t * (next_left - curr_left);
             float out_right = curr_right + t * (next_right - curr_right);
 
@@ -175,12 +177,12 @@ void AudioManager::push_samples_resampled(const float* samples, size_t count, in
             m_ring_buffer[write_pos] = out_right * m_volume;
             write_pos = next_write_r;
 
-            m_resample_accumulator += ratio;
+            m_input_resample_accumulator += ratio;
         }
 
         // Move to next input sample
-        while (m_resample_accumulator >= 1.0 && input_idx < input_samples) {
-            m_resample_accumulator -= 1.0;
+        while (m_input_resample_accumulator >= 1.0 && input_idx < input_samples) {
+            m_input_resample_accumulator -= 1.0;
             input_idx++;
         }
     }
@@ -198,35 +200,32 @@ void AudioManager::audio_callback(void* userdata, uint8_t* stream, int len) {
 }
 
 void AudioManager::update_rate_control() {
-    // Get current buffer level
+    // bsnes-style dynamic rate control
+    // Reference: https://bsnes.org/articles/dynamic-rate-control/
+    //
+    // The goal is to keep the buffer approximately half-full. We adjust the
+    // consumption rate based on buffer fill level using a simple linear formula.
+    //
+    // Formula: adjustment = 1.0 + maxDelta * (2.0 * fillLevel - 1.0)
+    // - When fillLevel = 0.5 (half-full): adjustment = 1.0 (no change)
+    // - When fillLevel = 0.0 (empty): adjustment = 1 - maxDelta (consume slower)
+    // - When fillLevel = 1.0 (full): adjustment = 1 + maxDelta (consume faster)
+
     size_t buffered = get_buffered_samples();
 
-    // Calculate error from target (in samples)
-    double error = static_cast<double>(buffered) - static_cast<double>(TARGET_BUFFER_SAMPLES);
+    // Calculate fill level as 0.0 to 1.0
+    // Use a smaller working buffer for lower latency
+    // 512 samples = ~5.8ms at 44.1kHz stereo - trades some stability for lower latency
+    static constexpr size_t WORKING_BUFFER_SIZE = 512;
+    double fillLevel = static_cast<double>(buffered) / static_cast<double>(WORKING_BUFFER_SIZE);
+    fillLevel = std::clamp(fillLevel, 0.0, 1.0);
 
-    // Proportional-Integral (PI) control for smooth, responsive rate adjustment
-    // The proportional term responds quickly to deviations
-    // The integral term (accumulated in m_rate_adjustment) prevents steady-state error
-    //
-    // When buffer is HIGH (positive error):
-    //   - We need to consume samples FASTER -> rate_adjustment > 1.0
-    // When buffer is LOW (negative error):
-    //   - We need to consume samples SLOWER -> rate_adjustment < 1.0
+    // Apply bsnes formula with smoothing to prevent rapid oscillations
+    double target_adjustment = 1.0 + MAX_RATE_ADJUSTMENT * (2.0 * fillLevel - 1.0);
 
-    // Proportional gain: more aggressive for faster response
-    // 0.0001 means 500 samples of error = 5% adjustment contribution
-    double p_gain = 0.0001;
-
-    // Calculate proportional term
-    double p_term = error * p_gain;
-
-    // Use fast exponential smoothing for quick response to buffer changes
-    // 0.85/0.15 means we adapt quickly to prevent buffer drift
-    double smoothing = 0.85;
-    m_rate_adjustment = m_rate_adjustment * smoothing + (1.0 + p_term) * (1.0 - smoothing);
-
-    // Clamp to maximum adjustment range
-    m_rate_adjustment = std::clamp(m_rate_adjustment, 1.0 - MAX_RATE_ADJUSTMENT, 1.0 + MAX_RATE_ADJUSTMENT);
+    // Smooth the adjustment to prevent audio artifacts from sudden rate changes
+    static constexpr double SMOOTHING = 0.95;
+    m_rate_adjustment = m_rate_adjustment * SMOOTHING + target_adjustment * (1.0 - SMOOTHING);
 }
 
 void AudioManager::fill_audio_buffer(float* buffer, size_t samples) {
@@ -402,6 +401,7 @@ void AudioManager::clear_buffer() {
     m_prev_sample_left = m_last_sample_left;
     m_prev_sample_right = m_last_sample_right;
     m_resample_accumulator = 0.0f;
+    m_input_resample_accumulator = 0.0;
     m_rate_adjustment = 1.0;
     std::memset(m_ring_buffer, 0, sizeof(m_ring_buffer));
 }

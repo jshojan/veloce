@@ -23,40 +23,38 @@ void APU::reset() {
     m_dsp->reset();
 
     m_cycle_counter = 0;
+    m_sample_counter = 0;  // SPC cycles until next DSP sample
     m_audio_buffer.fill(0);
     m_audio_write_pos = 0;
-    m_sample_counter = 0;
     m_last_left = 0;
     m_last_right = 0;
     m_stream_pos = 0;
 }
 
 void APU::step(int master_cycles) {
-    m_cycle_counter += master_cycles;
-
-    // SPC700 runs at ~1.024 MHz, master clock is 21.477 MHz
-    // Ratio is approximately 21:1 (actually 21477272 / 1024000 = 20.97)
+    // SPC700 runs at 1.024 MHz from its own 24.576 MHz crystal
+    // Master clock is 21.477272 MHz
+    // Ratio = 21477272 / 1024000 = 20.9739...
+    // Using integer 21 is close enough (0.13% error)
     //
     // The SPC700's step() executes one full instruction and returns
-    // the number of SPC cycles it consumed. We accumulate master cycles
-    // and run the SPC when we have enough.
+    // the number of SPC cycles it consumed.
     //
-    // IMPORTANT: We must deduct (spc_cycles * MASTER_CYCLES_PER_SPC) from
-    // the counter AFTER executing an instruction, not before. The previous
-    // implementation was deducting cycles incorrectly, causing the SPC to
-    // run far too slowly.
+    // DSP generates one sample every 32 SPC cycles.
+
+    m_cycle_counter += master_cycles;
 
     while (m_cycle_counter >= MASTER_CYCLES_PER_SPC) {
         // Step SPC700 - this executes one instruction and returns cycles consumed
         int spc_cycles = m_spc->step();
 
         // Deduct the equivalent master cycles for the instruction that was executed
-        // Each SPC cycle = 21 master cycles
         m_cycle_counter -= spc_cycles * MASTER_CYCLES_PER_SPC;
 
-        // Step DSP at 32kHz (every 32 SPC cycles approximately)
-        // DSP runs at SPC_clock / 32 = ~32 kHz
+        // Accumulate SPC cycles for DSP timing
+        // DSP generates one sample every 32 SPC cycles (1.024 MHz / 32 = 32 kHz)
         m_sample_counter += spc_cycles;
+
         while (m_sample_counter >= 32) {
             m_sample_counter -= 32;
 
@@ -76,7 +74,7 @@ void APU::step(int master_cycles) {
                 m_stream_buffer[m_stream_pos * 2 + 1] = right_f;
                 m_stream_pos++;
 
-                // Flush when buffer is full (every 64 samples = ~2ms at 32kHz)
+                // Flush when buffer is full
                 if (m_stream_pos >= STREAM_BUFFER_SIZE) {
                     m_audio_callback(m_stream_buffer, m_stream_pos, DSP_RATE);
                     m_stream_pos = 0;
@@ -115,6 +113,15 @@ size_t APU::get_samples(float* buffer, size_t max_samples) {
     m_audio_write_pos = 0;
 
     return samples_to_copy;
+}
+
+void APU::flush_audio() {
+    // Flush any remaining samples in the streaming buffer
+    // This should be called at the end of each frame to prevent audio lag
+    if (m_audio_callback && m_stream_pos > 0) {
+        m_audio_callback(m_stream_buffer, m_stream_pos, DSP_RATE);
+        m_stream_pos = 0;
+    }
 }
 
 void APU::save_state(std::vector<uint8_t>& data) {

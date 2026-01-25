@@ -142,6 +142,13 @@ void DSP::write_data(uint8_t value) {
     switch (m_address) {
         case REG_KON:
             // Key-on voices
+            if (is_debug_mode() && value) {
+                fprintf(stderr, "[DSP] KON=$%02X (voices:", value);
+                for (int i = 0; i < 8; i++) {
+                    if (value & (1 << i)) fprintf(stderr, " %d", i);
+                }
+                fprintf(stderr, ")\n");
+            }
             for (int i = 0; i < 8; i++) {
                 if (value & (1 << i)) {
                     m_voices[i].key_on = true;
@@ -153,6 +160,13 @@ void DSP::write_data(uint8_t value) {
 
         case REG_KOFF:
             // Key-off voices
+            if (is_debug_mode() && value) {
+                fprintf(stderr, "[DSP] KOFF=$%02X (voices:", value);
+                for (int i = 0; i < 8; i++) {
+                    if (value & (1 << i)) fprintf(stderr, " %d", i);
+                }
+                fprintf(stderr, ")\n");
+            }
             for (int i = 0; i < 8; i++) {
                 if (value & (1 << i)) {
                     m_voices[i].envelope_mode = 0;  // Release
@@ -161,7 +175,24 @@ void DSP::write_data(uint8_t value) {
             break;
 
         case REG_FLG:
+            if (is_debug_mode()) {
+                fprintf(stderr, "[DSP] FLG=$%02X (reset=%d mute=%d echo_off=%d noise=%d)\n",
+                    value, (value >> 7) & 1, (value >> 6) & 1, (value >> 5) & 1, value & 0x1F);
+            }
             m_noise_rate = value & 0x1F;
+            break;
+
+        case REG_ESA:
+            if (is_debug_mode()) {
+                fprintf(stderr, "[DSP] ESA=$%02X (echo_buf=$%04X)\n", value, value << 8);
+            }
+            break;
+
+        case REG_EDL:
+            if (is_debug_mode()) {
+                int len = (value & 0x0F) ? ((value & 0x0F) * 0x800) : 4;
+                fprintf(stderr, "[DSP] EDL=$%02X (echo_len=%d bytes)\n", value, len);
+            }
             break;
 
         case REG_ENDX:
@@ -271,6 +302,18 @@ void DSP::step() {
 
                 // Clear ENDX bit
                 m_regs[REG_ENDX] &= ~(1 << v);
+
+                // Decode first BRR block during initialization
+                // This is critical - without this, the voice would read from
+                // an uninitialized brr_buffer until the 16th sample
+                decode_brr_block(v);
+
+                // Initialize the samples ring buffer with the first sample
+                // The pitch advancement loop increments brr_offset before reading,
+                // so we need to put the first sample (brr_buffer[0]) into the ring
+                // buffer here to avoid skipping it
+                voice.samples[voice.sample_index] = voice.brr_buffer[0];
+                voice.sample_index = (voice.sample_index + 1) % 12;
             }
             continue;
         }
@@ -367,6 +410,7 @@ void DSP::step() {
         process_echo();
 
         // Get echo output and apply FIR filter
+        // Reference: fullsnes - "FIR_out = sum>>7" (not >>6)
         int32_t fir_left = 0;
         int32_t fir_right = 0;
         for (int i = 0; i < 8; i++) {
@@ -374,45 +418,61 @@ void DSP::step() {
             fir_left += m_echo_history_left[idx] * m_fir_coefficients[i];
             fir_right += m_echo_history_right[idx] * m_fir_coefficients[i];
         }
-        fir_left >>= 6;
-        fir_right >>= 6;
+        fir_left >>= 7;  // Was >>6, which doubled echo amplitude
+        fir_right >>= 7;
 
-        // Apply echo volume
+        // Clamp FIR output to 16-bit before applying echo volume
+        fir_left = std::clamp(fir_left, -32768, 32767);
+        fir_right = std::clamp(fir_right, -32768, 32767);
+
+        // Apply echo volume - this will be added AFTER master volume is applied to voices
         int8_t evol_l = static_cast<int8_t>(m_regs[REG_EVOL_L]);
         int8_t evol_r = static_cast<int8_t>(m_regs[REG_EVOL_R]);
-        left_sum += (fir_left * evol_l) >> 7;
-        right_sum += (fir_right * evol_r) >> 7;
+        int32_t echo_out_mixed_l = (fir_left * evol_l) >> 7;
+        int32_t echo_out_mixed_r = (fir_right * evol_r) >> 7;
 
-        // Write echo feedback
+        // Write echo feedback (using same address as read)
+        int8_t efb = static_cast<int8_t>(m_regs[REG_EFB]);
+        int32_t echo_fb_l = echo_left_sum + ((fir_left * efb) >> 7);
+        int32_t echo_fb_r = echo_right_sum + ((fir_right * efb) >> 7);
+
+        echo_fb_l = std::clamp(echo_fb_l, -32768, 32767);
+        echo_fb_r = std::clamp(echo_fb_r, -32768, 32767);
+
+        // Write to echo buffer at the same address we read from
+        // Echo writes are disabled when FLG bit 5 is set
         if (!(m_regs[REG_FLG] & 0x20)) {
-            int8_t efb = static_cast<int8_t>(m_regs[REG_EFB]);
-            int32_t echo_out_l = echo_left_sum + ((fir_left * efb) >> 7);
-            int32_t echo_out_r = echo_right_sum + ((fir_right * efb) >> 7);
-
-            echo_out_l = std::clamp(echo_out_l, -32768, 32767);
-            echo_out_r = std::clamp(echo_out_r, -32768, 32767);
-
-            // Write to echo buffer
-            uint16_t esa = m_regs[REG_ESA] << 8;
-            uint16_t echo_addr = esa + m_echo_offset;
-
-            if (!(m_regs[REG_FLG] & 0x20)) {
-                // Echo writes are disabled when bit 5 is set
-                uint8_t* spc_ram = m_spc->get_ram();
-                spc_ram[echo_addr] = echo_out_l & 0xFF;
-                spc_ram[echo_addr + 1] = (echo_out_l >> 8) & 0xFF;
-                spc_ram[echo_addr + 2] = echo_out_r & 0xFF;
-                spc_ram[echo_addr + 3] = (echo_out_r >> 8) & 0xFF;
-            }
+            uint8_t* spc_ram = m_spc->get_ram();
+            spc_ram[m_echo_addr] = echo_fb_l & 0xFF;
+            spc_ram[m_echo_addr + 1] = (echo_fb_l >> 8) & 0xFF;
+            spc_ram[m_echo_addr + 2] = echo_fb_r & 0xFF;
+            spc_ram[m_echo_addr + 3] = (echo_fb_r >> 8) & 0xFF;
         }
+
+        // Advance echo offset after the read-write cycle is complete
+        m_echo_offset += 4;
+        if (m_echo_offset >= m_echo_length) {
+            m_echo_offset = 0;
+        }
+
+        // Apply master volume to voices ONLY (not echo)
+        // Reference: fullsnes - "Main Output = sum(VxVOL*voice) * MVOL / 128"
+        int8_t mvol_l = static_cast<int8_t>(m_regs[REG_MVOL_L]);
+        int8_t mvol_r = static_cast<int8_t>(m_regs[REG_MVOL_R]);
+        left_sum = (left_sum * mvol_l) >> 7;
+        right_sum = (right_sum * mvol_r) >> 7;
+
+        // Add echo output AFTER master volume
+        // Reference: fullsnes - "Final Output = Main + Echo"
+        left_sum += echo_out_mixed_l;
+        right_sum += echo_out_mixed_r;
+    } else {
+        // Echo disabled - just apply master volume
+        int8_t mvol_l = static_cast<int8_t>(m_regs[REG_MVOL_L]);
+        int8_t mvol_r = static_cast<int8_t>(m_regs[REG_MVOL_R]);
+        left_sum = (left_sum * mvol_l) >> 7;
+        right_sum = (right_sum * mvol_r) >> 7;
     }
-
-    // Apply master volume
-    int8_t mvol_l = static_cast<int8_t>(m_regs[REG_MVOL_L]);
-    int8_t mvol_r = static_cast<int8_t>(m_regs[REG_MVOL_R]);
-
-    left_sum = (left_sum * mvol_l) >> 7;
-    right_sum = (right_sum * mvol_r) >> 7;
 
     // Clamp and check mute
     if (m_regs[REG_FLG] & 0x40) {
@@ -457,33 +517,48 @@ void DSP::decode_brr_block(int v) {
             if (nibble >= 8) nibble -= 16;
 
             // Apply shift
+            // Reference: bsnes, anomie's DSP doc, fullsnes
+            // Shift values 0-12 are valid, 13-15 produce special behavior
             int sample;
             if (shift <= 12) {
                 sample = (nibble << shift) >> 1;
             } else {
-                sample = (nibble >> 3) << 12;  // Shift 13-15 are invalid
+                // Shift 13-15: output is based only on sign of nibble
+                // Results in -0x800 (-2048) for negative nibbles, 0 for positive
+                sample = (nibble < 0) ? -2048 : 0;
             }
 
-            // Apply filter
+            // Apply filter (IIR coefficients)
+            // Reference: bsnes, SNESdev wiki
+            // Filter 0: no filtering
+            // Filter 1: coeff = 15/16 for prev1
+            // Filter 2: coeff = 61/32 for prev1, -15/16 for prev2
+            // Filter 3: coeff = 115/64 for prev1, -13/16 for prev2
             switch (filter) {
                 case 0:
                     break;
                 case 1:
+                    // sample += prev1 * 15/16
                     sample += prev1 + ((-prev1) >> 4);
                     break;
                 case 2:
+                    // sample += prev1 * 61/32 - prev2 * 15/16
                     sample += (prev1 << 1) + ((-((prev1 << 1) + prev1)) >> 5) -
                               prev2 + ((prev2) >> 4);
                     break;
                 case 3:
+                    // sample += prev1 * 115/64 - prev2 * 13/16
                     sample += (prev1 << 1) + ((-(prev1 + (prev1 << 2) + (prev1 << 3))) >> 6) -
                               prev2 + (((prev2 << 1) + prev2) >> 4);
                     break;
             }
 
-            // Clamp
+            // Clamp to 16-bit, then clip to 15-bit (hardware behavior)
+            // Reference: fullsnes - "clamp 16bit then clip 15bit (lost-sign)"
+            // Values outside 15-bit range wrap with sign inversion
             sample = std::clamp(sample, -32768, 32767);
-            sample = static_cast<int16_t>(sample << 1) >> 1;  // Clip to 15-bit signed
+            // Wrap to 15-bit: shift left 1 (as 16-bit), then arithmetic shift right 1
+            sample = static_cast<int16_t>(static_cast<int16_t>(sample) << 1) >> 1;
 
             // Store sample in buffer - all 16 samples
             voice.brr_buffer[sample_idx++] = static_cast<int16_t>(sample);
@@ -638,20 +713,18 @@ void DSP::process_echo() {
     m_echo_length = edl ? (edl * 0x800) : 4;  // 0 = 4 bytes
 
     // Read from echo buffer
-    uint16_t echo_addr = esa + m_echo_offset;
-    int16_t echo_l = ram[echo_addr] | (ram[echo_addr + 1] << 8);
-    int16_t echo_r = ram[echo_addr + 2] | (ram[echo_addr + 3] << 8);
+    // NOTE: m_echo_addr is stored for use by the write phase, which happens
+    // later in the same DSP step. The offset is advanced AFTER the write.
+    m_echo_addr = esa + m_echo_offset;
+    int16_t echo_l = ram[m_echo_addr] | (ram[m_echo_addr + 1] << 8);
+    int16_t echo_r = ram[m_echo_addr + 2] | (ram[m_echo_addr + 3] << 8);
 
     // Store in history buffer
     m_echo_history_left[m_echo_history_index] = echo_l;
     m_echo_history_right[m_echo_history_index] = echo_r;
     m_echo_history_index = (m_echo_history_index + 1) % 8;
 
-    // Advance echo offset
-    m_echo_offset += 4;
-    if (m_echo_offset >= m_echo_length) {
-        m_echo_offset = 0;
-    }
+    // Note: Offset advance is now done after the echo write in step()
 }
 
 void DSP::save_state(std::vector<uint8_t>& data) {

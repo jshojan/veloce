@@ -61,6 +61,12 @@ public:
     void update_hcounter(int master_cycles);
     bool check_irq_trigger();
 
+    // IRQ timing helpers for mid-scanline effect handling
+    int get_htime() const { return m_htime & 0x1FF; }
+    int get_hcounter() const { return m_hcounter; }
+    bool is_h_irq_enabled() const { return (m_nmitimen & 0x10) != 0; }
+    bool irq_triggered_this_line() const { return m_irq_triggered_this_line; }
+
     // CPU I/O register access ($4200-$421F)
     uint8_t read_cpu_io(uint16_t address);
     void write_cpu_io(uint16_t address, uint8_t value);
@@ -153,6 +159,9 @@ private:
 
     // Blargg test state (for automated testing)
     BlarggTestState m_blargg_state;
+
+    // Frame counter for debug tracing
+    uint64_t m_frame_counter = 0;
 };
 
 } // namespace snes

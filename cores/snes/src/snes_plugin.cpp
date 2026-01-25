@@ -274,7 +274,7 @@ void SNESPlugin::run_frame(const emu::InputState& input) {
     // For simplicity, we run scanline by scanline
 
     static constexpr int SCANLINES_PER_FRAME = 262;
-    static constexpr int DOTS_PER_SCANLINE = 340;
+    static constexpr int DOTS_PER_SCANLINE = 341;  // Correct SNES H-period (was 340, caused audio drift)
     static constexpr int MASTER_CYCLES_PER_DOT = 4;
     static constexpr int MASTER_CYCLES_PER_SCANLINE = DOTS_PER_SCANLINE * MASTER_CYCLES_PER_DOT;
 
@@ -300,7 +300,7 @@ void SNESPlugin::run_frame(const emu::InputState& input) {
     // ========================================================================
 
     // TEMPORARY: Use old render_scanline for debugging
-    static bool use_old_rendering = false;  // Using new catch-up rendering
+    static bool use_old_rendering = false;  // Using catch-up rendering for accurate mid-scanline effects
 
     // Initialize PPU timing for frame start
     // This resets the rendered state for the new frame
@@ -359,7 +359,36 @@ void SNESPlugin::run_frame(const emu::InputState& input) {
                 continue;
             }
 
-            // Step CPU
+            // ================================================================
+            // PRE-RENDER CHECK: For mid-scanline effects (like SplitScreen),
+            // if an IRQ is pending and will be serviced by this CPU step,
+            // we must pre-render PPU pixels BEFORE the IRQ handler changes
+            // registers. The IRQ handler modifies BGMODE/TM during step().
+            // ================================================================
+            bool irq_about_to_service = !use_old_rendering &&
+                                        m_bus->irq_pending() &&
+                                        m_cpu->can_service_irq();
+
+            int pre_render_hcounter = m_bus->get_hcounter();
+
+            if (irq_about_to_service) {
+                // Pre-render: advance PPU to current position before IRQ changes regs
+                // This ensures all pixels up to now use the CURRENT register values
+                m_ppu->sync_to_current();
+
+                static int prerender_debug = 0;
+                // Log all scanlines to see the pattern
+                if (prerender_debug < 50 && m_frame_count == 47 && scanline >= 95 && scanline <= 105) {
+                    prerender_debug++;
+                    fprintf(stderr, "[PreRender-IRQ] frame=%lu scanline=%d hcounter=%d (x=%d) mode=%d TM=$%02X HTIME=%d\n",
+                            m_frame_count, scanline, pre_render_hcounter,
+                            std::max(0, pre_render_hcounter - 22),
+                            m_ppu->get_mode(), m_bus->read_cpu_io(0x212C),
+                            m_bus->get_htime());
+                }
+            }
+
+            // Step CPU - IRQ handler will run here if pending
             int cpu_cycles = m_cpu->step();
 
             // Debug: Trace CPU PC during transition frames
@@ -372,26 +401,19 @@ void SNESPlugin::run_frame(const emu::InputState& input) {
                 }
             }
 
-            // Convert CPU cycles to master cycles
-            // Assume average of 6 master cycles per CPU cycle
-            int master_cycles = cpu_cycles * 6;
+            // cpu_cycles from step() already contains master cycles
+            // (get_access_cycles returns 6/8/12 master cycles per memory access)
+            int master_cycles = cpu_cycles;
             cycles_this_scanline += master_cycles;
             m_total_cycles += master_cycles;
 
-            // Advance PPU timing - this may trigger catch-up rendering
-            // and handles sprite evaluation at dot 285
+            // Advance PPU, bus counters, and check for new IRQs
             if (!use_old_rendering) {
                 m_ppu->advance(master_cycles);
             }
-
-            // Update H-counter and check for H-IRQ trigger
             m_bus->update_hcounter(master_cycles);
             m_bus->add_cycles(master_cycles);
-
-            // Poll NMI state (edge detection)
             m_bus->poll_nmi();
-
-            // Check for H-IRQ at proper dot position
             m_bus->check_irq_trigger();
 
             // Step APU (runs at its own clock)
@@ -412,20 +434,36 @@ void SNESPlugin::run_frame(const emu::InputState& input) {
             m_cpu->set_irq_line(m_bus->irq_pending());
         }
 
-        // Force PPU to catch up to current position before H-blank processing
-        // This ensures all visible pixels are rendered before HDMA changes registers
-        // Note: We don't use set_timing here because advance() has already updated
-        // the PPU clock - we just need to render any pending pixels.
-        if (!use_old_rendering) {
-            m_ppu->sync_to_current();
+        // Force PPU to catch up to H-blank of the current scanline before HDMA
+        // This ensures all visible pixels are rendered BEFORE HDMA changes registers.
+        //
+        // CRITICAL FIX: The plugin runs 341 dots worth of master cycles per scanline
+        // (for audio timing), but the PPU only has 340 dots per scanline. This causes
+        // the PPU's dot position to drift ahead by 1 dot per scanline. After N scanlines,
+        // the PPU is at dot N (mod 340) instead of dot 0.
+        //
+        // Without this fix, after ~28 scanlines (status bar), the PPU would be at
+        // dot 28 when HDMA fires. This is in the VISIBLE area (dots 22-277), causing
+        // some pixels to render with old values and some with new values - the
+        // "horizontal distortion at status bar transition" bug in SMAS.
+        //
+        // By calling sync_to_hblank(), we ensure ALL visible pixels for this scanline
+        // are rendered before HDMA changes register values.
+        if (!use_old_rendering && scanline >= 1 && scanline <= 224) {
+            m_ppu->sync_to_hblank(scanline);
         }
+        // NOTE: We do NOT call sync_to_current() for scanline 0 or V-blank scanlines.
+        // Due to PPU clock drift (341 vs 340 dots), the PPU may have advanced to
+        // scanline 1 by the end of plugin scanline 0. Calling sync_to_current()
+        // would render scanline 1 pixels BEFORE scanline 0's HDMA fires, causing
+        // the horizontal distortion bug in SMAS. Scanline 0 is hidden anyway.
 
         // H-blank processing
         m_bus->start_hblank();
 
         // HDMA transfers occur at dot 278 (H-blank) on real hardware.
-        // With catch-up rendering, pixels are already rendered, so HDMA
-        // changes will affect the NEXT scanline's rendering.
+        // With the sync_to_hblank() call above, all visible pixels for this scanline
+        // are already rendered, so HDMA changes will affect the NEXT scanline's rendering.
         if (scanline < 225) {
             m_dma->hdma_transfer();
         }
@@ -468,7 +506,11 @@ void SNESPlugin::run_frame(const emu::InputState& input) {
     // Notify PPU frame complete (updates internal frame counter)
     m_ppu->end_frame();
 
-    // Get audio samples
+    // Flush any remaining audio samples in the streaming buffer
+    // This ensures all samples generated this frame are sent, preventing audio lag
+    m_apu->flush_audio();
+
+    // Get audio samples (for non-streaming path)
     m_audio_samples = m_apu->get_samples(m_audio_buffer, AUDIO_BUFFER_SIZE);
 
     m_frame_count++;
@@ -499,7 +541,7 @@ emu::AudioBuffer SNESPlugin::get_audio() {
     emu::AudioBuffer ab;
     ab.samples = m_audio_buffer;
     ab.sample_count = static_cast<int>(m_audio_samples);
-    ab.sample_rate = 32000;  // DSP outputs at 32 kHz
+    ab.sample_rate = 32040;  // SNES DSP outputs at ~32040 Hz (not 32000 Hz)
     return ab;
 }
 

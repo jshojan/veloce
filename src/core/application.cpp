@@ -266,11 +266,41 @@ void Application::run() {
             return;
         }
 
-        emu::InputState empty_input{};
+        // Parse INPUT environment variable for button injection
+        // Format: "frame:buttons,frame:buttons,..." where buttons is a hex mask
+        // Example: "200:40,201:0,400:40,401:0" (press Start at frame 200 and 400)
+        // Button bits: A=1, B=2, X=4, Y=8, L=16, R=32, Start=64, Select=128, Up=256, Down=512, Left=1024, Right=2048
+        std::unordered_map<int, uint32_t> input_schedule;
+        const char* input_env = std::getenv("INPUT");
+        if (input_env) {
+            std::string input_str(input_env);
+            size_t pos = 0;
+            while (pos < input_str.length()) {
+                size_t colon = input_str.find(':', pos);
+                if (colon == std::string::npos) break;
+                size_t comma = input_str.find(',', colon);
+                if (comma == std::string::npos) comma = input_str.length();
+
+                int frame = std::stoi(input_str.substr(pos, colon - pos));
+                uint32_t buttons = std::stoul(input_str.substr(colon + 1, comma - colon - 1), nullptr, 16);
+                input_schedule[frame] = buttons;
+
+                pos = comma + 1;
+            }
+            std::cerr << "Headless mode: Loaded " << input_schedule.size() << " input events\n";
+        }
+
+        emu::InputState current_input{};
         int frames_run = 0;
 
         while (m_running && !m_quit_requested && frames_run < m_headless_frames) {
-            active_plugin->run_frame(empty_input);
+            // Check for scheduled input
+            auto it = input_schedule.find(frames_run);
+            if (it != input_schedule.end()) {
+                current_input.buttons = it->second;
+            }
+
+            active_plugin->run_frame(current_input);
             frames_run++;
 
             // Check for screenshot at specific frame
@@ -304,9 +334,9 @@ void Application::run() {
     double target_fps = 60.0;
     bool audio_started = false;
 
-    // Set audio sync mode - DynamicRate is the default for TAS compatibility
-    // It maintains deterministic frame timing while achieving low audio latency
-    // through subtle resampling (max +/-0.5%, completely inaudible)
+    // Set audio sync mode - DynamicRate with bsnes-style rate control
+    // Adjusts playback rate to keep audio buffer ~50% full, preventing
+    // underruns and overruns from timing drift between emulator and audio hardware.
     m_audio_manager->set_sync_mode(AudioSyncMode::DynamicRate);
 
     while (m_running && !m_quit_requested) {
@@ -671,8 +701,13 @@ bool Application::load_rom(const std::string& path) {
         m_window_manager->set_title("Veloce - " + path);
     }
 
+    // Clear any stale audio data from previous ROM
+    if (m_audio_manager) {
+        m_audio_manager->clear_buffer();
+    }
+
     // Set up streaming audio callback for lowest latency
-    // The callback pushes small batches of samples (~64 = 1.5ms) during emulation
+    // The callback pushes small batches of samples (~16 = 0.5ms) during emulation
     // rather than waiting until frame end (~16.67ms)
     if (!m_headless_mode) {
         auto* active_plugin = m_plugin_manager->get_active_plugin();

@@ -109,7 +109,7 @@ def compute_file_crc32(filepath: Path) -> str:
 
 class NESTestRunner:
     TEST_ROMS_REPO = "https://github.com/christopherpow/nes-test-roms.git"
-    TIMEOUT_SECONDS = 10
+    TIMEOUT_SECONDS = 30  # 30 seconds to allow for 1500 frames at 60fps
 
     def __init__(
         self,

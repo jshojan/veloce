@@ -35,6 +35,9 @@ public:
     using AudioStreamCallback = std::function<void(const float*, size_t, int)>;
     void set_audio_callback(AudioStreamCallback callback) { m_audio_callback = callback; }
 
+    // Flush any remaining samples in the streaming buffer (call at end of frame)
+    void flush_audio();
+
     // Save state
     void save_state(std::vector<uint8_t>& data);
     void load_state(const uint8_t*& data, size_t& remaining);
@@ -44,18 +47,23 @@ private:
     std::unique_ptr<DSP> m_dsp;
 
     // Timing
-    int m_cycle_counter = 0;
-    static constexpr int MASTER_CYCLES_PER_SPC = 21;  // ~1.024 MHz from 21.477 MHz
+    // The SPC700 has its own 24.576 MHz crystal, running at 24.576/24 = 1.024 MHz
+    // Master clock is 21.477272 MHz
+    // Ratio = 21477272 / 1024000 = 20.9739...
+    // Using integer 21 is close enough (0.13% error)
+    static constexpr int MASTER_CYCLES_PER_SPC = 21;
+    int m_cycle_counter = 0;  // Master cycles accumulated
+    int m_sample_counter = 0; // SPC cycles until next DSP sample (DSP runs every 32 SPC cycles)
 
     // Audio output buffer
     static constexpr size_t AUDIO_BUFFER_SIZE = 8192;
     std::array<float, AUDIO_BUFFER_SIZE * 2> m_audio_buffer;
     size_t m_audio_write_pos = 0;
 
-    // Sample rate conversion
-    int m_sample_counter = 0;
-    static constexpr int SAMPLE_RATE = 44100;
-    static constexpr int DSP_RATE = 32000;
+    // Audio sample rate - SNES DSP actually runs at ~32040 Hz, not 32000 Hz
+    // Reference: The APU crystal is approximately 24.607 MHz (32040 * 768), not 24.576 MHz
+    // Using the accurate rate prevents timing drift between audio and video
+    static constexpr int DSP_RATE = 32040;
 
     // Resampling state
     int16_t m_last_left = 0;
@@ -63,7 +71,7 @@ private:
 
     // Streaming audio callback and buffer
     AudioStreamCallback m_audio_callback;
-    static constexpr size_t STREAM_BUFFER_SIZE = 64;  // Small buffer for low latency
+    static constexpr size_t STREAM_BUFFER_SIZE = 16;  // Very small for minimum latency
     float m_stream_buffer[STREAM_BUFFER_SIZE * 2];    // Stereo
     size_t m_stream_pos = 0;
 };

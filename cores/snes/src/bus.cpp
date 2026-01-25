@@ -123,6 +123,17 @@ uint8_t Bus::read(uint32_t address) {
         if (offset < 0x2000) {
             // WRAM mirror (first 8KB)
             m_open_bus = m_wram[offset];
+            // Debug: Trace reads from $0773 to understand timing issue
+            if (is_debug_mode() && offset == 0x0773) {
+                static int read_773_count = 0;
+                read_773_count++;
+                if (read_773_count <= 30) {
+                    uint32_t pc = m_cpu ? m_cpu->get_full_pc() : 0;
+                    int scanline = m_ppu ? m_ppu->get_scanline() : -1;
+                    fprintf(stderr, "[SNES] $0773 READ #%d: value=$%02X frame=%lu scanline=%d PC=$%06X\n",
+                            read_773_count, m_open_bus, m_frame_counter, scanline, pc);
+                }
+            }
             return m_open_bus;
         }
         if (offset >= 0x2140 && offset < 0x2144) {
@@ -220,12 +231,84 @@ void Bus::write(uint32_t address, uint8_t value) {
     if (bank <= 0x3F || (bank >= 0x80 && bank <= 0xBF)) {
         if (offset < 0x2000) {
             // WRAM mirror
+            // Debug: Log writes to $1B00-$1BFF range
+            static int wram_write_count = 0;
+            if (offset >= 0x1B00 && offset < 0x1C00 && wram_write_count < 20) {
+                wram_write_count++;
+                SNES_DEBUG_PRINT("WRAM write: $%02X:%04X = $%02X (count=%d)\n",
+                    bank, offset, value, wram_write_count);
+            }
+            // Debug: Trace writes to game selection variables
+            if (is_debug_mode()) {
+                static int game_idx_count = 0;
+                if (offset == 0x0773 && game_idx_count < 30) {
+                    game_idx_count++;
+                    uint32_t pc = m_cpu ? m_cpu->get_full_pc() : 0;
+                    int scanline = m_ppu ? m_ppu->get_scanline() : -1;
+                    fprintf(stderr, "[SNES] $0773 WRITE #%d: value=$%02X frame=%lu scanline=%d PC=$%06X\n",
+                            game_idx_count, value, m_frame_counter, scanline, pc);
+                }
+                // Trace writes to $0770-$077F to find related game selection vars
+                static int sel_range_count = 0;
+                if (offset >= 0x0770 && offset <= 0x077F && offset != 0x0773 && sel_range_count < 40) {
+                    uint8_t old_val = m_wram[offset];
+                    if (value != old_val) {
+                        sel_range_count++;
+                        fprintf(stderr, "[SNES] $%04X write #%d: $%02X -> $%02X\n",
+                                offset, sel_range_count, old_val, value);
+                    }
+                }
+                static int sel_533_count = 0;
+                if (offset == 0x0533 && sel_533_count < 20) {
+                    sel_533_count++;
+                    fprintf(stderr, "[SNES] Selection $0533 write #%d: value=$%02X\n",
+                            sel_533_count, value);
+                }
+                static int sel_534_count = 0;
+                if (offset == 0x0534 && sel_534_count < 20) {
+                    sel_534_count++;
+                    fprintf(stderr, "[SNES] Selection $0534 write #%d: value=$%02X\n",
+                            sel_534_count, value);
+                }
+                // Trace writes to $1201 (branch flag for skipping LDX $0773)
+                if (offset == 0x1201) {
+                    static int w1201_count = 0;
+                    w1201_count++;
+                    if (w1201_count <= 20) {
+                        fprintf(stderr, "[SNES] $1201 write #%d: value=$%02X\n",
+                                w1201_count, value);
+                    }
+                }
+                // Trace writes to ZP $00-$02 that form the bad pointer
+                if (offset <= 0x02) {
+                    uint8_t old_val = m_wram[offset];
+                    if (value != old_val) {
+                        uint8_t b0 = (offset == 0) ? value : m_wram[0];
+                        uint8_t b1 = (offset == 1) ? value : m_wram[1];
+                        uint8_t b2 = (offset == 2) ? value : m_wram[2];
+                        // Log when key bytes for bad pointer are written
+                        if ((offset == 0x01 && value == 0x17) ||
+                            (offset == 0x02 && value == 0x03) ||
+                            (b2 == 0x03 && b1 == 0x17)) {
+                            uint32_t pc = m_cpu ? m_cpu->get_full_pc() : 0;
+                            fprintf(stderr, "[SNES] BAD PTR byte: ZP $%02X write $%02X -> $%02X (ptr now $%02X:%02X%02X) PC=$%02X:%04X\n",
+                                    offset, old_val, value, b2, b1, b0, (pc >> 16) & 0xFF, pc & 0xFFFF);
+                        }
+                    }
+                }
+            }
             m_wram[offset] = value;
             return;
         }
         if (offset >= 0x2140 && offset < 0x2144) {
             // APU ports (must be checked BEFORE PPU range)
             if (m_apu) {
+                static int apu_write_count = 0;
+                apu_write_count++;
+                if (is_debug_mode() && apu_write_count <= 20) {
+                    SNES_DEBUG_PRINT("CPU->APU port %d write: $%02X (count=%d)\n",
+                        (int)(offset - 0x2140), value, apu_write_count);
+                }
                 m_apu->write_port(offset - 0x2140, value);
             }
             return;
@@ -233,6 +316,13 @@ void Bus::write(uint32_t address, uint8_t value) {
         if (offset >= 0x2100 && offset < 0x2200) {
             // WRAM data port and address registers ($2180-$2183)
             if (offset == 0x2180) {
+                // Debug: Log writes to $1B00-$1BFF range via WRAM port
+                static int wram_port_write_count = 0;
+                if (m_wram_addr >= 0x1B00 && m_wram_addr < 0x1C00 && wram_port_write_count < 20) {
+                    wram_port_write_count++;
+                    SNES_DEBUG_PRINT("WRAM port write: addr=$%05X = $%02X (count=%d)\n",
+                        m_wram_addr, value, wram_port_write_count);
+                }
                 m_wram[m_wram_addr] = value;
                 m_wram_addr = (m_wram_addr + 1) & 0x1FFFF;  // 17-bit wrap
                 return;
@@ -302,10 +392,26 @@ void Bus::write(uint32_t address, uint8_t value) {
 
     // Banks $7E-$7F: WRAM
     if (bank == 0x7E) {
+        // Debug: Log writes to $1B00-$1BFF range via direct WRAM access
+        static int wram_7e_write_count = 0;
+        if (offset >= 0x1B00 && offset < 0x1C00 && wram_7e_write_count < 20) {
+            wram_7e_write_count++;
+            SNES_DEBUG_PRINT("WRAM bank $7E write: $%04X = $%02X (count=%d)\n",
+                offset, value, wram_7e_write_count);
+        }
         m_wram[offset] = value;
         return;
     }
     if (bank == 0x7F) {
+        // Trace writes to $7F:FF00 (dispatch index)
+        if (is_debug_mode() && offset == 0xFF00) {
+            static int ff00_write_count = 0;
+            ff00_write_count++;
+            if (ff00_write_count <= 20) {
+                fprintf(stderr, "[SNES] $7F:FF00 write #%d: value=$%02X (dispatch index)\n",
+                        ff00_write_count, value);
+            }
+        }
         m_wram[0x10000 + offset] = value;
         return;
     }
@@ -396,17 +502,41 @@ uint8_t Bus::read_cpu_io(uint16_t address) {
         case 0x4217:  // RDMPYH - Multiplication result (high)
             return (m_rdmpy >> 8) & 0xFF;
 
-        case 0x4218:  // JOY1L - Joypad 1 (low)
-            return m_controller_state[0] & 0xFF;
+        case 0x4218:  // JOY1L - Joypad 1 (low) - auto-joypad result
+            {
+                // Return LATCHED value from V-blank auto-read, not live state
+                uint8_t val = m_controller_latch[0] & 0xFF;
+                if (is_debug_mode() && val != 0) {
+                    static int joy_read_count = 0;
+                    if (joy_read_count < 20) {
+                        joy_read_count++;
+                        fprintf(stderr, "[SNES] JOY1L read #%d: $%02X (latched=$%04X)\n",
+                                joy_read_count, val, (uint16_t)m_controller_latch[0]);
+                    }
+                }
+                return val;
+            }
 
-        case 0x4219:  // JOY1H - Joypad 1 (high)
-            return (m_controller_state[0] >> 8) & 0xFF;
+        case 0x4219:  // JOY1H - Joypad 1 (high) - auto-joypad result
+            {
+                // Return LATCHED value from V-blank auto-read, not live state
+                uint8_t val = (m_controller_latch[0] >> 8) & 0xFF;
+                if (is_debug_mode() && val != 0) {
+                    static int joyh_read_count = 0;
+                    if (joyh_read_count < 20) {
+                        joyh_read_count++;
+                        fprintf(stderr, "[SNES] JOY1H read #%d: $%02X (latched=$%04X)\n",
+                                joyh_read_count, val, (uint16_t)m_controller_latch[0]);
+                    }
+                }
+                return val;
+            }
 
-        case 0x421A:  // JOY2L - Joypad 2 (low)
-            return m_controller_state[1] & 0xFF;
+        case 0x421A:  // JOY2L - Joypad 2 (low) - auto-joypad result
+            return m_controller_latch[1] & 0xFF;
 
-        case 0x421B:  // JOY2H - Joypad 2 (high)
-            return (m_controller_state[1] >> 8) & 0xFF;
+        case 0x421B:  // JOY2H - Joypad 2 (high) - auto-joypad result
+            return (m_controller_latch[1] >> 8) & 0xFF;
 
         default:
             return m_open_bus;
@@ -563,6 +693,19 @@ void Bus::set_controller_state(int controller, uint32_t buttons) {
         // SNES format: B Y Select Start Up Down Left Right A X L R (12 buttons)
         // VirtualButton: A=0, B=1, X=2, Y=3, L=4, R=5, Start=6, Select=7, Up=8, Down=9, Left=10, Right=11
 
+        // Debug: trace all button input changes (including release)
+        if (is_debug_mode() && controller == 0) {
+            static int btn_trace_count = 0;
+            static uint32_t last_buttons = 0xFFFFFFFF;  // Force first log
+            if (buttons != last_buttons) {
+                btn_trace_count++;
+                if (btn_trace_count <= 100) {
+                    fprintf(stderr, "[SNES] Controller input #%d: raw=$%08X\n", btn_trace_count, buttons);
+                }
+                last_buttons = buttons;
+            }
+        }
+
         uint16_t snes_buttons = 0;
 
         // B button (bit 15 in SNES, bit 1 in VirtualButton)
@@ -595,6 +738,9 @@ void Bus::set_controller_state(int controller, uint32_t buttons) {
 }
 
 void Bus::start_frame() {
+    // Increment frame counter for debug tracing
+    m_frame_counter++;
+
     // Reset frame state at V=0, H=0
     // Reference: fullsnes.txt, anomie's SNES docs, snes wiki timing
     //
@@ -622,9 +768,8 @@ void Bus::start_frame() {
     bool nmi_enabled = (m_nmitimen & 0x80) != 0;
     m_prev_nmi_active = nmi_enabled && m_nmi_line;  // Will be false since m_nmi_line is false
 
-    if (m_dma) {
-        m_dma->hdma_init();
-    }
+    // NOTE: HDMA initialization is done by snes_plugin.cpp after calling start_frame().
+    // Do NOT call hdma_init() here to avoid double initialization.
 }
 
 void Bus::start_scanline() {
@@ -656,11 +801,9 @@ void Bus::start_scanline() {
 }
 
 void Bus::start_hblank() {
-    // Process HDMA
-    if (m_dma && m_hdmaen) {
-        m_dma->hdma_transfer();
-    }
-
+    // NOTE: HDMA is processed by snes_plugin.cpp after calling start_hblank().
+    // Do NOT call hdma_transfer() here to avoid double HDMA processing.
+    //
     // NOTE: H-IRQ is now properly handled by check_irq_trigger() which is called
     // during the main CPU step loop. The previous code here was redundantly
     // setting m_irq_flag without checking m_irq_triggered_this_line, causing
@@ -800,11 +943,12 @@ bool Bus::test_nmi() {
 }
 
 void Bus::update_hcounter(int master_cycles) {
-    // SNES has 1364 master cycles per scanline (including H-blank)
-    // H-counter increments every 4 master cycles, giving 341 dots per scanline
+    // SNES has 1360 master cycles per scanline (including H-blank)
+    // H-counter increments every 4 master cycles, giving 340 dots per scanline
     // Dots 0-255 = active display, 256-339 = H-blank
+    // Reference: fullsnes.txt, PPU timing documentation
     constexpr int MASTER_CYCLES_PER_DOT = 4;
-    constexpr int DOTS_PER_SCANLINE = 341;
+    constexpr int DOTS_PER_SCANLINE = 340;
 
     m_prev_hcounter = m_hcounter;
     m_hcounter += master_cycles / MASTER_CYCLES_PER_DOT;

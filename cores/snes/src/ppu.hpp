@@ -66,6 +66,11 @@ public:
     // are rendered with the old register values
     void sync_to_current();
 
+    // Sync rendering up to H-blank start (dot 278) of the given scanline
+    // This ensures all visible pixels for that scanline are rendered
+    // before HDMA changes register values
+    void sync_to_hblank(int scanline);
+
     // Pre-evaluate sprites for a visible scanline (called at scanline start)
     // This ensures sprites are evaluated using the register state from
     // the end of the previous scanline (matching hardware timing)
@@ -90,6 +95,7 @@ public:
     bool is_overscan() const { return m_overscan; }
     // Mode 5/6 always output 512 pixels wide (true hi-res), same as pseudo-hires
     bool is_hires_output() const { return m_pseudo_hires || m_bg_mode == 5 || m_bg_mode == 6; }
+    int get_mode() const { return m_bg_mode; }
     // Always return 512 - framebuffer is always 512 pixels wide to handle mixed modes
     // Non-hi-res scanlines duplicate pixels; hi-res scanlines use full resolution
     int get_screen_width() const { return 512; }

@@ -275,6 +275,85 @@ class SNESTestRunner:
         # TEPPLES TELLINGLYS
         # =======================================================================
         "tellinglys": (300, "Tellinglys PPU test by tepples"),
+
+        # =======================================================================
+        # ADDITIONAL DMA TESTS (critical for game compatibility)
+        # =======================================================================
+        "test_dmasync": (400, "DMA sync/timing test"),
+        "test_dmavalid": (400, "DMA validation test"),
+        "test_mdrhdma": (400, "MDR HDMA test"),
+
+        # =======================================================================
+        # MEMORY/RAM TESTS (critical for game loading)
+        # =======================================================================
+        "memtest": (400, "Memory access test"),
+        "1-test_exec_from_io": (300, "Execute from I/O region test"),
+        "2-test_single_instr": (300, "Single instruction test"),
+        "3-test_write_disable": (300, "Write disable test"),
+        "4-test_ram_disable": (300, "RAM disable test"),
+        "test_ram_disable_ipl": (300, "RAM disable IPL test"),
+
+        # =======================================================================
+        # MATH UNIT TESTS (multiplication/division hardware)
+        # =======================================================================
+        "mul_behavior": (400, "Multiplication behavior test"),
+        "mul_timing": (400, "Multiplication timing test"),
+        "div_behavior": (400, "Division behavior test"),
+        "div_timing": (400, "Division timing test"),
+        "test_mul": (400, "Multiplication test"),
+        "test_math": (400, "Math unit test"),
+
+        # =======================================================================
+        # TIMER TESTS
+        # =======================================================================
+        "test_timer_speed": (400, "Timer speed test"),
+        "test_timer_speed_2": (400, "Timer speed test 2"),
+        "test_timer_speed2": (400, "Timer speed test variant 2"),
+        "test_timer_speed3": (400, "Timer speed test 3"),
+        "test_timer_stop": (400, "Timer stop test"),
+        "test_timer_stop2": (400, "Timer stop test 2"),
+        "timer_at_power_reset": (400, "Timer at power/reset test"),
+
+        # =======================================================================
+        # PPU BUS ACTIVITY
+        # =======================================================================
+        "ppubusact": (300, "PPU bus activity test"),
+        "demo_mode3": (300, "Mode 3 demo test"),
+
+        # =======================================================================
+        # SPC700 AUDIO CPU TESTS (PeterLemon)
+        # =======================================================================
+        "SPC700ADC": (400, "SPC700 ADC instruction test"),
+        "SPC700AND": (400, "SPC700 AND instruction test"),
+        "SPC700DEC": (400, "SPC700 DEC instruction test"),
+        "SPC700EOR": (400, "SPC700 EOR instruction test"),
+        "SPC700INC": (400, "SPC700 INC instruction test"),
+        "SPC700ORA": (400, "SPC700 ORA instruction test"),
+        "SPC700SBC": (400, "SPC700 SBC instruction test"),
+
+        # =======================================================================
+        # SPC700 TIMING/MEMORY TESTS
+        # =======================================================================
+        "spc_mem_access_times": (600, "SPC memory access timing test"),
+        "spc_timer": (600, "SPC timer test"),
+        "spc_smp": (600, "SPC SMP test"),
+
+        # =======================================================================
+        # CONTROLLER TESTS
+        # =======================================================================
+        "controller strobebehavior": (300, "Controller strobe behavior test"),
+
+        # =======================================================================
+        # ADDITIONAL IRQ TESTS
+        # =======================================================================
+        "test_irq4209": (400, "IRQ $4209 timing test"),
+        "irq": (300, "Basic IRQ test"),
+
+        # =======================================================================
+        # SPEED TESTS
+        # =======================================================================
+        "speed_test_v51": (600, "Speed test v5.1"),
+        "test_speed": (400, "Speed test"),
     }
 
     def __init__(

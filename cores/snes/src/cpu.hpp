@@ -43,6 +43,13 @@ public:
     bool is_emulation_mode() const { return m_emulation; }
     bool get_interrupt_disable() const { return get_flag(FLAG_I); }
 
+    // Check if an IRQ will be serviced on the next step
+    // This is true if IRQ line is active and I flag is clear
+    // Used for pre-rendering PPU before IRQ handler changes registers
+    bool can_service_irq() const {
+        return m_irq_line && !get_flag(FLAG_I) && !m_nmi_pending;
+    }
+
     // Get full 24-bit address
     uint32_t get_full_pc() const { return (static_cast<uint32_t>(m_pbr) << 16) | m_pc; }
 

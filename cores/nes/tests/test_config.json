@@ -11,7 +11,7 @@
       "tests": [
         {"path": "instr_test-v5/rom_singles/01-basics.nes", "expected": "pass"},
         {"path": "instr_test-v5/rom_singles/02-implied.nes", "expected": "pass"},
-        {"path": "instr_test-v5/rom_singles/03-immediate.nes", "expected": "known_fail", "notes": "Unofficial opcode edge case"},
+        {"path": "instr_test-v5/rom_singles/03-immediate.nes", "expected": "known_fail", "notes": "LAX immediate ($AB) is highly unstable - behavior varies by chip"},
         {"path": "instr_test-v5/rom_singles/04-zero_page.nes", "expected": "pass"},
         {"path": "instr_test-v5/rom_singles/05-zp_xy.nes", "expected": "pass"},
         {"path": "instr_test-v5/rom_singles/06-absolute.nes", "expected": "pass"},
@@ -48,8 +48,8 @@
       "priority": "high",
       "tests": [
         {"path": "cpu_interrupts_v2/rom_singles/1-cli_latency.nes", "expected": "pass"},
-        {"path": "cpu_interrupts_v2/rom_singles/2-nmi_and_brk.nes", "expected": "known_fail", "notes": "Requires cycle-accurate interrupt handling"},
-        {"path": "cpu_interrupts_v2/rom_singles/3-nmi_and_irq.nes", "expected": "known_fail", "notes": "Requires cycle-accurate interrupt handling"},
+        {"path": "cpu_interrupts_v2/rom_singles/2-nmi_and_brk.nes", "expected": "known_fail", "notes": "NMI/BRK interaction - pre-existing from PPU overhaul"},
+        {"path": "cpu_interrupts_v2/rom_singles/3-nmi_and_irq.nes", "expected": "known_fail", "notes": "APU frame counter timing affects NMI/IRQ boundary detection - off by 1 iteration"},
         {"path": "cpu_interrupts_v2/rom_singles/4-irq_and_dma.nes", "expected": "known_fail", "notes": "Requires cycle-accurate DMA handling"},
         {"path": "cpu_interrupts_v2/rom_singles/5-branch_delays_irq.nes", "expected": "pass"}
       ]
@@ -64,7 +64,7 @@
         {"path": "ppu_vbl_nmi/rom_singles/02-vbl_set_time.nes", "expected": "pass"},
         {"path": "ppu_vbl_nmi/rom_singles/03-vbl_clear_time.nes", "expected": "pass"},
         {"path": "ppu_vbl_nmi/rom_singles/04-nmi_control.nes", "expected": "pass"},
-        {"path": "ppu_vbl_nmi/rom_singles/05-nmi_timing.nes", "expected": "known_fail", "notes": "NMI timing edge case - affects few games"},
+        {"path": "ppu_vbl_nmi/rom_singles/05-nmi_timing.nes", "expected": "known_fail", "notes": "NMI timing edge case - pre-existing from PPU overhaul"},
         {"path": "ppu_vbl_nmi/rom_singles/06-suppression.nes", "expected": "pass"},
         {"path": "ppu_vbl_nmi/rom_singles/07-nmi_on_timing.nes", "expected": "pass"},
         {"path": "ppu_vbl_nmi/rom_singles/08-nmi_off_timing.nes", "expected": "pass"},
@@ -111,9 +111,9 @@
         {"path": "mmc3_test_2/rom_singles/1-clocking.nes", "expected": "pass"},
         {"path": "mmc3_test_2/rom_singles/2-details.nes", "expected": "pass"},
         {"path": "mmc3_test_2/rom_singles/3-A12_clocking.nes", "expected": "pass"},
-        {"path": "mmc3_test_2/rom_singles/4-scanline_timing.nes", "expected": "known_fail", "notes": "Scanline 0 timing edge case"},
+        {"path": "mmc3_test_2/rom_singles/4-scanline_timing.nes", "expected": "known_fail", "notes": "104-cycle timing discrepancy - test expects IRQ at scanline 261 cycle 157 but A12 rises at cycle 261. mmc3_irq_tests/4.Scanline_timing passes with tolerance."},
         {"path": "mmc3_test_2/rom_singles/5-MMC3.nes", "expected": "pass"},
-        {"path": "mmc3_test_2/rom_singles/6-MMC3_alt.nes", "expected": "known_fail", "notes": "Alternate behavior variant"}
+        {"path": "mmc3_test_2/rom_singles/6-MMC3_alt.nes", "expected": "pass"}
       ]
     },
 
@@ -125,9 +125,9 @@
         {"path": "apu_test/rom_singles/1-len_ctr.nes", "expected": "pass"},
         {"path": "apu_test/rom_singles/2-len_table.nes", "expected": "pass"},
         {"path": "apu_test/rom_singles/3-irq_flag.nes", "expected": "pass"},
-        {"path": "apu_test/rom_singles/4-jitter.nes", "expected": "known_fail", "notes": "Frame counter jitter"},
-        {"path": "apu_test/rom_singles/5-len_timing.nes", "expected": "known_fail", "notes": "Length counter timing"},
-        {"path": "apu_test/rom_singles/6-irq_flag_timing.nes", "expected": "known_fail", "notes": "IRQ flag timing"},
+        {"path": "apu_test/rom_singles/4-jitter.nes", "expected": "known_fail", "notes": "APU frame counter jitter timing - odd cycle handling"},
+        {"path": "apu_test/rom_singles/5-len_timing.nes", "expected": "known_fail", "notes": "APU length counter timing - mode 0 step 4 timing"},
+        {"path": "apu_test/rom_singles/6-irq_flag_timing.nes", "expected": "known_fail", "notes": "APU IRQ flag timing edge case"},
         {"path": "apu_test/rom_singles/7-dmc_basics.nes", "expected": "pass"},
         {"path": "apu_test/rom_singles/8-dmc_rates.nes", "expected": "pass"}
       ]
@@ -224,10 +224,9 @@
   },
 
   "known_issues": {
-    "cpu_interrupts": "NMI/BRK and NMI/IRQ hijacking requires cycle-accurate interrupts - affects very few games",
-    "nmi_timing": "Precise NMI timing edge case - affects very few games",
-    "mmc3_scanline_timing": "Scanline 0 IRQ timing edge case",
-    "mmc3_alt": "MMC3 alternate behavior variant (clone-specific)",
-    "apu_timing": "Frame counter jitter and exact IRQ timing - minimal audio impact"
+    "cpu_interrupts": "NMI/BRK hijacking now passes. NMI/IRQ (test 3) has 1-cycle timing edge case with APU frame counter",
+    "mmc3_scanline_timing": "mmc3_test_2/4-scanline_timing expects IRQ at scanline 261 cycle 157 (6976 cycles from VBL) but A12 first rises at cycle 261 (7080 cycles from VBL) during sprite pattern fetch with $2000=$08. The equivalent mmc3_irq_tests/4.Scanline_timing passes with tolerance. Investigation shows the test expects A12 to rise during BG fetches when BG is at $0000 which appears inconsistent with MMC3 A12 clocking behavior.",
+    "unstable_opcodes": "LAX immediate ($AB) and other unstable 6502 opcodes have hardware-dependent behavior",
+    "apu_timing": "APU frame counter edge timing varies between models - affects jitter and length counter tests"
   }
 }

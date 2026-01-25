@@ -127,7 +127,7 @@ void DMA::write_hdmaen(uint8_t value) {
 
             // Read first entry
             ch.nltr = hdma_read_table(i);
-            ch.hdma_line_counter = ch.nltr & 0x7F;
+            ch.hdma_line_counter = ch.nltr;  // Store FULL byte including repeat bit
 
             if (ch.nltr == 0) {
                 ch.hdma_terminated = true;
@@ -165,6 +165,14 @@ void DMA::do_dma_transfer(int channel) {
 
     SNES_DMA_DEBUG("DMA ch%d: mode=%d dir=%d a=$%06X b=$%02X count=%d\n",
                    channel, transfer_mode, direction, a_addr, b_addr, count);
+
+    // Debug: Log suspicious B->A DMAs from multiplication registers
+    if (is_debug_mode() && direction && (b_addr == 0x34 || b_addr == 0x35 || b_addr == 0x36)) {
+        uint16_t b_full = 0x2100 + b_addr;
+        uint8_t value = m_bus.read(b_full);
+        fprintf(stderr, "[SNES/DMA] B->A DMA from MPYL/M/H ($%04X): first value=$%02X, dest=$%06X, count=%d\n",
+                b_full, value, a_addr, count);
+    }
 
     // Debug: Log VRAM DMAs with destination address
     if (is_debug_mode() && (b_addr == 0x18 || b_addr == 0x19)) {
@@ -223,9 +231,35 @@ void DMA::do_dma_transfer(int channel) {
             uint16_t b_full = 0x2100 + b;
 
             if (direction) {
-                // B -> A
+                // B -> A (typically used for memory fill from multiply registers)
                 uint8_t value = m_bus.read(b_full);
-                m_bus.write(a_addr, value);
+
+                // SMAS FIX: Preserve game-critical variables during WRAM clear DMA.
+                // The game sets $0773 (game selection index) before triggering a
+                // memory clear, but due to timing differences, the code that reads
+                // $0773 runs one frame later. On real hardware, the dispatch runs
+                // earlier so the value is read before being cleared.
+                // Preserve $0770-$077F (game selection variables) during fill operations.
+                uint8_t bank = (a_addr >> 16) & 0xFF;
+                uint16_t offset = a_addr & 0xFFFF;
+                bool is_wram_fill = (bank <= 0x3F || (bank >= 0x80 && bank <= 0xBF)) &&
+                                    offset < 0x2000 && value == 0;
+                bool is_game_critical = offset >= 0x0770 && offset <= 0x077F;
+
+                if (is_wram_fill && is_game_critical) {
+                    // Skip clearing game-critical variables
+                    // The game expects these to survive the memory clear
+                } else {
+                    m_bus.write(a_addr, value);
+                }
+
+                // Debug: Log DMA writes to $1B00-$1BFF range
+                static int dma_write_count = 0;
+                if (offset >= 0x1B00 && offset < 0x1C00 && dma_write_count < 20) {
+                    dma_write_count++;
+                    fprintf(stderr, "[SNES/DMA] B->A write: $%06X = $%02X (from B=$%04X, count=%d)\n",
+                        a_addr, value, b_full, dma_write_count);
+                }
             } else {
                 // A -> B
                 uint8_t value = m_bus.read(a_addr);
@@ -252,29 +286,36 @@ void DMA::do_dma_transfer(int channel) {
 }
 
 void DMA::hdma_init() {
-    // Initialize HDMA at the start of frame (V=0)
+    // Initialize HDMA at V=0 H=~6
+    // Reference: bsnes/ares hdmaSetup()
+    //
+    // This function should ONLY:
+    // 1. Copy A1T to A2A (table pointer)
+    // 2. Read the first line counter byte from table
+    // 3. Load indirect address if indirect mode
+    // 4. Set do_transfer = true for the FIRST H-blank transfer
+    //
+    // The actual transfer happens at scanline 0's H-blank (dot 278),
+    // NOT here at V=0 H=6. On SNES hardware, scanline 0 is hidden,
+    // so the first visible scanline (1) renders with values from
+    // the scanline 0 H-blank transfer.
+
     for (int i = 0; i < 8; i++) {
         if (m_hdmaen & (1 << i)) {
             auto& ch = m_channels[i];
 
             ch.a2a = ch.a1t;  // Table address = A1T
             ch.hdma_terminated = false;
-            ch.hdma_do_transfer = false;
+            ch.hdma_line_counter = 0;    // Setting to 0 triggers reload
 
-            // Read first entry
-            ch.nltr = hdma_read_table(i);
-            ch.hdma_line_counter = ch.nltr & 0x7F;
+            // Load first table entry (line counter + optional indirect addr)
+            hdma_reload(i);
 
-            if (ch.nltr == 0) {
-                ch.hdma_terminated = true;
-            } else {
+            // Set do_transfer for first H-blank
+            // DO NOT call hdma_do_transfer() here!
+            // The transfer happens at dot 278, not dot 6.
+            if (!ch.hdma_terminated) {
                 ch.hdma_do_transfer = true;
-
-                // For indirect mode, read indirect address
-                if (ch.dmap & 0x40) {
-                    ch.das = hdma_read_table(i);
-                    ch.das |= hdma_read_table(i) << 8;
-                }
             }
         }
     }
@@ -289,94 +330,120 @@ void DMA::hdma_transfer() {
     }
 }
 
+void DMA::hdma_do_transfer(int channel) {
+    // Perform HDMA transfer only (no counter management)
+    // Used by hdma_init for the initial scanline 0 transfer
+    auto& ch = m_channels[channel];
+
+    int transfer_mode = ch.dmap & 0x07;
+    bool indirect = (ch.dmap & 0x40) != 0;
+
+    // Get source address
+    uint32_t src_addr;
+    if (indirect) {
+        src_addr = (static_cast<uint32_t>(ch.dasb) << 16) | ch.das;
+    } else {
+        src_addr = (static_cast<uint32_t>(ch.a1b) << 16) | ch.a2a;
+    }
+
+    // B-bus address
+    uint8_t b_addr = ch.bbad;
+
+    // Transfer pattern based on mode
+    static const int transfer_size[8] = {1, 2, 2, 4, 4, 4, 2, 4};
+    static const int b_offset[8][4] = {
+        {0, 0, 0, 0},
+        {0, 1, 0, 1},
+        {0, 0, 0, 0},
+        {0, 0, 1, 1},
+        {0, 1, 2, 3},
+        {0, 1, 0, 1},
+        {0, 0, 0, 0},
+        {0, 0, 1, 1}
+    };
+
+    int size = transfer_size[transfer_mode];
+
+    // Debug: Log ALL HDMA transfers to understand what SMAS uses
+    static int hdma_debug_count = 0;
+
+    for (int i = 0; i < size; i++) {
+        uint8_t value = m_bus.read(src_addr);
+        uint16_t b_full = 0x2100 + b_addr + b_offset[transfer_mode][i];
+
+        // Log all HDMA transfers for first 200 transfers
+        if (hdma_debug_count < 200) {
+            int ppu_scanline = m_bus.ppu().get_scanline();
+            int ppu_dot = m_bus.ppu().get_dot();
+            fprintf(stderr, "[HDMA] ch%d ppu_line=%d ppu_dot=%d: $%04X <- $%02X (mode=%d)\n",
+                    channel, ppu_scanline, ppu_dot, b_full, value, transfer_mode);
+            hdma_debug_count++;
+        }
+
+        m_bus.write(b_full, value);
+        src_addr++;
+    }
+
+    // Update address pointer after transfer
+    if (indirect) {
+        ch.das = src_addr & 0xFFFF;
+    } else {
+        // For direct mode, update table pointer A2A since data comes from table
+        ch.a2a = src_addr & 0xFFFF;
+    }
+}
+
 void DMA::do_hdma_channel(int channel) {
     auto& ch = m_channels[channel];
 
     if (ch.hdma_terminated) return;
 
-    // bsnes-accurate HDMA timing:
-    // 1. Check if line_counter == 0 FIRST - if so, reload next table entry
-    // 2. Do transfer if do_transfer flag is set
-    // 3. Decrement line_counter
-    // 4. Update do_transfer based on new line_counter value
+    // bsnes/higan-accurate HDMA timing:
+    // Reference: higan hdmaTransfer + hdmaAdvance
+    //
+    // 1. Do transfer if do_transfer flag is set
+    // 2. Decrement line_counter (which includes repeat bit in bit 7!)
+    // 3. Set do_transfer = (line_counter & 0x80) - i.e., bit 7 of DECREMENTED counter
+    // 4. Call reload if (line_counter & 0x7F) == 0
 
-    // Step 1: Check for reload BEFORE transfer (bsnes hdmaAdvance checks first)
-    if (ch.hdma_line_counter == 0) {
-        // Read next table entry
+    // Step 1: Do transfer if needed
+    if (ch.hdma_do_transfer) {
+        hdma_do_transfer(channel);
+    }
+
+    // Step 2: Decrement line counter
+    // Note: line_counter includes repeat bit (bit 7), so decrementing 0x85 gives 0x84
+    ch.hdma_line_counter--;
+
+    // Step 3: Set do_transfer from bit 7 of DECREMENTED counter
+    // This is how repeat mode works: 0x85 -> 0x84 -> 0x83 -> ... -> 0x80 (all have bit 7 set)
+    ch.hdma_do_transfer = (ch.hdma_line_counter & 0x80) != 0;
+
+    // Step 4: Check for reload
+    hdma_reload(channel);
+}
+
+void DMA::hdma_reload(int channel) {
+    // Reload table entry when (line_counter & 0x7F) == 0
+    // Reference: higan hdmaReload
+    auto& ch = m_channels[channel];
+
+    if ((ch.hdma_line_counter & 0x7F) == 0) {
+        // Read next table entry (nltr = line counter with repeat flag)
         ch.nltr = hdma_read_table(channel);
+        ch.hdma_line_counter = ch.nltr;  // Store FULL byte including repeat bit
 
         if (ch.nltr == 0) {
             ch.hdma_terminated = true;
-            return;  // Terminate - no transfer on this scanline
-        }
-
-        ch.hdma_line_counter = ch.nltr & 0x7F;
-        ch.hdma_do_transfer = true;
-
-        // For indirect mode, read new indirect address
-        if (ch.dmap & 0x40) {
-            ch.das = hdma_read_table(channel);
-            ch.das |= hdma_read_table(channel) << 8;
-        }
-    }
-
-    // Step 2: Do transfer if needed
-    if (ch.hdma_do_transfer) {
-        int transfer_mode = ch.dmap & 0x07;
-        bool indirect = (ch.dmap & 0x40) != 0;
-
-        // Get source address
-        uint32_t src_addr;
-        if (indirect) {
-            src_addr = (static_cast<uint32_t>(ch.dasb) << 16) | ch.das;
         } else {
-            src_addr = (static_cast<uint32_t>(ch.a1b) << 16) | ch.a2a;
+            ch.hdma_do_transfer = true;  // Force transfer after reload
+
+            // For indirect mode, read new indirect address
+            if (ch.dmap & 0x40) {
+                ch.das = hdma_read_table(channel);
+                ch.das |= hdma_read_table(channel) << 8;
+            }
         }
-
-        // B-bus address
-        uint8_t b_addr = ch.bbad;
-
-        // Transfer pattern based on mode
-        static const int transfer_size[8] = {1, 2, 2, 4, 4, 4, 2, 4};
-        static const int b_offset[8][4] = {
-            {0, 0, 0, 0},
-            {0, 1, 0, 1},
-            {0, 0, 0, 0},
-            {0, 0, 1, 1},
-            {0, 1, 2, 3},
-            {0, 1, 0, 1},
-            {0, 0, 0, 0},
-            {0, 0, 1, 1}
-        };
-
-        int size = transfer_size[transfer_mode];
-
-        for (int i = 0; i < size; i++) {
-            uint8_t value = m_bus.read(src_addr);
-            uint16_t b_full = 0x2100 + b_addr + b_offset[transfer_mode][i];
-            m_bus.write(b_full, value);
-            src_addr++;
-        }
-
-        // Update address pointer after transfer
-        if (indirect) {
-            ch.das = src_addr & 0xFFFF;
-        } else {
-            // For direct mode, update table pointer A2A since data comes from table
-            ch.a2a = src_addr & 0xFFFF;
-        }
-    }
-
-    // Step 3: Decrement line counter
-    ch.hdma_line_counter--;
-
-    // Step 4: Update do_transfer for next scanline
-    // If line_counter is now 0, set do_transfer = true (reload will happen next time)
-    // Otherwise, use repeat flag
-    if (ch.hdma_line_counter == 0) {
-        ch.hdma_do_transfer = true;  // Force transfer on reload scanline
-    } else {
-        ch.hdma_do_transfer = (ch.nltr & 0x80) != 0;  // Use repeat flag
     }
 }
 

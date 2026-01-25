@@ -41,51 +41,80 @@ void SPC700::reset() {
     m_timer_divider.fill(0);
 
     m_control = 0x80;
+    m_test_reg = 0x0A;  // Default TEST register value
     m_ipl_rom_enabled = true;
     m_cycles = 0;
 }
 
 int SPC700::step() {
+    // Tick timers from previous instruction's cycles
+    // This defers the tick to the start of the NEXT instruction,
+    // which means reads see the timer state BEFORE the current instruction's contribution
+    tick_timers(m_cycles);
     m_cycles = 0;
+
+    // Debug: Track if SPC700 exits IPL ROM boot sequence
+    static bool ipl_boot_logged = false;
+    static int step_count = 0;
+    step_count++;
+
+    // IPL ROM boot loop is at $FFCF-$FFD2
+    // When we exit IPL ROM (PC < $FFC0 or PC > $FFD2 and not in early IPL), boot is done
+    if (!ipl_boot_logged && m_pc < 0xFFC0) {
+        ipl_boot_logged = true;
+        fprintf(stderr, "[SPC700] Exited IPL ROM boot at step %d, PC=$%04X, port_in[0]=$%02X\n",
+                step_count, m_pc, m_port_in[0]);
+    }
+
     execute();
+    return m_cycles;
+}
 
-    // Update timers
-    // Timer 0/1: 8kHz (128 cycles), Timer 2: 64kHz (16 cycles)
-    // Reference: anomie's SPC700 docs:
-    // - Stage 1 (divider) runs constantly and cannot be stopped
-    // - Stage 2 (counter) only increments when timer is enabled
-    // - Stage 3 (output) increments when Stage 2 matches target
+// Tick timers by the specified number of cycles
+// Reference: anomie's SPC700 docs, fullsnes
+//
+// Timer architecture (simplified):
+// - Divider: Accumulates cycles until reaching rate threshold (runs constantly)
+// - Counter: Increments when divider overflows AND timer is enabled
+// - Output: 4-bit counter, increments when counter matches target
+//
+// Timer rates:
+// - Timer 0/1: 128 cycles per tick (8kHz at 1.024MHz)
+// - Timer 2: 16 cycles per tick (64kHz at 1.024MHz)
+//
+// TEST register ($F0) affects timer operation:
+// - Bit 0: Halt timers when set
+// - Bit 3: Timers only work when set
+void SPC700::tick_timers(int cycles) {
     for (int i = 0; i < 3; i++) {
-        int divider = (i < 2) ? 128 : 16;
-        m_timer_divider[i] += m_cycles;
+        // Timer rates: 128 for T0/T1, 16 for T2
+        int rate = (i < 2) ? 128 : 16;
+        m_timer_divider[i] += cycles;
 
-        // Stage 1 runs constantly regardless of enable state
-        while (m_timer_divider[i] >= divider) {
-            m_timer_divider[i] -= divider;
+        // Divider runs constantly regardless of enable state
+        while (m_timer_divider[i] >= rate) {
+            m_timer_divider[i] -= rate;
 
-            // Stage 2 only increments when timer is enabled
+            // Counter only increments when timer is enabled via $F1
             if (m_timer_enabled[i]) {
                 // Increment counter (8-bit, wraps at 256)
                 m_timer_counter[i]++;
 
                 // Timer fires when counter equals target (post-increment check)
                 // Target 0 means 256 (fire when counter wraps to 0)
-                bool fire = false;
-                if (m_timer_target[i] == 0) {
-                    fire = (m_timer_counter[i] == 0);
-                } else {
-                    fire = (m_timer_counter[i] == m_timer_target[i]);
-                }
-
-                if (fire) {
+                if (m_timer_counter[i] == m_timer_target[i]) {
                     m_timer_counter[i] = 0;
                     m_timer_output[i] = (m_timer_output[i] + 1) & 0x0F;
                 }
             }
         }
     }
+}
 
-    return m_cycles;
+// Add internal cycle (no memory access but still ticks timers)
+void SPC700::idle() {
+    tick_timers(1);
+    m_cycles += 1;
 }
 
 uint8_t SPC700::read(uint16_t address) {
@@ -94,6 +123,10 @@ uint8_t SPC700::read(uint16_t address) {
     // I/O registers ($00F0-$00FF when direct page is 0)
     if (address >= 0x00F0 && address <= 0x00FF) {
         switch (address) {
+            case 0x00F0:  // TEST register - reads return 0
+                return 0;
+            case 0x00F1:  // CONTROL register - reads return 0
+                return 0;
             case 0x00F2:  // DSP address
                 return m_dsp ? m_dsp->read_address() : 0;
             case 0x00F3:  // DSP data
@@ -103,6 +136,13 @@ uint8_t SPC700::read(uint16_t address) {
             case 0x00F6:
             case 0x00F7:
                 return m_port_in[address - 0x00F4];
+            case 0x00F8:  // Unused - returns RAM value
+            case 0x00F9:  // Unused - returns RAM value
+                return m_ram[address];
+            case 0x00FA:  // Timer 0 target - reads return 0
+            case 0x00FB:  // Timer 1 target - reads return 0
+            case 0x00FC:  // Timer 2 target - reads return 0
+                return 0;
             case 0x00FD:
                 { uint8_t v = m_timer_output[0]; m_timer_output[0] = 0; return v; }
             case 0x00FE:
@@ -128,7 +168,14 @@ void SPC700::write(uint16_t address, uint8_t value) {
     // I/O registers
     if (address >= 0x00F0 && address <= 0x00FF) {
         switch (address) {
-            case 0x00F0:  // Test register (undocumented)
+            case 0x00F0:  // Test register
+                // Only writable when P flag is clear
+                if (!get_flag(FLAG_P)) {
+                    m_test_reg = value;
+                    // Bit 0: Halt timers (inverted - 0 = run, 1 = halt)
+                    // Bit 3: Enable timers (1 = enable, 0 = disable)
+                    // We handle these in tick_timers
+                }
                 break;
             case 0x00F1:  // Control
                 {

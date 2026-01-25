@@ -65,6 +65,9 @@ public:
     // Reset mapper state
     virtual void reset() {}
 
+    // Set ROM CRC for mapper-specific behavior (e.g., MMC3A vs MMC3B detection)
+    virtual void set_rom_crc(uint32_t crc) { (void)crc; }
+
     // Save state
     virtual void save_state(std::vector<uint8_t>& data) {}
     virtual void load_state(const uint8_t*& data, size_t& remaining) {}

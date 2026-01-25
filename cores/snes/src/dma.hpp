@@ -41,6 +41,8 @@ public:
 private:
     void do_dma_transfer(int channel);
     void do_hdma_channel(int channel);
+    void hdma_do_transfer(int channel);  // Transfer only (no counter management)
+    void hdma_reload(int channel);       // Reload table entry when counter exhausted
     uint8_t hdma_read_table(int channel);
 
     Bus& m_bus;

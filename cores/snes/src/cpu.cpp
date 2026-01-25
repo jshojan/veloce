@@ -218,6 +218,10 @@ uint32_t CPU::addr_direct_x() {
     uint8_t offset = read_pc();
     if ((m_dp & 0xFF) != 0) m_cycles += 6;
     m_cycles += 6;  // Index calculation
+    if (m_emulation && (m_dp & 0xFF) == 0) {
+        // Emulation mode with DL=0: index wraps within page
+        return (m_dp + ((offset + m_x) & 0xFF)) & 0xFFFF;
+    }
     return (m_dp + offset + m_x) & 0xFFFF;
 }
 
@@ -225,6 +229,10 @@ uint32_t CPU::addr_direct_y() {
     uint8_t offset = read_pc();
     if ((m_dp & 0xFF) != 0) m_cycles += 6;
     m_cycles += 6;
+    if (m_emulation && (m_dp & 0xFF) == 0) {
+        // Emulation mode with DL=0: index wraps within page
+        return (m_dp + ((offset + m_y) & 0xFF)) & 0xFFFF;
+    }
     return (m_dp + offset + m_y) & 0xFFFF;
 }
 
@@ -244,9 +252,30 @@ uint32_t CPU::addr_direct_indirect_long() {
 }
 
 uint32_t CPU::addr_direct_x_indirect() {
-    uint32_t dp_addr = addr_direct_x();
-    uint8_t lo = read(dp_addr);
-    uint8_t hi = read((dp_addr + 1) & 0xFFFF);
+    uint8_t offset = read_pc();
+    if ((m_dp & 0xFF) != 0) m_cycles += 6;
+    m_cycles += 6;  // Index calculation
+
+    uint8_t lo, hi;
+    if (m_emulation) {
+        // Emulation mode: special wrapping behavior
+        if ((m_dp & 0xFF) == 0) {
+            // DL=0: index and pointer wrap within page
+            uint8_t zp = (offset + m_x) & 0xFF;
+            lo = read(m_dp + zp);
+            hi = read(m_dp + ((zp + 1) & 0xFF));
+        } else {
+            // DL≠0: undocumented behavior - the +1 wraps within the page
+            // Low byte from D+offset+X, high byte from same page with wrapped offset
+            uint16_t dp_addr = (m_dp + offset + m_x) & 0xFFFF;
+            lo = read(dp_addr);
+            hi = read((dp_addr & 0xFF00) | ((dp_addr + 1) & 0xFF));
+        }
+    } else {
+        uint16_t dp_addr = (m_dp + offset + m_x) & 0xFFFF;
+        lo = read(dp_addr);
+        hi = read((dp_addr + 1) & 0xFFFF);
+    }
     return (static_cast<uint32_t>(m_dbr) << 16) | (lo | (hi << 8));
 }
 
@@ -255,10 +284,11 @@ uint32_t CPU::addr_direct_indirect_y() {
     uint8_t lo = read(dp_addr);
     uint8_t hi = read((dp_addr + 1) & 0xFFFF);
     uint16_t base = lo | (hi << 8);
-    uint16_t result = base + m_y;
     // Page crossing penalty
-    if ((base & 0xFF00) != (result & 0xFF00)) m_cycles += 6;
-    return (static_cast<uint32_t>(m_dbr) << 16) | result;
+    if (((base & 0xFF) + (m_y & 0xFF)) > 0xFF) m_cycles += 6;
+    // Use addition instead of OR to allow carry to propagate into bank
+    // This matches hardware behavior where base + Y can cross bank boundaries
+    return ((static_cast<uint32_t>(m_dbr) << 16) + base + m_y) & 0xFFFFFF;
 }
 
 uint32_t CPU::addr_direct_indirect_long_y() {
@@ -277,17 +307,18 @@ uint32_t CPU::addr_absolute() {
 
 uint32_t CPU::addr_absolute_x() {
     uint16_t base = read_pc16();
-    uint16_t result = base + m_x;
     // Page crossing penalty (not always applied)
-    if ((base & 0xFF00) != (result & 0xFF00)) m_cycles += 6;
-    return (static_cast<uint32_t>(m_dbr) << 16) | result;
+    if (((base & 0xFF) + (m_x & 0xFF)) > 0xFF) m_cycles += 6;
+    // Use addition instead of OR to allow carry to propagate into bank
+    return ((static_cast<uint32_t>(m_dbr) << 16) + base + m_x) & 0xFFFFFF;
 }
 
 uint32_t CPU::addr_absolute_y() {
     uint16_t base = read_pc16();
-    uint16_t result = base + m_y;
-    if ((base & 0xFF00) != (result & 0xFF00)) m_cycles += 6;
-    return (static_cast<uint32_t>(m_dbr) << 16) | result;
+    // Page crossing penalty
+    if (((base & 0xFF) + (m_y & 0xFF)) > 0xFF) m_cycles += 6;
+    // Use addition instead of OR to allow carry to propagate into bank
+    return ((static_cast<uint32_t>(m_dbr) << 16) + base + m_y) & 0xFFFFFF;
 }
 
 uint32_t CPU::addr_absolute_long() {
@@ -333,7 +364,8 @@ uint32_t CPU::addr_stack_relative_indirect_y() {
     uint8_t lo = read(sr_addr);
     uint8_t hi = read((sr_addr + 1) & 0xFFFF);
     uint16_t base = lo | (hi << 8);
-    return (static_cast<uint32_t>(m_dbr) << 16) | ((base + m_y) & 0xFFFF);
+    // Use addition instead of OR to allow carry to propagate into bank
+    return ((static_cast<uint32_t>(m_dbr) << 16) + base + m_y) & 0xFFFFFF;
 }
 
 // Flag operations
@@ -422,6 +454,9 @@ void CPU::op_sbc8(uint8_t value) {
     uint8_t a = m_a & 0xFF;
     uint16_t result;
 
+    // Calculate binary result for overflow flag (needed for both modes)
+    uint16_t binary_result = a - value - (get_flag(FLAG_C) ? 0 : 1);
+
     if (get_flag(FLAG_D)) {
         // BCD mode
         int lo = (a & 0x0F) - (value & 0x0F) - (get_flag(FLAG_C) ? 0 : 1);
@@ -429,13 +464,14 @@ void CPU::op_sbc8(uint8_t value) {
         if (lo < 0) { lo -= 6; hi--; }
         if (hi < 0) hi -= 6;
         result = ((hi & 0x0F) << 4) | (lo & 0x0F);
-        set_flag(FLAG_C, (a - value - (get_flag(FLAG_C) ? 0 : 1)) >= 0);
+        set_flag(FLAG_C, static_cast<int>(a) - value - (get_flag(FLAG_C) ? 0 : 1) >= 0);
     } else {
-        result = a - value - (get_flag(FLAG_C) ? 0 : 1);
+        result = binary_result;
         set_flag(FLAG_C, result <= 0xFF);
     }
 
-    set_flag(FLAG_V, ((a ^ value) & (a ^ result) & 0x80) != 0);
+    // Overflow: use binary result (not BCD-corrected) for V flag
+    set_flag(FLAG_V, ((a ^ value) & (a ^ binary_result) & 0x80) != 0);
     m_a = (m_a & 0xFF00) | (result & 0xFF);
     update_nz8(result & 0xFF);
 }
@@ -443,6 +479,9 @@ void CPU::op_sbc8(uint8_t value) {
 void CPU::op_sbc16(uint16_t value) {
     uint16_t a = m_a;
     uint32_t result;
+
+    // Calculate binary result for overflow flag (needed for both modes)
+    uint32_t binary_result = a - value - (get_flag(FLAG_C) ? 0 : 1);
 
     if (get_flag(FLAG_D)) {
         // BCD mode for 16-bit
@@ -457,11 +496,13 @@ void CPU::op_sbc16(uint16_t value) {
         result = temp;
         set_flag(FLAG_C, (static_cast<int32_t>(a) - value - (get_flag(FLAG_C) ? 0 : 1)) >= 0);
     } else {
-        result = a - value - (get_flag(FLAG_C) ? 0 : 1);
+        result = binary_result;
         set_flag(FLAG_C, result <= 0xFFFF);
     }
 
-    set_flag(FLAG_V, ((a ^ value) & (a ^ result) & 0x8000) != 0);
+    // Overflow: use binary result (not BCD-corrected) for V flag
+    // For SBC: overflow when (A ^ B) & (A ^ result) - different signs and result differs from A
+    set_flag(FLAG_V, ((a ^ value) & (a ^ binary_result) & 0x8000) != 0);
     m_a = result & 0xFFFF;
     update_nz16(m_a);
 }
@@ -679,9 +720,191 @@ void CPU::do_interrupt(uint16_t vector, bool is_brk) {
 void CPU::execute() {
     static int s_trace_count = 0;
     static uint16_t s_last_pc = 0xFFFF;
+    static int s_same_pc_count = 0;
+    static bool s_stuck_logged = false;
 
     uint16_t current_pc = m_pc;
     uint8_t opcode = read_pc();
+
+    // Trace entry points to understand control flow
+    if (m_pbr == 0x03 && (current_pc == 0x8000 || current_pc == 0x8003 || current_pc == 0x8006) && is_debug_mode()) {
+        static int entry_trace = 0;
+        if (entry_trace < 6) {
+            entry_trace++;
+            // Show JMP target
+            uint16_t jmp_target = m_bus.read(0x030000 | ((current_pc + 1) & 0xFFFF)) |
+                                  (m_bus.read(0x030000 | ((current_pc + 2) & 0xFFFF)) << 8);
+            fprintf(stderr, "[SNES/CPU] PC=$03:%04X: JMP $%04X (X=$%04X, $0773=$%02X, $1201=$%02X)\n",
+                    current_pc, jmp_target, m_x, m_bus.read(0x0773), m_bus.read(0x1201));
+        }
+    }
+    // Trace the LDX at $03:8326 that loads the table index
+    if (m_pbr == 0x03 && current_pc == 0x8326 && is_debug_mode()) {
+        static bool ldx_traced = false;
+        if (!ldx_traced) {
+            ldx_traced = true;
+            // Dump ROM bytes to verify instruction
+            fprintf(stderr, "[SNES/CPU] PC=$03:8326 ROM bytes: %02X %02X %02X\n",
+                    m_bus.read(0x038326), m_bus.read(0x038327), m_bus.read(0x038328));
+            // opcode $AE = LDX abs - operand is next 2 bytes
+            uint16_t operand = m_bus.read(0x038327) | (m_bus.read(0x038328) << 8);
+            uint32_t effective_addr = (static_cast<uint32_t>(m_dbr) << 16) | operand;
+            uint8_t data = m_bus.read(effective_addr);
+            fprintf(stderr, "  LDX $%04X: DBR=$%02X -> addr=$%06X data=$%02X\n",
+                    operand, m_dbr, effective_addr, data);
+            // Show the key memory locations
+            fprintf(stderr, "  $00:0773=$%02X, $03:0773=$%02X, $7F:FF00=$%02X\n",
+                    m_bus.read(0x000773), m_bus.read(0x030773), m_bus.read(0x7FFF00));
+        }
+    }
+    // Trace the LDA instructions and dump the tables they read from
+    if (m_pbr == 0x03 && current_pc == 0x8329 && is_debug_mode()) {
+        static bool table_dumped = false;
+        if (!table_dumped) {
+            table_dumped = true;
+            // Tables at $82DE (ptr low) and $82F1 (ptr high)
+            fprintf(stderr, "[SNES/CPU] Pointer tables at PC=$03:8329:\n");
+            fprintf(stderr, "  Table $82DE (ptr low):  ");
+            for (int i = 0; i < 10; i++) {
+                fprintf(stderr, "%02X ", m_bus.read(0x0382DE + i));
+            }
+            fprintf(stderr, "\n  Table $82F1 (ptr high): ");
+            for (int i = 0; i < 10; i++) {
+                fprintf(stderr, "%02X ", m_bus.read(0x0382F1 + i));
+            }
+            fprintf(stderr, "\n  Current X=$%04X (index into tables)\n", m_x);
+            // Show what the valid ROM pointers should look like (e.g., $9xxx)
+            fprintf(stderr, "  Constructed pointers: ");
+            for (int i = 0; i < 5; i++) {
+                uint8_t lo = m_bus.read(0x0382DE + i);
+                uint8_t hi = m_bus.read(0x0382F1 + i);
+                fprintf(stderr, "[%d]=$%02X%02X ", i, hi, lo);
+            }
+            fprintf(stderr, "\n");
+        }
+    }
+
+    // Detect stuck loops - if we're at the same PC for 10000+ iterations, log details
+    if (current_pc == s_last_pc) {
+        s_same_pc_count++;
+        if (s_same_pc_count == 10000 && !s_stuck_logged && is_debug_mode()) {
+            s_stuck_logged = true;
+            fprintf(stderr, "\n[SNES/CPU] STUCK LOOP DETECTED at %02X:%04X!\n", m_pbr, current_pc);
+            fprintf(stderr, "  Opcode=$%02X A=$%04X X=$%04X Y=$%04X SP=$%04X P=$%02X DBR=$%02X DP=$%04X\n",
+                opcode, m_a, m_x, m_y, m_sp, m_status, m_dbr, m_dp);
+            // Show next few bytes for context
+            fprintf(stderr, "  Next bytes: ");
+            for (int i = 0; i < 8; i++) {
+                uint32_t addr = (static_cast<uint32_t>(m_pbr) << 16) | ((current_pc + i) & 0xFFFF);
+                fprintf(stderr, "%02X ", m_bus.read(addr));
+            }
+            fprintf(stderr, "\n");
+
+            // For the known stuck location at $03:9BD6, show indirect pointer [$00]
+            // The code uses LDA [$00],Y to read data
+            if (m_pbr == 0x03 && current_pc >= 0x9BC0 && current_pc <= 0x9C00) {
+                // Read the 24-bit pointer at DP+$00
+                uint8_t ptr_lo = m_bus.read(m_dp + 0x00);
+                uint8_t ptr_mid = m_bus.read(m_dp + 0x01);
+                uint8_t ptr_hi = m_bus.read(m_dp + 0x02);
+                uint32_t ptr_addr = ptr_lo | (ptr_mid << 8) | (ptr_hi << 16);
+                fprintf(stderr, "  [$00] pointer at DP+0: $%02X:%04X\n", ptr_hi, (ptr_lo | (ptr_mid << 8)));
+                // Show data at that pointer + Y
+                fprintf(stderr, "  Data at [$00]+Y ($%06X + $%04X): ", ptr_addr, m_y);
+                for (int i = 0; i < 16; i++) {
+                    fprintf(stderr, "%02X ", m_bus.read((ptr_addr + m_y + i) & 0xFFFFFF));
+                }
+                fprintf(stderr, "\n");
+                // Also show what's at $7F:0000 (MVN destination)
+                fprintf(stderr, "  WRAM $7F:0000-000F: ");
+                for (int i = 0; i < 16; i++) {
+                    fprintf(stderr, "%02X ", m_bus.read(0x7F0000 + i));
+                }
+                fprintf(stderr, "\n");
+            }
+
+            // Show what's in low WRAM around $1B00
+            fprintf(stderr, "  WRAM[$1B00-$1B0F]: ");
+            for (int i = 0; i < 16; i++) {
+                fprintf(stderr, "%02X ", m_bus.read(0x7E1B00 + i));
+            }
+            fprintf(stderr, "\n");
+            // Show stack contents
+            fprintf(stderr, "  Stack[SP+1..SP+16]: ");
+            for (int i = 1; i <= 16; i++) {
+                fprintf(stderr, "%02X ", m_bus.read((m_sp + i) & 0xFFFF));
+            }
+            fprintf(stderr, "\n");
+        }
+    } else {
+        s_same_pc_count = 0;
+        s_stuck_logged = false;
+    }
+
+    // Trace when entering bank $03 (where stuck code is)
+    static uint8_t s_last_bank = 0;
+    static int s_bank3_entries = 0;
+    if (is_debug_mode() && m_pbr == 0x03 && s_last_bank != 0x03) {
+        s_bank3_entries++;
+        if (s_bank3_entries <= 10) {
+            fprintf(stderr, "\n[SNES/CPU] Entered bank $03 at PC=$03:%04X (#%d)\n", current_pc, s_bank3_entries);
+            fprintf(stderr, "  A=$%04X X=$%04X Y=$%04X SP=$%04X\n", m_a, m_x, m_y, m_sp);
+            fprintf(stderr, "  Return addr on stack: $%02X%02X%02X\n",
+                    m_bus.read(m_sp + 3), m_bus.read(m_sp + 2), m_bus.read(m_sp + 1));
+        }
+    }
+    s_last_bank = m_pbr;
+
+    // Trace game selection variables when entering the display list routine
+    static int s_9bbc_count = 0;
+    if (is_debug_mode() && m_pbr == 0x03 && current_pc == 0x9BBC) {
+        s_9bbc_count++;
+        if (s_9bbc_count <= 5) {
+            uint8_t game_idx = m_bus.read(0x0773);
+            uint8_t sel_0533 = m_bus.read(0x0533);
+            uint8_t sel_0534 = m_bus.read(0x0534);
+            fprintf(stderr, "\n[SNES/CPU] Entering display list routine $03:9BBC (#%d)\n", s_9bbc_count);
+            fprintf(stderr, "  Game index $0773 = $%02X\n", game_idx);
+            fprintf(stderr, "  Selection $0533 = $%02X, $0534 = $%02X\n", sel_0533, sel_0534);
+            // Show pointer at DP+$00
+            uint8_t ptr_lo = m_bus.read(m_dp + 0x00);
+            uint8_t ptr_mid = m_bus.read(m_dp + 0x01);
+            uint8_t ptr_hi = m_bus.read(m_dp + 0x02);
+            fprintf(stderr, "  [$00] = $%02X:%04X\n", ptr_hi, (ptr_lo | (ptr_mid << 8)));
+        }
+    }
+
+    // Special trace for known stuck location $03:9BD6
+    static int s_9bd6_count = 0;
+    if (is_debug_mode() && m_pbr == 0x03 && current_pc == 0x9BD6) {
+        s_9bd6_count++;
+        if (s_9bd6_count == 1 || s_9bd6_count == 100 || s_9bd6_count == 1000) {
+            fprintf(stderr, "\n[SNES/CPU] At stuck PC $03:9BD6 (visit #%d)\n", s_9bd6_count);
+            fprintf(stderr, "  A=$%04X X=$%04X Y=$%04X SP=$%04X P=$%02X DBR=$%02X DP=$%04X\n",
+                m_a, m_x, m_y, m_sp, m_status, m_dbr, m_dp);
+            // Read the 24-bit pointer at DP+$00
+            uint8_t ptr_lo = m_bus.read(m_dp + 0x00);
+            uint8_t ptr_mid = m_bus.read(m_dp + 0x01);
+            uint8_t ptr_hi = m_bus.read(m_dp + 0x02);
+            uint32_t ptr_addr = ptr_lo | (ptr_mid << 8) | (ptr_hi << 16);
+            fprintf(stderr, "  [$00] = $%02X:%04X (raw bytes: %02X %02X %02X)\n",
+                ptr_hi, (ptr_lo | (ptr_mid << 8)), ptr_lo, ptr_mid, ptr_hi);
+            // Show data at that pointer + Y
+            fprintf(stderr, "  Data at $%06X + Y($%04X) = $%06X:\n    ", ptr_addr, m_y, (ptr_addr + m_y) & 0xFFFFFF);
+            for (int i = 0; i < 32; i++) {
+                fprintf(stderr, "%02X ", m_bus.read((ptr_addr + m_y + i) & 0xFFFFFF));
+                if (i == 15) fprintf(stderr, "\n    ");
+            }
+            fprintf(stderr, "\n");
+            // Show WRAM $7F:0000 (MVN destination)
+            fprintf(stderr, "  WRAM $7F:0000-001F:\n    ");
+            for (int i = 0; i < 32; i++) {
+                fprintf(stderr, "%02X ", m_bus.read(0x7F0000 + i));
+                if (i == 15) fprintf(stderr, "\n    ");
+            }
+            fprintf(stderr, "\n");
+        }
+    }
 
     // Trace first 100 unique instructions or if stuck in a loop
     if (is_debug_mode() && (s_trace_count < 100 || current_pc == s_last_pc)) {
@@ -1184,7 +1407,17 @@ void CPU::execute() {
             m_dbr = dst_bank;
             uint32_t src = (static_cast<uint32_t>(src_bank) << 16) | m_x;
             uint32_t dst = (static_cast<uint32_t>(dst_bank) << 16) | m_y;
-            write(dst, read(src));
+            // Debug: Log first byte of each MVN transfer
+            static int mvn_count = 0;
+            if (is_debug_mode() && mvn_count < 10) {
+                uint8_t data = read(src);
+                fprintf(stderr, "[MVN] src=$%02X:%04X dst=$%02X:%04X count=$%04X first_byte=$%02X\n",
+                    src_bank, m_x, dst_bank, m_y, m_a + 1, data);
+                write(dst, data);
+                mvn_count++;
+            } else {
+                write(dst, read(src));
+            }
             m_x++;
             m_y++;
             if (get_flag(FLAG_X)) { m_x &= 0xFF; m_y &= 0xFF; }
@@ -1199,6 +1432,17 @@ void CPU::execute() {
             m_dbr = dst_bank;
             uint32_t src = (static_cast<uint32_t>(src_bank) << 16) | m_x;
             uint32_t dst = (static_cast<uint32_t>(dst_bank) << 16) | m_y;
+            // Debug: Log first byte of each MVP transfer
+            static int mvp_count = 0;
+            if (is_debug_mode() && mvp_count < 10) {
+                uint8_t data = read(src);
+                fprintf(stderr, "[MVP] src=$%02X:%04X dst=$%02X:%04X count=$%04X first_byte=$%02X\n",
+                    src_bank, m_x, dst_bank, m_y, m_a + 1, data);
+                write(dst, data);
+                mvp_count++;
+            } else {
+                write(dst, read(src));
+            }
             write(dst, read(src));
             m_x--;
             m_y--;

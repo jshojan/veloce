@@ -129,7 +129,11 @@ private:
     static constexpr size_t MAX_BUFFER_SAMPLES = 256;      // ~2.9ms maximum before rate decrease
 
     // Resampler state for fractional sample interpolation
+    // Note: m_resample_accumulator is for output (fill_audio_buffer)
+    // m_input_resample_accumulator is for input (push_samples_resampled)
+    // These MUST be separate to avoid interference between threads!
     float m_resample_accumulator = 0.0f;
+    double m_input_resample_accumulator = 0.0;  // Separate accumulator for input resampling
     float m_prev_sample_left = 0.0f;
     float m_prev_sample_right = 0.0f;
 

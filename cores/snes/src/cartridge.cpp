@@ -48,7 +48,7 @@ static const uint32_t s_crc32_table[256] = {
     0x616BFFD3, 0x166CCF45, 0xA00AE278, 0xD70DD2EE, 0x4E048354, 0x3903B3C2,
     0xA7672661, 0xD06016F7, 0x4969474D, 0x3E6E77DB, 0xAED16A4A, 0xD9D65ADC,
     0x40DF0B66, 0x37D83BF0, 0xA9BCAE53, 0xDEBB9EC5, 0x47B2CF7F, 0x30B5FFE9,
-    0xBDBDF21C, 0xCABAC28A, 0x53B39330, 0x24B4A3A6, 0xBAD03605, 0xCDD706B3,
+    0xBDBDF21C, 0xCABAC28A, 0x53B39330, 0x24B4A3A6, 0xBAD03605, 0xCDD70693,
     0x54DE5729, 0x23D967BF, 0xB3667A2E, 0xC4614AB8, 0x5D681B02, 0x2A6F2B94,
     0xB40BBE37, 0xC30C8EA1, 0x5A05DF1B, 0x2D02EF8D
 };
@@ -77,14 +77,14 @@ bool Cartridge::load(const uint8_t* data, size_t size) {
         // Score header at $7FC0 + 512 (standard with header skip)
         int score_with_skip = 0;
         if (size >= 0x8000 + 512) {
-            score_with_skip = score_header(data + 0x7FC0 + 512, size - 512);
+            score_with_skip = score_header(data + 0x7FC0 + 512, size - 512, MapperType::LoROM);
         }
 
         // Score header at $7FC0 without skip (misaligned ROM)
         // This would mean the "copier header" is actually padding that was added incorrectly
         int score_without_skip = 0;
         if (size >= 0x8000) {
-            score_without_skip = score_header(data + 0x7FC0, size);
+            score_without_skip = score_header(data + 0x7FC0, size, MapperType::LoROM);
         }
 
         SNES_DEBUG_PRINT("Header check: with_skip=%d, without_skip=%d\n",
@@ -119,45 +119,25 @@ bool Cartridge::load(const uint8_t* data, size_t size) {
         return false;
     }
 
-    // For LoROM with copier header, check if ROM data is at expected offsets
-    // Some ROM dumps have data misaligned by 512 bytes due to incorrect header handling during dump
-    if (m_mapper_type == MapperType::LoROM && has_copier_header && rom_offset == 512 && m_rom.size() >= 0x18000) {
-        // Check if bank 1 start (ROM $8000) is all zeros but data exists 512 bytes earlier
-        // This indicates the copier header was added without properly shifting the ROM data
-        bool bank1_start_zero = true;
-        for (size_t i = 0; i < 16; i++) {
-            if (m_rom[0x8000 + i] != 0) {
-                bank1_start_zero = false;
-                break;
-            }
-        }
-
-        // Also check bank 2 area that games commonly use (e.g., graphics data)
-        bool bank2_dma_zero = true;
-        for (size_t i = 0; i < 16; i++) {
-            if (m_rom[0x11000 + i] != 0) {  // Common DMA source for graphics
-                bank2_dma_zero = false;
-                break;
-            }
-        }
-
-        if (bank1_start_zero && bank2_dma_zero) {
-            std::cerr << "WARNING: ROM data appears misaligned." << std::endl;
-            std::cerr << "This ROM dump may have incorrect header handling." << std::endl;
-            std::cerr << "Graphics and some game data may not load correctly." << std::endl;
-            std::cerr << "Consider obtaining a verified ROM dump from a trusted source." << std::endl;
-        }
-    }
-
-    // Debug: verify ROM data at key locations
-    if (m_rom.size() >= 0x12000) {
+    // Debug: verify ROM data at key locations (only in debug mode)
+    if (is_debug_mode() && m_rom.size() >= 0x12000) {
         fprintf(stderr, "[SNES] ROM verification - first bytes at key offsets:\n");
-        fprintf(stderr, "  ROM[0x0000]: %02X %02X %02X %02X (expected: 78 9c 00 42)\n",
+        fprintf(stderr, "  ROM[0x0000]: %02X %02X %02X %02X\n",
                 m_rom[0], m_rom[1], m_rom[2], m_rom[3]);
         fprintf(stderr, "  ROM[0x8000]: %02X %02X %02X %02X\n",
                 m_rom[0x8000], m_rom[0x8001], m_rom[0x8002], m_rom[0x8003]);
-        fprintf(stderr, "  ROM[0x11000]: %02X %02X %02X %02X (DMA source for VRAM $A000)\n",
-                m_rom[0x11000], m_rom[0x11001], m_rom[0x11002], m_rom[0x11003]);
+        // Check ROM at offset 0x1E0000 (bank $3C) for SMAS
+        if (m_rom.size() >= 0x1E0010) {
+            fprintf(stderr, "  ROM[0x1E0000] (bank $3C): %02X %02X %02X %02X %02X %02X %02X %02X\n",
+                    m_rom[0x1E0000], m_rom[0x1E0001], m_rom[0x1E0002], m_rom[0x1E0003],
+                    m_rom[0x1E0004], m_rom[0x1E0005], m_rom[0x1E0006], m_rom[0x1E0007]);
+            // Check if this region is all zeros
+            int non_zero = 0;
+            for (size_t i = 0x1E0000; i < 0x1E0100 && i < m_rom.size(); i++) {
+                if (m_rom[i] != 0) non_zero++;
+            }
+            fprintf(stderr, "  Non-zero bytes in $1E0000-$1E00FF: %d/256\n", non_zero);
+        }
     }
 
     // Calculate CRC32 of ROM data
@@ -222,17 +202,17 @@ bool Cartridge::detect_header(const uint8_t* data, size_t size) {
 
     // LoROM header at $7FC0
     if (size >= 0x8000) {
-        lorom_score = score_header(data + 0x7FC0, size);
+        lorom_score = score_header(data + 0x7FC0, size, MapperType::LoROM);
     }
 
     // HiROM header at $FFC0
     if (size >= 0x10000) {
-        hirom_score = score_header(data + 0xFFC0, size);
+        hirom_score = score_header(data + 0xFFC0, size, MapperType::HiROM);
     }
 
     // ExHiROM header at $40FFC0
     if (size >= 0x410000) {
-        exhirom_score = score_header(data + 0x40FFC0, size);
+        exhirom_score = score_header(data + 0x40FFC0, size, MapperType::ExHiROM);
     }
 
     SNES_DEBUG_PRINT("Header scores - LoROM: %d, HiROM: %d, ExHiROM: %d\n",
@@ -266,7 +246,7 @@ bool Cartridge::detect_header(const uint8_t* data, size_t size) {
     return parse_header(data + m_header_offset);
 }
 
-int Cartridge::score_header(const uint8_t* header_data, size_t rom_size) {
+int Cartridge::score_header(const uint8_t* header_data, size_t rom_size, MapperType expected_type) {
     int score = 0;
 
     // Check if header is within ROM bounds
@@ -290,8 +270,36 @@ int Cartridge::score_header(const uint8_t* header_data, size_t rom_size) {
     // Bit 4 = FastROM (set = 3.58MHz, clear = 2.68MHz)
     // Low nibble: $0 = LoROM, $1 = HiROM, $2 = LoROM + S-DD1, $3 = LoROM + SA-1, $5 = ExHiROM
     uint8_t mode = map_mode & 0x0F;
-    if (mode == 0x00 || mode == 0x01 || mode == 0x02 || mode == 0x03 || mode == 0x05) {
-        score += 2;
+
+    // CRITICAL: Check if map_mode matches the expected header location
+    // This is the key discriminator between LoROM and HiROM
+    bool mode_matches = false;
+    switch (expected_type) {
+        case MapperType::LoROM:
+        case MapperType::SuperFX:
+            // LoROM modes: $20 (mode 0), $22 (mode 2 S-DD1), $23 (mode 3 SA-1)
+            mode_matches = (mode == 0x00 || mode == 0x02 || mode == 0x03);
+            break;
+        case MapperType::HiROM:
+            // HiROM mode: $21 (mode 1)
+            mode_matches = (mode == 0x01);
+            break;
+        case MapperType::ExHiROM:
+            // ExHiROM mode: $25 (mode 5)
+            mode_matches = (mode == 0x05);
+            break;
+        default:
+            mode_matches = (mode == 0x00 || mode == 0x01 || mode == 0x02 || mode == 0x03 || mode == 0x05);
+            break;
+    }
+
+    if (mode_matches) {
+        // Strong bonus for matching map mode - this is authoritative
+        score += 10;
+    } else if (mode == 0x00 || mode == 0x01 || mode == 0x02 || mode == 0x03 || mode == 0x05) {
+        // Valid mode but doesn't match expected type - penalize significantly
+        // This header location is likely wrong for this ROM
+        score -= 8;
     }
 
     // ROM size should be reasonable (8 = 256KB to 13 = 8MB)
@@ -547,37 +555,34 @@ uint8_t Cartridge::read_lorom(uint32_t address) {
     uint8_t bank = (address >> 16) & 0xFF;
     uint16_t offset = address & 0xFFFF;
 
-    // Debug: trace reads from DMA source regions
-    static int lorom_debug = 0;
-    static int dma_source_debug = 0;
-    // Trace DMA source $029000 (graphics for VRAM $A000)
-    if (is_debug_mode() && bank == 0x02 && offset >= 0x9000 && offset < 0x9020 && dma_source_debug < 5) {
-        size_t calc_addr = (bank * 0x8000) + (offset - 0x8000);
-        uint8_t val = m_rom.empty() ? 0 : m_rom[calc_addr % m_rom.size()];
-        fprintf(stderr, "[CART] LoROM read $%02X:%04X -> rom_addr=$%06lX val=$%02X (rom_size=$%lX)\n",
-            bank, offset, (unsigned long)calc_addr, val, (unsigned long)m_rom.size());
-        dma_source_debug++;
-    }
-    if (is_debug_mode() && bank == 0x01 && offset == 0x8000 && lorom_debug < 3) {
-        size_t calc_addr = (bank * 0x8000) + (offset - 0x8000);
-        uint8_t val = m_rom.empty() ? 0 : m_rom[calc_addr % m_rom.size()];
-        fprintf(stderr, "[CART] LoROM read $%02X:%04X -> rom_addr=$%06lX val=$%02X (rom_size=$%lX)\n",
-            bank, offset, (unsigned long)calc_addr, val, (unsigned long)m_rom.size());
-        lorom_debug++;
-    }
-
-    // LoROM memory map:
+    // LoROM memory map (reference: fullsnes, anomie docs, bsnes/ares):
+    //
+    // The SNES cartridge port has A15 disconnected for LoROM carts, meaning
+    // ROM sees the same data at $x000-$7FFF and $x8000-$FFFF within a bank.
+    // ROM address = (bank * 0x8000) + (offset & 0x7FFF)
+    //
     // Banks $00-$3F, $80-$BF:
-    //   $0000-$7FFF: System area (not handled here)
+    //   $0000-$1FFF: WRAM mirror (handled by bus)
+    //   $2000-$5FFF: I/O (handled by bus)
+    //   $6000-$7FFF: SRAM (when present)
     //   $8000-$FFFF: ROM (32KB per bank)
-    // Banks $40-$6F, $C0-$EF: ROM (full 64KB banks in upper 32KB)
-    // Banks $70-$7D, $F0-$FF: SRAM ($0000-$7FFF) + ROM ($8000-$FFFF)
+    //
+    // Banks $40-$6F ($C0-$EF mirrored):
+    //   $0000-$7FFF: ROM (mirrors $8000-$FFFF due to A15 not connected)
+    //   $8000-$FFFF: ROM (32KB per bank, continuing from banks $00-$3F)
+    //
+    // Banks $70-$7D ($F0-$FF mirrored):
+    //   $0000-$7FFF: SRAM (when present)
+    //   $8000-$FFFF: ROM (32KB per bank)
+    //
+    // For a 2MB ROM: banks $00-$3F provide all 2MB at $8000-$FFFF.
+    // Banks $40-$6F at $0000-$7FFF mirror the corresponding $8000-$FFFF data.
 
-    // Mirror upper banks to lower
+    // Mirror upper banks ($80-$FF) to lower ($00-$7F)
     uint8_t effective_bank = bank;
     if (bank >= 0x80) effective_bank = bank - 0x80;
 
-    // SRAM access
+    // SRAM access: banks $70-$7D, offset $0000-$7FFF
     if ((effective_bank >= 0x70 && effective_bank <= 0x7D) && offset < 0x8000) {
         if (!m_sram.empty()) {
             // SRAM is mirrored within its size
@@ -587,21 +592,67 @@ uint8_t Cartridge::read_lorom(uint32_t address) {
         return 0;
     }
 
+    // SRAM access: banks $00-$3F (and mirrors $80-$BF), offset $6000-$7FFF
+    // Many LoROM games access SRAM here (e.g., Super Mario All-Stars)
+    if (effective_bank <= 0x3F && offset >= 0x6000 && offset < 0x8000) {
+        if (!m_sram.empty()) {
+            // SRAM address = offset within $6000-$7FFF range
+            // This 8KB region mirrors the SRAM
+            size_t sram_addr = (offset - 0x6000) % m_sram.size();
+            return m_sram[sram_addr];
+        }
+        return 0;
+    }
+
     // ROM access
+    // LoROM memory mapping (reference: fullsnes, anomie docs, bsnes/ares, snesdev wiki):
+    //
+    // In LoROM mode, the cartridge's A15 line is not connected to the ROM.
+    // This means the ROM only sees addresses with A15 masked out.
+    // The formula is: rom_addr = (bank * 0x8000) + (offset & 0x7FFF)
+    //
+    // For banks $00-$3F (and mirrors $80-$BF):
+    //   Only $8000-$FFFF is routed to cartridge (lower half is system area)
+    //   ROM address = bank * 0x8000 + (offset & 0x7FFF)
+    //
+    // For banks $40-$6F (and mirrors $C0-$EF):
+    //   Both halves ($0000-$7FFF and $8000-$FFFF) route to ROM
+    //   Due to A15 not being connected, both halves access the same data
+    //   ROM address = bank * 0x8000 + (offset & 0x7FFF)
+    //
+    // For banks $70-$7D (and mirrors $F0-$FF):
+    //   $0000-$7FFF is SRAM (handled above)
+    //   $8000-$FFFF is ROM: bank * 0x8000 + (offset & 0x7FFF)
+    //
+    // Note: Using (offset & 0x7FFF) ensures A15 mirroring works correctly
+    // for all cases, including edge cases at the boundary.
+
     size_t rom_addr;
     if (offset >= 0x8000) {
-        // Standard LoROM access: each bank maps 32KB at $8000-$FFFF
-        rom_addr = (effective_bank * 0x8000) + (offset - 0x8000);
-    } else if (effective_bank >= 0x40) {
-        // Banks $40-$7D: full 64KB access, but still LoROM style
-        rom_addr = ((effective_bank - 0x40) * 0x10000) + offset + (0x40 * 0x8000);
+        // Standard ROM access at $8000-$FFFF for all banks
+        // Using (offset & 0x7FFF) which equals (offset - 0x8000) for offset >= 0x8000
+        rom_addr = (static_cast<size_t>(effective_bank) * 0x8000) + (offset & 0x7FFF);
+    } else if (effective_bank >= 0x40 && effective_bank <= 0x6F) {
+        // Banks $40-$6F at $0000-$7FFF: ROM access
+        // A15 mirroring means this accesses same data as $8000-$FFFF
+        rom_addr = (static_cast<size_t>(effective_bank) * 0x8000) + (offset & 0x7FFF);
     } else {
-        // Lower offset in banks $00-$3F: not ROM
+        // Lower offset ($0000-$7FFF) in banks $00-$3F or $70+: not ROM
+        // (handled by bus for system area, or SRAM check above)
         return 0;
     }
 
     // Mirror ROM within its actual size
     if (!m_rom.empty()) {
+        // Debug: trace reads from high ROM banks
+        static int rom_trace_count = 0;
+        if (is_debug_mode() && effective_bank >= 0x38 && rom_trace_count < 10) {
+            size_t actual_addr = rom_addr % m_rom.size();
+            uint8_t data = m_rom[actual_addr];
+            fprintf(stderr, "[ROM] Read $%02X:%04X -> rom_addr=$%06lX (actual=$%06lX) = $%02X\n",
+                bank, offset, (unsigned long)rom_addr, (unsigned long)actual_addr, data);
+            rom_trace_count++;
+        }
         return m_rom[rom_addr % m_rom.size()];
     }
 
@@ -616,12 +667,22 @@ void Cartridge::write_lorom(uint32_t address, uint8_t value) {
     uint8_t effective_bank = bank;
     if (bank >= 0x80) effective_bank = bank - 0x80;
 
-    // SRAM write
+    // SRAM write: banks $70-$7D, offset $0000-$7FFF
     if ((effective_bank >= 0x70 && effective_bank <= 0x7D) && offset < 0x8000) {
         if (!m_sram.empty()) {
             size_t sram_addr = ((effective_bank - 0x70) * 0x8000 + offset) % m_sram.size();
             m_sram[sram_addr] = value;
         }
+        return;
+    }
+
+    // SRAM write: banks $00-$3F (and mirrors $80-$BF), offset $6000-$7FFF
+    if (effective_bank <= 0x3F && offset >= 0x6000 && offset < 0x8000) {
+        if (!m_sram.empty()) {
+            size_t sram_addr = (offset - 0x6000) % m_sram.size();
+            m_sram[sram_addr] = value;
+        }
+        return;
     }
     // ROM writes are ignored
 }

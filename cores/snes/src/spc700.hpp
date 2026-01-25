@@ -91,6 +91,12 @@ private:
     // Execute single instruction
     void execute();
 
+    // Tick timers by specified cycles (called before each memory access)
+    void tick_timers(int cycles);
+
+    // Internal cycle (no memory access but ticks timers)
+    void idle();
+
     // DSP reference
     DSP* m_dsp = nullptr;
 
@@ -114,6 +120,10 @@ private:
     std::array<uint8_t, 4> m_port_in;   // CPU -> SPC
 
     // Timers ($FA-$FC targets, $FD-$FF outputs)
+    // Reference: anomie's SPC700 docs
+    // - Divider (m_timer_divider): Accumulates cycles, runs constantly
+    // - Counter (m_timer_counter): Increments when enabled and divider overflows
+    // - Output (m_timer_output): 4-bit counter, increments when counter matches target
     std::array<uint8_t, 3> m_timer_target;
     std::array<uint8_t, 3> m_timer_counter;
     std::array<uint8_t, 3> m_timer_output;
@@ -122,6 +132,10 @@ private:
 
     // Control register ($F1)
     uint8_t m_control = 0x80;
+
+    // Test register ($F0) - affects timer and memory behavior
+    // Default value on power-on is $0A
+    uint8_t m_test_reg = 0x0A;
 
     // Cycle counter
     int m_cycles = 0;

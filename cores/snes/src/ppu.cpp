@@ -239,6 +239,7 @@ bool PPU::is_rendering() const {
 }
 
 void PPU::advance(int master_cycles) {
+
     // Track total cycles for timing-based force_blank detection
     m_total_ppu_cycles += master_cycles;
 
@@ -269,8 +270,13 @@ void PPU::advance(int master_cycles) {
             }
         }
 
-        // Render any pixels between m_rendered_dot and m_dot before advancing
-        sync_to_current();
+        // NOTE: Do NOT call sync_to_current() here!
+        // Rendering is driven by sync_to_hblank() at scanline boundaries.
+        // Calling sync_to_current() here causes m_rendered_scanline to drift
+        // ahead due to the 341 vs 340 dot mismatch (plugin runs 1364 master
+        // cycles = 341 dots, but PPU has only 340 dots per scanline).
+        // This drift causes sync_to_hblank() to skip rendering when
+        // m_rendered_scanline > scanline (early return at line 552).
 
         // Now advance the PPU clock
         m_dot = target_dot;
@@ -372,27 +378,28 @@ void PPU::sync_to_current() {
 
     int visible_lines = m_overscan ? 239 : 224;
 
-    // Debug: track sync calls
-    static int sync_debug_count = 0;
-    bool debug_sync = is_debug_mode() && sync_debug_count < 10 &&
-                      m_frame >= 25 && m_scanline < visible_lines;
-    if (debug_sync) {
-        sync_debug_count++;
-        SNES_PPU_DEBUG("sync_to_current: frame=%lu scanline=%d dot=%d rendered_sl=%d rendered_dot=%d fb=%d TM=$%02X\n",
-            m_frame, m_scanline, m_dot, m_rendered_scanline, m_rendered_dot, m_force_blank ? 1 : 0, m_tm);
-    }
-
     // If we're already caught up, nothing to do
     if (m_rendered_scanline == m_scanline && m_rendered_dot >= m_dot) {
         return;
     }
 
     // Handle the case where we've wrapped around (new frame)
+    // CRITICAL: This should ONLY happen at frame boundaries (scanline 0-1).
+    // If rendered is ahead of current mid-frame, it's a timing bug - don't reset
+    // (which would cause duplicate rendering), just clamp to current position.
     if (m_rendered_scanline > m_scanline ||
         (m_rendered_scanline == m_scanline && m_rendered_dot > m_dot)) {
-        // We've started a new frame - reset rendered position
-        m_rendered_scanline = 0;
-        m_rendered_dot = 0;
+
+        if (m_scanline <= 1) {
+            // Frame boundary - normal wrap-around, reset rendered position
+            m_rendered_scanline = 0;
+            m_rendered_dot = 0;
+        } else {
+            // Mid-frame with rendered ahead of current - timing bug!
+            // Clamp to current position to prevent re-rendering same pixels.
+            m_rendered_scanline = m_scanline;
+            m_rendered_dot = m_dot;
+        }
     }
 
     // Render scanlines from m_rendered_scanline to m_scanline
@@ -413,11 +420,13 @@ void PPU::sync_to_current() {
         }
 
         // Render visible pixels on this scanline
-        // Main loop uses 0-based scanlines: 0-223 are visible (or 0-238 with overscan)
+        // SNES hardware: Scanline 0 is hidden, scanlines 1-224 are visible
+        // Reference: "Scanline 0 is the end of vblank and beginning of rendering.
+        //            It is hidden, and displays as a blank line."
         // render_pixel expects m_scanline such that y = m_scanline - 1
         // So we set m_scanline = current_line + 1 before calling render_pixel
-        if (current_line >= 0 && current_line < visible_lines) {
-            int screen_y = current_line;  // 0-based screen coordinate
+        if (current_line >= 1 && current_line <= visible_lines) {
+            int screen_y = current_line - 1;  // Convert 1-based scanline to 0-based screen coordinate
 
             // ================================================================
             // SPRITE EVALUATION AND TILE FETCHING
@@ -447,7 +456,7 @@ void PPU::sync_to_current() {
                     // Save and set scanline for sprite evaluation
                     // evaluate_sprites uses m_scanline internally (1-based)
                     int saved = m_scanline;
-                    m_scanline = current_line + 1;  // Convert 0-based to 1-based for evaluate_sprites
+                    m_scanline = current_line;  // current_line is already 1-based
 
                     // Check if sprite tile fetch should happen
                     // based on force_blank state latched at dot 272
@@ -482,10 +491,10 @@ void PPU::sync_to_current() {
                 if (!m_force_blank) {
                     // Save current scanline, set for rendering
                     // render_pixel does: int y = m_scanline - 1
-                    // With current_line being 0-based, we need m_scanline = current_line + 1
-                    // so that y = (current_line + 1) - 1 = current_line = screen_y
+                    // With current_line being 1-based (1-224), m_scanline = current_line
+                    // so that y = current_line - 1 = screen_y (0-223)
                     int saved = m_scanline;
-                    m_scanline = current_line + 1;
+                    m_scanline = current_line;
                     render_pixel(screen_x);
                     m_scanline = saved;
                 } else {
@@ -512,6 +521,132 @@ void PPU::sync_to_current() {
         } else {
             m_rendered_dot = end_dot;
         }
+    }
+}
+
+void PPU::sync_to_hblank(int scanline) {
+    // Sync rendering up to H-blank start (dot 278) of the given scanline.
+    // This ensures all visible pixels for that scanline are rendered
+    // BEFORE HDMA changes register values.
+    //
+    // Reference: SNES hardware timing
+    // - Visible pixels are dots 22-277 (256 pixels)
+    // - H-blank starts at dot 278
+    // - HDMA transfer occurs at dot 278
+    //
+    // Due to the 341 vs 340 dots per scanline mismatch between the plugin's
+    // master cycle counting (341) and the PPU's actual dot count (340), the
+    // PPU's dot position drifts ahead by 1 dot per scanline. After N scanlines,
+    // the PPU is N dots ahead.
+    //
+    // This causes HDMA to fire when the PPU is mid-visible-area, resulting in
+    // horizontal distortion where part of a scanline uses old values and part
+    // uses new values (the "first scanline after status bar" issue in SMAS).
+    //
+    // By forcing rendering up to H-blank (dot 278), we ensure the entire
+    // visible portion of the scanline is rendered with consistent values.
+
+    int visible_lines = m_overscan ? 239 : 224;
+
+    // Debug: Log sync_to_hblank calls for first few scanlines
+    static int sync_debug_count = 0;
+    if (sync_debug_count < 30 && scanline <= 5) {
+        fprintf(stderr, "[sync_to_hblank] requested=%d m_rendered_scanline=%d m_rendered_dot=%d m_scanline=%d m_dot=%d\n",
+                scanline, m_rendered_scanline, m_rendered_dot, m_scanline, m_dot);
+        sync_debug_count++;
+    }
+
+    // Only process visible scanlines
+    if (scanline < 1 || scanline > visible_lines) {
+        return;
+    }
+
+    // If we haven't reached this scanline yet in rendering, nothing to do
+    if (m_rendered_scanline > scanline) {
+        return;
+    }
+
+    // If we're on an earlier scanline, catch up to the target scanline first
+    while (m_rendered_scanline < scanline) {
+        // Render the rest of the current scanline
+        int end_dot = DOTS_PER_SCANLINE;  // 340
+        int render_start = std::max(m_rendered_dot, 22);
+        int render_end = std::min(end_dot, 278);
+
+        if (m_rendered_scanline >= 1 && m_rendered_scanline <= visible_lines) {
+            int screen_y = m_rendered_scanline - 1;
+
+            // Ensure sprites are evaluated for this scanline
+            if (m_sprites_for_scanline != m_rendered_scanline) {
+                if (!m_force_blank_latched_eval && !m_force_blank_latched_fetch) {
+                    int saved = m_scanline;
+                    m_scanline = m_rendered_scanline;
+                    evaluate_sprites();
+                    m_scanline = saved;
+                } else {
+                    m_sprite_count = 0;
+                    m_sprite_tile_count = 0;
+                }
+                m_sprites_for_scanline = m_rendered_scanline;
+            }
+
+            // Render visible pixels
+            for (int dot = render_start; dot < render_end; dot++) {
+                int screen_x = dot - 22;
+                if (!m_force_blank) {
+                    int saved = m_scanline;
+                    m_scanline = m_rendered_scanline;
+                    render_pixel(screen_x);
+                    m_scanline = saved;
+                } else {
+                    m_framebuffer[screen_y * 512 + screen_x * 2] = 0xFF000000;
+                    m_framebuffer[screen_y * 512 + screen_x * 2 + 1] = 0xFF000000;
+                }
+            }
+        }
+
+        m_rendered_scanline++;
+        m_rendered_dot = 0;
+        if (m_rendered_scanline >= SCANLINES_PER_FRAME) {
+            m_rendered_scanline = 0;
+        }
+    }
+
+    // Now we're on the target scanline - render up to H-blank (dot 278)
+    if (m_rendered_scanline == scanline && m_rendered_dot < 278) {
+        int screen_y = scanline - 1;
+        int render_start = std::max(m_rendered_dot, 22);
+        int render_end = 278;  // H-blank start
+
+        // Ensure sprites are evaluated for this scanline
+        if (m_sprites_for_scanline != scanline) {
+            if (!m_force_blank_latched_eval && !m_force_blank_latched_fetch) {
+                int saved = m_scanline;
+                m_scanline = scanline;
+                evaluate_sprites();
+                m_scanline = saved;
+            } else {
+                m_sprite_count = 0;
+                m_sprite_tile_count = 0;
+            }
+            m_sprites_for_scanline = scanline;
+        }
+
+        // Render visible pixels up to H-blank
+        for (int dot = render_start; dot < render_end; dot++) {
+            int screen_x = dot - 22;
+            if (!m_force_blank) {
+                int saved = m_scanline;
+                m_scanline = scanline;
+                render_pixel(screen_x);
+                m_scanline = saved;
+            } else {
+                m_framebuffer[screen_y * 512 + screen_x * 2] = 0xFF000000;
+                m_framebuffer[screen_y * 512 + screen_x * 2 + 1] = 0xFF000000;
+            }
+        }
+
+        m_rendered_dot = 278;  // Mark as rendered up to H-blank
     }
 }
 
@@ -576,11 +711,31 @@ void PPU::step() {
             m_time_over = false;
             m_range_over = false;
 
-            // Debug: Dump VRAM at frame 280
-            if (is_debug_mode() && m_frame == 280) {
-                SNES_PPU_DEBUG("VRAM dump: A1E0=%02X%02X%02X%02X E300=%02X%02X%02X%02X\n",
-                    m_vram[0xA1E0], m_vram[0xA1E1], m_vram[0xA1E2], m_vram[0xA1E3],
-                    m_vram[0xE300], m_vram[0xE301], m_vram[0xE302], m_vram[0xE303]);
+            // Debug: Log full PPU state every 30 frames starting at frame 60
+            if (is_debug_mode() && m_frame >= 60 && (m_frame % 30) == 0) {
+                fprintf(stderr, "[SNES/PPU] === Frame %lu PPU State ===\n", m_frame);
+                fprintf(stderr, "[SNES/PPU]   BGMODE=$%02X (mode=%d) TM=$%02X TS=$%02X\n",
+                    m_bgmode, m_bg_mode, m_tm, m_ts);
+                fprintf(stderr, "[SNES/PPU]   BG1: tilemap=$%04X chr=$%04X hofs=%d vofs=%d tile16=%d\n",
+                    m_bg_tilemap_addr[0], m_bg_chr_addr[0], m_bg_hofs[0], m_bg_vofs[0], m_bg_tile_size[0]);
+                fprintf(stderr, "[SNES/PPU]   BG2: tilemap=$%04X chr=$%04X hofs=%d vofs=%d tile16=%d\n",
+                    m_bg_tilemap_addr[1], m_bg_chr_addr[1], m_bg_hofs[1], m_bg_vofs[1], m_bg_tile_size[1]);
+                // Warn if tilemap and chr overlap
+                if (m_bg_chr_addr[0] < m_bg_tilemap_addr[0] + 0x2000 &&
+                    m_bg_chr_addr[0] + 0x8000 > m_bg_tilemap_addr[0]) {
+                    fprintf(stderr, "[SNES/PPU] WARNING: BG1 tilemap/chr may overlap!\n");
+                }
+                // Sample tilemap and character data
+                fprintf(stderr, "[SNES/PPU]   Tilemap0[0]: %02X%02X Tilemap0[2]: %02X%02X\n",
+                    m_vram[m_bg_tilemap_addr[0]+1], m_vram[m_bg_tilemap_addr[0]],
+                    m_vram[m_bg_tilemap_addr[0]+3], m_vram[m_bg_tilemap_addr[0]+2]);
+                fprintf(stderr, "[SNES/PPU]   Chr0[0]: %02X%02X%02X%02X (at $%04X)\n",
+                    m_vram[m_bg_chr_addr[0] & 0xFFFF], m_vram[(m_bg_chr_addr[0]+1) & 0xFFFF],
+                    m_vram[(m_bg_chr_addr[0]+2) & 0xFFFF], m_vram[(m_bg_chr_addr[0]+3) & 0xFFFF],
+                    m_bg_chr_addr[0]);
+                // Check VRAM at $9000 where DMA goes
+                fprintf(stderr, "[SNES/PPU]   VRAM[$9000]: %02X%02X%02X%02X (typical DMA dest)\n",
+                    m_vram[0x9000], m_vram[0x9001], m_vram[0x9002], m_vram[0x9003]);
             }
         }
     }
@@ -838,6 +993,51 @@ void PPU::render_pixel(int x) {
     if (is_hires_bg_mode) {
         for (int bg = 0; bg < num_bgs; bg++) {
             render_background_pixel(bg, x, bg_pixel_sub[bg], bg_priority_sub[bg], true, false);
+        }
+    }
+
+    // Debug: trace Mode 3/5 BG rendering at different y positions
+    static int mode_trace_debug = 0;
+    static int y10x8_render_count = 0;
+    if (mode_trace_debug < 10 && m_frame == 47) {
+        int y = m_scanline - 1;
+        // Check at y=10 (top row where text starts)
+        if (y == 10 && x == 8) {
+            y10x8_render_count++;
+            fprintf(stderr, "[BG-Debug] Render #%d at y=%d x=%d\n", y10x8_render_count, y, x);
+            mode_trace_debug++;
+            fprintf(stderr, "[BG-Debug] frame=%d y=%d x=%d mode=%d TM=$%02X BG1=%d BG2=%d\n",
+                    (int)m_frame, y, x, m_bg_mode, m_tm, bg_pixel[0], bg_pixel[1]);
+            fprintf(stderr, "[BG-Debug] BG1: tilemap=$%04X chr=$%04X hofs=%d vofs=%d tile_size=%d\n",
+                    m_bg_tilemap_addr[0], m_bg_chr_addr[0], m_bg_hofs[0], m_bg_vofs[0], m_bg_tile_size[0] ? 16 : 8);
+            // Calculate expected tile position
+            int scroll_x = m_bg_hofs[0] & 0x3FF;
+            int scroll_y = m_bg_vofs[0] & 0x3FF;
+            int px = (x + scroll_x) & 0x3FF;
+            int py = (y + scroll_y) & 0x3FF;
+            int tile_size = m_bg_tile_size[0] ? 16 : 8;
+            int tile_x = px / tile_size;
+            int tile_y = py / tile_size;
+            uint16_t tilemap_addr = m_bg_tilemap_addr[0] + (tile_y % 32) * 64 + (tile_x % 32) * 2;
+            uint8_t tile_lo = m_vram[tilemap_addr & 0xFFFF];
+            uint8_t tile_hi = m_vram[(tilemap_addr + 1) & 0xFFFF];
+            int tile_num = tile_lo | ((tile_hi & 0x03) << 8);
+            int fine_x = px % tile_size;
+            int fine_y = py % tile_size;
+            fprintf(stderr, "[BG-Debug] px=%d py=%d tile=(%d,%d) fine=(%d,%d) tilemap_addr=$%04X tile=%d\n",
+                    px, py, tile_x, tile_y, fine_x, fine_y, tilemap_addr, tile_num);
+            // For Mode 3, BG1 is 8bpp, so chr size = 64 bytes per tile
+            int bpp = 8;  // Mode 3 BG1
+            uint16_t chr_addr = m_bg_chr_addr[0] + tile_num * (bpp * 8);
+            // Dump all 4 bitplane pairs for this row
+            fprintf(stderr, "[BG-Debug] chr_addr=$%04X fine_y=%d bitplanes:\n", chr_addr, fine_y);
+            for (int pair = 0; pair < 4; pair++) {
+                int offset = pair * 16 + fine_y * 2;
+                fprintf(stderr, "  Planes %d-%d at $%04X: %02X %02X\n",
+                        pair*2, pair*2+1, chr_addr + offset,
+                        m_vram[(chr_addr + offset) & 0xFFFF],
+                        m_vram[(chr_addr + offset + 1) & 0xFFFF]);
+            }
         }
     }
 
@@ -1190,7 +1390,15 @@ void PPU::render_pixel(int x) {
     };
 
     // Composite main screen (using TM register and TMW window mask)
-    main_pixel = composite_screen(m_tm, m_tmw);
+    // HACK: For Mode 5/6, ensure BG1 is always enabled on main screen
+    // This works around timing issues with catch-up rendering where TM
+    // may have an incorrect intermediate value during Mode 5 rendering.
+    // Mode 5 hi-res uses BG1 (4bpp) for the primary graphics.
+    uint8_t tm_adjusted = m_tm;
+    if (is_hires_bg_mode) {
+        tm_adjusted |= 0x01;  // Force BG1 enable
+    }
+    main_pixel = composite_screen(tm_adjusted, m_tmw);
 
     if (debug_pixel) {
         SNES_PPU_DEBUG("  composite result: color=$%04X source=%d\n",
@@ -1336,6 +1544,17 @@ void PPU::render_pixel(int x) {
     // tiles, so main and sub screens naturally get different portions of tiles.
     // ============================================================================
     bool use_hires_output = m_pseudo_hires || (m_bg_mode == 5) || (m_bg_mode == 6);
+
+    // Debug: Log when Mode 5 is active on specific scanlines/pixels
+    static int mode5_debug_count = 0;
+    if (m_bg_mode == 5 && mode5_debug_count < 20 && m_frame > 45 && m_frame < 50) {
+        if (y == 100 && (x == 0 || x == 128 || x == 200)) {
+            mode5_debug_count++;
+            fprintf(stderr, "[Mode5-Debug] frame=%d y=%d x=%d use_hires=%d TM=$%02X TS=$%02X main_color=$%04X sub_color=$%04X\n",
+                    m_frame, y, x, use_hires_output ? 1 : 0, m_tm, m_ts,
+                    main_pixel.color, sub_pixel.color);
+        }
+    }
 
     // Helper to convert 15-bit SNES color to 32-bit ARGB with brightness
     // Reference: bsnes/sfc/ppu/ppu.cpp lightTable generation
@@ -1551,8 +1770,37 @@ void PPU::render_background_pixel(int bg, int x, uint8_t& pixel, uint8_t& priori
     pixel = 0;
     priority = 0;
 
-    // Debug BG rendering - once per frame at a specific pixel for Mode 3 BG2
-    bool debug_bg = is_debug_mode() && m_frame == 300 && m_scanline == 10 && x == 16 && bg == 1;
+    // Debug: One-time dump for BG2 in Mode 3
+    static bool bg2_debug_done = false;
+    if (is_debug_mode() && !bg2_debug_done && m_frame == 300 && m_bg_mode == 3 && bg == 1 && x == 128) {
+        bg2_debug_done = true;
+        fprintf(stderr, "\n[SNES/PPU] === BG2 Mode3 Debug (Frame %lu) ===\n", m_frame);
+        fprintf(stderr, "  tilemap=$%04X chr=$%04X\n", m_bg_tilemap_addr[1], m_bg_chr_addr[1]);
+        // Sample tilemap
+        fprintf(stderr, "  BG2 Tilemap at $%04X: ", m_bg_tilemap_addr[1]);
+        for (int i = 0; i < 16; i++) fprintf(stderr, "%02X ", m_vram[(m_bg_tilemap_addr[1] + i) & 0xFFFF]);
+        fprintf(stderr, "\n");
+        // Find first non-zero in chr area
+        int first_nz = -1;
+        for (int i = 0; i < 0x2000; i++) {
+            if (m_vram[(m_bg_chr_addr[1] + i) & 0xFFFF] != 0) { first_nz = i; break; }
+        }
+        fprintf(stderr, "  BG2 Chr first non-zero at offset $%04X\n", first_nz);
+        if (first_nz >= 0) {
+            fprintf(stderr, "  Chr at $%04X+$%04X=$%04X: ", m_bg_chr_addr[1], first_nz, m_bg_chr_addr[1]+first_nz);
+            for (int i = 0; i < 16; i++) fprintf(stderr, "%02X ", m_vram[(m_bg_chr_addr[1] + first_nz + i) & 0xFFFF]);
+            fprintf(stderr, "\n");
+        }
+        // Check if maybe data is elsewhere in VRAM
+        fprintf(stderr, "  VRAM scan for non-zero regions:\n");
+        for (int base = 0; base < 0x10000; base += 0x1000) {
+            int count = 0;
+            for (int i = 0; i < 0x1000; i++) if (m_vram[base + i] != 0) count++;
+            if (count > 100) fprintf(stderr, "    $%04X: %d non-zero\n", base, count);
+        }
+    }
+
+    bool debug_bg = false; // Disabled
     // Also do a one-time summary when Mode 3 BG2 is first rendered
     static bool mode3_bg2_diagnosed = false;
     bool do_mode3_diagnosis = is_debug_mode() && m_bg_mode == 3 && bg == 1 && m_frame >= 280 && !mode3_bg2_diagnosed;
@@ -1800,6 +2048,39 @@ void PPU::render_background_pixel(int bg, int x, uint8_t& pixel, uint8_t& priori
     uint8_t tile_hi = m_vram[(tilemap_addr + 1) & 0xFFFF];
 
     int tile_num = tile_lo | ((tile_hi & 0x03) << 8);  // 10-bit tile number
+
+    // Debug: One-time dump of tilemap/chr state when corruption might occur
+    static bool corruption_debug_done = false;
+    if (is_debug_mode() && !corruption_debug_done && m_frame == 300 && bg == 0) {
+        corruption_debug_done = true;
+        fprintf(stderr, "\n[SNES/PPU] === Corruption Debug Dump (Frame %lu) ===\n", m_frame);
+        fprintf(stderr, "  BG Mode: %d, TM=$%02X\n", m_bg_mode, m_tm);
+        fprintf(stderr, "  BG1: tilemap_base=$%04X chr_base=$%04X\n", m_bg_tilemap_addr[0], m_bg_chr_addr[0]);
+        fprintf(stderr, "  Current pixel: x=%d scanline=%d\n", x, m_scanline);
+        fprintf(stderr, "  Tilemap addr=$%04X, tile_lo=$%02X tile_hi=$%02X -> tile_num=%d\n",
+                tilemap_addr, tile_lo, tile_hi, tile_num);
+        // Sample tilemap data
+        fprintf(stderr, "  Tilemap at $%04X: ", tilemap_base);
+        for (int i = 0; i < 16; i++) fprintf(stderr, "%02X ", m_vram[(tilemap_base + i) & 0xFFFF]);
+        fprintf(stderr, "\n");
+        // Sample chr data at the tile being rendered
+        int chr_addr_sample = m_bg_chr_addr[0] + tile_num * 64;  // 8bpp
+        fprintf(stderr, "  Chr at $%04X (tile %d): ", chr_addr_sample, tile_num);
+        for (int i = 0; i < 16; i++) fprintf(stderr, "%02X ", m_vram[(chr_addr_sample + i) & 0xFFFF]);
+        fprintf(stderr, "\n");
+        // Check if tilemap area has any non-zero data
+        int tm_nonzero = 0;
+        for (int i = 0; i < 0x800; i++) {
+            if (m_vram[(tilemap_base + i) & 0xFFFF] != 0) tm_nonzero++;
+        }
+        fprintf(stderr, "  Tilemap non-zero bytes: %d/2048\n", tm_nonzero);
+        // Check if chr area has any non-zero data
+        int chr_nonzero = 0;
+        for (int i = 0; i < 0x8000; i++) {
+            if (m_vram[(m_bg_chr_addr[0] + i) & 0xFFFF] != 0) chr_nonzero++;
+        }
+        fprintf(stderr, "  Chr non-zero bytes: %d/32768\n", chr_nonzero);
+    }
 
     int palette = (tile_hi >> 2) & 0x07;               // 3-bit palette
     priority = (tile_hi >> 5) & 0x01;                  // 1-bit priority
@@ -2049,6 +2330,39 @@ void PPU::render_background_pixel(int bg, int x, uint8_t& pixel, uint8_t& priori
     bool hflip = (tile_hi & 0x40) != 0;
     bool vflip = (tile_hi & 0x80) != 0;
 
+    // Debug: One-time dump for Mode 3 corruption analysis
+    static bool wrapper_debug_done = false;
+    if (is_debug_mode() && !wrapper_debug_done && m_frame == 300 && bg == 1 && x == 128) {
+        wrapper_debug_done = true;
+        fprintf(stderr, "\n[SNES/PPU] === BG2 Wrapper Debug (Frame %lu) ===\n", m_frame);
+        fprintf(stderr, "  BG Mode: %d, TM=$%02X, bg=%d\n", m_bg_mode, m_tm, bg);
+        fprintf(stderr, "  tilemap_base=$%04X chr_base=$%04X\n", tilemap_base, m_bg_chr_addr[bg]);
+        fprintf(stderr, "  tilemap_addr=$%04X tile_lo=$%02X tile_hi=$%02X -> tile=%d\n",
+                tilemap_addr, tile_lo, tile_hi, tile_num);
+        // Sample tilemap
+        fprintf(stderr, "  BG2 Tilemap at $%04X: ", tilemap_base);
+        for (int i = 0; i < 16; i++) fprintf(stderr, "%02X ", m_vram[(tilemap_base + i) & 0xFFFF]);
+        fprintf(stderr, "\n");
+        // Count non-zero in tilemap
+        int tm_nz = 0;
+        for (int i = 0; i < 0x800; i++) if (m_vram[(tilemap_base + i) & 0xFFFF] != 0) tm_nz++;
+        fprintf(stderr, "  BG2 Tilemap non-zero: %d/2048\n", tm_nz);
+        // Count non-zero in chr - use 4bpp size (32 bytes/tile)
+        int chr_nz = 0;
+        int chr_area = (m_bg_mode == 3) ? 0x2000 : 0x4000;  // 4bpp = 8KB
+        for (int i = 0; i < chr_area; i++) if (m_vram[(m_bg_chr_addr[bg] + i) & 0xFFFF] != 0) chr_nz++;
+        fprintf(stderr, "  BG2 Chr at $%04X non-zero: %d/%d\n", m_bg_chr_addr[bg], chr_nz, chr_area);
+        // Sample chr data for tile being rendered
+        int chr_addr = m_bg_chr_addr[bg] + tile_num * 32;  // 4bpp = 32 bytes/tile
+        fprintf(stderr, "  Chr for tile %d at $%04X: ", tile_num, chr_addr);
+        for (int i = 0; i < 16; i++) fprintf(stderr, "%02X ", m_vram[(chr_addr + i) & 0xFFFF]);
+        fprintf(stderr, "\n");
+        // Check where DMA was supposed to write - compare with chr_base
+        fprintf(stderr, "  VRAM at $A000 (expected DMA dest): ");
+        for (int i = 0; i < 16; i++) fprintf(stderr, "%02X ", m_vram[0xA000 + i]);
+        fprintf(stderr, "\n");
+    }
+
     // Output the palette for Direct Color mode
     out_palette = palette;
 
@@ -2120,32 +2434,42 @@ void PPU::render_background_pixel(int bg, int x, uint8_t& pixel, uint8_t& priori
 // ============================================================================
 // Reference: bsnes/ares background.cpp fetchNameTable()
 //
-// In Mode 5/6, tiles are always 16 pixels wide in hi-res coordinate space.
-// The 16 pixels are split between main and sub screens:
-//   - Even pixels (0,2,4,6,8,10,12,14) go to sub screen
-//   - Odd pixels (1,3,5,7,9,11,13,15) go to main screen
+// Mode 5/6 hi-res rendering differs from standard modes:
 //
-// The output to the TV interleaves: column 0=sub, column 1=main, column 2=sub, etc.
+// 1. COORDINATE SPACE: 512 hi-res pixels horizontally
+//    - Screen pixel X maps to hi-res pixels (X*2) and (X*2+1)
+//    - Sub screen gets even hi-res pixels (0,2,4,6...)
+//    - Main screen gets odd hi-res pixels (1,3,5,7...)
 //
-// Scroll handling in hi-res modes (from bsnes):
-//   hpixel = x << hires()      // screen x is doubled
-//   hscroll = io.hoffset
-//   if(hires()) hscroll <<= 1  // scroll is also doubled
-//   hoffset = hpixel + hscroll
+// 2. TILE DIMENSIONS: Tiles are 16 hi-res pixels wide (htiles=4, so 2^4=16)
+//    - Each tilemap entry covers 16 hi-res pixels
+//    - Tile index = hoffset >> 4 (every 16 hi-res pixels)
+//    - Fine pixel within 8x8 sub-tile = hoffset & 7
 //
-// This means BOTH the pixel position AND the scroll value are doubled.
+// 3. CHARACTER SELECTION: 16-pixel tiles use two adjacent 8x8 characters
+//    - Left half (hi-res pixels 0-7): character N
+//    - Right half (hi-res pixels 8-15): character N+1
+//    - Selection: bool(hoffset & 8) != tile.hmirror
+//
+// 4. SCROLL HANDLING:
+//    - hscroll <<= 1 (doubled to match 512-pixel space)
+//    - hoffset = hpixel + hscroll
+//
+// Reference: ares/sfc/ppu/background.cpp
 // ============================================================================
 void PPU::render_background_pixel(int bg, int x, uint8_t& pixel, uint8_t& priority,
                                    bool hires_mode, bool hires_odd_pixel) {
     pixel = 0;
     priority = 0;
 
+    bool debug_hires = false;
+
     // Get scroll values
-    // Reference: bsnes - in hi-res mode, scroll is doubled (hscroll <<= 1)
     int scroll_x = m_bg_hofs[bg] & 0x3FF;
     int scroll_y = m_bg_vofs[bg] & 0x3FF;
 
-    // In hi-res mode, scroll is doubled to match the doubled coordinate space
+    // In hi-res mode, scroll is doubled to match the 512-pixel coordinate space
+    // Reference: bsnes - if(hires()) hscroll <<= 1
     if (hires_mode) {
         scroll_x <<= 1;
     }
@@ -2158,31 +2482,42 @@ void PPU::render_background_pixel(int bg, int x, uint8_t& pixel, uint8_t& priori
         mosaic_y = (mosaic_y / m_mosaic_size) * m_mosaic_size;
     }
 
-    // In hi-res mode (Mode 5/6), each screen X (0-255) maps to 2 hi-res pixels (0-511)
-    // Main screen gets odd pixels (1,3,5...), sub screen gets even pixels (0,2,4...)
-    // So screen X=0 -> hires 0/1, screen X=1 -> hires 2/3, etc.
-    // Reference: bsnes - hpixel = x << hires() (i.e., x * 2 when in hi-res)
-    int hires_x = mosaic_x;
-    if (hires_mode) {
-        // Convert to 512-pixel hi-res space
-        // Add 1 for odd pixel (main screen), 0 for even pixel (sub screen)
-        hires_x = mosaic_x * 2 + (hires_odd_pixel ? 1 : 0);
-    }
+    // Convert to hi-res coordinate space (0-511)
+    // Reference: bsnes - hpixel = x << hires()
+    // Main screen gets odd pixels, sub screen gets even pixels
+    int hires_x = mosaic_x * 2 + (hires_odd_pixel ? 1 : 0);
 
-    // Calculate pixel position in BG (now in correct coordinate space)
-    // Both hires_x and scroll_x are in the doubled coordinate space for Mode 5/6
-    int px = (hires_x + scroll_x) & 0x3FF;
-    int py = (mosaic_y + scroll_y) & 0x3FF;
+    // Tile dimensions in hi-res mode:
+    // - Width is always 16 hi-res pixels (htiles=4, tile_x = hoffset >> 4)
+    // - Height follows tile size setting (8 or 16 pixels)
+    // Reference: bsnes - htiles = !hires() ? vtiles : 4
+    int htiles = 4;  // 2^4 = 16 hi-res pixels per tile
+    int vtiles = m_bg_tile_size[bg] ? 4 : 3;  // 2^4=16 or 2^3=8 pixels tall
 
-    // In hi-res mode (Mode 5/6), tiles are always 16 pixels wide
-    int tile_width = 16;  // Always 16 in hi-res modes
-    int tile_height = m_bg_tile_size[bg] ? 16 : 8;
+    // Calculate coordinate masks based on tilemap size and tile size
+    // Reference: bsnes - hmask = (256 << hires << io.tileSize << !!(io.screenSize & 1)) - 1
+    // In hi-res mode (hires=1), base is 512 pixels. Then shifted by tile size (8->16px)
+    // and tilemap width (32->64 tiles)
+    int tile_size_shift = m_bg_tile_size[bg] ? 1 : 0;
+    int width_shift = m_bg_tilemap_width[bg] ? 1 : 0;
+    int height_shift = m_bg_tilemap_height[bg] ? 1 : 0;
+    int hmask = (512 << tile_size_shift << width_shift) - 1;
+    int vmask = (512 << tile_size_shift << height_shift) - 1;
+
+    // Calculate pixel position in BG coordinate space
+    // hoffset = hpixel + hscroll (both in 512-pixel space)
+    int hoffset = (hires_x + scroll_x) & hmask;
+    int voffset = (mosaic_y + scroll_y) & vmask;
 
     // Calculate tile coordinates
-    int tile_x = px / tile_width;
-    int tile_y = py / tile_height;
-    int fine_x = px % tile_width;
-    int fine_y = py % tile_height;
+    // Reference: bsnes - htile = hoffset >> htiles
+    int tile_x = hoffset >> htiles;  // hoffset >> 4
+    int tile_y = voffset >> vtiles;
+
+    // Fine pixel position within tile (0-7 for the 8x8 sub-tile)
+    // Reference: bsnes - fine pixel is (hoffset & 7)
+    int fine_x = hoffset & 7;
+    int fine_y = voffset & ((1 << vtiles) - 1);  // voffset & 7 or voffset & 15
 
     // Get tilemap address
     uint16_t tilemap_base = m_bg_tilemap_addr[bg];
@@ -2215,20 +2550,27 @@ void PPU::render_background_pixel(int bg, int x, uint8_t& pixel, uint8_t& priori
     bool hflip = (tile_hi & 0x40) != 0;
     bool vflip = (tile_hi & 0x80) != 0;
 
-    // Handle large tiles (16-pixel wide tiles are composed of two 8x8 tiles)
+    // Handle 16-pixel wide tiles (character selection)
+    // Reference: bsnes - if(htiles == 4 && bool(hoffset & 8) != tile.hmirror) tile.character += 1
+    // In hi-res mode, tiles are always 16 pixels wide, composed of two 8x8 characters
+    // Left half (hoffset bits 3-0 = 0-7): use character N
+    // Right half (hoffset bits 3-0 = 8-15): use character N+1
+    // Horizontal flip inverts this selection
     int x_offset = 0;
-    int y_offset = 0;
-
-    if (tile_width == 16) {
-        x_offset = (fine_x >= 8) ? 1 : 0;
-        if (hflip) x_offset = 1 - x_offset;
-        fine_x &= 7;
+    bool in_right_half = (hoffset & 8) != 0;
+    if (in_right_half != hflip) {
+        x_offset = 1;
     }
 
-    if (tile_height == 16) {
-        y_offset = (fine_y >= 8) ? 16 : 0;
-        if (vflip) y_offset = (y_offset == 16) ? 0 : 16;
-        fine_y &= 7;
+    // Handle 16-pixel tall tiles (if tile size bit is set)
+    // Reference: bsnes - if(vtiles == 4 && bool(voffset & 8) != tile.vmirror) tile.character += 16
+    int y_offset = 0;
+    if (vtiles == 4) {
+        bool in_bottom_half = (fine_y & 8) != 0;
+        if (in_bottom_half != vflip) {
+            y_offset = 16;
+        }
+        fine_y &= 7;  // Reduce to 0-7 range for 8x8 sub-tile
     }
 
     tile_num += x_offset + y_offset;
@@ -2238,6 +2580,7 @@ void PPU::render_background_pixel(int bg, int x, uint8_t& pixel, uint8_t& priori
     if (vflip) fine_y = 7 - fine_y;
 
     // Mode 5/6: BG1 is 4bpp, BG2 is 2bpp
+    // Reference: fullsnes - Mode 5 has BG1=4bpp, BG2=2bpp
     int bpp = (bg == 0) ? 4 : 2;
 
     // Get character data address
@@ -2266,6 +2609,12 @@ void PPU::render_background_pixel(int bg, int x, uint8_t& pixel, uint8_t& priori
             // 2bpp: palette * 4 + color_index
             pixel = (palette << 2) + color_index;
         }
+    }
+
+    if (debug_hires) {
+        fprintf(stderr, "[Mode5] x=%d %s: hires_x=%d hoffset=%d tile_x=%d in_right=%d x_off=%d fine_x=%d tile=%d color=%d pixel=$%02X\n",
+                x, hires_odd_pixel ? "main" : "sub ",
+                hires_x, hoffset, tile_x, in_right_half ? 1 : 0, x_offset, fine_x, tile_num, color_index, pixel);
     }
 }
 
@@ -2872,13 +3221,9 @@ void PPU::write(uint16_t address, uint8_t value) {
     //
     // Reference: Mesen-S, bsnes - both sync PPU state before register writes
     // ========================================================================
-    sync_to_current();
 
-    // Debug key PPU registers
-    if (address == 0x2100 || address == 0x2105 || address == 0x212C || address == 0x212D) {
-        SNES_PPU_DEBUG("Write $%04X = $%02X (INIDISP=%02X force_blank=%d bright=%d mode=%d TM=%02X)\n",
-            address, value, m_inidisp, m_force_blank ? 1 : 0, m_brightness, m_bg_mode, m_tm);
-    }
+    // Sync PPU state before applying register change
+    sync_to_current();
 
     switch (address) {
         case 0x2100: {  // INIDISP
@@ -2970,14 +3315,43 @@ void PPU::write(uint16_t address, uint8_t value) {
             break;
         }
 
-        case 0x2105:  // BGMODE
+        case 0x2105: {  // BGMODE
+            uint8_t old_mode = m_bg_mode;
             m_bgmode = value;
             m_bg_mode = value & 0x07;
             m_bg3_priority = (value & 0x08) != 0;
             for (int i = 0; i < 4; i++) {
                 m_bg_tile_size[i] = (value & (0x10 << i)) != 0;
             }
+            // Debug: Log when switching to Mode 1 (used by SMB gameplay)
+            if (is_debug_mode() && m_bg_mode == 1 && old_mode != 1) {
+                fprintf(stderr, "[SNES/PPU] === Mode 1 entered (frame %lu) ===\n", m_frame);
+                fprintf(stderr, "[SNES/PPU]   BGMODE=$%02X BG3pri=%d tile_sizes=[%d,%d,%d,%d]\n",
+                    value, m_bg3_priority, m_bg_tile_size[0], m_bg_tile_size[1], m_bg_tile_size[2], m_bg_tile_size[3]);
+                fprintf(stderr, "[SNES/PPU]   BG1: tilemap=$%04X chr=$%04X\n", m_bg_tilemap_addr[0], m_bg_chr_addr[0]);
+                fprintf(stderr, "[SNES/PPU]   BG2: tilemap=$%04X chr=$%04X\n", m_bg_tilemap_addr[1], m_bg_chr_addr[1]);
+                fprintf(stderr, "[SNES/PPU]   BG3: tilemap=$%04X chr=$%04X\n", m_bg_tilemap_addr[2], m_bg_chr_addr[2]);
+                fprintf(stderr, "[SNES/PPU]   TM=$%02X TS=$%02X\n", m_tm, m_ts);
+                // Sample VRAM at key locations
+                fprintf(stderr, "[SNES/PPU]   BG1 tilemap[0-3]: %02X%02X %02X%02X %02X%02X %02X%02X\n",
+                    m_vram[(m_bg_tilemap_addr[0]+1) & 0xFFFF], m_vram[m_bg_tilemap_addr[0] & 0xFFFF],
+                    m_vram[(m_bg_tilemap_addr[0]+3) & 0xFFFF], m_vram[(m_bg_tilemap_addr[0]+2) & 0xFFFF],
+                    m_vram[(m_bg_tilemap_addr[0]+5) & 0xFFFF], m_vram[(m_bg_tilemap_addr[0]+4) & 0xFFFF],
+                    m_vram[(m_bg_tilemap_addr[0]+7) & 0xFFFF], m_vram[(m_bg_tilemap_addr[0]+6) & 0xFFFF]);
+                fprintf(stderr, "[SNES/PPU]   BG1 chr tile 0: %02X %02X %02X %02X %02X %02X %02X %02X\n",
+                    m_vram[m_bg_chr_addr[0] & 0xFFFF], m_vram[(m_bg_chr_addr[0]+1) & 0xFFFF],
+                    m_vram[(m_bg_chr_addr[0]+2) & 0xFFFF], m_vram[(m_bg_chr_addr[0]+3) & 0xFFFF],
+                    m_vram[(m_bg_chr_addr[0]+4) & 0xFFFF], m_vram[(m_bg_chr_addr[0]+5) & 0xFFFF],
+                    m_vram[(m_bg_chr_addr[0]+6) & 0xFFFF], m_vram[(m_bg_chr_addr[0]+7) & 0xFFFF]);
+                // Check for non-zero chr data
+                int nz_chr = 0;
+                for (int i = 0; i < 0x4000; i++) {
+                    if (m_vram[(m_bg_chr_addr[0] + i) & 0xFFFF] != 0) nz_chr++;
+                }
+                fprintf(stderr, "[SNES/PPU]   Non-zero bytes in BG1 chr area: %d/16384\n", nz_chr);
+            }
             break;
+        }
 
         case 0x2106:  // MOSAIC
             m_mosaic = value;
@@ -2993,12 +3367,14 @@ void PPU::write(uint16_t address, uint8_t value) {
         case 0x210A: {  // BG4SC
             int bg = address - 0x2107;
             // Tilemap screen base address in VRAM
-            // Reference: bsnes - io.bg1.screenAddress = data << 8 & 0x7c00 (word address)
-            // Register format: aaaaaass (bits 2-6 = address bits 11-15 of word address)
-            // Word address = (value & 0xFC) << 8 & 0x7C00 = (value & 0x7C) << 8
-            // Byte address = word_addr * 2 = (value & 0x7C) << 9
-            // This gives 2KB-aligned byte addresses from 0x0000 to 0xF800
-            m_bg_tilemap_addr[bg] = (value & 0x7C) << 9;  // Byte address (0x0000-0xF800)
+            // Reference: fullsnes, bsnes - register format: aaaaaass
+            //   bits 7-2 = address bits 11-16 of word address (6 bits)
+            //   bits 1-0 = screen size (horizontal, vertical doubling)
+            // Word address = (value & 0xFC) << 8 gives 2KB-aligned word addresses
+            // Byte address = word_addr * 2 = (value & 0xFC) << 9
+            // This gives 2KB-aligned byte addresses from 0x0000 to 0xFC00
+            // Note: VRAM is 64KB, so addresses wrap at 0x10000
+            m_bg_tilemap_addr[bg] = (value & 0xFC) << 9;  // Byte address (0x0000-0xFC00)
             m_bg_tilemap_width[bg] = (value & 0x01) ? 1 : 0;
             m_bg_tilemap_height[bg] = (value & 0x02) ? 1 : 0;
             SNES_PPU_DEBUG("BG%dSC=$%02X -> tilemap=$%04X size=%dx%d\n",
@@ -3009,13 +3385,14 @@ void PPU::write(uint16_t address, uint8_t value) {
 
         case 0x210B:  // BG12NBA
             // Character base address in VRAM
-            // Reference: bsnes - io.bg1.tiledataAddress = data << 12 & 0x7000 (word address)
-            // Only bits 0-2 (BG1) and 4-6 (BG2) are used, giving 8KB-aligned addresses
-            // Convert word address to byte address by shifting left 1 additional bit
-            // BG1: bits 0-2 -> word address bits 12-14 -> byte address = (value & 0x07) << 13
-            // BG2: bits 4-6 -> word address bits 12-14 -> byte address = ((value >> 4) & 0x07) << 13
-            m_bg_chr_addr[0] = (value & 0x07) << 13;  // Byte address (0x0000-0xE000)
-            m_bg_chr_addr[1] = ((value >> 4) & 0x07) << 13;  // Byte address (0x0000-0xE000)
+            // Reference: bsnes/ares - bg1.io.tiledataAddress = data.bit(0,3) << 12
+            // Uses all 4 bits per nibble (0x0F mask), giving 4KB-aligned word addresses
+            // which translate to 8KB-aligned byte addresses (value << 13)
+            // BG1: bits 0-3 -> byte address = (value & 0x0F) << 13
+            // BG2: bits 4-7 -> byte address = ((value >> 4) & 0x0F) << 13
+            // Note: VRAM is 64KB, so addresses >= 0x10000 wrap via & 0xFFFF in access
+            m_bg_chr_addr[0] = (value & 0x0F) << 13;  // Byte address (0x0000-0x1E000, wraps)
+            m_bg_chr_addr[1] = ((value >> 4) & 0x0F) << 13;  // Byte address (0x0000-0x1E000, wraps)
             {
                 static int bg12nba_write_count = 0;
                 static uint8_t last_bg12nba = 0xFF;
@@ -3032,9 +3409,9 @@ void PPU::write(uint16_t address, uint8_t value) {
             break;
 
         case 0x210C:  // BG34NBA
-            // Same format as BG12NBA
-            m_bg_chr_addr[2] = (value & 0x07) << 13;  // Byte address (0x0000-0xE000)
-            m_bg_chr_addr[3] = ((value >> 4) & 0x07) << 13;  // Byte address (0x0000-0xE000)
+            // Same format as BG12NBA - uses all 4 bits per nibble
+            m_bg_chr_addr[2] = (value & 0x0F) << 13;  // Byte address (0x0000-0x1E000, wraps)
+            m_bg_chr_addr[3] = ((value >> 4) & 0x0F) << 13;  // Byte address (0x0000-0x1E000, wraps)
             break;
 
         case 0x210D:  // BG1HOFS / M7HOFS
@@ -3131,13 +3508,15 @@ void PPU::write(uint16_t address, uint8_t value) {
                 // Reference: fullsnes, bsnes/snes9x VMAIN documentation
                 uint16_t addr = remap_vram_address(m_vram_addr);
                 uint32_t byte_addr = (addr * 2) & 0xFFFF;
-                // Debug: track CPU writes to $A000-$BFFF region
-                if (is_debug_mode() && byte_addr >= 0xA000 && byte_addr < 0xC000 && value != 0) {
-                    static int cpu_vram_a000_writes = 0;
-                    cpu_vram_a000_writes++;
-                    if (cpu_vram_a000_writes <= 20) {
-                        SNES_DEBUG_PRINT("CPU VRAM write (low): byte $%04X = $%02X (word_addr=$%04X, frame %lu)\n",
-                            byte_addr, value, m_vram_addr, m_frame);
+                // Debug: track writes to $A000-$BFFF region (BG2 chr area)
+                static int vram_a000_writes_total = 0;
+                static int vram_a000_writes_logged = 0;
+                if (byte_addr >= 0xA000 && byte_addr < 0xC000) {
+                    vram_a000_writes_total++;
+                    if (is_debug_mode() && vram_a000_writes_logged < 10) {
+                        vram_a000_writes_logged++;
+                        fprintf(stderr, "[VRAM] Write $%04X = $%02X (word=$%04X remap=%04X frame=%lu) total=%d\n",
+                            byte_addr, value, m_vram_addr, addr, m_frame, vram_a000_writes_total);
                     }
                 }
                 m_vram[byte_addr] = value;
@@ -3177,11 +3556,26 @@ void PPU::write(uint16_t address, uint8_t value) {
         case 0x211B:  // M7A
             m_m7a = (value << 8) | m_m7_latch;
             m_m7_latch = value;
+            if (is_debug_mode()) {
+                static int m7a_count = 0;
+                if (m7a_count++ < 20) {
+                    fprintf(stderr, "[SNES/PPU] M7A write: value=$%02X, latch was $%02X, M7A now=$%04X\n",
+                            value, m_m7_latch, m_m7a);
+                }
+            }
             break;
 
         case 0x211C:  // M7B
             m_m7b = (value << 8) | m_m7_latch;
             m_m7_latch = value;
+            if (is_debug_mode()) {
+                static int m7b_count = 0;
+                if (m7b_count++ < 20) {
+                    fprintf(stderr, "[SNES/PPU] M7B write: value=$%02X, latch was $%02X, M7B now=$%04X, MPY result=$%06X\n",
+                            value, m_m7_latch, m_m7b,
+                            (uint32_t)(static_cast<int16_t>(m_m7a) * static_cast<int8_t>(m_m7b >> 8)) & 0xFFFFFF);
+                }
+            }
             break;
 
         case 0x211D:  // M7C

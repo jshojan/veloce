@@ -135,6 +135,9 @@ bool Cartridge::load(const uint8_t* data, size_t size) {
         return false;
     }
 
+    // Pass CRC to mapper for ROM-specific behavior detection (e.g., MMC3A vs MMC3B)
+    m_mapper->set_rom_crc(m_crc32);
+
     m_loaded = true;
 
     std::cout << "ROM loaded successfully:" << std::endl;

@@ -106,7 +106,7 @@ private:
     // Header detection and parsing
     bool detect_header(const uint8_t* data, size_t size);
     bool parse_header(const uint8_t* header_data);
-    int score_header(const uint8_t* header_data, size_t rom_size);
+    int score_header(const uint8_t* header_data, size_t rom_size, MapperType expected_type);
     uint32_t calculate_crc32(const uint8_t* data, size_t size);
 
     // Memory mapping helpers
