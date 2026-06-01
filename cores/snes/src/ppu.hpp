@@ -79,6 +79,15 @@ public:
     // Set current timing position (for main loop synchronization)
     void set_timing(int scanline, int dot);
 
+    // Snapshot the live BG scroll registers into the per-scanline latched copies
+    // used by the renderer. Called when a scanline's visible region completes, so
+    // the next scanline renders with the scroll as of that point (modelling the
+    // hardware scroll latch). See m_bg_hofs_latched.
+    void latch_bg_scroll() {
+        m_bg_hofs_latched = m_bg_hofs;
+        m_bg_vofs_latched = m_bg_vofs;
+    }
+
     // Check if we're in the visible rendering area
     bool is_rendering() const;
 
@@ -269,6 +278,14 @@ private:
     // $210D-$2114 - BGnHOFS/BGnVOFS - BG scroll offsets
     std::array<uint16_t, 4> m_bg_hofs;
     std::array<uint16_t, 4> m_bg_vofs;
+    // Per-scanline latched copies of the BG scroll, used for rendering.
+    // On hardware each scanline's BG scroll is latched before its H-blank, so a
+    // scroll write during a line's H-blank (e.g. from a mid-frame H/V-IRQ status-
+    // bar split) only affects the line AFTER next, not the immediately next line.
+    // We snapshot live -> latched when each scanline's visible region completes
+    // (see PPU::latch_bg_scroll), and the renderer reads the latched values.
+    std::array<uint16_t, 4> m_bg_hofs_latched{};
+    std::array<uint16_t, 4> m_bg_vofs_latched{};
     // SNES has two latches for scroll registers (quirky PPU1/PPU2 behavior)
     // HOFS formula: (data << 8) | (latch_ppu1 & ~7) | (latch_ppu2 & 7)
     // VOFS formula: (data << 8) | latch_ppu1

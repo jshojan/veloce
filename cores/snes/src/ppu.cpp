@@ -228,6 +228,10 @@ void PPU::set_timing(int scanline, int dot) {
         m_force_blank_latched_fetch = m_force_blank;
         m_sprites_for_scanline = -1;  // No sprites evaluated yet for this frame
 
+        // Latch the BG scroll for the first visible scanline. Games set scroll
+        // during V-blank, so the live registers hold this frame's values here.
+        latch_bg_scroll();
+
         return;  // Early return - no need to set m_scanline/m_dot again
     }
 
@@ -539,6 +543,14 @@ void PPU::sync_to_current() {
             }
         }
 
+        // When this scanline's visible region (dots 22-277) finishes, latch the
+        // current BG scroll for the next scanline. This must use the live values
+        // as of NOW -- before any H-blank register write that triggered a later
+        // sync -- so a status-bar-split scroll write affects the line after next.
+        if (start_dot < 278 && end_dot >= 278) {
+            latch_bg_scroll();
+        }
+
         // Move to next scanline or update dot position
         if (end_dot >= DOTS_PER_SCANLINE) {
             m_rendered_scanline++;
@@ -599,6 +611,7 @@ void PPU::sync_to_hblank(int scanline) {
     while (m_rendered_scanline < scanline) {
         // Render the rest of the current scanline
         int end_dot = DOTS_PER_SCANLINE;  // 340
+        bool visible_completing = m_rendered_dot < 278;
         int render_start = std::max(m_rendered_dot, 22);
         int render_end = std::min(end_dot, 278);
 
@@ -632,6 +645,11 @@ void PPU::sync_to_hblank(int scanline) {
                     m_framebuffer[screen_y * 512 + screen_x * 2 + 1] = 0xFF000000;
                 }
             }
+        }
+
+        // Latch BG scroll for the next scanline once this one's visible finishes.
+        if (visible_completing) {
+            latch_bg_scroll();
         }
 
         m_rendered_scanline++;
@@ -676,6 +694,9 @@ void PPU::sync_to_hblank(int scanline) {
         }
 
         m_rendered_dot = 278;  // Mark as rendered up to H-blank
+        // This scanline's visible region is now complete; latch BG scroll for
+        // the next scanline (see latch_bg_scroll / m_bg_hofs_latched).
+        latch_bg_scroll();
     }
 }
 
@@ -1913,10 +1934,12 @@ void PPU::render_background_pixel(int bg, int x, uint8_t& pixel, uint8_t& priori
         }
     }
 
-    // Get scroll values
+    // Get scroll values from the per-scanline latched copies (not the live
+    // registers), so a scroll write during this scanline's H-blank affects the
+    // next scanline rather than this one. See m_bg_hofs_latched / latch_bg_scroll.
     // Note: Scroll registers are 10-bit signed values
-    int scroll_x = m_bg_hofs[bg] & 0x3FF;
-    int scroll_y = m_bg_vofs[bg] & 0x3FF;
+    int scroll_x = m_bg_hofs_latched[bg] & 0x3FF;
+    int scroll_y = m_bg_vofs_latched[bg] & 0x3FF;
 
     // ========================================================================
     // OFFSET-PER-TILE (OPT) FOR MODES 2, 4, 6
