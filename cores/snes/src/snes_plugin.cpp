@@ -278,8 +278,38 @@ void SNESPlugin::run_frame(const emu::InputState& input) {
     static constexpr int MASTER_CYCLES_PER_DOT = 4;
     static constexpr int MASTER_CYCLES_PER_SCANLINE = DOTS_PER_SCANLINE * MASTER_CYCLES_PER_DOT;
 
-    // Signal start of frame
+    // ========================================================================
+    // FRAME START SEQUENCE - ORDER IS CRITICAL
+    // ========================================================================
+    // The correct order for frame start is:
+    // 1. Reset PPU timing state (set_timing) - MUST be first!
+    // 2. Signal frame start to bus (clears NMI flags)
+    // 3. Initialize HDMA channels
+    //
+    // If set_timing() is called after hdma_init() or bus operations, any
+    // PPU register writes during those operations will call sync_to_current()
+    // with stale m_scanline/m_dot values from the previous frame, causing
+    // the "m_rendered_dot=60, m_scanline=200" bug that manifests as
+    // horizontal distortion in the status bar.
+    // ========================================================================
+
+    // TEMPORARY: Use old render_scanline for debugging
+    static bool use_old_rendering = false;  // Using catch-up rendering for accurate mid-scanline effects
+
+    // FIRST: Initialize PPU timing for frame start
+    // This MUST happen before any bus/DMA operations that might touch PPU registers!
+    // The set_timing(0, 0) call resets all catch-up rendering state including:
+    // - m_scanline, m_dot (current PPU position)
+    // - m_rendered_scanline, m_rendered_dot (last rendered position)
+    // - m_dot_accumulator (prevents cycle carryover from previous frame)
+    if (!use_old_rendering) {
+        m_ppu->set_timing(0, 0);
+    }
+
+    // Signal start of frame (clears NMI state, updates frame counter)
     m_bus->start_frame();
+
+    // Initialize HDMA channels (reads table pointers, does NOT transfer yet)
     m_dma->hdma_init();
 
     // ========================================================================
@@ -299,23 +329,21 @@ void SNESPlugin::run_frame(const emu::InputState& input) {
     // - HDMA effects that must take effect at specific dot positions
     // ========================================================================
 
-    // TEMPORARY: Use old render_scanline for debugging
-    static bool use_old_rendering = false;  // Using catch-up rendering for accurate mid-scanline effects
-
-    // Initialize PPU timing for frame start
-    // This resets the rendered state for the new frame
-    if (!use_old_rendering) {
-        m_ppu->set_timing(0, 0);
-    }
-
     for (int scanline = 0; scanline < SCANLINES_PER_FRAME; scanline++) {
-        // For old rendering, set timing per scanline
-        // For catch-up rendering, don't set timing - let advance() manage the clock
-        if (use_old_rendering) {
-            m_ppu->set_timing(scanline, 0);
-        }
+        // Re-anchor the PPU clock to this scanline at dot 0.
+        // This keeps the PPU's (scanline, dot) position in lockstep with the
+        // plugin's scanline loop and the bus H-counter (which start_scanline()
+        // resets just below). Without it the PPU clock free-runs and drifts ahead
+        // by ~1 dot/scanline (the plugin feeds 341 dots/line, see
+        // MASTER_CYCLES_PER_SCANLINE, while the PPU line is 340 dots), which
+        // misplaces every mid-frame register/HDMA effect -- the status-bar
+        // shearing seen in SMAS. With this re-anchor, sync_to_current() always
+        // renders to the true raster position, so the drift-compensation clamps
+        // (m_max_render_scanline) are no longer needed.
+        m_ppu->set_timing(scanline, 0);
 
-        // Check V-IRQ at start of scanline (fires at dot 0 of VTIME scanline)
+        // Check V-IRQ at start of scanline (fires at dot 0 of VTIME scanline).
+        // Must come AFTER the re-anchor so the bus sees the correct PPU scanline.
         m_bus->start_scanline();
 
         // TEST: Use old scanline-at-a-time rendering
@@ -369,23 +397,10 @@ void SNESPlugin::run_frame(const emu::InputState& input) {
                                         m_bus->irq_pending() &&
                                         m_cpu->can_service_irq();
 
-            int pre_render_hcounter = m_bus->get_hcounter();
-
             if (irq_about_to_service) {
-                // Pre-render: advance PPU to current position before IRQ changes regs
-                // This ensures all pixels up to now use the CURRENT register values
+                // Pre-render: catch PPU rendering up to the current dot before the
+                // IRQ handler changes registers, so pre-IRQ pixels use pre-IRQ values.
                 m_ppu->sync_to_current();
-
-                static int prerender_debug = 0;
-                // Log all scanlines to see the pattern
-                if (prerender_debug < 50 && m_frame_count == 47 && scanline >= 95 && scanline <= 105) {
-                    prerender_debug++;
-                    fprintf(stderr, "[PreRender-IRQ] frame=%lu scanline=%d hcounter=%d (x=%d) mode=%d TM=$%02X HTIME=%d\n",
-                            m_frame_count, scanline, pre_render_hcounter,
-                            std::max(0, pre_render_hcounter - 22),
-                            m_ppu->get_mode(), m_bus->read_cpu_io(0x212C),
-                            m_bus->get_htime());
-                }
             }
 
             // Step CPU - IRQ handler will run here if pending
@@ -474,7 +489,7 @@ void SNESPlugin::run_frame(const emu::InputState& input) {
         }
     }
 
-    // Final catch-up: ensure all remaining pixels are rendered
+    // Final catch-up: ensure all remaining pixels for the frame are rendered.
     if (!use_old_rendering) {
         m_ppu->sync_to_current();
     }

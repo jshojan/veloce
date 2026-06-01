@@ -193,13 +193,42 @@ void PPU::reset() {
 // ============================================================================
 
 void PPU::set_timing(int scanline, int dot) {
-    // At frame start (scanline 0, dot 0), initialize state
+    // At frame start (scanline 0, dot 0), fully reset catch-up rendering state
+    // ========================================================================
+    // CRITICAL FIX: Reset ALL timing state at frame boundaries
+    // ========================================================================
+    // The previous code only reset m_rendered_scanline/m_rendered_dot but left
+    // m_scanline/m_dot at their end-of-previous-frame values. This caused:
+    //
+    // 1. m_scanline=200+ and m_dot=60+ at frame start (stale values)
+    // 2. sync_to_current() called during V-blank would see these stale values
+    // 3. m_max_render_scanline clamping would cause rendered position to be
+    //    set to non-zero values before the first scanline even started
+    //
+    // The fix is to set m_scanline/m_dot FIRST, then reset rendered state.
+    // This ensures any sync_to_current() calls see consistent state.
+    // ========================================================================
     if (scanline == 0 && dot == 0) {
+        // FIRST: Set the current position to frame start.
+        // This must happen before resetting rendered state, so that any
+        // sync_to_current() calls triggered during frame setup (e.g. PPU
+        // register writes from HDMA init) observe consistent state.
+        m_scanline = 0;
+        m_dot = 0;
+
+        // Reset dot accumulator to prevent cycle carryover from previous frame.
+        m_dot_accumulator = 0;
+
+        // Now reset the rendered position.
+        m_rendered_scanline = 0;
+        m_rendered_dot = 0;
+
+        // Reset sprite evaluation state
         m_force_blank_latched_eval = m_force_blank;
         m_force_blank_latched_fetch = m_force_blank;
         m_sprites_for_scanline = -1;  // No sprites evaluated yet for this frame
-        m_rendered_scanline = 0;
-        m_rendered_dot = 0;
+
+        return;  // Early return - no need to set m_scanline/m_dot again
     }
 
     m_scanline = scanline;
@@ -270,13 +299,11 @@ void PPU::advance(int master_cycles) {
             }
         }
 
-        // NOTE: Do NOT call sync_to_current() here!
-        // Rendering is driven by sync_to_hblank() at scanline boundaries.
-        // Calling sync_to_current() here causes m_rendered_scanline to drift
-        // ahead due to the 341 vs 340 dot mismatch (plugin runs 1364 master
-        // cycles = 341 dots, but PPU has only 340 dots per scanline).
-        // This drift causes sync_to_hblank() to skip rendering when
-        // m_rendered_scanline > scanline (early return at line 552).
+        // NOTE: advance() only moves the clock; it does not render.
+        // Rendering is driven by sync_to_current() (on PPU register writes and
+        // before IRQ servicing) and sync_to_hblank() (at end of each scanline).
+        // The plugin re-anchors m_scanline/m_dot per scanline via set_timing(),
+        // so the clock stays in lockstep with the scanline loop.
 
         // Now advance the PPU clock
         m_dot = target_dot;
@@ -378,45 +405,52 @@ void PPU::sync_to_current() {
 
     int visible_lines = m_overscan ? 239 : 224;
 
-    // If we're already caught up, nothing to do
-    if (m_rendered_scanline == m_scanline && m_rendered_dot >= m_dot) {
+    // ========================================================================
+    // V-BLANK PROTECTION
+    // ========================================================================
+    // During V-blank (scanlines 225-261), we should NOT attempt to render.
+    // PPU register writes during V-blank are common (games set up for next frame),
+    // and calling sync_to_current() could cause issues if m_rendered_scanline
+    // is still in the visible range from the previous frame.
+    //
+    // With the set_timing(0,0) fix, this shouldn't happen anymore, but add
+    // explicit protection to be safe.
+    // ========================================================================
+    if (m_scanline > visible_lines && m_scanline < SCANLINES_PER_FRAME) {
+        // We're in V-blank - don't try to render anything
+        // The next set_timing(0,0) call will reset state properly
         return;
     }
 
-    // Handle the case where we've wrapped around (new frame)
-    // CRITICAL: This should ONLY happen at frame boundaries (scanline 0-1).
-    // If rendered is ahead of current mid-frame, it's a timing bug - don't reset
-    // (which would cause duplicate rendering), just clamp to current position.
-    if (m_rendered_scanline > m_scanline ||
-        (m_rendered_scanline == m_scanline && m_rendered_dot > m_dot)) {
+    // Render up to the current raster position. The plugin re-anchors
+    // m_scanline/m_dot to its scanline loop each line via set_timing(), so these
+    // are the true raster position and need no drift clamping.
+    int target_scanline = m_scanline;
+    int target_dot = m_dot;
 
-        if (m_scanline <= 1) {
-            // Frame boundary - normal wrap-around, reset rendered position
-            m_rendered_scanline = 0;
-            m_rendered_dot = 0;
-        } else {
-            // Mid-frame with rendered ahead of current - timing bug!
-            // Clamp to current position to prevent re-rendering same pixels.
-            m_rendered_scanline = m_scanline;
-            m_rendered_dot = m_dot;
-        }
+    // If we're already caught up or ahead, nothing to do
+    if (m_rendered_scanline > target_scanline) {
+        return;
+    }
+    if (m_rendered_scanline == target_scanline && m_rendered_dot >= target_dot) {
+        return;
     }
 
-    // Render scanlines from m_rendered_scanline to m_scanline
-    while (m_rendered_scanline < m_scanline ||
-           (m_rendered_scanline == m_scanline && m_rendered_dot < m_dot)) {
+    // Render scanlines from m_rendered_scanline to target_scanline
+    while (m_rendered_scanline < target_scanline ||
+           (m_rendered_scanline == target_scanline && m_rendered_dot < target_dot)) {
 
         int current_line = m_rendered_scanline;
         int start_dot = m_rendered_dot;
 
         // Determine the end dot for this iteration
         int end_dot;
-        if (current_line < m_scanline) {
+        if (current_line < target_scanline) {
             // Render to end of this scanline
             end_dot = DOTS_PER_SCANLINE;
         } else {
             // Same scanline as target - render up to target dot
-            end_dot = m_dot;
+            end_dot = target_dot;
         }
 
         // Render visible pixels on this scanline
@@ -548,20 +582,15 @@ void PPU::sync_to_hblank(int scanline) {
 
     int visible_lines = m_overscan ? 239 : 224;
 
-    // Debug: Log sync_to_hblank calls for first few scanlines
-    static int sync_debug_count = 0;
-    if (sync_debug_count < 30 && scanline <= 5) {
-        fprintf(stderr, "[sync_to_hblank] requested=%d m_rendered_scanline=%d m_rendered_dot=%d m_scanline=%d m_dot=%d\n",
-                scanline, m_rendered_scanline, m_rendered_dot, m_scanline, m_dot);
-        sync_debug_count++;
-    }
-
     // Only process visible scanlines
     if (scanline < 1 || scanline > visible_lines) {
         return;
     }
 
-    // If we haven't reached this scanline yet in rendering, nothing to do
+    // If we've already rendered past this scanline, nothing to do.
+    // This can happen normally when catch-up rendering completes a scanline
+    // before the plugin's scanline loop reaches sync_to_hblank() for that line.
+    // With the frame boundary fixes, this should only happen legitimately.
     if (m_rendered_scanline > scanline) {
         return;
     }
@@ -2807,7 +2836,7 @@ void PPU::evaluate_sprites() {
     int large_height = SPRITE_SIZES[size_index][1][1];
 
     // Scan all 128 sprites
-    for (int i = 0; i < 128 && m_sprite_count < 32; i++) {
+    for (int i = 0; i < 128; i++) {
         // Read OAM entry
         int oam_addr = i * 4;
         int x = m_oam[oam_addr];
@@ -2850,7 +2879,14 @@ void PPU::evaluate_sprites() {
 
         if (offset_y >= height) continue;
 
-        // Sprite is on this scanline
+        // Sprite is in range on this scanline. The hardware OAM range buffer holds
+        // at most 32 sprites; if a 33rd in-range sprite is found, the range-over
+        // flag ($213E bit 6) is set and the rest are ignored for this line.
+        if (m_sprite_count >= 32) {
+            m_range_over = true;
+            break;
+        }
+
         SpriteEntry entry;
         entry.x = x;
         entry.y = sprite_y;
@@ -2871,11 +2907,6 @@ void PPU::evaluate_sprites() {
         m_sprite_buffer[m_sprite_count++] = entry;
     }
 
-    if (m_sprite_count > 32) {
-        m_sprite_count = 32;
-        m_range_over = true;
-    }
-
     // Generate sprite tiles for this scanline
     // Sprites are 4bpp (16 colors) using second half of CGRAM (palettes 0-7 = colors 128-255)
     // Reference: bsnes/sfc/ppu-fast/object.cpp renderObject()
@@ -2887,7 +2918,8 @@ void PPU::evaluate_sprites() {
 
 
     // Process sprites in reverse order (lowest priority first, so higher priority overwrites)
-    for (int i = m_sprite_count - 1; i >= 0 && m_sprite_tile_count < 34; i--) {
+    bool tiles_full = false;
+    for (int i = m_sprite_count - 1; i >= 0 && !tiles_full; i--) {
         const auto& sprite = m_sprite_buffer[i];
 
         // Calculate Y offset within the sprite (same formula as evaluation)
@@ -2895,7 +2927,7 @@ void PPU::evaluate_sprites() {
         if (sprite.vflip) y = sprite.height - 1 - y;
 
         int tiles_wide = sprite.width / 8;
-        for (int tx = 0; tx < tiles_wide && m_sprite_tile_count < 34; tx++) {
+        for (int tx = 0; tx < tiles_wide; tx++) {
             int screen_x = sprite.x + tx * 8;
 
             // Skip off-screen tiles
@@ -2953,14 +2985,17 @@ void PPU::evaluate_sprites() {
                     tile_entry.planes[0], tile_entry.planes[1], tile_entry.planes[2], tile_entry.planes[3]);
             }
 
+            // The hardware sprite-tile buffer holds at most 34 tiles per line. If a
+            // 35th on-screen tile is needed, the time-over flag ($213E bit 7) is set
+            // and the remaining tiles are dropped.
+            if (m_sprite_tile_count >= 34) {
+                m_time_over = true;
+                tiles_full = true;
+                break;
+            }
+
             m_sprite_tiles[m_sprite_tile_count++] = tile_entry;
         }
-    }
-
-    // Set time over flag if we exceeded 34 tiles
-    if (m_sprite_tile_count > 34) {
-        m_sprite_tile_count = 34;
-        m_time_over = true;
     }
 
     // Debug: log sprite counts after evaluation
@@ -3120,11 +3155,21 @@ uint8_t PPU::read(uint16_t address) {
             m_vcount_second = false;
             break;
 
-        case 0x2138:  // OAMDATAREAD
-            value = m_oam[m_oam_addr & 0x3FF];
+        case 0x2138: {  // OAMDATAREAD
+            // OAM is 544 bytes (512-byte low table + 32-byte high table). The OAM
+            // address is 10 bits (0x000-0x3FF), so a raw "& 0x3FF" index would read
+            // out of bounds past byte 543. Fold the address the same way the write
+            // path (OAMDATA $2104) does: high table when bit 0x200 is set.
+            uint16_t addr = m_oam_addr;
+            if (addr & 0x200) {
+                value = m_oam[0x200 + (addr & 0x1F)];
+            } else {
+                value = m_oam[addr & 0x1FF];
+            }
             m_oam_addr = (m_oam_addr + 1) & 0x3FF;
             m_ppu1_open_bus = value;
             break;
+        }
 
         case 0x2139:  // VMDATALREAD
             value = m_vram_read_buffer & 0xFF;
