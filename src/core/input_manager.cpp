@@ -134,8 +134,23 @@ void InputManager::update_button_state() {
         }
     }
 
-    // Also check gamepad D-pad directly for convenience
+    // Hardcoded gamepad mapping for out-of-the-box convenience. This is only a
+    // FALLBACK: if the user has configured any gamepad binding, we skip it so the
+    // custom bindings are authoritative. Otherwise the fixed mapping below would
+    // be OR'd on top of a remapped binding and fire two virtual buttons from one
+    // physical button (e.g. a swapped A/B firing both jump and punch at once).
+    bool has_gamepad_binding = false;
+    for (const auto& [button, binding] : m_bindings) {
+        (void)button;
+        if (binding.type == InputSourceType::GamepadButton ||
+            binding.type == InputSourceType::GamepadAxis) {
+            has_gamepad_binding = true;
+            break;
+        }
+    }
+
     for (const auto& controller : m_controllers) {
+        if (has_gamepad_binding) break;
         if (SDL_GameControllerGetButton(controller.controller, SDL_CONTROLLER_BUTTON_DPAD_UP))
             m_button_state |= button_to_mask(VirtualButton::Up);
         if (SDL_GameControllerGetButton(controller.controller, SDL_CONTROLLER_BUTTON_DPAD_DOWN))
