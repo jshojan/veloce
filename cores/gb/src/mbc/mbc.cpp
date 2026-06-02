@@ -69,7 +69,7 @@ void MBC::write_ram(uint16_t address, uint8_t value) {
 void MBC::save_state(std::vector<uint8_t>& data) {
     data.push_back(m_rom_bank & 0xFF);
     data.push_back((m_rom_bank >> 8) & 0xFF);
-    data.push_back(m_ram_bank);
+    data.push_back(static_cast<uint8_t>(m_ram_bank));
     data.push_back(m_ram_enabled ? 1 : 0);
 }
 

@@ -192,13 +192,19 @@ The repository ships a `CMakeSettings.json` with an `x64-Debug` (Ninja) configur
 
 **Windows — command line (Developer PowerShell for VS):**
 ```powershell
-# Configure into the same Ninja tree the IDE uses
+# Debug — configures into the same Ninja tree the IDE's x64-Debug uses
 cmake -S . -B out\build\x64-Debug -G Ninja -DCMAKE_BUILD_TYPE=Debug
 cmake --build out\build\x64-Debug
 .\out\build\x64-Debug\bin\veloce.exe
+
+# Release — optimized (/O2), matches the IDE's x64-Release configuration.
+# Use this build for actual gameplay; Debug is significantly slower.
+cmake -S . -B out\build\x64-Release -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build out\build\x64-Release
+.\out\build\x64-Release\bin\veloce.exe
 ```
 
-> Run the commands from a **Developer PowerShell / Developer Command Prompt for VS** so the MSVC compiler (`cl.exe`) and Ninja are on `PATH`. For a Release build, substitute `Release` for `Debug` in both the directory name and `CMAKE_BUILD_TYPE`.
+> Run the commands from a **Developer PowerShell / Developer Command Prompt for VS** so the MSVC compiler (`cl.exe`) and Ninja are on `PATH`. Both `x64-Debug` and `x64-Release` are also selectable directly from the Visual Studio configuration dropdown (see `CMakeSettings.json`).
 
 **Windows — Visual Studio solution generator (alternative):**
 ```cmd

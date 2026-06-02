@@ -410,8 +410,8 @@ void SNESPlugin::run_frame(const emu::InputState& input) {
             static int trace_count = 0;
             if (is_debug_mode() && m_frame_count >= 265 && m_frame_count <= 280 && trace_count < 50) {
                 if (scanline == 0 && cycles_this_scanline < 100) {
-                    fprintf(stderr, "[SNES/CPU] F%d PC=$%02X:%04X\n",
-                        m_frame_count, m_cpu->get_pbr(), m_cpu->get_pc());
+                    fprintf(stderr, "[SNES/CPU] F%llu PC=$%02X:%04X\n",
+                        (unsigned long long)m_frame_count, m_cpu->get_pbr(), m_cpu->get_pc());
                     trace_count++;
                 }
             }

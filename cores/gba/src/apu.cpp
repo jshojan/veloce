@@ -756,7 +756,7 @@ void APU::write_soundcnt_h(uint16_t value) {
 
 uint16_t APU::read_soundcnt_h() const {
     // Reconstruct from state (reset bits 11 and 15 are write-only)
-    uint16_t value = m_dmg_volume;
+    uint16_t value = static_cast<uint16_t>(m_dmg_volume);
     if (m_dsound_a_vol) value |= 0x04;
     if (m_dsound_b_vol) value |= 0x08;
     if (m_dsound_a_right) value |= 0x100;

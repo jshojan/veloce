@@ -763,7 +763,7 @@ void PPU::step() {
 
             // Debug: Log full PPU state every 30 frames starting at frame 60
             if (is_debug_mode() && m_frame >= 60 && (m_frame % 30) == 0) {
-                fprintf(stderr, "[SNES/PPU] === Frame %lu PPU State ===\n", m_frame);
+                fprintf(stderr, "[SNES/PPU] === Frame %llu PPU State ===\n", (unsigned long long)m_frame);
                 fprintf(stderr, "[SNES/PPU]   BGMODE=$%02X (mode=%d) TM=$%02X TS=$%02X\n",
                     m_bgmode, m_bg_mode, m_tm, m_ts);
                 fprintf(stderr, "[SNES/PPU]   BG1: tilemap=$%04X chr=$%04X hofs=%d vofs=%d tile16=%d\n",
@@ -839,8 +839,8 @@ void PPU::end_frame() {
         }
 
         // Analyze palette distribution by 16-color groups
-        fprintf(stderr, "[SNES/PPU] Frame %lu state: Mode=%d TM=$%02X TS=$%02X Bright=%d ForceBlank=%d\n",
-            m_frame, m_bg_mode, m_tm, m_ts, m_brightness, m_force_blank ? 1 : 0);
+        fprintf(stderr, "[SNES/PPU] Frame %llu state: Mode=%d TM=$%02X TS=$%02X Bright=%d ForceBlank=%d\n",
+            (unsigned long long)m_frame, m_bg_mode, m_tm, m_ts, m_brightness, m_force_blank ? 1 : 0);
         fprintf(stderr, "[SNES/PPU]   CGRAM: %d/256 non-zero colors\n", non_zero_colors);
 
         // Show which BG palettes have data (CGRAM 0-127)
@@ -955,8 +955,8 @@ void PPU::render_pixel(int x) {
     static int render_pixel_debug_count = 0;
     if (is_debug_mode() && render_pixel_debug_count < 5 && m_frame >= 25 && y >= 70 && y <= 90 && x == 50) {
         render_pixel_debug_count++;
-        SNES_PPU_DEBUG("render_pixel: x=%d y=%d (m_scanline=%d) TM=$%02X mode=%d frame=%lu tilemap0=$%04X chr0=$%04X\n",
-            x, y, m_scanline, m_tm, m_bg_mode, m_frame, m_bg_tilemap_addr[0], m_bg_chr_addr[0]);
+        SNES_PPU_DEBUG("render_pixel: x=%d y=%d (m_scanline=%d) TM=$%02X mode=%d frame=%llu tilemap0=$%04X chr0=$%04X\n",
+            x, y, m_scanline, m_tm, m_bg_mode, (unsigned long long)m_frame, m_bg_tilemap_addr[0], m_bg_chr_addr[0]);
     }
 
     // Layer pixel structure for priority compositing
@@ -1600,8 +1600,8 @@ void PPU::render_pixel(int x) {
     if (m_bg_mode == 5 && mode5_debug_count < 20 && m_frame > 45 && m_frame < 50) {
         if (y == 100 && (x == 0 || x == 128 || x == 200)) {
             mode5_debug_count++;
-            fprintf(stderr, "[Mode5-Debug] frame=%d y=%d x=%d use_hires=%d TM=$%02X TS=$%02X main_color=$%04X sub_color=$%04X\n",
-                    m_frame, y, x, use_hires_output ? 1 : 0, m_tm, m_ts,
+            fprintf(stderr, "[Mode5-Debug] frame=%llu y=%d x=%d use_hires=%d TM=$%02X TS=$%02X main_color=$%04X sub_color=$%04X\n",
+                    (unsigned long long)m_frame, y, x, use_hires_output ? 1 : 0, m_tm, m_ts,
                     main_pixel.color, sub_pixel.color);
         }
     }
@@ -1824,7 +1824,7 @@ void PPU::render_background_pixel(int bg, int x, uint8_t& pixel, uint8_t& priori
     static bool bg2_debug_done = false;
     if (is_debug_mode() && !bg2_debug_done && m_frame == 300 && m_bg_mode == 3 && bg == 1 && x == 128) {
         bg2_debug_done = true;
-        fprintf(stderr, "\n[SNES/PPU] === BG2 Mode3 Debug (Frame %lu) ===\n", m_frame);
+        fprintf(stderr, "\n[SNES/PPU] === BG2 Mode3 Debug (Frame %llu) ===\n", (unsigned long long)m_frame);
         fprintf(stderr, "  tilemap=$%04X chr=$%04X\n", m_bg_tilemap_addr[1], m_bg_chr_addr[1]);
         // Sample tilemap
         fprintf(stderr, "  BG2 Tilemap at $%04X: ", m_bg_tilemap_addr[1]);
@@ -1858,7 +1858,7 @@ void PPU::render_background_pixel(int bg, int x, uint8_t& pixel, uint8_t& priori
         mode3_bg2_diagnosed = true;
         uint16_t tilemap_base = m_bg_tilemap_addr[1];
         uint16_t chr_base = m_bg_chr_addr[1];
-        fprintf(stderr, "[SNES/PPU] Mode 3 BG2 diagnosis at frame %lu:\n", m_frame);
+        fprintf(stderr, "[SNES/PPU] Mode 3 BG2 diagnosis at frame %llu:\n", (unsigned long long)m_frame);
         fprintf(stderr, "  BG2 tilemap=$%04X chr=$%04X TM=$%02X\n", tilemap_base, chr_base, m_tm);
 
         // Check if BG2 is enabled on main screen
@@ -2105,7 +2105,7 @@ void PPU::render_background_pixel(int bg, int x, uint8_t& pixel, uint8_t& priori
     static bool corruption_debug_done = false;
     if (is_debug_mode() && !corruption_debug_done && m_frame == 300 && bg == 0) {
         corruption_debug_done = true;
-        fprintf(stderr, "\n[SNES/PPU] === Corruption Debug Dump (Frame %lu) ===\n", m_frame);
+        fprintf(stderr, "\n[SNES/PPU] === Corruption Debug Dump (Frame %llu) ===\n", (unsigned long long)m_frame);
         fprintf(stderr, "  BG Mode: %d, TM=$%02X\n", m_bg_mode, m_tm);
         fprintf(stderr, "  BG1: tilemap_base=$%04X chr_base=$%04X\n", m_bg_tilemap_addr[0], m_bg_chr_addr[0]);
         fprintf(stderr, "  Current pixel: x=%d scanline=%d\n", x, m_scanline);
@@ -2386,7 +2386,7 @@ void PPU::render_background_pixel(int bg, int x, uint8_t& pixel, uint8_t& priori
     static bool wrapper_debug_done = false;
     if (is_debug_mode() && !wrapper_debug_done && m_frame == 300 && bg == 1 && x == 128) {
         wrapper_debug_done = true;
-        fprintf(stderr, "\n[SNES/PPU] === BG2 Wrapper Debug (Frame %lu) ===\n", m_frame);
+        fprintf(stderr, "\n[SNES/PPU] === BG2 Wrapper Debug (Frame %llu) ===\n", (unsigned long long)m_frame);
         fprintf(stderr, "  BG Mode: %d, TM=$%02X, bg=%d\n", m_bg_mode, m_tm, bg);
         fprintf(stderr, "  tilemap_base=$%04X chr_base=$%04X\n", tilemap_base, m_bg_chr_addr[bg]);
         fprintf(stderr, "  tilemap_addr=$%04X tile_lo=$%02X tile_hi=$%02X -> tile=%d\n",
@@ -3393,7 +3393,7 @@ void PPU::write(uint16_t address, uint8_t value) {
             }
             // Debug: Log when switching to Mode 1 (used by SMB gameplay)
             if (is_debug_mode() && m_bg_mode == 1 && old_mode != 1) {
-                fprintf(stderr, "[SNES/PPU] === Mode 1 entered (frame %lu) ===\n", m_frame);
+                fprintf(stderr, "[SNES/PPU] === Mode 1 entered (frame %llu) ===\n", (unsigned long long)m_frame);
                 fprintf(stderr, "[SNES/PPU]   BGMODE=$%02X BG3pri=%d tile_sizes=[%d,%d,%d,%d]\n",
                     value, m_bg3_priority, m_bg_tile_size[0], m_bg_tile_size[1], m_bg_tile_size[2], m_bg_tile_size[3]);
                 fprintf(stderr, "[SNES/PPU]   BG1: tilemap=$%04X chr=$%04X\n", m_bg_tilemap_addr[0], m_bg_chr_addr[0]);
@@ -3467,8 +3467,8 @@ void PPU::write(uint16_t address, uint8_t value) {
                 bg12nba_write_count++;
                 // Log first few writes and any changes
                 if (is_debug_mode() && (bg12nba_write_count <= 10 || value != last_bg12nba)) {
-                    SNES_DEBUG_PRINT("BG12NBA write #%d: $%02X -> BG1=$%04X BG2=$%04X (frame %lu)\n",
-                        bg12nba_write_count, value, m_bg_chr_addr[0], m_bg_chr_addr[1], m_frame);
+                    SNES_DEBUG_PRINT("BG12NBA write #%d: $%02X -> BG1=$%04X BG2=$%04X (frame %llu)\n",
+                        bg12nba_write_count, value, m_bg_chr_addr[0], m_bg_chr_addr[1], (unsigned long long)m_frame);
                     last_bg12nba = value;
                 }
             }
@@ -3583,8 +3583,8 @@ void PPU::write(uint16_t address, uint8_t value) {
                     vram_a000_writes_total++;
                     if (is_debug_mode() && vram_a000_writes_logged < 10) {
                         vram_a000_writes_logged++;
-                        fprintf(stderr, "[VRAM] Write $%04X = $%02X (word=$%04X remap=%04X frame=%lu) total=%d\n",
-                            byte_addr, value, m_vram_addr, addr, m_frame, vram_a000_writes_total);
+                        fprintf(stderr, "[VRAM] Write $%04X = $%02X (word=$%04X remap=%04X frame=%llu) total=%d\n",
+                            byte_addr, value, m_vram_addr, addr, (unsigned long long)m_frame, vram_a000_writes_total);
                     }
                 }
                 m_vram[byte_addr] = value;
@@ -3603,8 +3603,8 @@ void PPU::write(uint16_t address, uint8_t value) {
                     static int cpu_vram_a000_writes_h = 0;
                     cpu_vram_a000_writes_h++;
                     if (cpu_vram_a000_writes_h <= 20) {
-                        SNES_DEBUG_PRINT("CPU VRAM write (high): byte $%04X = $%02X (word_addr=$%04X, frame %lu)\n",
-                            byte_addr, value, m_vram_addr, m_frame);
+                        SNES_DEBUG_PRINT("CPU VRAM write (high): byte $%04X = $%02X (word_addr=$%04X, frame %llu)\n",
+                            byte_addr, value, m_vram_addr, (unsigned long long)m_frame);
                     }
                 }
                 m_vram[byte_addr] = value;
@@ -3685,8 +3685,8 @@ void PPU::write(uint16_t address, uint8_t value) {
                 // Debug: Log CGRAM writes during transition frames
                 if (is_debug_mode() && m_frame >= 255 && m_frame <= 275 && m_cgram_addr < 16) {
                     uint16_t color = m_cgram_latch | ((value & 0x7F) << 8);
-                    fprintf(stderr, "[SNES/PPU] F%lu CGRAM[%d]=$%04X\n",
-                        m_frame, m_cgram_addr, color);
+                    fprintf(stderr, "[SNES/PPU] F%llu CGRAM[%d]=$%04X\n",
+                        (unsigned long long)m_frame, m_cgram_addr, color);
                 }
 
                 m_cgram_addr = (m_cgram_addr + 1) & 0xFF;

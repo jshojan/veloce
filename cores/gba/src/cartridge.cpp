@@ -360,7 +360,7 @@ void Cartridge::write_flash(uint32_t address, uint8_t value) {
         case FlashState::EraseCommand2:
             if (addr == 0x5555 && value == 0x10) {
                 // Erase entire chip
-                std::fill(m_save_data.begin(), m_save_data.end(), 0xFF);
+                std::fill(m_save_data.begin(), m_save_data.end(), uint8_t{0xFF});
                 m_flash_state = FlashState::Ready;
             } else if (value == 0x30) {
                 // Sector erase (4KB sectors)
@@ -717,8 +717,8 @@ void Cartridge::load_state(const uint8_t*& data, size_t& remaining) {
 }
 
 // RTC helper: convert BCD to binary
-static uint8_t bcd(uint8_t value) {
-    return ((value / 10) << 4) | (value % 10);
+static uint8_t bcd(int value) {
+    return static_cast<uint8_t>(((value / 10) << 4) | (value % 10));
 }
 
 // Get current bit to output from RTC

@@ -196,7 +196,7 @@ void PPU::render_background() {
         int pixel_x = map_x & 7;
         int pixel_y = map_y & 7;
 
-        uint16_t tile_addr = tile_map_base + tile_y * 32 + tile_x;
+        uint16_t tile_addr = static_cast<uint16_t>(tile_map_base + tile_y * 32 + tile_x);
         uint8_t tile_num = m_vram[tile_addr];
 
         // CGB attributes (from VRAM bank 1)
@@ -272,7 +272,7 @@ void PPU::render_window() {
         int pixel_x = win_x & 7;
         int pixel_y = win_y & 7;
 
-        uint16_t tile_addr = tile_map_base + tile_y * 32 + tile_x;
+        uint16_t tile_addr = static_cast<uint16_t>(tile_map_base + tile_y * 32 + tile_x);
         uint8_t tile_num = m_vram[tile_addr];
 
         // CGB attributes
@@ -398,7 +398,7 @@ void PPU::render_sprites() {
             }
         }
 
-        uint16_t tile_addr = tile * 16 + sprite_y * 2;
+        uint16_t tile_addr = static_cast<uint16_t>(tile * 16 + sprite_y * 2);
         if (m_cgb_mode && tile_bank) {
             tile_addr += 0x2000;
         }
@@ -636,7 +636,7 @@ void PPU::save_state(std::vector<uint8_t>& data) {
     data.push_back(m_cycle & 0xFF);
     data.push_back((m_cycle >> 8) & 0xFF);
     data.push_back(static_cast<uint8_t>(m_mode));
-    data.push_back(m_window_line);
+    data.push_back(static_cast<uint8_t>(m_window_line));
 
     if (m_cgb_mode) {
         data.insert(data.end(), m_bg_palette.begin(), m_bg_palette.end());

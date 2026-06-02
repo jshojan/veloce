@@ -130,8 +130,8 @@ uint8_t Bus::read(uint32_t address) {
                 if (read_773_count <= 30) {
                     uint32_t pc = m_cpu ? m_cpu->get_full_pc() : 0;
                     int scanline = m_ppu ? m_ppu->get_scanline() : -1;
-                    fprintf(stderr, "[SNES] $0773 READ #%d: value=$%02X frame=%lu scanline=%d PC=$%06X\n",
-                            read_773_count, m_open_bus, m_frame_counter, scanline, pc);
+                    fprintf(stderr, "[SNES] $0773 READ #%d: value=$%02X frame=%llu scanline=%d PC=$%06X\n",
+                            read_773_count, m_open_bus, (unsigned long long)m_frame_counter, scanline, pc);
                 }
             }
             return m_open_bus;
@@ -245,8 +245,8 @@ void Bus::write(uint32_t address, uint8_t value) {
                     game_idx_count++;
                     uint32_t pc = m_cpu ? m_cpu->get_full_pc() : 0;
                     int scanline = m_ppu ? m_ppu->get_scanline() : -1;
-                    fprintf(stderr, "[SNES] $0773 WRITE #%d: value=$%02X frame=%lu scanline=%d PC=$%06X\n",
-                            game_idx_count, value, m_frame_counter, scanline, pc);
+                    fprintf(stderr, "[SNES] $0773 WRITE #%d: value=$%02X frame=%llu scanline=%d PC=$%06X\n",
+                            game_idx_count, value, (unsigned long long)m_frame_counter, scanline, pc);
                 }
                 // Trace writes to $0770-$077F to find related game selection vars
                 static int sel_range_count = 0;

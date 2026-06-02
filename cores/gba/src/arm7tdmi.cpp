@@ -445,7 +445,7 @@ int ARM7TDMI::prefetch_read(uint32_t address, int size) {
     return wait;
 }
 
-int ARM7TDMI::data_access_cycles(uint32_t address, int access_size, bool is_write) {
+int ARM7TDMI::data_access_cycles(uint32_t address, int access_size, bool /*is_write*/) {
     // Calculate wait states for data memory access
     // During non-ROM accesses, the prefetch buffer can fill
     //

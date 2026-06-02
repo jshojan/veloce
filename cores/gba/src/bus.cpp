@@ -1062,7 +1062,7 @@ void Bus::write_io(uint32_t address, uint16_t value) {
 
         case 0x300: m_postflg = value & 1; break;
         case 0x301:
-            m_haltcnt = value;
+            m_haltcnt = static_cast<uint8_t>(value);
             // TODO: Enter halt or stop mode
             break;
 
