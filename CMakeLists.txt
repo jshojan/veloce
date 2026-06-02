@@ -36,6 +36,15 @@ elseif(UNIX)
     add_definitions(-DPLATFORM_LINUX)
 endif()
 
+# MSVC-specific build settings
+if(MSVC)
+    # Silence "unsafe" CRT warnings (getenv, localtime, fopen, etc.) so the
+    # POSIX-style standard library calls used throughout the cores compile cleanly.
+    add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
+    # Make MSVC report __cplusplus correctly and use UTF-8 for source/exec charset.
+    add_compile_options(/Zc:__cplusplus /utf-8)
+endif()
+
 # Find required packages
 find_package(OpenGL REQUIRED)
 

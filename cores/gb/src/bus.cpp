@@ -182,7 +182,22 @@ void Bus::write(uint16_t address, uint8_t value) {
 }
 
 uint8_t Bus::read_io(uint16_t address) {
-    switch (address & 0xFF) {
+    const uint8_t reg = address & 0xFF;
+
+    // Sound registers (0xFF10-0xFF26) and Wave RAM (0xFF30-0xFF3F)
+    if ((reg >= 0x10 && reg <= 0x26) || (reg >= 0x30 && reg <= 0x3F)) {
+        return m_apu ? m_apu->read_register(address) : 0xFF;
+    }
+    // LCD registers (0xFF40-0xFF4B)
+    if (reg >= 0x40 && reg <= 0x4B) {
+        return m_ppu ? m_ppu->read_register(address) : 0xFF;
+    }
+    // CGB palette registers (0xFF68-0xFF6B)
+    if (reg >= 0x68 && reg <= 0x6B) {
+        return (m_cgb_mode && m_ppu) ? m_ppu->read_register(address) : 0xFF;
+    }
+
+    switch (reg) {
         case 0x00:  // JOYP
             if (!(m_joyp & 0x20)) {
                 return (m_joyp & 0xF0) | (m_joypad_buttons & 0x0F);
@@ -199,27 +214,6 @@ uint8_t Bus::read_io(uint16_t address) {
         case 0x06: return m_tma;
         case 0x07: return m_tac | 0xF8;
         case 0x0F: return m_if | 0xE0;
-
-        // Sound registers (0xFF10-0xFF26)
-        case 0x10 ... 0x26:
-            if (m_apu) {
-                return m_apu->read_register(address);
-            }
-            return 0xFF;
-
-        // Wave RAM (0xFF30-0xFF3F)
-        case 0x30 ... 0x3F:
-            if (m_apu) {
-                return m_apu->read_register(address);
-            }
-            return 0xFF;
-
-        // LCD registers
-        case 0x40 ... 0x4B:
-            if (m_ppu) {
-                return m_ppu->read_register(address);
-            }
-            return 0xFF;
 
         // CGB registers
         case 0x4D:
@@ -241,13 +235,6 @@ uint8_t Bus::read_io(uint16_t address) {
         case 0x55: return m_hdma5;
         case 0x56: return m_rp;
 
-        // CGB palette registers
-        case 0x68 ... 0x6B:
-            if (m_cgb_mode && m_ppu) {
-                return m_ppu->read_register(address);
-            }
-            return 0xFF;
-
         case 0x70:
             if (m_cgb_mode) {
                 return m_svbk | 0xF8;
@@ -260,7 +247,25 @@ uint8_t Bus::read_io(uint16_t address) {
 }
 
 void Bus::write_io(uint16_t address, uint8_t value) {
-    switch (address & 0xFF) {
+    const uint8_t reg = address & 0xFF;
+
+    // Sound registers (0xFF10-0xFF26) and Wave RAM (0xFF30-0xFF3F)
+    if ((reg >= 0x10 && reg <= 0x26) || (reg >= 0x30 && reg <= 0x3F)) {
+        if (m_apu) m_apu->write_register(address, value);
+        return;
+    }
+    // LCD registers (0xFF40-0xFF45, 0xFF47-0xFF4B); 0xFF46 is OAM DMA, handled below
+    if ((reg >= 0x40 && reg <= 0x45) || (reg >= 0x47 && reg <= 0x4B)) {
+        if (m_ppu) m_ppu->write_register(address, value);
+        return;
+    }
+    // CGB palette registers (0xFF68-0xFF6B)
+    if (reg >= 0x68 && reg <= 0x6B) {
+        if (m_cgb_mode && m_ppu) m_ppu->write_register(address, value);
+        return;
+    }
+
+    switch (reg) {
         case 0x00:  // JOYP
             m_joyp = (m_joyp & 0x0F) | (value & 0x30);
             break;
@@ -322,35 +327,8 @@ void Bus::write_io(uint16_t address, uint8_t value) {
 
         case 0x0F: m_if = value & 0x1F; break;
 
-        // Sound registers
-        case 0x10 ... 0x26:
-            if (m_apu) {
-                m_apu->write_register(address, value);
-            }
-            break;
-
-        // Wave RAM
-        case 0x30 ... 0x3F:
-            if (m_apu) {
-                m_apu->write_register(address, value);
-            }
-            break;
-
-        // LCD registers
-        case 0x40 ... 0x45:
-            if (m_ppu) {
-                m_ppu->write_register(address, value);
-            }
-            break;
-
         case 0x46:  // OAM DMA
             start_oam_dma(value);
-            break;
-
-        case 0x47 ... 0x4B:
-            if (m_ppu) {
-                m_ppu->write_register(address, value);
-            }
             break;
 
         // CGB registers
@@ -383,13 +361,6 @@ void Bus::write_io(uint16_t address, uint8_t value) {
 
         case 0x56:
             m_rp = value;
-            break;
-
-        // CGB palette registers
-        case 0x68 ... 0x6B:
-            if (m_cgb_mode && m_ppu) {
-                m_ppu->write_register(address, value);
-            }
             break;
 
         case 0x70:

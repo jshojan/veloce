@@ -168,8 +168,9 @@ brew install cmake
 ```
 
 **Windows:**
-- Visual Studio 2022 with "Desktop development with C++" workload
-- CMake is included with Visual Studio
+- Visual Studio 2022 or 2026 with the "Desktop development with C++" workload
+- CMake and Ninja are bundled with Visual Studio (no separate install needed)
+- The build targets the MSVC toolchain; MinGW/Clang are not currently tested
 
 ### Build Commands
 
@@ -180,12 +181,33 @@ cmake --build build
 ./build/bin/veloce
 ```
 
-**Windows (Command Prompt):**
+**Windows — Visual Studio IDE (recommended):**
+
+The repository ships a `CMakeSettings.json` with an `x64-Debug` (Ninja) configuration, so the project builds out of the box:
+
+1. Launch Visual Studio 2022/2026 and choose **Open a local folder**, then select the repository root.
+2. Visual Studio detects `CMakeLists.txt` and configures automatically (the first run downloads SDL2/ImGui/json via FetchContent — give it a minute).
+3. Pick the `x64-Debug` configuration and build with **Build > Build All** (or `Ctrl+Shift+B`).
+4. The binary and plugins land in `out\build\x64-Debug\bin\`. Run via **Select Startup Item > veloce.exe**.
+
+**Windows — command line (Developer PowerShell for VS):**
+```powershell
+# Configure into the same Ninja tree the IDE uses
+cmake -S . -B out\build\x64-Debug -G Ninja -DCMAKE_BUILD_TYPE=Debug
+cmake --build out\build\x64-Debug
+.\out\build\x64-Debug\bin\veloce.exe
+```
+
+> Run the commands from a **Developer PowerShell / Developer Command Prompt for VS** so the MSVC compiler (`cl.exe`) and Ninja are on `PATH`. For a Release build, substitute `Release` for `Debug` in both the directory name and `CMAKE_BUILD_TYPE`.
+
+**Windows — Visual Studio solution generator (alternative):**
 ```cmd
 cmake -B build -G "Visual Studio 17 2022" -A x64
 cmake --build build --config Release
 build\bin\veloce.exe
 ```
+
+> The MSVC build sets `_CRT_SECURE_NO_WARNINGS` and `/Zc:__cplusplus /utf-8` automatically (see `CMakeLists.txt`), so the POSIX-style standard-library calls in the cores compile without warning noise.
 
 ## Usage
 

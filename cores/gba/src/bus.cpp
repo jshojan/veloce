@@ -722,6 +722,11 @@ uint16_t Bus::read_io(uint32_t address) {
 
     address &= 0xFFF;
 
+    // Sound registers (0x060-0x09E); 0x082 (SOUNDCNT_H) is handled separately below
+    if ((address >= 0x060 && address <= 0x080) || (address >= 0x084 && address <= 0x09E)) {
+        return m_sound_regs[(address - 0x060) >> 1];
+    }
+
     switch (address) {
         // Display
         case 0x000: return m_dispcnt;
@@ -760,17 +765,10 @@ uint16_t Bus::read_io(uint32_t address) {
         case 0x052: return m_bldalpha;
         case 0x054: return 0;  // BLDY is write-only
 
-        // Sound (simplified)
-        case 0x060 ... 0x080:
-            return m_sound_regs[(address - 0x060) >> 1];
-
         // SOUNDCNT_H - Direct Sound control
         case 0x082:
             if (m_apu) return m_apu->read_soundcnt_h();
             return 0;
-
-        case 0x084 ... 0x09E:
-            return m_sound_regs[(address - 0x060) >> 1];
 
         // FIFO_A and FIFO_B are write-only
         case 0x0A0: case 0x0A2: case 0x0A4: case 0x0A6:
@@ -845,6 +843,12 @@ void Bus::write_io(uint32_t address, uint16_t value) {
     }
 
     address &= 0xFFF;
+
+    // Sound registers (0x060-0x09E); 0x082 (SOUNDCNT_H) is handled separately below
+    if ((address >= 0x060 && address <= 0x080) || (address >= 0x084 && address <= 0x09E)) {
+        m_sound_regs[(address - 0x060) >> 1] = value;
+        return;
+    }
 
     switch (address) {
         // Display
@@ -942,18 +946,9 @@ void Bus::write_io(uint32_t address, uint16_t value) {
         case 0x052: m_bldalpha = value; break;
         case 0x054: m_bldy = value & 0x1F; break;
 
-        // Sound (simplified, store for now)
-        case 0x060 ... 0x080:
-            m_sound_regs[(address - 0x060) >> 1] = value;
-            break;
-
         // SOUNDCNT_H - Direct Sound control
         case 0x082:
             if (m_apu) m_apu->write_soundcnt_h(value);
-            m_sound_regs[(address - 0x060) >> 1] = value;
-            break;
-
-        case 0x084 ... 0x09E:
             m_sound_regs[(address - 0x060) >> 1] = value;
             break;
 

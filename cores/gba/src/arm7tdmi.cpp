@@ -8,6 +8,22 @@
 
 namespace gba {
 
+// Portable bit helpers (replace GCC/Clang __builtin_* which MSVC lacks).
+// reg_list is at most 16 bits and these are called once per LDM/STM, so the
+// simple loops are not performance-critical.
+static inline int popcount_u32(uint32_t x) {
+    int count = 0;
+    while (x) { x &= (x - 1); ++count; }
+    return count;
+}
+
+static inline int ctz_u32(uint32_t x) {
+    if (x == 0) return 32;
+    int n = 0;
+    while ((x & 1u) == 0u) { x >>= 1; ++n; }
+    return n;
+}
+
 // Helper to check if a PC value points to valid executable memory
 static inline bool is_valid_pc(uint32_t pc) {
     // Valid GBA executable memory regions:
@@ -1065,7 +1081,7 @@ int ARM7TDMI::arm_block_data_transfer(uint32_t instruction) {
     uint16_t reg_list = instruction & 0xFFFF;
 
     uint32_t base = m_regs[rn];
-    int reg_count = __builtin_popcount(reg_list);
+    int reg_count = popcount_u32(reg_list);
 
     // Handle empty register list (undocumented ARM7 behavior)
     // When reg_list is empty:
@@ -1180,7 +1196,7 @@ int ARM7TDMI::arm_block_data_transfer(uint32_t instruction) {
                     // Reference: GBATEK and ARM7TDMI documentation
                     if (static_cast<uint32_t>(i) == rn) {
                         // Find the lowest set bit in register list to check if rn is first
-                        int lowest_reg = __builtin_ctz(reg_list);  // Count trailing zeros = lowest register
+                        int lowest_reg = ctz_u32(reg_list);  // Count trailing zeros = lowest register
                         if (static_cast<int>(rn) == lowest_reg) {
                             // Base register is FIRST in the list - store OLD base
                             value = base;
@@ -1846,7 +1862,7 @@ int ARM7TDMI::thumb_push_pop(uint16_t instruction) {
     bool pc_lr = (instruction >> 8) & 1;
     uint8_t reg_list = instruction & 0xFF;
 
-    int reg_count = __builtin_popcount(reg_list) + (pc_lr ? 1 : 0);
+    int reg_count = popcount_u32(reg_list) + (pc_lr ? 1 : 0);
 
     if (load) {
         // POP
@@ -1887,7 +1903,7 @@ int ARM7TDMI::thumb_multiple_load_store(uint16_t instruction) {
     uint16_t rb = (instruction >> 8) & 7;
     uint8_t reg_list = instruction & 0xFF;
 
-    int reg_count = __builtin_popcount(reg_list);
+    int reg_count = popcount_u32(reg_list);
     if (reg_count == 0) reg_count = 1;  // Empty list behaves specially
 
     uint32_t addr = m_regs[rb];
