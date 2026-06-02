@@ -365,7 +365,7 @@ void PPU::render_background(int layer) {
             color_index = (pixel_x & 1) ? (byte >> 4) : (byte & 0x0F);
 
             if (color_index != 0) {
-                color_index += palette_num * 16;
+                color_index = static_cast<uint8_t>(color_index + palette_num * 16);
             }
         }
 
@@ -617,7 +617,7 @@ void PPU::render_sprites() {
 
             // For 16-color, add palette offset
             if (!is_256_color) {
-                color_index += palette * 16;
+                color_index = static_cast<uint8_t>(color_index + palette * 16);
             }
 
             // Handle OBJ window mode
@@ -767,7 +767,7 @@ void PPU::render_affine_sprite([[maybe_unused]] int sprite_idx, uint16_t attr0, 
         if (color_index == 0) continue;
 
         if (!is_256_color) {
-            color_index += palette * 16;
+            color_index = static_cast<uint8_t>(color_index + palette * 16);
         }
 
         if (is_obj_window) {

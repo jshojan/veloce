@@ -391,6 +391,10 @@ void APU::mix_output(float& left, float& right) {
 }
 
 uint8_t APU::read_register(uint16_t address) {
+    // Wave RAM (0xFF30-0xFF3F)
+    if ((address & 0xFF) >= 0x30 && (address & 0xFF) <= 0x3F) {
+        return m_wave.wave_ram[(address & 0xFF) - 0x30];
+    }
     switch (address & 0xFF) {
         // Pulse 1
         case 0x10: return 0x80 | (m_pulse1.sweep_period << 4) | (m_pulse1.sweep_negate ? 0x08 : 0) | m_pulse1.sweep_shift;
@@ -428,10 +432,6 @@ uint8_t APU::read_register(uint16_t address) {
                    (m_wave.enabled ? 0x04 : 0) |
                    (m_noise.enabled ? 0x08 : 0) | 0x70;
 
-        // Wave RAM
-        case 0x30 ... 0x3F:
-            return m_wave.wave_ram[(address & 0xFF) - 0x30];
-
         default:
             return 0xFF;
     }
@@ -466,6 +466,12 @@ void APU::write_register(uint16_t address, uint8_t value) {
                     return;
             }
         }
+        return;
+    }
+
+    // Wave RAM (0xFF30-0xFF3F)
+    if (reg >= 0x30 && reg <= 0x3F) {
+        m_wave.wave_ram[reg - 0x30] = value;
         return;
     }
 
@@ -709,11 +715,6 @@ void APU::write_register(uint16_t address, uint8_t value) {
             }
             break;
         }
-
-        // Wave RAM
-        case 0x30 ... 0x3F:
-            m_wave.wave_ram[reg - 0x30] = value;
-            break;
     }
 }
 

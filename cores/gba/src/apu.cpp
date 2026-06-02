@@ -426,6 +426,10 @@ void APU::mix_output(float& left, float& right) {
 }
 
 uint8_t APU::read_register(uint16_t address) {
+    // Wave RAM (0x30-0x3F)
+    if ((address & 0xFF) >= 0x30 && (address & 0xFF) <= 0x3F) {
+        return m_wave.wave_ram[(address & 0xFF) - 0x30];
+    }
     switch (address & 0xFF) {
         // Pulse 1
         case 0x10: return 0x80 | (m_pulse1.sweep_period << 4) | (m_pulse1.sweep_negate ? 0x08 : 0) | m_pulse1.sweep_shift;
@@ -463,10 +467,6 @@ uint8_t APU::read_register(uint16_t address) {
                    (m_wave.enabled ? 0x04 : 0) |
                    (m_noise.enabled ? 0x08 : 0) | 0x70;
 
-        // Wave RAM
-        case 0x30 ... 0x3F:
-            return m_wave.wave_ram[(address & 0xFF) - 0x30];
-
         default:
             return 0xFF;
     }
@@ -475,6 +475,12 @@ uint8_t APU::read_register(uint16_t address) {
 void APU::write_register(uint16_t address, uint8_t value) {
     // If APU is disabled, only NR52 can be written
     if (!m_enabled && (address & 0xFF) != 0x26) {
+        return;
+    }
+
+    // Wave RAM (0x30-0x3F)
+    if ((address & 0xFF) >= 0x30 && (address & 0xFF) <= 0x3F) {
+        m_wave.wave_ram[(address & 0xFF) - 0x30] = value;
         return;
     }
 
@@ -629,11 +635,6 @@ void APU::write_register(uint16_t address, uint8_t value) {
                 m_noise.enabled = false;
             }
             break;
-
-        // Wave RAM
-        case 0x30 ... 0x3F:
-            m_wave.wave_ram[(address & 0xFF) - 0x30] = value;
-            break;
     }
 }
 
@@ -755,7 +756,7 @@ void APU::write_soundcnt_h(uint16_t value) {
 
 uint16_t APU::read_soundcnt_h() const {
     // Reconstruct from state (reset bits 11 and 15 are write-only)
-    uint16_t value = m_dmg_volume;
+    uint16_t value = static_cast<uint16_t>(m_dmg_volume);
     if (m_dsound_a_vol) value |= 0x04;
     if (m_dsound_b_vol) value |= 0x08;
     if (m_dsound_a_right) value |= 0x100;
