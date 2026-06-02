@@ -128,6 +128,17 @@ private:
     static constexpr size_t MIN_BUFFER_SAMPLES = 32;       // ~0.4ms minimum before rate increase
     static constexpr size_t MAX_BUFFER_SAMPLES = 256;      // ~2.9ms maximum before rate decrease
 
+    // Latency catch-up resync. The +/-1% rate control cannot drain a large
+    // *standing* backlog, so after any transient over-fill (initial buffering,
+    // a render/VSync stall) the buffer can park at a high fill level and delay
+    // audio by hundreds of ms (e.g. SFX lagging a second behind the action).
+    // When the backlog exceeds RESYNC_MAX_SAMPLES we drop old samples down to
+    // RESYNC_TARGET_SAMPLES in one step, bounding latency. The rate control then
+    // holds the buffer near RESYNC_TARGET_SAMPLES in steady state.
+    // (Values are individual L/R floats, matching get_buffered_samples().)
+    static constexpr size_t RESYNC_TARGET_SAMPLES = 768;   // ~8.7ms at 44.1kHz stereo
+    static constexpr size_t RESYNC_MAX_SAMPLES = 3072;     // ~35ms — drop excess above this
+
     // Resampler state for fractional sample interpolation
     // Note: m_resample_accumulator is for output (fill_audio_buffer)
     // m_input_resample_accumulator is for input (push_samples_resampled)

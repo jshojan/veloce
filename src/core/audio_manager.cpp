@@ -213,11 +213,13 @@ void AudioManager::update_rate_control() {
 
     size_t buffered = get_buffered_samples();
 
-    // Calculate fill level as 0.0 to 1.0
-    // Use a smaller working buffer for lower latency
-    // 512 samples = ~5.8ms at 44.1kHz stereo - trades some stability for lower latency
-    static constexpr size_t WORKING_BUFFER_SIZE = 512;
-    double fillLevel = static_cast<double>(buffered) / static_cast<double>(WORKING_BUFFER_SIZE);
+    // Calculate fill level as 0.0 to 1.0, centered so that the desired buffer
+    // level (RESYNC_TARGET_SAMPLES) maps to 0.5 -> no rate change. Below target
+    // the consumer slows down (let the buffer refill); above it the consumer
+    // speeds up (drain toward target). Using the same target as the resync logic
+    // keeps the two mechanisms consistent and pulls latency toward ~8-9ms.
+    double fillLevel = static_cast<double>(buffered) /
+                       static_cast<double>(2 * RESYNC_TARGET_SAMPLES);
     fillLevel = std::clamp(fillLevel, 0.0, 1.0);
 
     // Apply bsnes formula with smoothing to prevent rapid oscillations
@@ -260,6 +262,23 @@ void AudioManager::fill_audio_buffer(float* buffer, size_t samples) {
     const size_t buffer_capacity = RING_BUFFER_SIZE * 2;
     size_t read_pos = m_read_pos.load(std::memory_order_relaxed);
     size_t write_pos = m_write_pos.load(std::memory_order_acquire);
+
+    // Catch-up resync: if the standing backlog has grown well past our target
+    // latency, drop the excess in one step rather than waiting for the +/-1%
+    // rate control to drain it (which it effectively never can). This is safe
+    // here because the audio callback thread is the sole owner of read_pos.
+    // It bounds latency and is the fix for delayed sound effects.
+    {
+        size_t available = (write_pos >= read_pos)
+            ? (write_pos - read_pos)
+            : (buffer_capacity - read_pos + write_pos);
+        if (available > RESYNC_MAX_SAMPLES) {
+            size_t drop = available - RESYNC_TARGET_SAMPLES;
+            drop &= ~static_cast<size_t>(1);  // keep stereo (even) alignment
+            read_pos = (read_pos + drop) % buffer_capacity;
+            m_overrun_count.fetch_add(1, std::memory_order_relaxed);
+        }
+    }
 
     // For DynamicRate mode, we resample to handle rate adjustment
     if (m_sync_mode == AudioSyncMode::DynamicRate) {
