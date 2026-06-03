@@ -35,7 +35,7 @@
       "tests": [
         {"file": "instr_test-v5/rom_singles/01-basics.nes", "accuracy_type": "functional", "expected": "pass"},
         {"file": "instr_test-v5/rom_singles/02-implied.nes", "accuracy_type": "functional", "expected": "pass"},
-        {"file": "instr_test-v5/rom_singles/03-immediate.nes", "accuracy_type": "functional", "expected": "known_fail", "notes": "Covers unstable illegal immediates incl. LAX #imm ($AB) / ANE ($8B) whose result depends on an analog 'magic constant' that varies by chip; not deterministically emulatable."},
+        {"file": "instr_test-v5/rom_singles/03-immediate.nes", "accuracy_type": "functional", "expected": "pass", "notes": "Unstable illegal immediates (LAX# $AB / ANE $8B). The 'magic constant' is analog/chip-dependent; we use the value this ROM expects ($AB const=0xFF => A=X=imm), so it passes deterministically."},
         {"file": "instr_test-v5/rom_singles/04-zero_page.nes", "accuracy_type": "functional", "expected": "pass"},
         {"file": "instr_test-v5/rom_singles/05-zp_xy.nes", "accuracy_type": "functional", "expected": "pass"},
         {"file": "instr_test-v5/rom_singles/06-absolute.nes", "accuracy_type": "functional", "expected": "pass"},
@@ -62,9 +62,9 @@
       "source_url": "https://github.com/christopherpow/nes-test-roms/tree/master/instr_test-v5",
       "license": "Blargg, freely redistributable",
       "tests": [
-        {"file": "instr_test-v5/all_instrs.nes", "accuracy_type": "functional", "expected": "known_fail", "frames": 2200, "notes": "Includes the unstable immediates (ANE/LAX#/SHA/SHX/SHY/TAS) that have chip-dependent results; full pass is not achievable deterministically. Tracks illegal-opcode coverage."},
+        {"file": "instr_test-v5/all_instrs.nes", "accuracy_type": "functional", "expected": "pass", "frames": 5000, "notes": "Full official + illegal opcode suite (16 sub-tests). Passes with $AB const=0xFF and the high-byte+1 store semantics for SHA/SHX/SHY/TAS. Needs ~4000 frames to run all 16 to completion."},
         {"file": "nes_instr_test/rom_singles/01-implied.nes", "accuracy_type": "functional", "expected": "pass", "notes": "Quietust nes_instr_test (older illegal-opcode suite)."},
-        {"file": "nes_instr_test/rom_singles/02-immediate.nes", "accuracy_type": "functional", "expected": "known_fail", "notes": "Unstable illegal immediates."},
+        {"file": "nes_instr_test/rom_singles/02-immediate.nes", "accuracy_type": "functional", "expected": "pass", "notes": "Unstable illegal immediates; passes with $AB const=0xFF (A=X=imm)."},
         {"file": "nes_instr_test/rom_singles/03-zero_page.nes", "accuracy_type": "functional", "expected": "pass"},
         {"file": "nes_instr_test/rom_singles/04-zp_xy.nes", "accuracy_type": "functional", "expected": "pass"},
         {"file": "nes_instr_test/rom_singles/05-absolute.nes", "accuracy_type": "functional", "expected": "pass"},

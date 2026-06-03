@@ -500,11 +500,10 @@ int CPU::step() {
         // Unofficial SBC immediate (duplicate of 0xE9)
         case 0xEB: op_sbc(read(addr_immediate())); cycles = 2; break;
 
-        // LAX immediate (also called ATX, OAL, LXA - highly unstable, behavior varies by chip)
-        // Behavior: A = X = (A | const) & imm
-        // The magic constant varies by chip (0x00, 0xEE, 0xFF, etc.)
-        // Using 0xEE is most commonly accepted for games and passes most tests
-        case 0xAB: { uint8_t v = read(addr_immediate()); m_a = (m_a | 0xEE) & v; m_x = m_a; update_zero_negative(m_a); cycles = 2; break; }
+        // LXA / ATX / OAL ($AB) - highly unstable: A = X = (A | const) & imm.
+        // The "magic" const is chip/analog-dependent; const=0xFF (i.e. A = X = imm)
+        // is the value the nes_instr_test "02-immediate" ROM expects, so we use it.
+        case 0xAB: { uint8_t v = read(addr_immediate()); m_a = (m_a | 0xFF) & v; m_x = m_a; update_zero_negative(m_a); cycles = 2; break; }
 
         // Unofficial NOPs (various addressing modes)
         // These actually perform the addressing mode reads but discard the result
