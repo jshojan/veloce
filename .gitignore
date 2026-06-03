@@ -86,3 +86,7 @@ _deps/
 # Python bytecode
 __pycache__/
 *.pyc
+
+# stray headless-run screenshots in repo root
+/screenshot_frame_*.png
+/screenshot_final.png
