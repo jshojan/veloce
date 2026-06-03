@@ -469,23 +469,70 @@ HEADLESS=1 FRAMES=300 ./veloce game.sfc
 
 ### Automated Test Suite
 
-The SNES core includes an automated test suite using Blargg's SPC700/DSP test ROMs:
+The SNES core ships a subsystem-organized test suite (`tests/test_config.json`,
+schema v2) driven by the shared `veloce_testkit` package, so detection, scoring,
+CLI, and the JSON scorecard are identical across every Veloce console. For the
+methodology and the platform-wide picture see the top-level
+[TESTING.md](../../TESTING.md) and [COMPLETENESS.md](../../COMPLETENESS.md).
+
+> **Verified accuracy versus implementation status.** The "% Complete" figures in
+> the Completion Status tables above are implementation estimates against hardware
+> documentation. The *verified* accuracy headline is currently **low** because
+> almost every SNES test is a community ROM that draws its result on screen and so
+> needs a `screenshot-crc` reference hash that has not yet been measured; those
+> tests ship `known_fail` and contribute zero. Only the Blargg SPC `memory`-detected
+> subset is verifiable today. This is a coverage-versus-verification gap, not an
+> implementation gap. Full per-subsystem justification and the path to a real
+> headline are in [COMPLETENESS.md](../../COMPLETENESS.md#snes).
 
 ```bash
 cd cores/snes/tests
-python3 test_runner.py
+./run_tests.sh                 # run all, human scorecard
+./run_tests.sh cpu ppu apu     # subset by subsystem key or suite id
+./run_tests.sh -v              # per-test verdict lines
+./run_tests.sh --json          # scorecard JSON (consumed by tests/run_all.py)
+./run_tests.sh --generate-refs # print measured CRC32 hashes for visual tests
 ```
 
-**Available Tests:**
+**ROM provisioning.** The runner (`test_runner.py`, a thin shim around
+`veloce_testkit.runner`) clones the standard public SNES test-ROM repositories
+declared in `test_config.json["repositories"]` into `tests/roms/` and resolves
+each test by basename across the cloned tree, so mirror-layout drift is tolerated
+and an unfound ROM reports SKIP (excluded from the score) rather than a false
+FAIL. Set `SNES_TEST_OFFLINE=1` to skip cloning and use an already-staged tree.
 
-| Test ROM | Description | Status |
-|----------|-------------|--------|
-| `spc_dsp6.sfc` | Comprehensive DSP register and behavior tests | RUNS |
-| `spc_mem_access_times.sfc` | Memory access timing validation | RUNS |
-| `spc_smp.sfc` | SPC700 instruction set tests | RUNS |
-| `spc_timer.sfc` | SPC700 timer functionality tests | RUNS |
+The primary source is the higan/byuu `snes-test-roms` mirror, which bundles the
+entire ROM set this suite references (Blargg SPC, the krom/PeterLemon 65816 CPU +
+SPC700 + SuperFX/GSU opcode suites, absindx SA-1, and the jonasquinn / KungFuFurby
+/ undisbeliever / Sour / 93143 / Motive / VitorVilela7 timing collection).
 
-**Note:** Blargg's SPC tests communicate results via APU I/O ports rather than the $6000 memory interface used by NES tests. Tests that complete without crashing are marked as "RUNS" to indicate successful execution, even though automated pass/fail detection is not possible.
+**Coverage (67 tests across all hardware subsystems):**
+
+| Subsystem | Suites | Sample ROMs | Detection |
+|-----------|--------|-------------|-----------|
+| CPU (65816) | arith, logic, inc/dec/cmp, load/store/transfer, branch/jump/misc, full-auto | CPUADC, CPUSBC, CPUMSC, CPUMOV, gilyon cputest | screenshot-crc (visual) |
+| APU (SPC700 + DSP) | blargg, SPC700 ops, gilyon | spc_smp, spc_timer, spc_mem_access_times, spc_dsp6, SPC700ADC | memory ($6000) + screenshot-crc |
+| PPU | smoke, OAM, mode3/color-halve, bus/INIDISP | test_hello, test_oam, demo_mode3, ppubusact | screenshot-crc |
+| Timing | IRQ, DMA, HDMA | test_irq4209, test_dmatiming, test_hdmatiming, dma_irq_test, HblankEmuTest | screenshot-crc (cycle-accurate) |
+| Mapper (enhancement chips) | SuperFX/GSU, SA-1 | GSUADC, GSUFMULT, SA1RamProtectionTest | screenshot-crc |
+| Memory | speed/open-bus | speed_test_v51, op_timing_test_v2 | screenshot-crc (timing) |
+
+**Detection methods.** Blargg SPC ROMs report PASS/FAIL via the `$6000` memory
+protocol (`BLARGG_STATUS` / `Status code: N` under `DEBUG=1`). All krom/PeterLemon
+and community ROMs draw their result on screen and use `screenshot-crc`: the
+binary captures the framebuffer (`SAVE_SCREENSHOT`), the testkit CRC32s the PNG
+and compares to a stored `reference_hash`.
+
+**Reference hashes are "to be measured."** Visual tests carry no golden hash yet,
+so they are marked `expected: known_fail` and contribute **0** to the headline
+score (honest, non-inflating). To seed them, run `--generate-refs` on a build you
+have visually verified renders the test's all-pass screen, then paste the printed
+hashes into `test_config.json`. Reference hashes are tied to the fixed headless
+output resolution and PNG encoder; regenerate if either changes.
+
+The currently-open core gaps surfaced by the suite (the unimplemented SPC700
+opcode `$79` that traps `apu.spc_smp`, and the `apu.spc_dsp6` hardware quirk) are
+documented in [COMPLETENESS.md](../../COMPLETENESS.md#snes).
 
 ## References
 

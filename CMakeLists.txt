@@ -201,6 +201,22 @@ add_subdirectory(plugins/tas_default)
 add_subdirectory(plugins/speedrun_tools_default)
 add_subdirectory(plugins/netplay_default)
 
+# Test + accuracy-measurement framework (CTest). Opt-in via -DVELOCE_BUILD_TESTS=ON
+# (defaults ON for top-level builds). Registers fast unit/validation gates plus
+# the slow per-console accuracy suites under tests/CMakeLists.txt.
+if(DEFINED PROJECT_IS_TOP_LEVEL)
+    set(_veloce_tests_default ${PROJECT_IS_TOP_LEVEL})
+elseif(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+    set(_veloce_tests_default ON)
+else()
+    set(_veloce_tests_default OFF)
+endif()
+option(VELOCE_BUILD_TESTS "Enable Veloce test + accuracy framework" ${_veloce_tests_default})
+if(VELOCE_BUILD_TESTS)
+    enable_testing()
+    add_subdirectory(tests)
+endif()
+
 # Install rules
 install(TARGETS veloce RUNTIME DESTINATION bin)
 if(EXISTS ${CMAKE_SOURCE_DIR}/assets)

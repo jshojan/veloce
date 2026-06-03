@@ -262,12 +262,25 @@ Configuration files are stored in:
 
 ## Testing
 
-Each emulator core includes test suites for accuracy validation. See the individual core documentation:
+Veloce ships a shared, cross-console accuracy framework that produces a
+defensible, reproducible "this core is N% accurate" number per subsystem and per
+console. Start here:
 
-- [NES Testing](cores/nes/README.md#testing)
-- [Game Boy Testing](cores/gb/README.md#testing)
-- [GBA Testing](cores/gba/README.md#testing)
-- [SNES Testing](cores/snes/README.md#testing)
+- [TESTING.md](TESTING.md) - testing philosophy, harness architecture, the
+  result-detection protocols, how to run the suites, and exactly how the
+  completeness percentage is computed.
+- [COMPLETENESS.md](COMPLETENESS.md) - the per-console accuracy scorecard, every
+  number justified against what is verified versus unverified.
+
+| Console | Verified headline | Detail |
+|---------|-------------------|--------|
+| NES | ~90-94% (strongest verified coverage) | [scorecard](COMPLETENESS.md#nes) / [notes](cores/nes/README.md#testing) |
+| SNES | low until reference hashes land | [scorecard](COMPLETENESS.md#snes) / [notes](cores/snes/README.md#testing) |
+| Game Boy | Blargg serial subset verified | [scorecard](COMPLETENESS.md#game-boy) / [notes](cores/gb/README.md#testing) |
+| GBA | partial (CPU/memory/BIOS/saves verified) | [scorecard](COMPLETENESS.md#gba) / [notes](cores/gba/README.md#test-status) |
+
+Run everything with `python tests/run_all.py`; see [TESTING.md](TESTING.md) for
+per-console and CI usage.
 
 ### Headless Mode
 

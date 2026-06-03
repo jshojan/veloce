@@ -1,62 +1,295 @@
 {
-  "description": "SNES Emulator Test Configuration - Blargg Tests",
-  "repository": "https://gitlab.com/higan/snes-test-roms",
-  "download_url": "https://github.com/MiSTer-devel/SNES_MiSTer/files/4109309/blargg_testroms.zip",
-  "timeout_seconds": 60,
+  "schema_version": 2,
+  "console": "snes",
+  "description": "Veloce SNES authoritative test suite. Enumerates the standard public SNES test-ROM landscape organized by hardware subsystem so the testkit scoring layer can compute a defensible per-subsystem completeness percentage. PRIMARY SOURCE is the higan/byuu 'snes-test-roms' mirror (gitlab.com/higan/snes-test-roms), which bundles: Blargg SPC700/DSP/timer ROMs (blargg-spc-6/), the full PeterLemon/krom 65816 CPU opcode suite (CPUADC..CPUTRN), PeterLemon SPC700 + SuperFX/GSU opcode suites, absindx SA-1 tests, and a deep timing collection (jonasquinn, KungFuFurby, undisbeliever, Sour, 93143, Motive, lidnariq). Every file path below is a REAL basename present in that mirror; the runner's ROM provider resolves each test by basename across the cloned tree, so layout drift between mirrors is tolerated and unresolved ROMs report SKIP (excluded from score) rather than a false FAIL. Detection: Blargg-family ROMs report PASS/FAIL via the $6000 memory protocol (BLARGG_STATUS / 'Status code: N' printed under DEBUG=1). PeterLemon/krom and most timing ROMs draw PASS/FAIL on screen -> screenshot-crc; their reference CRC32 hashes are 'to be measured' (marked known_fail until captured with --generate-refs on a verified-good build) so they do not inflate the headline score.",
+  "timeout_seconds": 90,
+  "frame_limit": 900,
 
-  "blargg_memory_interface": {
-    "description": "Blargg tests write results to specific memory addresses",
-    "status_address": "0x6000",
-    "status_values": {
-      "0x00": "Test passed",
-      "0x01-0x7F": "Test failed with error code",
-      "0x80": "Test still running",
-      "0x81": "Test needs reset button"
-    },
-    "signature_address": "0x6001-0x6003",
-    "signature_bytes": "0xDE 0xB0 0x61",
-    "result_text_address": "0x6004+",
-    "result_text_format": "Null-terminated ASCII string"
+  "repositories": {
+    "blargg": {
+      "url": "https://gitlab.com/higan/snes-test-roms.git",
+      "dir": "snes-test-roms",
+      "type": "git",
+      "license": "mixed; Blargg test code public domain, PeterLemon MIT-style, others per-author (see each subdir README)",
+      "notes": "higan/byuu master mirror. Single clone provides the entire ROM set referenced by this config. Archive fallback: https://github.com/MiSTer-devel/SNES_MiSTer/files/4109309/blargg_testroms.zip"
+    }
   },
 
   "test_suites": {
-    "blargg_spc": {
-      "name": "Blargg SPC700/DSP Tests",
-      "description": "Blargg's SPC700 audio processor and DSP tests",
-      "priority": "high",
-      "tests": []
-    }
-  },
 
-  "notes": {
-    "auto_discovery": "Tests are auto-discovered from the blargg-test-roms directory",
-    "result_parsing": "Results are parsed from DEBUG=1 output looking for BLARGG_STATUS or Status code patterns",
-    "memory_detection": "The emulator reads $6000-$6003 to detect test completion and results"
+    "apu_spc700_blargg": {
+      "name": "Blargg SPC700 CPU + timing (memory protocol)",
+      "description": "Blargg's SPC700 instruction-set and timing ROMs from blargg-spc-6/. Report PASS/FAIL via the $6000 memory protocol. spc_smp = master SPC700 instruction test; spc_mem_access_times = exact RAM/IPL/register access cycle timing; spc_timer = T0/T1/T2 divider+counter behavior. spc_dsp6 is a documented 3-chip-console quirk.",
+      "subsystem": "apu",
+      "priority": "high",
+      "repo": "blargg",
+      "tests": [
+        {"id": "apu.spc_smp", "file": "blargg-spc-6/spc_smp.sfc", "accuracy_type": "functional", "result_detection": "memory", "expected": "pass", "priority": "high", "source_url": "https://gitlab.com/higan/snes-test-roms/-/tree/master/blargg-spc-6", "license": "public domain (Blargg)", "notes": "Master SPC700 opcode/flag test. MEASURED: currently traps on unimplemented SPC700 opcode $79 (CMP (X),(Y)) -> never reaches $6000. Real accuracy gap."},
+        {"id": "apu.spc_timer", "file": "blargg-spc-6/spc_timer.sfc", "accuracy_type": "timing", "result_detection": "memory", "expected": "pass", "priority": "high", "source_url": "https://gitlab.com/higan/snes-test-roms/-/tree/master/blargg-spc-6", "license": "public domain (Blargg)", "notes": "SPC700 T0/T1 (8kHz) + T2 (64kHz) divider and counter-latch timing."},
+        {"id": "apu.spc_mem_access_times", "file": "blargg-spc-6/spc_mem_access_times.sfc", "accuracy_type": "cycle-accurate", "result_detection": "memory", "expected": "pass", "priority": "high", "source_url": "https://gitlab.com/higan/snes-test-roms/-/tree/master/blargg-spc-6", "license": "public domain (Blargg)", "notes": "Exact SPC700 read/write access cycle counts for RAM, IPL ROM, DSP/timer registers."},
+        {"id": "apu.spc_dsp6", "file": "blargg-spc-6/spc_dsp6.sfc", "accuracy_type": "cycle-accurate", "result_detection": "memory", "expected": "known_fail", "priority": "medium", "source_url": "https://gitlab.com/higan/snes-test-roms/-/tree/master/blargg-spc-6", "license": "public domain (Blargg)", "notes": "KNOWN HW QUIRK: fails on real 3-chip SNES; passes only on higan/bsnes. Excluded from headline denominator."}
+      ]
+    },
+
+    "apu_spc700_ops": {
+      "name": "PeterLemon SPC700 opcode suites (visual)",
+      "description": "krom/PeterLemon per-opcode SPC700 tests (ADC/AND/DEC/EOR/INC/ORA/SBC). Draw PASS/FAIL on screen -> screenshot-crc. Complement the Blargg master test with focused per-op coverage. Reference hashes to be measured.",
+      "subsystem": "apu",
+      "priority": "medium",
+      "repo": "blargg",
+      "tests": [
+        {"id": "apu.spc700_adc", "file": "PeterLemon/SNES-CPUTest-SPC700/ADC/SPC700ADC.sfc", "accuracy_type": "visual", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "medium", "screenshot_frame": 60, "source_url": "https://github.com/PeterLemon/SNES", "license": "krom/PeterLemon", "notes": "SPC700 ADC. reference_hash to be measured."},
+        {"id": "apu.spc700_sbc", "file": "PeterLemon/SNES-CPUTest-SPC700/SBC/SPC700SBC.sfc", "accuracy_type": "visual", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "medium", "screenshot_frame": 60, "source_url": "https://github.com/PeterLemon/SNES", "license": "krom/PeterLemon", "notes": "SPC700 SBC. reference_hash to be measured."},
+        {"id": "apu.spc700_and", "file": "PeterLemon/SNES-CPUTest-SPC700/AND/SPC700AND.sfc", "accuracy_type": "visual", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "low", "screenshot_frame": 60, "source_url": "https://github.com/PeterLemon/SNES", "license": "krom/PeterLemon", "notes": "SPC700 AND. reference_hash to be measured."},
+        {"id": "apu.spc700_eor", "file": "PeterLemon/SNES-CPUTest-SPC700/EOR/SPC700EOR.sfc", "accuracy_type": "visual", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "low", "screenshot_frame": 60, "source_url": "https://github.com/PeterLemon/SNES", "license": "krom/PeterLemon", "notes": "SPC700 EOR. reference_hash to be measured."},
+        {"id": "apu.spc700_ora", "file": "PeterLemon/SNES-CPUTest-SPC700/ORA/SPC700ORA.sfc", "accuracy_type": "visual", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "low", "screenshot_frame": 60, "source_url": "https://github.com/PeterLemon/SNES", "license": "krom/PeterLemon", "notes": "SPC700 ORA. reference_hash to be measured."},
+        {"id": "apu.spc700_inc", "file": "PeterLemon/SNES-CPUTest-SPC700/INC/SPC700INC.sfc", "accuracy_type": "visual", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "low", "screenshot_frame": 60, "source_url": "https://github.com/PeterLemon/SNES", "license": "krom/PeterLemon", "notes": "SPC700 INC. reference_hash to be measured."},
+        {"id": "apu.spc700_dec", "file": "PeterLemon/SNES-CPUTest-SPC700/DEC/SPC700DEC.sfc", "accuracy_type": "visual", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "low", "screenshot_frame": 60, "source_url": "https://github.com/PeterLemon/SNES", "license": "krom/PeterLemon", "notes": "SPC700 DEC. reference_hash to be measured."}
+      ]
+    },
+
+    "apu_dsp_spctest": {
+      "name": "gilyon/krom SPC700 + DSP automated test (visual)",
+      "description": "gilyon spctest.sfc is a comprehensive automated SPC700/DSP test that renders a results table. Visual screenshot-crc; reference hash to be measured.",
+      "subsystem": "apu",
+      "priority": "medium",
+      "repo": "blargg",
+      "tests": [
+        {"id": "apu.gilyon_spctest", "file": "gilyon/spctest.sfc", "accuracy_type": "visual", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "medium", "screenshot_frame": 120, "source_url": "https://gitlab.com/higan/snes-test-roms/-/tree/master/gilyon", "license": "see upstream (gilyon)", "notes": "Automated SPC700+DSP results table. reference_hash to be measured."}
+      ]
+    },
+
+    "cpu_arith": {
+      "name": "65816 arithmetic opcodes (krom CPUADC/CPUSBC)",
+      "description": "65816 ADC/SBC across 8/16-bit (M flag), decimal mode (D flag) and all addressing modes. PeterLemon CPU suites render a per-instruction PASS/FAIL table -> screenshot-crc (visual). Reference hashes to be measured.",
+      "subsystem": "cpu",
+      "priority": "critical",
+      "repo": "blargg",
+      "tests": [
+        {"id": "cpu.adc", "file": "PeterLemon/SNES-CPUTest-CPU/ADC/CPUADC.sfc", "accuracy_type": "visual", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "critical", "screenshot_frame": 60, "source_url": "https://github.com/PeterLemon/SNES", "license": "krom/PeterLemon", "notes": "ADC binary + decimal, 8/16-bit. MEASURED crc32 on current build = 4714001a (frame 60); reference (verified-good) to be confirmed."},
+        {"id": "cpu.sbc", "file": "PeterLemon/SNES-CPUTest-CPU/SBC/CPUSBC.sfc", "accuracy_type": "visual", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "critical", "screenshot_frame": 60, "source_url": "https://github.com/PeterLemon/SNES", "license": "krom/PeterLemon", "notes": "SBC binary + decimal, 8/16-bit. reference_hash to be measured."}
+      ]
+    },
+
+    "cpu_logic": {
+      "name": "65816 logic/shift/rotate/bit opcodes (krom AND/EOR/ORA/BIT/ASL/LSR/ROL/ROR)",
+      "description": "Logical, shift, rotate and bit-test opcodes across addressing modes and M-flag widths. Visual screenshot-crc; hashes to be measured.",
+      "subsystem": "cpu",
+      "priority": "high",
+      "repo": "blargg",
+      "tests": [
+        {"id": "cpu.and", "file": "PeterLemon/SNES-CPUTest-CPU/AND/CPUAND.sfc", "accuracy_type": "visual", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "high", "screenshot_frame": 60, "source_url": "https://github.com/PeterLemon/SNES", "license": "krom/PeterLemon", "notes": "AND. reference_hash to be measured."},
+        {"id": "cpu.eor", "file": "PeterLemon/SNES-CPUTest-CPU/EOR/CPUEOR.sfc", "accuracy_type": "visual", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "high", "screenshot_frame": 60, "source_url": "https://github.com/PeterLemon/SNES", "license": "krom/PeterLemon", "notes": "EOR. reference_hash to be measured."},
+        {"id": "cpu.ora", "file": "PeterLemon/SNES-CPUTest-CPU/ORA/CPUORA.sfc", "accuracy_type": "visual", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "high", "screenshot_frame": 60, "source_url": "https://github.com/PeterLemon/SNES", "license": "krom/PeterLemon", "notes": "ORA. reference_hash to be measured."},
+        {"id": "cpu.bit", "file": "PeterLemon/SNES-CPUTest-CPU/BIT/CPUBIT.sfc", "accuracy_type": "visual", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "high", "screenshot_frame": 60, "source_url": "https://github.com/PeterLemon/SNES", "license": "krom/PeterLemon", "notes": "BIT sets N/V from operand bits 7/6 (and Z from AND). reference_hash to be measured."},
+        {"id": "cpu.asl", "file": "PeterLemon/SNES-CPUTest-CPU/ASL/CPUASL.sfc", "accuracy_type": "visual", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "high", "screenshot_frame": 60, "source_url": "https://github.com/PeterLemon/SNES", "license": "krom/PeterLemon", "notes": "ASL. reference_hash to be measured."},
+        {"id": "cpu.lsr", "file": "PeterLemon/SNES-CPUTest-CPU/LSR/CPULSR.sfc", "accuracy_type": "visual", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "high", "screenshot_frame": 60, "source_url": "https://github.com/PeterLemon/SNES", "license": "krom/PeterLemon", "notes": "LSR. reference_hash to be measured."},
+        {"id": "cpu.rol", "file": "PeterLemon/SNES-CPUTest-CPU/ROL/CPUROL.sfc", "accuracy_type": "visual", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "high", "screenshot_frame": 60, "source_url": "https://github.com/PeterLemon/SNES", "license": "krom/PeterLemon", "notes": "ROL through carry. reference_hash to be measured."},
+        {"id": "cpu.ror", "file": "PeterLemon/SNES-CPUTest-CPU/ROR/CPUROR.sfc", "accuracy_type": "visual", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "high", "screenshot_frame": 60, "source_url": "https://github.com/PeterLemon/SNES", "license": "krom/PeterLemon", "notes": "ROR through carry. reference_hash to be measured."}
+      ]
+    },
+
+    "cpu_incdec_cmp": {
+      "name": "65816 inc/dec and compare opcodes (krom INC/DEC/CMP)",
+      "description": "INC/DEC (memory + A + X/Y) and CMP flag results across M/X widths. Visual screenshot-crc; hashes to be measured.",
+      "subsystem": "cpu",
+      "priority": "high",
+      "repo": "blargg",
+      "tests": [
+        {"id": "cpu.inc", "file": "PeterLemon/SNES-CPUTest-CPU/INC/CPUINC.sfc", "accuracy_type": "visual", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "high", "screenshot_frame": 60, "source_url": "https://github.com/PeterLemon/SNES", "license": "krom/PeterLemon", "notes": "INC/INX/INY. reference_hash to be measured."},
+        {"id": "cpu.dec", "file": "PeterLemon/SNES-CPUTest-CPU/DEC/CPUDEC.sfc", "accuracy_type": "visual", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "high", "screenshot_frame": 60, "source_url": "https://github.com/PeterLemon/SNES", "license": "krom/PeterLemon", "notes": "DEC/DEX/DEY. reference_hash to be measured."},
+        {"id": "cpu.cmp", "file": "PeterLemon/SNES-CPUTest-CPU/CMP/CPUCMP.sfc", "accuracy_type": "visual", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "high", "screenshot_frame": 60, "source_url": "https://github.com/PeterLemon/SNES", "license": "krom/PeterLemon", "notes": "CMP/CPX/CPY flag results. reference_hash to be measured."}
+      ]
+    },
+
+    "cpu_loadstore_transfer": {
+      "name": "65816 load/store/transfer/stack opcodes (krom LDR/STR/MOV/TRN/PHL/PSR)",
+      "description": "Loads (LDR), stores (STR), block-move MVN/MVP (MOV), register transfers (TRN: TAX/TXA/TCD/TCS/TXY/TYX) and stack/processor-status ops (PHL: PHA/PLA/PHX/PHB/PHD/PEA/PEI/PER; PSR: PHP/PLP/REP/SEP). Visual screenshot-crc; hashes to be measured.",
+      "subsystem": "cpu",
+      "priority": "high",
+      "repo": "blargg",
+      "tests": [
+        {"id": "cpu.ldr", "file": "PeterLemon/SNES-CPUTest-CPU/LDR/CPULDR.sfc", "accuracy_type": "visual", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "high", "screenshot_frame": 60, "source_url": "https://github.com/PeterLemon/SNES", "license": "krom/PeterLemon", "notes": "LDA/LDX/LDY all modes. reference_hash to be measured."},
+        {"id": "cpu.str", "file": "PeterLemon/SNES-CPUTest-CPU/STR/CPUSTR.sfc", "accuracy_type": "visual", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "high", "screenshot_frame": 60, "source_url": "https://github.com/PeterLemon/SNES", "license": "krom/PeterLemon", "notes": "STA/STX/STY/STZ all modes. reference_hash to be measured."},
+        {"id": "cpu.mov", "file": "PeterLemon/SNES-CPUTest-CPU/MOV/CPUMOV.sfc", "accuracy_type": "visual", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "high", "screenshot_frame": 60, "source_url": "https://github.com/PeterLemon/SNES", "license": "krom/PeterLemon", "notes": "Block move MVN/MVP (banked, length-in-A semantics). reference_hash to be measured."},
+        {"id": "cpu.trn", "file": "PeterLemon/SNES-CPUTest-CPU/TRN/CPUTRN.sfc", "accuracy_type": "visual", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "high", "screenshot_frame": 60, "source_url": "https://github.com/PeterLemon/SNES", "license": "krom/PeterLemon", "notes": "Register transfers + XBA. reference_hash to be measured."},
+        {"id": "cpu.phl", "file": "PeterLemon/SNES-CPUTest-CPU/PHL/CPUPHL.sfc", "accuracy_type": "visual", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "medium", "screenshot_frame": 60, "source_url": "https://github.com/PeterLemon/SNES", "license": "krom/PeterLemon", "notes": "Push/pull family + PEA/PEI/PER. reference_hash to be measured."},
+        {"id": "cpu.psr", "file": "PeterLemon/SNES-CPUTest-CPU/PSR/CPUPSR.sfc", "accuracy_type": "visual", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "high", "screenshot_frame": 60, "source_url": "https://github.com/PeterLemon/SNES", "license": "krom/PeterLemon", "notes": "Processor-status: PHP/PLP/REP/SEP flag-width effects. reference_hash to be measured."}
+      ]
+    },
+
+    "cpu_branch_jump_misc": {
+      "name": "65816 branch/jump/return + misc/mode opcodes (krom BRA/JMP/RET/MSC)",
+      "description": "Conditional branches + BRL (BRA), JMP/JML/JSR/JSL (JMP), RTS/RTL/RTI (RET), and misc/mode opcodes incl. XCE/CLC/SEC/CLD/SED/CLI/SEI/CLV/NOP/WDM/STP/WAI (MSC). Critical for emulation<->native transitions and flow control. Visual screenshot-crc; hashes to be measured.",
+      "subsystem": "cpu",
+      "priority": "critical",
+      "repo": "blargg",
+      "tests": [
+        {"id": "cpu.bra", "file": "PeterLemon/SNES-CPUTest-CPU/BRA/CPUBRA.sfc", "accuracy_type": "visual", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "high", "screenshot_frame": 60, "source_url": "https://github.com/PeterLemon/SNES", "license": "krom/PeterLemon", "notes": "All conditional branches + BRL. reference_hash to be measured."},
+        {"id": "cpu.jmp", "file": "PeterLemon/SNES-CPUTest-CPU/JMP/CPUJMP.sfc", "accuracy_type": "visual", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "high", "screenshot_frame": 60, "source_url": "https://github.com/PeterLemon/SNES", "license": "krom/PeterLemon", "notes": "JMP/JML/JSR/JSL. reference_hash to be measured."},
+        {"id": "cpu.ret", "file": "PeterLemon/SNES-CPUTest-CPU/RET/CPURET.sfc", "accuracy_type": "visual", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "high", "screenshot_frame": 60, "source_url": "https://github.com/PeterLemon/SNES", "license": "krom/PeterLemon", "notes": "RTS/RTL/RTI semantics. reference_hash to be measured."},
+        {"id": "cpu.msc", "file": "PeterLemon/SNES-CPUTest-CPU/MSC/CPUMSC.sfc", "accuracy_type": "visual", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "critical", "screenshot_frame": 60, "source_url": "https://github.com/PeterLemon/SNES", "license": "krom/PeterLemon", "notes": "Flag ops + XCE/REP/SEP mode switches + NOP/WDM/STP/WAI. reference_hash to be measured."}
+      ]
+    },
+
+    "cpu_full_automated": {
+      "name": "gilyon/krom full 65816 automated CPU test (visual)",
+      "description": "gilyon cputest.sfc is a single automated 65816 test that renders a results table (covers opcodes + flags + math registers). One-shot regression of the whole CPU. Visual screenshot-crc; reference hash to be measured.",
+      "subsystem": "cpu",
+      "priority": "high",
+      "repo": "blargg",
+      "tests": [
+        {"id": "cpu.gilyon_cputest", "file": "gilyon/cputest.sfc", "accuracy_type": "visual", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "high", "screenshot_frame": 120, "source_url": "https://gitlab.com/higan/snes-test-roms/-/tree/master/gilyon", "license": "see upstream (gilyon)", "notes": "Whole-CPU automated results table incl. multiply/divide register math. reference_hash to be measured."}
+      ]
+    },
+
+    "ppu_hello_smoke": {
+      "name": "PPU bring-up smoke tests (jonasquinn)",
+      "description": "Minimal PPU rendering ROMs: test_hello (text tilemap) and test_noise (full-screen pattern). Cheap visual regressions that catch gross BG/CGRAM/tilemap breakage. screenshot-crc; hashes to be measured.",
+      "subsystem": "ppu",
+      "priority": "high",
+      "repo": "blargg",
+      "tests": [
+        {"id": "ppu.hello", "file": "jonasquinn-test-roms/test_ppu/test_hello.sfc", "accuracy_type": "visual", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "high", "screenshot_frame": 30, "source_url": "https://gitlab.com/higan/snes-test-roms", "license": "see upstream (jonasquinn)", "notes": "BG tilemap + CGRAM text render smoke. reference_hash to be measured."},
+        {"id": "ppu.noise", "file": "jonasquinn-test-roms/test_ppu/test_noise.sfc", "accuracy_type": "visual", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "medium", "screenshot_frame": 30, "source_url": "https://gitlab.com/higan/snes-test-roms", "license": "see upstream (jonasquinn)", "notes": "Full-screen pattern render. reference_hash to be measured."}
+      ]
+    },
+
+    "ppu_oam": {
+      "name": "PPU OAM / sprite tests (jonasquinn)",
+      "description": "OAM table layout, OBJ sizes/priority, and the high/low OAM table fold ($2102/$2104 write, $2138 read). test_oam exercises sprite placement and the secondary OAM table. screenshot-crc; hashes to be measured.",
+      "subsystem": "ppu",
+      "priority": "high",
+      "repo": "blargg",
+      "tests": [
+        {"id": "ppu.oam", "file": "jonasquinn-test-roms/test_oam/test_oam.smc", "accuracy_type": "visual", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "high", "screenshot_frame": 60, "source_url": "https://gitlab.com/higan/snes-test-roms", "license": "see upstream (jonasquinn)", "notes": "OAM main+secondary table, OBJ size/priority. Relates to fixed $2138 OOB-read fold + range/time-over flags. reference_hash to be measured."}
+      ]
+    },
+
+    "ppu_mode3_colorhalve": {
+      "name": "PPU Mode 3 + color-math half-tests (tukuyomi/jonasquinn)",
+      "description": "demo_mode3 renders a Mode 3 (8bpp direct-color) scene; color_halve_proof asserts the color-math 'halve' rule (halve always in fixed-color mode; in sub-screen mode only when sub pixel != backdrop). screenshot-crc; hashes to be measured.",
+      "subsystem": "ppu",
+      "priority": "high",
+      "repo": "blargg",
+      "tests": [
+        {"id": "ppu.mode3", "file": "tukuyomi-bsnes-tests/demo_mode3.smc", "accuracy_type": "visual", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "high", "screenshot_frame": 60, "source_url": "https://gitlab.com/higan/snes-test-roms", "license": "see upstream (tukuyomi/bsnes)", "notes": "Mode 3 8bpp direct color. reference_hash to be measured."},
+        {"id": "ppu.color_halve", "file": "jonasquinn-test-roms/color_halve_proof/demo.smc", "accuracy_type": "visual", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "high", "screenshot_frame": 60, "source_url": "https://gitlab.com/higan/snes-test-roms", "license": "see upstream (jonasquinn)", "notes": "Color-math halve rule proof ($2131). reference_hash to be measured."}
+      ]
+    },
+
+    "ppu_bus_inidisp": {
+      "name": "PPU bus activity + INIDISP/forced-blank glitches (lidnariq/undisbeliever)",
+      "description": "ppubusact probes PPU-bus open-bus/MDR behavior on $2134-$213F reads; the undisbeliever hdma-2100 set probes the INIDISP ($2100) forced-blank + brightness glitch when written mid-frame via HDMA. Edge-case rendering correctness. screenshot-crc; hashes to be measured.",
+      "subsystem": "ppu",
+      "priority": "medium",
+      "repo": "blargg",
+      "tests": [
+        {"id": "ppu.bus_activity", "file": "lidnariq-ppu-bus-activity/ppubusact.sfc", "accuracy_type": "visual", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "medium", "screenshot_frame": 60, "source_url": "https://gitlab.com/higan/snes-test-roms", "license": "see upstream (lidnariq)", "notes": "PPU-bus / PPU1-PPU2 MDR open-bus on $2134-$213F. reference_hash to be measured."},
+        {"id": "ppu.inidisp_hdma_glitch", "file": "undisbeliever-inidisp/hdma-2100-glitch.sfc", "accuracy_type": "visual", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "medium", "screenshot_frame": 90, "source_url": "https://gitlab.com/higan/snes-test-roms", "license": "see upstream (undisbeliever)", "notes": "$2100 forced-blank/brightness mid-frame HDMA glitch. reference_hash to be measured."}
+      ]
+    },
+
+    "timing_irq": {
+      "name": "H/V IRQ + NMI timing (jonasquinn/KungFuFurby/tukuyomi)",
+      "description": "Programmable H-IRQ ($4207/$4208 HTIME), V-IRQ ($4209/$420A VTIME), NMITIMEN ($4200) enable bits, $4211 TIMEUP acknowledge, and NMI vs IRQ edges. The status-bar split (V-IRQ at VTIME=31) regression that was fixed lives in this class. Cycle-accurate where a single dot of skew changes the split line. screenshot-crc; hashes to be measured.",
+      "subsystem": "timing",
+      "priority": "critical",
+      "repo": "blargg",
+      "tests": [
+        {"id": "timing.irq", "file": "jonasquinn-test-roms/blobs/irq.smc", "accuracy_type": "cycle-accurate", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "critical", "screenshot_frame": 120, "source_url": "https://gitlab.com/higan/snes-test-roms", "license": "see upstream (jonasquinn)", "notes": "Core H/V-IRQ trigger. reference_hash to be measured."},
+        {"id": "timing.irq4200", "file": "jonasquinn-test-roms/blobs/test_irq4200.smc", "accuracy_type": "cycle-accurate", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "critical", "screenshot_frame": 120, "source_url": "https://gitlab.com/higan/snes-test-roms", "license": "see upstream (jonasquinn)", "notes": "$4200 NMITIMEN enable/disable edge timing for IRQ. reference_hash to be measured."},
+        {"id": "timing.irq4209", "file": "jonasquinn-test-roms/blobs/test_irq4209.smc", "accuracy_type": "cycle-accurate", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "critical", "screenshot_frame": 120, "source_url": "https://gitlab.com/higan/snes-test-roms", "license": "see upstream (jonasquinn)", "notes": "$4209/$420A V-IRQ exact trigger line. Directly covers the status-bar split. reference_hash to be measured."},
+        {"id": "timing.nmi", "file": "jonasquinn-test-roms/nmi_irq/nmi.smc", "accuracy_type": "timing", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "high", "screenshot_frame": 120, "source_url": "https://gitlab.com/higan/snes-test-roms", "license": "see upstream (jonasquinn)", "notes": "NMI assert/clear edge vs VBlank. reference_hash to be measured."}
+      ]
+    },
+
+    "timing_dma": {
+      "name": "General DMA transfers + timing (jonasquinn/Sour)",
+      "description": "General-purpose DMA: $420B MDMAEN, transfer modes 0-7 (to $2118/$2119 VRAM, $2122 CGRAM...), address increment/fixed, per-byte 8-master-cycle cost + DMA-start alignment, and the open-bus/MDR value left after a transfer (test_dmavalid / test_mdrhdma). test_dmatiming asserts exact cycle cost. screenshot-crc; hashes to be measured.",
+      "subsystem": "timing",
+      "priority": "critical",
+      "repo": "blargg",
+      "tests": [
+        {"id": "timing.dma", "file": "jonasquinn-test-roms/snestest_082506/test_dma.smc", "accuracy_type": "timing", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "critical", "screenshot_frame": 90, "source_url": "https://gitlab.com/higan/snes-test-roms", "license": "see upstream (jonasquinn)", "notes": "DMA transfer modes + increment. reference_hash to be measured."},
+        {"id": "timing.dma_timing", "file": "jonasquinn-test-roms/test_dmatiming/demo.smc", "accuracy_type": "cycle-accurate", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "critical", "screenshot_frame": 120, "source_url": "https://gitlab.com/higan/snes-test-roms", "license": "see upstream (jonasquinn)", "notes": "Exact DMA cycle cost + start alignment penalty. reference_hash to be measured."},
+        {"id": "timing.dma_valid", "file": "jonasquinn-test-roms/test_dmavalid_v01/test_dmavalid.smc", "accuracy_type": "timing", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "high", "screenshot_frame": 90, "source_url": "https://gitlab.com/higan/snes-test-roms", "license": "see upstream (jonasquinn)", "notes": "DMA open-bus/MDR value + valid-byte behavior. reference_hash to be measured."},
+        {"id": "timing.dma_irq", "file": "Sour/SnesTests/dma_irq_test/dma_irq_test.sfc", "accuracy_type": "cycle-accurate", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "critical", "screenshot_frame": 150, "source_url": "https://gitlab.com/higan/snes-test-roms/-/tree/master/Sour", "license": "see upstream (Sour)", "notes": "DMA-vs-IRQ interaction (IRQ fires during a DMA): the hard case games like 'Ings' depend on. reference_hash to be measured."}
+      ]
+    },
+
+    "timing_hdma": {
+      "name": "HDMA (H-blank DMA) timing (jonasquinn/93143/Motive)",
+      "description": "HDMA channel setup ($420C HDMAEN), per-scanline transfers, indirect mode, repeat/continue line-counter semantics, the exact H-position HDMA fires, mid-frame HDMA enable/disable, and HDMA-to-VRAM during H-blank. Air Strike Patrol-class raster effects depend on this. Cycle-accurate. screenshot-crc; hashes to be measured.",
+      "subsystem": "timing",
+      "priority": "critical",
+      "repo": "blargg",
+      "tests": [
+        {"id": "timing.hdma", "file": "jonasquinn-test-roms/blobs/test_hdma.smc", "accuracy_type": "cycle-accurate", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "critical", "screenshot_frame": 120, "source_url": "https://gitlab.com/higan/snes-test-roms", "license": "see upstream (jonasquinn)", "notes": "Core HDMA incl. indirect + line-counter repeat. reference_hash to be measured."},
+        {"id": "timing.hdma_timing", "file": "jonasquinn-test-roms/blobs/test_hdmatiming.smc", "accuracy_type": "cycle-accurate", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "critical", "screenshot_frame": 120, "source_url": "https://gitlab.com/higan/snes-test-roms", "license": "see upstream (jonasquinn)", "notes": "Exact H-position at which each channel's HDMA transfer occurs. reference_hash to be measured."},
+        {"id": "timing.hdma_sync", "file": "jonasquinn-test-roms/blobs/test_hdmasync.smc", "accuracy_type": "cycle-accurate", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "high", "screenshot_frame": 120, "source_url": "https://gitlab.com/higan/snes-test-roms", "license": "see upstream (jonasquinn)", "notes": "HDMA-vs-CPU sync / mid-scanline register effect ordering. reference_hash to be measured."},
+        {"id": "timing.hdma_midframe", "file": "jonasquinn-test-roms/hdma_midframe/demo.smc", "accuracy_type": "cycle-accurate", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "high", "screenshot_frame": 120, "source_url": "https://gitlab.com/higan/snes-test-roms", "license": "see upstream (jonasquinn)", "notes": "Mid-frame HDMA enable/disable ($420C latch). reference_hash to be measured."},
+        {"id": "timing.hvdma_vram", "file": "93143-hblank-dma-vram/hvdma.sfc", "accuracy_type": "cycle-accurate", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "high", "screenshot_frame": 120, "source_url": "https://gitlab.com/higan/snes-test-roms/-/tree/master/93143-hblank-dma-vram", "license": "see upstream (93143)", "notes": "H-blank DMA to VRAM (window where VRAM writes are legal). reference_hash to be measured."},
+        {"id": "timing.hblank_emu", "file": "Motive-test-ROMs/HblankEmuTest.sfc", "accuracy_type": "cycle-accurate", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "high", "screenshot_frame": 120, "source_url": "https://gitlab.com/higan/snes-test-roms/-/tree/master/Motive-test-ROMs", "license": "see upstream (Motive)", "notes": "H-blank emulation + mid-scanline split correctness. reference_hash to be measured."}
+      ]
+    },
+
+    "mapper_superfx": {
+      "name": "SuperFX (GSU) opcode tests (krom GSUTest)",
+      "description": "GSU/SuperFX instruction suite: ALU (ADC/ADD/SUB/SBC/AND/OR/XOR/NOT/BIC), shifts/rotates (ASR/LSR/ROL/ROR), multiply (FMULT/LMULT/UMULT/MULT), load/store/immediate (IBT/IWT/MOVE/MOVES), and pixel/plot helpers (MERGE/SWAP/HIB/LOB/SEX/CACHEINJECT). Enhancement-chip coverage -> mapper subsystem. screenshot-crc; hashes to be measured.",
+      "subsystem": "mapper",
+      "priority": "medium",
+      "repo": "blargg",
+      "tests": [
+        {"id": "mapper.gsu_adc", "file": "PeterLemon/SNES-CHIP-GSU-GSUTest/ADC/GSUADC.sfc", "accuracy_type": "visual", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "medium", "screenshot_frame": 90, "source_url": "https://github.com/PeterLemon/SNES", "license": "krom/PeterLemon", "notes": "GSU ADC. reference_hash to be measured."},
+        {"id": "mapper.gsu_mult", "file": "PeterLemon/SNES-CHIP-GSU-GSUTest/MULT/GSUMULT.sfc", "accuracy_type": "visual", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "medium", "screenshot_frame": 90, "source_url": "https://github.com/PeterLemon/SNES", "license": "krom/PeterLemon", "notes": "GSU signed multiply. reference_hash to be measured."},
+        {"id": "mapper.gsu_fmult", "file": "PeterLemon/SNES-CHIP-GSU-GSUTest/FMULT/GSUFMULT.sfc", "accuracy_type": "visual", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "medium", "screenshot_frame": 90, "source_url": "https://github.com/PeterLemon/SNES", "license": "krom/PeterLemon", "notes": "GSU fractional multiply. reference_hash to be measured."},
+        {"id": "mapper.gsu_lmult", "file": "PeterLemon/SNES-CHIP-GSU-GSUTest/LMULT/GSULMULT.sfc", "accuracy_type": "visual", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "low", "screenshot_frame": 90, "source_url": "https://github.com/PeterLemon/SNES", "license": "krom/PeterLemon", "notes": "GSU long multiply. reference_hash to be measured."},
+        {"id": "mapper.gsu_rol", "file": "PeterLemon/SNES-CHIP-GSU-GSUTest/ROL/GSUROL.sfc", "accuracy_type": "visual", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "low", "screenshot_frame": 90, "source_url": "https://github.com/PeterLemon/SNES", "license": "krom/PeterLemon", "notes": "GSU ROL. reference_hash to be measured."},
+        {"id": "mapper.gsu_merge", "file": "PeterLemon/SNES-CHIP-GSU-GSUTest/MERGE/GSUMERGE.sfc", "accuracy_type": "visual", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "low", "screenshot_frame": 90, "source_url": "https://github.com/PeterLemon/SNES", "license": "krom/PeterLemon", "notes": "GSU MERGE (plot helper). reference_hash to be measured."}
+      ]
+    },
+
+    "mapper_sa1": {
+      "name": "SA-1 enhancement chip tests (absindx)",
+      "description": "SA-1 coprocessor: RAM write-protection register behavior and the SA-1 version/identification code. Enhancement-chip coverage -> mapper subsystem. screenshot-crc; hashes to be measured.",
+      "subsystem": "mapper",
+      "priority": "low",
+      "repo": "blargg",
+      "tests": [
+        {"id": "mapper.sa1_ram_protect", "file": "absindx/SA1RamProtectionTest.sfc", "accuracy_type": "visual", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "low", "screenshot_frame": 90, "source_url": "https://gitlab.com/higan/snes-test-roms/-/tree/master/absindx", "license": "see upstream (absindx)", "notes": "SA-1 BW-RAM write-protect register. reference_hash to be measured."},
+        {"id": "mapper.sa1_version", "file": "absindx/SA1VersionCodeTest.sfc", "accuracy_type": "visual", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "low", "screenshot_frame": 90, "source_url": "https://gitlab.com/higan/snes-test-roms/-/tree/master/absindx", "license": "see upstream (absindx)", "notes": "SA-1 version/ID code register. reference_hash to be measured."}
+      ]
+    },
+
+    "memory_speed_openbus": {
+      "name": "Memory access speed + open bus (VitorVilela7/Sour)",
+      "description": "SnesSpeedTest measures FastROM/SlowROM ($420D MEMSEL) access speed and the 3.58/2.68 MHz region cycle costs; Sour op_timing_test_v2 asserts per-opcode cycle counts including the memory-speed-dependent variants. Covers the memory-timing axis (and indirectly open-bus where unmapped reads feed the MDR). screenshot-crc; hashes to be measured.",
+      "subsystem": "memory",
+      "priority": "high",
+      "repo": "blargg",
+      "tests": [
+        {"id": "memory.speed_test", "file": "VitorVilela7/SnesSpeedTest/speed_test_v51.sfc", "accuracy_type": "timing", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "high", "screenshot_frame": 180, "source_url": "https://gitlab.com/higan/snes-test-roms/-/tree/master/VitorVilela7", "license": "see upstream (VitorVilela7)", "notes": "FastROM/SlowROM ($420D) + region access-speed cycle costs. reference_hash to be measured."},
+        {"id": "memory.op_timing", "file": "Sour/SnesTests/op_timing_test/op_timing_test_v2.sfc", "accuracy_type": "cycle-accurate", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "high", "screenshot_frame": 180, "source_url": "https://gitlab.com/higan/snes-test-roms/-/tree/master/Sour", "license": "see upstream (Sour)", "notes": "Per-opcode cycle counts incl. memory-speed-dependent variants and DMA/HDMA interaction. The single best 5A22 cycle-timing regression. reference_hash to be measured."}
+      ]
+    }
   },
 
   "known_issues": {
-    "spc_dsp6": "DSP6 test fails on 3-chip SNES consoles, passes only on higan/bsnes"
-  },
-
-  "available_tests": {
-    "spc_dsp6.sfc": {
-      "description": "Comprehensive DSP register and behavior tests",
-      "known_issue": "Fails on 3-chip consoles, may freeze on some hardware"
-    },
-    "spc_mem_access_times.sfc": {
-      "description": "Memory access timing validation"
-    },
-    "spc_spc.sfc": {
-      "description": "SPC700 instruction set tests"
-    },
-    "spc_timer.sfc": {
-      "description": "SPC700 timer functionality tests"
-    }
+    "spc700_opcode_79": "MEASURED: apu.spc_smp (Blargg SPC700 master test) traps on unimplemented SPC700 opcode $79 (CMP (X),(Y)) at SPC $0A99 and spins, so it never reaches the $6000 result write. This is a real, currently-open SPC700 core gap surfaced by this suite. Other SPC700-dependent ROMs may hit the same wall.",
+    "spc_dsp6": "spc_dsp6 fails on real 3-chip SNES consoles; only passes on higan/bsnes. Marked expected=known_fail (excluded from headline denominator, reported in its own column).",
+    "krom_visual_refs": "All krom/PeterLemon and community visual ROMs report PASS/FAIL on screen, so they use screenshot-crc. Until a golden reference frame is captured on a verified-good build (--generate-refs), they are marked expected=known_fail and contribute 0 to the headline score (honest 'to be measured' state) rather than being faked as pass. Reference hashes are tied to the fixed headless output resolution + PNG encoder; regenerate if either changes.",
+    "mode5_subscreen": "Mode 5 pseudo-hires currently drops the sub-screen at the frontend (snes_plugin.cpp ~531); any 512px ppu test will diff until addressed. (No standalone Mode 5 ROM in this mirror; covered indirectly by op/hdma timing ROMs that set hires.)",
+    "rom_path_healing": "Test 'file' paths are real basenames from the higan mirror, but mirror layouts drift. The runner builds a basename index across the cloned tree and symlinks matches into place; unresolved ROMs report SKIP (excluded from score) rather than fail."
   },
 
   "references": {
-    "nesdev_forum": "https://forums.nesdev.org/viewtopic.php?t=18005",
-    "mister_issue": "https://github.com/MiSTer-devel/SNES_MiSTer/issues/201",
-    "higan_test_roms": "https://gitlab.com/higan/snes-test-roms"
+    "fullsnes": "https://problemkaputt.de/fullsnes.htm",
+    "anomie_docs": "https://www.romhacking.net/community/548/ (anomie SNES docs)",
+    "higan_test_roms": "https://gitlab.com/higan/snes-test-roms",
+    "peterlemon_snes": "https://github.com/PeterLemon/SNES",
+    "bsnes": "https://github.com/bsnes-emu/bsnes",
+    "blargg_spc_thread": "https://forums.nesdev.org/viewtopic.php?t=18005",
+    "mister_blargg_zip": "https://github.com/MiSTer-devel/SNES_MiSTer/files/4109309/blargg_testroms.zip"
   }
 }

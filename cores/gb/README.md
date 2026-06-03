@@ -4,7 +4,7 @@ M-cycle accurate Game Boy and Game Boy Color emulator for Veloce.
 
 ## Overview
 
-The Game Boy core provides high-accuracy emulation for both the original Game Boy (DMG) and Game Boy Color (CGB). It features M-cycle accurate Sharp LR35902 CPU emulation, precise PPU timing, and four-channel audio processing. The core passes 100% of Blargg and Mooneye timing tests and automatically detects ROM type to configure the appropriate mode.
+The Game Boy core provides high-accuracy emulation for both the original Game Boy (DMG) and Game Boy Color (CGB). It features M-cycle accurate Sharp LR35902 CPU emulation, scanline-accurate PPU timing, and four-channel audio processing, and automatically detects ROM type to configure the appropriate mode. For the current, measured accuracy status (Blargg/Mooneye/Mealybug/SameSuite coverage and known gaps) see the [Testing](#testing) section -- the previous "100%" claim has been retired pending Mooneye-aware result detection.
 
 ## Specifications
 
@@ -121,85 +121,93 @@ cmake --build build
 
 ## Testing
 
+For the testing methodology and the platform-wide picture see the top-level
+[TESTING.md](../../TESTING.md) and [COMPLETENESS.md](../../COMPLETENESS.md).
+
+**Verified accuracy:** the **Blargg serial subset only**. The catalog is large
+(225 tests / 31 suites) but the large Mooneye / SameSuite / Wilbertpol half
+cannot yet be scored (detection gap, below), so the published number reflects
+the verified serial subset and the rest is reported as unverified. Verified:
+Blargg `cpu_instrs` 10/11 PASS (`02-interrupts` known_fail), `instr_timing` PASS,
+`mem_timing` 3/3 PASS. The previous "111/111, 100%" claim was not reproducible
+and has been retired. Full justification is in
+[COMPLETENESS.md](../../COMPLETENESS.md#game-boy).
+
 ### Test Suite
 
-The Game Boy core uses a unified test runner with ROMs from multiple sources:
-- [Blargg's gb-test-roms](https://github.com/retrio/gb-test-roms) - CPU, timing, audio
-- [Mooneye Test Suite](https://github.com/Gekkio/mooneye-test-suite) - Cycle-accurate timing
-- [Mealybug Tearoom Tests](https://github.com/mattcurrie/mealybug-tearoom-tests) - PPU accuracy
-- [SameSuite](https://github.com/LIJI32/SameSuite) - APU accuracy
-- [dmg-acid2/cgb-acid2](https://github.com/mattcurrie/dmg-acid2) - Pixel-perfect PPU tests
+The Game Boy core uses the shared Veloce testkit (`tests/veloce_testkit`) so its
+detection, scoring, and JSON scorecard are identical to the other consoles. The
+authoritative test ROM set is the prebuilt
+[c-sp gameboy-test-roms v7.0 bundle](https://github.com/c-sp/gameboy-test-roms)
+(the upstream Mooneye/Mealybug/SameSuite/acid2 repos ship only RGBDS source, not
+runnable `.gb` ROMs). The runner downloads and unpacks it into
+`cores/gb/tests/roms/` on first run.
+
+`cores/gb/tests/test_config.json` is schema-v2 and enumerates **225 tests across
+31 suites**, organized by hardware subsystem with a per-test `result_detection`,
+`accuracy_type`, and `priority`:
+
+| Source | Subsystems exercised |
+|--------|----------------------|
+| Blargg `cpu_instrs`, `instr_timing`, `mem_timing(-2)`, `halt_bug`, `interrupt_time`, `oam_bug`, `dmg_sound`, `cgb_sound` | CPU instr + instruction/memory timing, HALT bug, OAM bug, APU |
+| Mooneye acceptance (`timer`, `ppu`, `interrupts`, `oam_dma`, `timing`, `bits`, `serial`, boot/div) | Cycle-accurate timer/PPU/interrupt/IME/HALT/DMA/control-flow timing |
+| Mooneye `emulator-only` (MBC1/MBC2/MBC5) | Mappers / banking |
+| Mealybug Tearoom (DMG + CGB) | Mid-scanline (mode-3) PPU register changes, pixel-perfect |
+| Wilbertpol | PPU sub-scanline STAT/mode timing |
+| SameSuite (APU ch1-4 + DIV/registers) | Cycle-accurate APU |
+| dmg-acid2 / cgb-acid2 | Pixel-perfect PPU rendering |
 
 ```bash
 cd cores/gb/tests
-python test_runner.py              # Run all tests
-python test_runner.py blargg       # Run Blargg tests only
-python test_runner.py mooneye      # Run Mooneye tests only
-python test_runner.py --json       # JSON output for CI
-python test_runner.py -v           # Verbose output
-python test_runner.py --generate-refs  # Generate visual test screenshots
+./run_tests.sh                 # run all, human scorecard
+./run_tests.sh cpu ppu apu     # filter by subsystem key or suite id
+./run_tests.sh --json          # scorecard JSON (for tests/run_all.py)
+./run_tests.sh -v              # per-test verdict lines
+./run_tests.sh --generate-refs # print measured screenshot CRC32 hashes
 ```
 
-### Test Results Summary
+### Result Detection (and its current limits)
 
-**Overall: 111/111 Pass (100%)**
+| Method | Suites | Status |
+|--------|--------|--------|
+| `serial` (ASCII "Passed"/"Failed") | Blargg cpu_instrs, instr_timing, mem_timing | Works (verified) |
+| `serial` (Mooneye Fibonacci reg + LD B,B) | All Mooneye, SameSuite, Wilbertpol | **Not yet detected** -- see below |
+| `screenshot-crc` (CRC32 of framebuffer PNG) | Mealybug, acid2, Blargg-sound, halt_bug, interrupt_time, mem_timing-2 | Pipeline works; `reference_hash` values not yet populated |
 
-#### Blargg Tests
+**Mooneye detection gap (important):** Mooneye/SameSuite/Wilbertpol ROMs do not
+print ASCII pass/fail. They signal success via the Fibonacci register fingerprint
+(`B=3 C=5 D=8 E=13 H=21 L=34`) reached at an `LD B,B` software breakpoint, plus
+non-printable serial bytes (the bus only captures ASCII `0x20-0x7E`). The shared
+detector matches a `MOONEYE: PASS/FAIL` line, which the GB plugin does not yet
+emit. **Consequence:** every Mooneye/SameSuite/Wilbertpol test currently resolves
+to RUNS (unverified -- zero credit, excluded from the headline denominator), not a
+PASS. This is a measurement limitation, not necessarily an accuracy failure. The
+config marks each test's believed verdict via `expected`, so once the core emits
+a Mooneye breakpoint line the harness will score them automatically. (Fixing this
+requires a `src` change, which is out of scope for the test suite.)
 
-| Suite | Pass | Total | Status |
-|-------|------|-------|--------|
-| CPU Instructions | 11 | 11 | Complete |
-| Instruction Timing | 1 | 1 | Complete |
-| Memory Timing | 3 | 3 | Complete |
-| OAM Bug | 1 | 1 | Complete |
+The measured per-suite results (the verified Blargg subset, the Mooneye RUNS
+state, and the captured acid2 CRCs) are tabulated with their justification in
+[COMPLETENESS.md](../../COMPLETENESS.md#game-boy).
 
-#### Mooneye Test Suite
+### Populating visual reference hashes
 
-| Suite | Pass | Total | Status |
-|-------|------|-------|--------|
-| Bits (mem_oam, reg_f, unused_hwio) | 3 | 3 | Complete |
-| Instructions (DAA) | 1 | 1 | Complete |
-| Interrupts (ie_push) | 1 | 1 | Complete |
-| OAM DMA | 3 | 3 | Complete |
-| PPU Timing | 12 | 12 | Complete |
-| Timer | 13 | 13 | Complete |
-| General Timing | 29 | 29 | Complete |
-
-#### Mealybug Tearoom PPU Tests
-
-| Suite | Pass | Total | Status |
-|-------|------|-------|--------|
-| Mode 2/3 PPU Tests | 20 | 20 | Complete |
-
-#### SameSuite APU Tests
-
-| Suite | Pass | Total | Status |
-|-------|------|-------|--------|
-| Channel 1 (Pulse+Sweep) | 13 | 13 | Complete |
-
-### Visual Tests (Screenshot Comparison)
-
-| Test | Status | Notes |
-|------|--------|-------|
-| dmg-acid2 | Pass | Pixel-perfect DMG PPU |
-| cgb-acid2 | Pass | Pixel-perfect CGB PPU |
-| DMG Sound (12 tests) | Pass | All APU tests passing |
-| CGB Sound (12 tests) | Pending | Requires CGB mode testing |
-
-### Known Test Failures
-
-None! All serial and visual tests pass.
-
-### Test Categories
-
-The test runner supports category aliases for convenience:
+`screenshot-crc` tests ship with empty `reference_hash` (so they SKIP / are
+excluded from the score rather than scoring the emulator against its own output).
+To validate them, capture the frame on a known-good reference emulator (or real
+hardware), then:
 
 ```bash
-python test_runner.py blargg       # cpu_instrs, instr_timing, mem_timing, oam_bug
-python test_runner.py mooneye      # All Mooneye acceptance tests
-python test_runner.py mealybug     # Mealybug Tearoom PPU tests
-python test_runner.py visual       # dmg_sound, cgb_sound, acid2 tests
-python test_runner.py apu          # SameSuite APU tests
+./run_tests.sh dmg_acid2 cgb_acid2 mealybug_dmg --generate-refs
+# paste the printed hashes into reference_hash, then flip expected to "pass"
+```
+
+### Measurement path for the full suite
+
+```bash
+# build the GB plugin (cmake lives under pyenv on this machine)
+PATH=~/.pyenv/versions/3.12.10/bin:$PATH cmake --build /home/jsho/repos/emulatorplatform/build --target gb_plugin
+cd cores/gb/tests && ./run_tests.sh --json > /tmp/gb_scorecard.json
 ```
 
 ## Architecture
