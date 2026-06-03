@@ -12,6 +12,7 @@ add_library(nes_plugin SHARED
     src/apu.cpp
     src/bus.cpp
     src/cartridge.cpp
+    src/trace.cpp
     src/mappers/mapper.cpp
     src/mappers/mapper_000.cpp
     src/mappers/mapper_001.cpp

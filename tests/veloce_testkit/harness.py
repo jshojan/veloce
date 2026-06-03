@@ -100,10 +100,18 @@ class Harness:
             safe = str(test.file).replace("/", "_").replace(" ", "_")
             screenshot_path = self.s.screenshots_dir / f"{safe}.png"
             env["SAVE_SCREENSHOT"] = str(screenshot_path)
-        else:
+        trace_path = None
+        if test.result_detection != DetectionMethod.SCREENSHOT_CRC:
             env["FRAMES"] = str(test.frames or self.config.frame_limit or self.s.default_frames)
             if test.result_detection == DetectionMethod.CPU_TRACE:
+                # The veloce binary's normal startup logging pollutes stdout, so
+                # the NES core writes the nestest trace to a dedicated file named
+                # by TRACE_FILE. We read that file back for comparison, keeping
+                # the trace on a clean channel regardless of other stdout noise.
                 env["TRACE"] = "1"
+                safe = str(test.file).replace("/", "_").replace(" ", "_")
+                trace_path = self.s.screenshots_dir / f"{safe}.trace"
+                env["TRACE_FILE"] = str(trace_path)
 
         timeout = self.config.timeout_seconds or self.s.default_timeout
         try:
@@ -119,12 +127,12 @@ class Harness:
         except Exception as e:  # noqa: BLE001
             return self._finish(test, DetectionResult(TestStatus.ERROR, str(e)))
 
-        det = self._detect(test, output, exit_code, screenshot_path)
+        det = self._detect(test, output, exit_code, screenshot_path, trace_path)
         return self._finish(test, det, output=output, exit_code=exit_code)
 
     def _detect(
         self, test: TestSpec, output: str, exit_code: int,
-        screenshot_path: Optional[Path],
+        screenshot_path: Optional[Path], trace_path: Optional[Path] = None,
     ) -> DetectionResult:
         m = test.result_detection
         if m == DetectionMethod.MEMORY:
@@ -139,7 +147,12 @@ class Harness:
             )
         if m == DetectionMethod.CPU_TRACE:
             golden = self.s.roms_dir / test.trace_log
-            return detect_cpu_trace(output, golden, limit=test.trace_limit)
+            # Trace lines were written to the dedicated TRACE_FILE; fall back to
+            # stdout if the binary emitted them there instead.
+            emitted = output
+            if trace_path and Path(trace_path).exists():
+                emitted = Path(trace_path).read_text(errors="replace")
+            return detect_cpu_trace(emitted, golden, limit=test.trace_limit)
         return DetectionResult(TestStatus.ERROR, f"unknown detection '{m}'")
 
     def _finish(
