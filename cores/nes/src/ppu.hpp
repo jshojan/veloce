@@ -72,6 +72,10 @@ public:
     int get_scanlines_per_frame() const { return m_scanlines_per_frame; }
     int get_vblank_scanlines() const { return m_vblank_scanlines; }
 
+    // Current PPU position (for nestest-style CPU trace: scanline, dot)
+    int get_scanline() const { return m_scanline; }
+    int get_cycle() const { return m_cycle; }
+
     // Emulation options
     void set_sprite_limit_enabled(bool enabled) { m_sprite_limit_enabled = enabled; }
     bool is_sprite_limit_enabled() const { return m_sprite_limit_enabled; }

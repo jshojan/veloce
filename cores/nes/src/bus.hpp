@@ -98,6 +98,10 @@ public:
     // Get total CPU cycles elapsed (for debugging)
     uint64_t get_cpu_cycles() const { return m_cpu_cycles; }
 
+    // Override the CPU cycle counter (nestest trace: align to the 7-cycle reset
+    // baseline the golden log assumes).
+    void set_cpu_cycles(uint64_t cycles) { m_cpu_cycles = cycles; }
+
     // Save state
     void save_state(std::vector<uint8_t>& data);
     void load_state(const uint8_t*& data, size_t& remaining);

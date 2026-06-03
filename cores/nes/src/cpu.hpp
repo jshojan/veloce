@@ -50,6 +50,7 @@ public:
 
     // Register access (for debugging)
     uint16_t get_pc() const { return m_pc; }
+    void set_pc(uint16_t pc) { m_pc = pc; }  // nestest automated-mode entry
     uint8_t get_a() const { return m_a; }
     uint8_t get_x() const { return m_x; }
     uint8_t get_y() const { return m_y; }

@@ -101,7 +101,7 @@
       "source_url": "https://www.qmtpro.com/~nes/misc/nestest.txt",
       "license": "Kevin Horton (nestest), public test ROM",
       "tests": [
-        {"file": "other/nestest.nes", "accuracy_type": "cycle-accurate", "result_detection": "cpu-trace", "trace_log": "other/nestest.log", "trace_limit": 8991, "expected": "known_fail", "notes": "REQUIRES the binary to honor TRACE=1 and emit nestest-format lines, AND the golden other/nestest.log to be present (it is NOT shipped in nes-test-roms; fetch from qmtpro/nesdev). The current veloce build has no TRACE hook, so this scores as unverified/known_fail until a TRACE emitter exists. Highest-value cycle-accurate CPU gate once wired."}
+        {"file": "other/nestest.nes", "accuracy_type": "cycle-accurate", "result_detection": "cpu-trace", "trace_log": "other/nestest.log", "trace_limit": 8991, "expected": "pass", "notes": "PASSING 2026-06-02: all 8991 golden lines match. The NES core honors TRACE=1 (writing nestest.log-format lines to TRACE_FILE) and enters nestest's automated mode (PC=$C000) with the canonical 7-cycle reset baseline (CYC:7, PPU 0,21). Highest-value cycle-accurate CPU gate."}
       ]
     },
 
@@ -590,7 +590,7 @@
   },
 
   "known_issues": {
-    "nestest_trace": "nestest.nes cycle-accurate golden-trace verification needs (a) a TRACE=1 emitter in the veloce binary producing nestest.log-format lines and (b) the golden other/nestest.log (not shipped in nes-test-roms; fetch from nesdev/qmtpro). Until both exist it is reported as unverified (known_fail), not a real fail.",
+    "nestest_trace": "RESOLVED 2026-06-02: the NES core now honors TRACE=1, emitting nestest.log-format lines to the file named by TRACE_FILE (a clean channel, separate from the binary's startup logging) and entering nestest's automated mode (PC=$C000) with the canonical 7-cycle reset baseline. All 8991 golden lines in other/nestest.log match -> cpu_nestest_trace.nestest PASSES.",
     "reset_tests": "cpu_reset/*, apu_reset/*, blargg_apu_2005/09.reset_timing require a reset button to be injected mid-run. The headless harness has no reset hook, so these are unverified.",
     "cpu_interrupts": "2-nmi_and_brk, 3-nmi_and_irq, 4-irq_and_dma remain off by 1 cycle/iteration; depend on cycle-accurate DMA and APU-frame-IRQ vs NMI edge ordering.",
     "apu_frame_timing": "blargg_apu_2005 04-11 and apu_test 4-6 frame-counter/length cycle-edge tests fail on sub-cycle jitter alignment.",

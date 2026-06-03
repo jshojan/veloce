@@ -5,9 +5,11 @@
 #include "ppu.hpp"
 #include "apu.hpp"
 #include "cartridge.hpp"
+#include "trace.hpp"
 
 #include <imgui.h>
 #include <cstring>
+#include <cstdlib>
 #include <iostream>
 #include <fstream>
 
@@ -154,6 +156,12 @@ private:
     uint64_t m_total_cycles = 0;
     uint64_t m_frame_count = 0;
 
+    // nestest golden-trace mode: when TRACE=1, emit one nestest.log-format line
+    // per CPU instruction (see trace.hpp). nestest.nes is also entered in its
+    // "automated" mode (PC forced to $C000) with the canonical 7-cycle reset
+    // baseline so the PPU/CYC columns line up with the golden log.
+    bool m_trace_enabled = false;
+
     // Framebuffer
     uint32_t m_framebuffer[256 * 240];
 
@@ -221,6 +229,26 @@ bool NESPlugin::load_rom(const uint8_t* data, size_t size) {
     m_rom_loaded = true;
     m_rom_crc32 = m_cartridge->get_crc32();
     reset();
+
+    // nestest golden-trace mode setup. When TRACE=1, run nestest.nes in its
+    // automated entry point ($C000) and align the cycle/PPU baseline to the
+    // canonical 7-cycle reset that nestest.log assumes (CYC:7, PPU dot 21).
+    const char* trace_env = std::getenv("TRACE");
+    m_trace_enabled = (trace_env && trace_env[0] != '\0' && std::strcmp(trace_env, "0") != 0);
+    if (m_trace_enabled) {
+        m_cpu->set_pc(0xC000);
+        // reset() leaves the PPU at (0,0). Replay the canonical 7-cycle reset:
+        // zero the cycle counter, then tick the bus 7 times so the first traced
+        // instruction sees CYC:7 and PPU (0,21) - exactly as nestest.log does.
+        m_bus->set_cpu_cycles(0);
+        for (int i = 0; i < 7; ++i) {
+            m_bus->tick();
+        }
+        m_total_cycles = m_bus->get_cpu_cycles();
+        // Suppress the normal startup banner so stdout stays clean if the trace
+        // happens to be routed there (TRACE_FILE not set).
+        return true;
+    }
 
     std::cout << "NES ROM loaded, CRC32: " << std::hex << m_rom_crc32 << std::dec << std::endl;
     return true;
@@ -298,6 +326,14 @@ void NESPlugin::run_frame_internal(uint32_t player1_buttons, uint32_t player2_bu
         }
 
         if (frame_complete) break;
+
+        // nestest golden trace: emit BEFORE executing so register/PPU/CYC
+        // columns reflect the pre-instruction state, as nestest.log records it.
+        if (m_trace_enabled) {
+            if (CPUTrace* tracer = CPUTrace::instance()) {
+                tracer->emit(*m_cpu, *m_ppu, *m_bus, m_bus->get_cpu_cycles());
+            }
+        }
 
         // Step CPU - memory accesses tick PPU/APU via the bus
         int cpu_cycles = m_cpu->step();
