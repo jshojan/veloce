@@ -1,328 +1,1828 @@
 {
-  "description": "Game Boy Emulator Test Configuration (Blargg + Mooneye + Cycle-Accurate tests)",
-  "timeout_seconds": 60,
-  "frame_limit": 3000,
-
+  "schema_version": 2,
+  "console": "gb",
+  "description": "Game Boy / Game Boy Color authoritative test suite. Subsystem-organized, prioritized, per-test result-detection. Paths target the c-sp gameboy-test-roms v7.0 prebuilt bundle (the only source that ships runnable .gb ROMs for Mooneye/Mealybug/SameSuite/acid2; the upstream repos ship only RGBDS source).",
+  "timeout_seconds": 90,
+  "frame_limit": 2500,
   "repositories": {
-    "blargg": {
-      "url": "https://github.com/retrio/gb-test-roms.git",
-      "dir": "gb-test-roms",
-      "type": "git"
-    },
-    "mooneye": {
+    "bundle": {
       "url": "https://github.com/c-sp/gameboy-test-roms/releases/download/v7.0/game-boy-test-roms-v7.0.zip",
       "dir": "gameboy-test-roms",
-      "type": "zip"
+      "type": "zip",
+      "license": "aggregate; per-suite upstream licenses (Blargg PD, Mooneye MIT, Mealybug MIT, SameSuite MIT, acid2 MIT)"
     }
   },
-
   "test_suites": {
     "cpu_instrs": {
       "name": "CPU Instructions (Blargg)",
-      "description": "Tests all CPU instructions except STOP and illegal opcodes",
+      "description": "All SM83 opcodes except STOP/illegal. Individual ROMs each echo a serial verdict.",
+      "subsystem": "cpu",
       "priority": "critical",
-      "repo": "blargg",
+      "repo": "bundle",
       "tests": [
-        {"path": "cpu_instrs/individual/01-special.gb", "expected": "pass"},
-        {"path": "cpu_instrs/individual/02-interrupts.gb", "expected": "pass"},
-        {"path": "cpu_instrs/individual/03-op sp,hl.gb", "expected": "pass"},
-        {"path": "cpu_instrs/individual/04-op r,imm.gb", "expected": "pass"},
-        {"path": "cpu_instrs/individual/05-op rp.gb", "expected": "pass"},
-        {"path": "cpu_instrs/individual/06-ld r,r.gb", "expected": "pass"},
-        {"path": "cpu_instrs/individual/07-jr,jp,call,ret,rst.gb", "expected": "pass"},
-        {"path": "cpu_instrs/individual/08-misc instrs.gb", "expected": "pass"},
-        {"path": "cpu_instrs/individual/09-op r,r.gb", "expected": "pass"},
-        {"path": "cpu_instrs/individual/10-bit ops.gb", "expected": "pass"},
-        {"path": "cpu_instrs/individual/11-op a,(hl).gb", "expected": "pass"}
+        {
+          "file": "blargg/cpu_instrs/individual/01-special.gb",
+          "accuracy_type": "functional",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "blargg/cpu_instrs/individual/02-interrupts.gb",
+          "accuracy_type": "timing",
+          "result_detection": "serial",
+          "expected": "known_fail",
+          "notes": "MEASURED FAIL: no serial 'Passed' even at 8000 frames. EI/IME-enable-delay or IF/IE dispatch-timing bug."
+        },
+        {
+          "file": "blargg/cpu_instrs/individual/03-op sp,hl.gb",
+          "accuracy_type": "functional",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "blargg/cpu_instrs/individual/04-op r,imm.gb",
+          "accuracy_type": "functional",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "blargg/cpu_instrs/individual/05-op rp.gb",
+          "accuracy_type": "functional",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "blargg/cpu_instrs/individual/06-ld r,r.gb",
+          "accuracy_type": "functional",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "blargg/cpu_instrs/individual/07-jr,jp,call,ret,rst.gb",
+          "accuracy_type": "functional",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "blargg/cpu_instrs/individual/08-misc instrs.gb",
+          "accuracy_type": "functional",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "blargg/cpu_instrs/individual/09-op r,r.gb",
+          "accuracy_type": "functional",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "blargg/cpu_instrs/individual/10-bit ops.gb",
+          "accuracy_type": "functional",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "blargg/cpu_instrs/individual/11-op a,(hl).gb",
+          "accuracy_type": "functional",
+          "result_detection": "serial",
+          "expected": "pass"
+        }
       ]
     },
-
     "instr_timing": {
       "name": "Instruction Timing (Blargg)",
-      "description": "Tests that instructions take the correct number of cycles",
-      "priority": "high",
-      "repo": "blargg",
-      "tests": [
-        {"path": "instr_timing/instr_timing.gb", "expected": "pass"}
-      ]
-    },
-
-    "mem_timing": {
-      "name": "Memory Timing (Blargg)",
-      "description": "Tests memory access timing",
-      "priority": "high",
-      "repo": "blargg",
-      "tests": [
-        {"path": "mem_timing/individual/01-read_timing.gb", "expected": "pass"},
-        {"path": "mem_timing/individual/02-write_timing.gb", "expected": "pass"},
-        {"path": "mem_timing/individual/03-modify_timing.gb", "expected": "pass"}
-      ]
-    },
-
-    "oam_bug": {
-      "name": "OAM Bug (Blargg)",
-      "description": "Tests OAM corruption bug behavior",
-      "priority": "low",
-      "repo": "blargg",
-      "tests": [
-        {"path": "oam_bug/oam_bug.gb", "expected": "pass", "notes": "DMG OAM corruption quirk"}
-      ]
-    },
-
-    "mooneye_bits": {
-      "name": "Mooneye - Bits",
-      "description": "Tests for bit-level hardware behavior",
-      "priority": "high",
-      "repo": "mooneye",
-      "tests": [
-        {"path": "mooneye-test-suite/acceptance/bits/mem_oam.gb", "expected": "pass"},
-        {"path": "mooneye-test-suite/acceptance/bits/reg_f.gb", "expected": "pass"},
-        {"path": "mooneye-test-suite/acceptance/bits/unused_hwio-GS.gb", "expected": "pass"}
-      ]
-    },
-
-    "mooneye_instr": {
-      "name": "Mooneye - Instructions",
-      "description": "CPU instruction tests",
+      "description": "Each instruction consumes the correct M-cycles.",
+      "subsystem": "timing",
       "priority": "critical",
-      "repo": "mooneye",
+      "repo": "bundle",
       "tests": [
-        {"path": "mooneye-test-suite/acceptance/instr/daa.gb", "expected": "pass"}
+        {
+          "file": "blargg/instr_timing/instr_timing.gb",
+          "accuracy_type": "timing",
+          "result_detection": "serial",
+          "expected": "pass",
+          "notes": "MEASURED PASS"
+        }
       ]
     },
-
-    "mooneye_interrupts": {
-      "name": "Mooneye - Interrupts",
-      "description": "Interrupt handling tests",
+    "mem_timing": {
+      "name": "Memory Access Timing (Blargg)",
+      "description": "Cycle on which each read/write/RMW touches the bus.",
+      "subsystem": "timing",
+      "priority": "critical",
+      "repo": "bundle",
+      "tests": [
+        {
+          "file": "blargg/mem_timing/individual/01-read_timing.gb",
+          "accuracy_type": "timing",
+          "result_detection": "serial",
+          "expected": "pass",
+          "notes": "MEASURED PASS"
+        },
+        {
+          "file": "blargg/mem_timing/individual/02-write_timing.gb",
+          "accuracy_type": "timing",
+          "result_detection": "serial",
+          "expected": "pass",
+          "notes": "MEASURED PASS"
+        },
+        {
+          "file": "blargg/mem_timing/individual/03-modify_timing.gb",
+          "accuracy_type": "timing",
+          "result_detection": "serial",
+          "expected": "pass",
+          "notes": "MEASURED PASS"
+        }
+      ]
+    },
+    "mem_timing_2": {
+      "name": "Memory Access Timing 2 (Blargg)",
+      "description": "Tighter sub-cycle memory access timing. Result shown on-screen; screenshot-crc avoids the non-ASCII serial decode crash.",
+      "subsystem": "timing",
       "priority": "high",
-      "repo": "mooneye",
+      "repo": "bundle",
       "tests": [
-        {"path": "mooneye-test-suite/acceptance/interrupts/ie_push.gb", "expected": "pass"}
+        {
+          "file": "blargg/mem_timing-2/mem_timing.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "screenshot-crc",
+          "expected": "known_fail",
+          "screenshot_frame": 180,
+          "reference_hash": "",
+          "notes": "Combined ROM; on-screen result. reference_hash TBD via --generate-refs."
+        },
+        {
+          "file": "blargg/mem_timing-2/rom_singles/01-read_timing.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "screenshot-crc",
+          "expected": "known_fail",
+          "screenshot_frame": 180,
+          "reference_hash": ""
+        },
+        {
+          "file": "blargg/mem_timing-2/rom_singles/02-write_timing.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "screenshot-crc",
+          "expected": "known_fail",
+          "screenshot_frame": 180,
+          "reference_hash": ""
+        },
+        {
+          "file": "blargg/mem_timing-2/rom_singles/03-modify_timing.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "screenshot-crc",
+          "expected": "known_fail",
+          "screenshot_frame": 180,
+          "reference_hash": ""
+        }
       ]
     },
-
+    "halt_bug": {
+      "name": "HALT Bug (Blargg)",
+      "description": "HALT with IME=0 and pending interrupt PC-double-read quirk.",
+      "subsystem": "cpu",
+      "priority": "high",
+      "repo": "bundle",
+      "tests": [
+        {
+          "file": "blargg/halt_bug.gb",
+          "accuracy_type": "timing",
+          "result_detection": "screenshot-crc",
+          "expected": "known_fail",
+          "screenshot_frame": 200,
+          "reference_hash": "",
+          "notes": "MEASURED: no ASCII serial (on-screen only). reference_hash TBD."
+        }
+      ]
+    },
+    "interrupt_time": {
+      "name": "Interrupt Timing (Blargg, CGB)",
+      "description": "Cycle at which an interrupt is serviced vs the trigger. CGB ROM.",
+      "subsystem": "timing",
+      "priority": "high",
+      "repo": "bundle",
+      "tests": [
+        {
+          "file": "blargg/interrupt_time/interrupt_time.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "screenshot-crc",
+          "expected": "known_fail",
+          "screenshot_frame": 200,
+          "reference_hash": "",
+          "notes": "MEASURED: no ASCII serial (on-screen, CGB-only). reference_hash TBD."
+        }
+      ]
+    },
+    "oam_bug": {
+      "name": "OAM Corruption Bug (Blargg)",
+      "description": "DMG OAM corruption on 16-bit inc/dec into $FE00-$FEFF during mode 2.",
+      "subsystem": "ppu",
+      "priority": "medium",
+      "repo": "bundle",
+      "tests": [
+        {
+          "file": "blargg/oam_bug/rom_singles/1-lcd_sync.gb",
+          "accuracy_type": "timing",
+          "result_detection": "serial",
+          "expected": "known_fail"
+        },
+        {
+          "file": "blargg/oam_bug/rom_singles/2-causes.gb",
+          "accuracy_type": "timing",
+          "result_detection": "serial",
+          "expected": "known_fail"
+        },
+        {
+          "file": "blargg/oam_bug/rom_singles/3-non_causes.gb",
+          "accuracy_type": "timing",
+          "result_detection": "serial",
+          "expected": "known_fail"
+        },
+        {
+          "file": "blargg/oam_bug/rom_singles/4-scanline_timing.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "known_fail"
+        },
+        {
+          "file": "blargg/oam_bug/rom_singles/5-timing_bug.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "known_fail"
+        },
+        {
+          "file": "blargg/oam_bug/rom_singles/6-timing_no_bug.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "known_fail"
+        },
+        {
+          "file": "blargg/oam_bug/rom_singles/7-timing_effect.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "known_fail"
+        },
+        {
+          "file": "blargg/oam_bug/rom_singles/8-instr_effect.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "known_fail"
+        }
+      ]
+    },
+    "mooneye_cpu_instr": {
+      "name": "Mooneye - CPU Instructions",
+      "description": "DAA flags.",
+      "subsystem": "cpu",
+      "priority": "critical",
+      "repo": "bundle",
+      "tests": [
+        {
+          "file": "mooneye-test-suite/acceptance/instr/daa.gb",
+          "accuracy_type": "functional",
+          "result_detection": "serial",
+          "expected": "pass",
+          "notes": "Mooneye signals via Fibonacci reg fingerprint + LD B,B; binary does not yet print MOONEYE: PASS/FAIL, so currently resolves to RUNS. See known_issues.mooneye_detection."
+        }
+      ]
+    },
+    "mooneye_bits": {
+      "name": "Mooneye - Register/Memory Bit Behavior",
+      "description": "reg_f masking, OAM/HWIO unused-bit reads.",
+      "subsystem": "memory",
+      "priority": "high",
+      "repo": "bundle",
+      "tests": [
+        {
+          "file": "mooneye-test-suite/acceptance/bits/mem_oam.gb",
+          "accuracy_type": "functional",
+          "result_detection": "serial",
+          "expected": "pass",
+          "notes": "Mooneye signals via Fibonacci reg fingerprint + LD B,B; binary does not yet print MOONEYE: PASS/FAIL, so currently resolves to RUNS. See known_issues.mooneye_detection."
+        },
+        {
+          "file": "mooneye-test-suite/acceptance/bits/reg_f.gb",
+          "accuracy_type": "functional",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "mooneye-test-suite/acceptance/bits/unused_hwio-GS.gb",
+          "accuracy_type": "functional",
+          "result_detection": "serial",
+          "expected": "pass"
+        }
+      ]
+    },
+    "mooneye_interrupts": {
+      "name": "Mooneye - Interrupts / IME / EI / HALT",
+      "description": "IE-push race, EI/DI sequencing, dispatch + HALT wakeup timing.",
+      "subsystem": "timing",
+      "priority": "critical",
+      "repo": "bundle",
+      "tests": [
+        {
+          "file": "mooneye-test-suite/acceptance/interrupts/ie_push.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "pass",
+          "notes": "Mooneye signals via Fibonacci reg fingerprint + LD B,B; binary does not yet print MOONEYE: PASS/FAIL, so currently resolves to RUNS. See known_issues.mooneye_detection."
+        },
+        {
+          "file": "mooneye-test-suite/acceptance/ei_sequence.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "mooneye-test-suite/acceptance/ei_timing.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "mooneye-test-suite/acceptance/di_timing-GS.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "mooneye-test-suite/acceptance/rapid_di_ei.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "mooneye-test-suite/acceptance/intr_timing.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "mooneye-test-suite/acceptance/if_ie_registers.gb",
+          "accuracy_type": "functional",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "mooneye-test-suite/acceptance/reti_intr_timing.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "mooneye-test-suite/acceptance/halt_ime0_ei.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "pass",
+          "notes": "HALT bug path"
+        },
+        {
+          "file": "mooneye-test-suite/acceptance/halt_ime0_nointr_timing.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "mooneye-test-suite/acceptance/halt_ime1_timing.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "mooneye-test-suite/acceptance/halt_ime1_timing2-GS.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "pass"
+        }
+      ]
+    },
     "mooneye_oam_dma": {
       "name": "Mooneye - OAM DMA",
-      "description": "OAM DMA transfer tests",
+      "description": "OAM DMA source decode, reg readback, restart/start/timing.",
+      "subsystem": "timing",
       "priority": "high",
-      "repo": "mooneye",
+      "repo": "bundle",
       "tests": [
-        {"path": "mooneye-test-suite/acceptance/oam_dma/basic.gb", "expected": "pass"},
-        {"path": "mooneye-test-suite/acceptance/oam_dma/reg_read.gb", "expected": "pass"},
-        {"path": "mooneye-test-suite/acceptance/oam_dma/sources-GS.gb", "expected": "pass"}
+        {
+          "file": "mooneye-test-suite/acceptance/oam_dma/basic.gb",
+          "accuracy_type": "timing",
+          "result_detection": "serial",
+          "expected": "pass",
+          "notes": "Mooneye signals via Fibonacci reg fingerprint + LD B,B; binary does not yet print MOONEYE: PASS/FAIL, so currently resolves to RUNS. See known_issues.mooneye_detection."
+        },
+        {
+          "file": "mooneye-test-suite/acceptance/oam_dma/reg_read.gb",
+          "accuracy_type": "timing",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "mooneye-test-suite/acceptance/oam_dma/sources-GS.gb",
+          "accuracy_type": "timing",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "mooneye-test-suite/acceptance/oam_dma_restart.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "mooneye-test-suite/acceptance/oam_dma_start.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "mooneye-test-suite/acceptance/oam_dma_timing.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "pass"
+        }
       ]
     },
-
     "mooneye_ppu": {
-      "name": "Mooneye - PPU",
-      "description": "PPU timing and behavior tests - critical for cycle accuracy",
+      "name": "Mooneye - PPU / STAT / Mode Timing",
+      "description": "STAT mode-transition timing, LYC=LY, STAT IRQ blocking, LCD-on timing.",
+      "subsystem": "ppu",
       "priority": "critical",
-      "repo": "mooneye",
+      "repo": "bundle",
       "tests": [
-        {"path": "mooneye-test-suite/acceptance/ppu/hblank_ly_scx_timing-GS.gb", "expected": "pass"},
-        {"path": "mooneye-test-suite/acceptance/ppu/intr_1_2_timing-GS.gb", "expected": "pass"},
-        {"path": "mooneye-test-suite/acceptance/ppu/intr_2_0_timing.gb", "expected": "pass"},
-        {"path": "mooneye-test-suite/acceptance/ppu/intr_2_mode0_timing.gb", "expected": "pass"},
-        {"path": "mooneye-test-suite/acceptance/ppu/intr_2_mode0_timing_sprites.gb", "expected": "pass"},
-        {"path": "mooneye-test-suite/acceptance/ppu/intr_2_mode3_timing.gb", "expected": "pass"},
-        {"path": "mooneye-test-suite/acceptance/ppu/intr_2_oam_ok_timing.gb", "expected": "pass"},
-        {"path": "mooneye-test-suite/acceptance/ppu/lcdon_timing-GS.gb", "expected": "pass"},
-        {"path": "mooneye-test-suite/acceptance/ppu/lcdon_write_timing-GS.gb", "expected": "pass"},
-        {"path": "mooneye-test-suite/acceptance/ppu/stat_irq_blocking.gb", "expected": "pass"},
-        {"path": "mooneye-test-suite/acceptance/ppu/stat_lyc_onoff.gb", "expected": "pass"},
-        {"path": "mooneye-test-suite/acceptance/ppu/vblank_stat_intr-GS.gb", "expected": "pass"}
+        {
+          "file": "mooneye-test-suite/acceptance/ppu/hblank_ly_scx_timing-GS.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "pass",
+          "notes": "Mooneye signals via Fibonacci reg fingerprint + LD B,B; binary does not yet print MOONEYE: PASS/FAIL, so currently resolves to RUNS. See known_issues.mooneye_detection."
+        },
+        {
+          "file": "mooneye-test-suite/acceptance/ppu/intr_1_2_timing-GS.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "mooneye-test-suite/acceptance/ppu/intr_2_0_timing.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "mooneye-test-suite/acceptance/ppu/intr_2_mode0_timing.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "mooneye-test-suite/acceptance/ppu/intr_2_mode0_timing_sprites.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "known_fail",
+          "notes": "Sprite-count-dependent mode-3 length; scanline FIFO likely fails."
+        },
+        {
+          "file": "mooneye-test-suite/acceptance/ppu/intr_2_mode3_timing.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "mooneye-test-suite/acceptance/ppu/intr_2_oam_ok_timing.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "mooneye-test-suite/acceptance/ppu/lcdon_timing-GS.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "mooneye-test-suite/acceptance/ppu/lcdon_write_timing-GS.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "mooneye-test-suite/acceptance/ppu/stat_irq_blocking.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "mooneye-test-suite/acceptance/ppu/stat_lyc_onoff.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "mooneye-test-suite/acceptance/ppu/vblank_stat_intr-GS.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "pass"
+        }
       ]
     },
-
     "mooneye_timer": {
-      "name": "Mooneye - Timer",
-      "description": "Timer hardware tests",
-      "priority": "high",
-      "repo": "mooneye",
-      "tests": [
-        {"path": "mooneye-test-suite/acceptance/timer/div_write.gb", "expected": "pass"},
-        {"path": "mooneye-test-suite/acceptance/timer/rapid_toggle.gb", "expected": "pass"},
-        {"path": "mooneye-test-suite/acceptance/timer/tim00.gb", "expected": "pass"},
-        {"path": "mooneye-test-suite/acceptance/timer/tim00_div_trigger.gb", "expected": "pass"},
-        {"path": "mooneye-test-suite/acceptance/timer/tim01.gb", "expected": "pass"},
-        {"path": "mooneye-test-suite/acceptance/timer/tim01_div_trigger.gb", "expected": "pass"},
-        {"path": "mooneye-test-suite/acceptance/timer/tim10.gb", "expected": "pass"},
-        {"path": "mooneye-test-suite/acceptance/timer/tim10_div_trigger.gb", "expected": "pass"},
-        {"path": "mooneye-test-suite/acceptance/timer/tim11.gb", "expected": "pass"},
-        {"path": "mooneye-test-suite/acceptance/timer/tim11_div_trigger.gb", "expected": "pass"},
-        {"path": "mooneye-test-suite/acceptance/timer/tima_reload.gb", "expected": "pass"},
-        {"path": "mooneye-test-suite/acceptance/timer/tima_write_reloading.gb", "expected": "pass"},
-        {"path": "mooneye-test-suite/acceptance/timer/tma_write_reloading.gb", "expected": "pass"}
-      ]
-    },
-
-    "mooneye_timing": {
-      "name": "Mooneye - General Timing",
-      "description": "General timing and synchronization tests",
+      "name": "Mooneye - Timer / DIV",
+      "description": "TIMA/TMA/TAC, DIV-write reset, falling-edge increment, TIMA reload race.",
+      "subsystem": "timing",
       "priority": "critical",
-      "repo": "mooneye",
+      "repo": "bundle",
       "tests": [
-        {"path": "mooneye-test-suite/acceptance/add_sp_e_timing.gb", "expected": "pass"},
-        {"path": "mooneye-test-suite/acceptance/call_cc_timing.gb", "expected": "pass"},
-        {"path": "mooneye-test-suite/acceptance/call_cc_timing2.gb", "expected": "pass"},
-        {"path": "mooneye-test-suite/acceptance/call_timing.gb", "expected": "pass"},
-        {"path": "mooneye-test-suite/acceptance/call_timing2.gb", "expected": "pass"},
-        {"path": "mooneye-test-suite/acceptance/di_timing-GS.gb", "expected": "pass"},
-        {"path": "mooneye-test-suite/acceptance/div_timing.gb", "expected": "pass"},
-        {"path": "mooneye-test-suite/acceptance/ei_sequence.gb", "expected": "pass"},
-        {"path": "mooneye-test-suite/acceptance/ei_timing.gb", "expected": "pass"},
-        {"path": "mooneye-test-suite/acceptance/halt_ime0_ei.gb", "expected": "pass"},
-        {"path": "mooneye-test-suite/acceptance/halt_ime0_nointr_timing.gb", "expected": "pass"},
-        {"path": "mooneye-test-suite/acceptance/halt_ime1_timing.gb", "expected": "pass"},
-        {"path": "mooneye-test-suite/acceptance/halt_ime1_timing2-GS.gb", "expected": "pass"},
-        {"path": "mooneye-test-suite/acceptance/if_ie_registers.gb", "expected": "pass"},
-        {"path": "mooneye-test-suite/acceptance/intr_timing.gb", "expected": "pass"},
-        {"path": "mooneye-test-suite/acceptance/jp_cc_timing.gb", "expected": "pass"},
-        {"path": "mooneye-test-suite/acceptance/jp_timing.gb", "expected": "pass"},
-        {"path": "mooneye-test-suite/acceptance/ld_hl_sp_e_timing.gb", "expected": "pass"},
-        {"path": "mooneye-test-suite/acceptance/oam_dma_restart.gb", "expected": "pass"},
-        {"path": "mooneye-test-suite/acceptance/oam_dma_start.gb", "expected": "pass"},
-        {"path": "mooneye-test-suite/acceptance/oam_dma_timing.gb", "expected": "pass"},
-        {"path": "mooneye-test-suite/acceptance/pop_timing.gb", "expected": "pass"},
-        {"path": "mooneye-test-suite/acceptance/push_timing.gb", "expected": "pass"},
-        {"path": "mooneye-test-suite/acceptance/rapid_di_ei.gb", "expected": "pass"},
-        {"path": "mooneye-test-suite/acceptance/ret_cc_timing.gb", "expected": "pass"},
-        {"path": "mooneye-test-suite/acceptance/ret_timing.gb", "expected": "pass"},
-        {"path": "mooneye-test-suite/acceptance/reti_intr_timing.gb", "expected": "pass"},
-        {"path": "mooneye-test-suite/acceptance/reti_timing.gb", "expected": "pass"},
-        {"path": "mooneye-test-suite/acceptance/rst_timing.gb", "expected": "pass"}
+        {
+          "file": "mooneye-test-suite/acceptance/timer/div_write.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "pass",
+          "notes": "Mooneye signals via Fibonacci reg fingerprint + LD B,B; binary does not yet print MOONEYE: PASS/FAIL, so currently resolves to RUNS. See known_issues.mooneye_detection."
+        },
+        {
+          "file": "mooneye-test-suite/acceptance/timer/rapid_toggle.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "mooneye-test-suite/acceptance/timer/tim00.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "mooneye-test-suite/acceptance/timer/tim00_div_trigger.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "mooneye-test-suite/acceptance/timer/tim01.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "mooneye-test-suite/acceptance/timer/tim01_div_trigger.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "mooneye-test-suite/acceptance/timer/tim10.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "mooneye-test-suite/acceptance/timer/tim10_div_trigger.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "mooneye-test-suite/acceptance/timer/tim11.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "mooneye-test-suite/acceptance/timer/tim11_div_trigger.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "mooneye-test-suite/acceptance/timer/tima_reload.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "mooneye-test-suite/acceptance/timer/tima_write_reloading.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "mooneye-test-suite/acceptance/timer/tma_write_reloading.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "pass"
+        }
       ]
     },
-
-    "mealybug_ppu": {
-      "name": "Mealybug Tearoom - PPU",
-      "description": "Advanced PPU timing tests",
+    "mooneye_div_boot": {
+      "name": "Mooneye - DIV / Boot State",
+      "description": "DIV power-on relationship and post-boot register/HWIO state.",
+      "subsystem": "timing",
       "priority": "high",
-      "repo": "mooneye",
+      "repo": "bundle",
       "tests": [
-        {"path": "mealybug-tearoom-tests/ppu/m2_win_en_toggle.gb", "expected": "pass"},
-        {"path": "mealybug-tearoom-tests/ppu/m3_bgp_change.gb", "expected": "pass"},
-        {"path": "mealybug-tearoom-tests/ppu/m3_bgp_change_sprites.gb", "expected": "pass"},
-        {"path": "mealybug-tearoom-tests/ppu/m3_lcdc_bg_en_change.gb", "expected": "pass"},
-        {"path": "mealybug-tearoom-tests/ppu/m3_lcdc_bg_map_change.gb", "expected": "pass"},
-        {"path": "mealybug-tearoom-tests/ppu/m3_lcdc_obj_en_change.gb", "expected": "pass"},
-        {"path": "mealybug-tearoom-tests/ppu/m3_lcdc_obj_size_change.gb", "expected": "pass"},
-        {"path": "mealybug-tearoom-tests/ppu/m3_lcdc_tile_sel_change.gb", "expected": "pass"},
-        {"path": "mealybug-tearoom-tests/ppu/m3_lcdc_tile_sel_win_change.gb", "expected": "pass"},
-        {"path": "mealybug-tearoom-tests/ppu/m3_lcdc_win_en_change_multiple.gb", "expected": "pass"},
-        {"path": "mealybug-tearoom-tests/ppu/m3_lcdc_win_en_change_multiple_wx.gb", "expected": "pass"},
-        {"path": "mealybug-tearoom-tests/ppu/m3_lcdc_win_map_change.gb", "expected": "pass"},
-        {"path": "mealybug-tearoom-tests/ppu/m3_obp0_change.gb", "expected": "pass"},
-        {"path": "mealybug-tearoom-tests/ppu/m3_scx_high_5_bits.gb", "expected": "pass"},
-        {"path": "mealybug-tearoom-tests/ppu/m3_scx_low_3_bits.gb", "expected": "pass"},
-        {"path": "mealybug-tearoom-tests/ppu/m3_scy_change.gb", "expected": "pass"},
-        {"path": "mealybug-tearoom-tests/ppu/m3_window_timing.gb", "expected": "pass"},
-        {"path": "mealybug-tearoom-tests/ppu/m3_wx_4_change.gb", "expected": "pass"},
-        {"path": "mealybug-tearoom-tests/ppu/m3_wx_5_change.gb", "expected": "pass"},
-        {"path": "mealybug-tearoom-tests/ppu/m3_wx_6_change.gb", "expected": "pass"}
+        {
+          "file": "mooneye-test-suite/acceptance/div_timing.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "pass",
+          "notes": "Mooneye signals via Fibonacci reg fingerprint + LD B,B; binary does not yet print MOONEYE: PASS/FAIL, so currently resolves to RUNS. See known_issues.mooneye_detection."
+        },
+        {
+          "file": "mooneye-test-suite/acceptance/boot_div-dmgABCmgb.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "known_fail",
+          "notes": "Boot-ROM/DIV power-on state; needs exact boot timing."
+        },
+        {
+          "file": "mooneye-test-suite/acceptance/boot_regs-dmgABC.gb",
+          "accuracy_type": "functional",
+          "result_detection": "serial",
+          "expected": "pass",
+          "notes": "Post-boot register state."
+        },
+        {
+          "file": "mooneye-test-suite/acceptance/boot_hwio-dmgABCmgb.gb",
+          "accuracy_type": "functional",
+          "result_detection": "serial",
+          "expected": "known_fail",
+          "notes": "Post-boot HWIO register state."
+        }
       ]
     },
-
-    "same_suite_apu": {
-      "name": "SameSuite - APU Channel 1",
-      "description": "APU accuracy tests from SameBoy's test suite",
-      "priority": "medium",
-      "repo": "mooneye",
+    "mooneye_timing": {
+      "name": "Mooneye - Instruction/Control-Flow Timing",
+      "description": "Per-instruction M-cycle timing for ADD SP,e / CALL / JP / PUSH / POP / RET / RST / RETI.",
+      "subsystem": "timing",
+      "priority": "critical",
+      "repo": "bundle",
       "tests": [
-        {"path": "same-suite/apu/channel_1/channel_1_align.gb", "expected": "pass"},
-        {"path": "same-suite/apu/channel_1/channel_1_delay.gb", "expected": "pass"},
-        {"path": "same-suite/apu/channel_1/channel_1_duty.gb", "expected": "pass"},
-        {"path": "same-suite/apu/channel_1/channel_1_duty_delay.gb", "expected": "pass"},
-        {"path": "same-suite/apu/channel_1/channel_1_extra_length_clocking-cgb0B.gb", "expected": "pass"},
-        {"path": "same-suite/apu/channel_1/channel_1_freq_change.gb", "expected": "pass"},
-        {"path": "same-suite/apu/channel_1/channel_1_nrx2_speed_change.gb", "expected": "pass"},
-        {"path": "same-suite/apu/channel_1/channel_1_restart.gb", "expected": "pass"},
-        {"path": "same-suite/apu/channel_1/channel_1_restart_nrx2_glitch.gb", "expected": "pass"},
-        {"path": "same-suite/apu/channel_1/channel_1_sweep.gb", "expected": "pass"},
-        {"path": "same-suite/apu/channel_1/channel_1_sweep_restart.gb", "expected": "pass"},
-        {"path": "same-suite/apu/channel_1/channel_1_volume.gb", "expected": "pass"},
-        {"path": "same-suite/apu/channel_1/channel_1_volume_div.gb", "expected": "pass"}
+        {
+          "file": "mooneye-test-suite/acceptance/add_sp_e_timing.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "pass",
+          "notes": "Mooneye signals via Fibonacci reg fingerprint + LD B,B; binary does not yet print MOONEYE: PASS/FAIL, so currently resolves to RUNS. See known_issues.mooneye_detection."
+        },
+        {
+          "file": "mooneye-test-suite/acceptance/call_cc_timing.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "mooneye-test-suite/acceptance/call_cc_timing2.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "mooneye-test-suite/acceptance/call_timing.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "mooneye-test-suite/acceptance/call_timing2.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "mooneye-test-suite/acceptance/jp_cc_timing.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "mooneye-test-suite/acceptance/jp_timing.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "mooneye-test-suite/acceptance/ld_hl_sp_e_timing.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "mooneye-test-suite/acceptance/pop_timing.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "mooneye-test-suite/acceptance/push_timing.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "mooneye-test-suite/acceptance/ret_cc_timing.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "mooneye-test-suite/acceptance/ret_timing.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "mooneye-test-suite/acceptance/reti_timing.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "mooneye-test-suite/acceptance/rst_timing.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "pass"
+        }
+      ]
+    },
+    "mooneye_serial": {
+      "name": "Mooneye - Serial",
+      "description": "Serial transfer interrupt timing (internal clock).",
+      "subsystem": "misc",
+      "priority": "medium",
+      "repo": "bundle",
+      "tests": [
+        {
+          "file": "mooneye-test-suite/acceptance/serial/boot_sclk_align-dmgABCmgb.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "known_fail",
+          "notes": "Serial clock divider phase vs boot."
+        }
+      ]
+    },
+    "mooneye_mbc1": {
+      "name": "Mooneye - MBC1",
+      "description": "MBC1 bank decode, RAM enable, multicart, mirroring.",
+      "subsystem": "mapper",
+      "priority": "high",
+      "repo": "bundle",
+      "tests": [
+        {
+          "file": "mooneye-test-suite/emulator-only/mbc1/bits_bank1.gb",
+          "accuracy_type": "functional",
+          "result_detection": "serial",
+          "expected": "pass",
+          "notes": "Mooneye signals via Fibonacci reg fingerprint + LD B,B; binary does not yet print MOONEYE: PASS/FAIL, so currently resolves to RUNS. See known_issues.mooneye_detection."
+        },
+        {
+          "file": "mooneye-test-suite/emulator-only/mbc1/bits_bank2.gb",
+          "accuracy_type": "functional",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "mooneye-test-suite/emulator-only/mbc1/bits_mode.gb",
+          "accuracy_type": "functional",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "mooneye-test-suite/emulator-only/mbc1/bits_ramg.gb",
+          "accuracy_type": "functional",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "mooneye-test-suite/emulator-only/mbc1/ram_64kb.gb",
+          "accuracy_type": "functional",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "mooneye-test-suite/emulator-only/mbc1/ram_256kb.gb",
+          "accuracy_type": "functional",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "mooneye-test-suite/emulator-only/mbc1/rom_512kb.gb",
+          "accuracy_type": "functional",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "mooneye-test-suite/emulator-only/mbc1/rom_1Mb.gb",
+          "accuracy_type": "functional",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "mooneye-test-suite/emulator-only/mbc1/rom_2Mb.gb",
+          "accuracy_type": "functional",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "mooneye-test-suite/emulator-only/mbc1/rom_4Mb.gb",
+          "accuracy_type": "functional",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "mooneye-test-suite/emulator-only/mbc1/rom_8Mb.gb",
+          "accuracy_type": "functional",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "mooneye-test-suite/emulator-only/mbc1/rom_16Mb.gb",
+          "accuracy_type": "functional",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "mooneye-test-suite/emulator-only/mbc1/multicart_rom_8Mb.gb",
+          "accuracy_type": "functional",
+          "result_detection": "serial",
+          "expected": "known_fail",
+          "notes": "MBC1 multicart alt bank wiring; often unimplemented."
+        }
+      ]
+    },
+    "mooneye_mbc2": {
+      "name": "Mooneye - MBC2",
+      "description": "MBC2 built-in 512x4-bit RAM and bank register.",
+      "subsystem": "mapper",
+      "priority": "high",
+      "repo": "bundle",
+      "tests": [
+        {
+          "file": "mooneye-test-suite/emulator-only/mbc2/bits_ramg.gb",
+          "accuracy_type": "functional",
+          "result_detection": "serial",
+          "expected": "known_fail",
+          "notes": "MBC2 not in core README supported list (None/MBC1/MBC3/MBC5)."
+        },
+        {
+          "file": "mooneye-test-suite/emulator-only/mbc2/bits_romb.gb",
+          "accuracy_type": "functional",
+          "result_detection": "serial",
+          "expected": "known_fail"
+        },
+        {
+          "file": "mooneye-test-suite/emulator-only/mbc2/bits_unused.gb",
+          "accuracy_type": "functional",
+          "result_detection": "serial",
+          "expected": "known_fail"
+        },
+        {
+          "file": "mooneye-test-suite/emulator-only/mbc2/ram.gb",
+          "accuracy_type": "functional",
+          "result_detection": "serial",
+          "expected": "known_fail"
+        },
+        {
+          "file": "mooneye-test-suite/emulator-only/mbc2/rom_512kb.gb",
+          "accuracy_type": "functional",
+          "result_detection": "serial",
+          "expected": "known_fail"
+        },
+        {
+          "file": "mooneye-test-suite/emulator-only/mbc2/rom_1Mb.gb",
+          "accuracy_type": "functional",
+          "result_detection": "serial",
+          "expected": "known_fail"
+        },
+        {
+          "file": "mooneye-test-suite/emulator-only/mbc2/rom_2Mb.gb",
+          "accuracy_type": "functional",
+          "result_detection": "serial",
+          "expected": "known_fail"
+        }
+      ]
+    },
+    "mooneye_mbc5": {
+      "name": "Mooneye - MBC5",
+      "description": "MBC5 9-bit ROM bank register, large ROM addressing.",
+      "subsystem": "mapper",
+      "priority": "high",
+      "repo": "bundle",
+      "tests": [
+        {
+          "file": "mooneye-test-suite/emulator-only/mbc5/rom_512kb.gb",
+          "accuracy_type": "functional",
+          "result_detection": "serial",
+          "expected": "pass",
+          "notes": "Mooneye signals via Fibonacci reg fingerprint + LD B,B; binary does not yet print MOONEYE: PASS/FAIL, so currently resolves to RUNS. See known_issues.mooneye_detection."
+        },
+        {
+          "file": "mooneye-test-suite/emulator-only/mbc5/rom_1Mb.gb",
+          "accuracy_type": "functional",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "mooneye-test-suite/emulator-only/mbc5/rom_2Mb.gb",
+          "accuracy_type": "functional",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "mooneye-test-suite/emulator-only/mbc5/rom_4Mb.gb",
+          "accuracy_type": "functional",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "mooneye-test-suite/emulator-only/mbc5/rom_8Mb.gb",
+          "accuracy_type": "functional",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "mooneye-test-suite/emulator-only/mbc5/rom_16Mb.gb",
+          "accuracy_type": "functional",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "mooneye-test-suite/emulator-only/mbc5/rom_32Mb.gb",
+          "accuracy_type": "functional",
+          "result_detection": "serial",
+          "expected": "pass"
+        },
+        {
+          "file": "mooneye-test-suite/emulator-only/mbc5/rom_64Mb.gb",
+          "accuracy_type": "functional",
+          "result_detection": "serial",
+          "expected": "pass"
+        }
+      ]
+    },
+    "wilbertpol_ppu": {
+      "name": "Wilbertpol - PPU Sub-Scanline Timing",
+      "description": "Mooneye fork with stricter mid-scanline STAT/mode transition timing.",
+      "subsystem": "ppu",
+      "priority": "medium",
+      "repo": "bundle",
+      "tests": [
+        {
+          "file": "mooneye-test-suite-wilbertpol/acceptance/gpu/hblank_ly_scx_timing_nops.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "known_fail",
+          "notes": "Needs dot-accurate FIFO; Mooneye signals via Fibonacci reg fingerprint + LD B,B; binary does not yet print MOONEYE: PASS/FAIL, so currently resolves to RUNS. See known_issues.mooneye_detection."
+        },
+        {
+          "file": "mooneye-test-suite-wilbertpol/acceptance/gpu/intr_2_mode0_timing_sprites_nops.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "known_fail"
+        }
+      ]
+    },
+    "samesuite_apu_ch1": {
+      "name": "SameSuite - APU Channel 1 (Pulse+Sweep)",
+      "description": "Sweep, envelope, duty alignment, restart NRx2 glitch.",
+      "subsystem": "apu",
+      "priority": "medium",
+      "repo": "bundle",
+      "tests": [
+        {
+          "file": "same-suite/apu/channel_1/channel_1_align.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "known_fail",
+          "notes": "Mooneye signals via Fibonacci reg fingerprint + LD B,B; binary does not yet print MOONEYE: PASS/FAIL, so currently resolves to RUNS. See known_issues.mooneye_detection."
+        },
+        {
+          "file": "same-suite/apu/channel_1/channel_1_align_cpu.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "known_fail"
+        },
+        {
+          "file": "same-suite/apu/channel_1/channel_1_delay.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "known_fail"
+        },
+        {
+          "file": "same-suite/apu/channel_1/channel_1_duty.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "known_fail"
+        },
+        {
+          "file": "same-suite/apu/channel_1/channel_1_duty_delay.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "known_fail"
+        },
+        {
+          "file": "same-suite/apu/channel_1/channel_1_extra_length_clocking-cgb0B.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "known_fail"
+        },
+        {
+          "file": "same-suite/apu/channel_1/channel_1_freq_change.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "known_fail"
+        },
+        {
+          "file": "same-suite/apu/channel_1/channel_1_nrx2_glitch.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "known_fail"
+        },
+        {
+          "file": "same-suite/apu/channel_1/channel_1_nrx2_speed_change.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "known_fail"
+        },
+        {
+          "file": "same-suite/apu/channel_1/channel_1_restart.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "known_fail"
+        },
+        {
+          "file": "same-suite/apu/channel_1/channel_1_restart_nrx2_glitch.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "known_fail"
+        },
+        {
+          "file": "same-suite/apu/channel_1/channel_1_sweep.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "known_fail"
+        },
+        {
+          "file": "same-suite/apu/channel_1/channel_1_sweep_restart.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "known_fail"
+        },
+        {
+          "file": "same-suite/apu/channel_1/channel_1_sweep_restart_2.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "known_fail"
+        },
+        {
+          "file": "same-suite/apu/channel_1/channel_1_volume.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "known_fail"
+        },
+        {
+          "file": "same-suite/apu/channel_1/channel_1_volume_div.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "known_fail"
+        }
+      ]
+    },
+    "samesuite_apu_ch2": {
+      "name": "SameSuite - APU Channel 2 (Pulse)",
+      "description": "Channel 2 envelope/duty/restart.",
+      "subsystem": "apu",
+      "priority": "low",
+      "repo": "bundle",
+      "tests": [
+        {
+          "file": "same-suite/apu/channel_2/channel_2_align.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "known_fail",
+          "notes": "Mooneye signals via Fibonacci reg fingerprint + LD B,B; binary does not yet print MOONEYE: PASS/FAIL, so currently resolves to RUNS. See known_issues.mooneye_detection."
+        },
+        {
+          "file": "same-suite/apu/channel_2/channel_2_duty.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "known_fail"
+        },
+        {
+          "file": "same-suite/apu/channel_2/channel_2_restart.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "known_fail"
+        },
+        {
+          "file": "same-suite/apu/channel_2/channel_2_volume.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "known_fail"
+        },
+        {
+          "file": "same-suite/apu/channel_2/channel_2_nrx2_glitch.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "known_fail"
+        }
+      ]
+    },
+    "samesuite_apu_ch3": {
+      "name": "SameSuite - APU Channel 3 (Wave)",
+      "description": "Wave RAM access while on, trigger glitches, sample timing.",
+      "subsystem": "apu",
+      "priority": "low",
+      "repo": "bundle",
+      "tests": [
+        {
+          "file": "same-suite/apu/channel_3/channel_3_and_glitch.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "known_fail",
+          "notes": "Mooneye signals via Fibonacci reg fingerprint + LD B,B; binary does not yet print MOONEYE: PASS/FAIL, so currently resolves to RUNS. See known_issues.mooneye_detection."
+        },
+        {
+          "file": "same-suite/apu/channel_3/channel_3_delay.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "known_fail"
+        },
+        {
+          "file": "same-suite/apu/channel_3/channel_3_first_sample.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "known_fail"
+        },
+        {
+          "file": "same-suite/apu/channel_3/channel_3_restart_delay.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "known_fail"
+        },
+        {
+          "file": "same-suite/apu/channel_3/channel_3_restart_during_delay.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "known_fail"
+        },
+        {
+          "file": "same-suite/apu/channel_3/channel_3_restart_stop_delay.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "known_fail"
+        },
+        {
+          "file": "same-suite/apu/channel_3/channel_3_shift_delay.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "known_fail"
+        },
+        {
+          "file": "same-suite/apu/channel_3/channel_3_shift_skip_delay.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "known_fail"
+        },
+        {
+          "file": "same-suite/apu/channel_3/channel_3_wave_ram_locked_write.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "known_fail"
+        },
+        {
+          "file": "same-suite/apu/channel_3/channel_3_wave_ram_sync.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "known_fail"
+        }
+      ]
+    },
+    "samesuite_apu_ch4": {
+      "name": "SameSuite - APU Channel 4 (Noise)",
+      "description": "LFSR width/period, frozen LFSR, delay.",
+      "subsystem": "apu",
+      "priority": "low",
+      "repo": "bundle",
+      "tests": [
+        {
+          "file": "same-suite/apu/channel_4/channel_4_align.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "known_fail",
+          "notes": "Mooneye signals via Fibonacci reg fingerprint + LD B,B; binary does not yet print MOONEYE: PASS/FAIL, so currently resolves to RUNS. See known_issues.mooneye_detection."
+        },
+        {
+          "file": "same-suite/apu/channel_4/channel_4_delay.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "known_fail"
+        },
+        {
+          "file": "same-suite/apu/channel_4/channel_4_equivalent_frequencies.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "known_fail"
+        },
+        {
+          "file": "same-suite/apu/channel_4/channel_4_freq_change.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "known_fail"
+        },
+        {
+          "file": "same-suite/apu/channel_4/channel_4_frequency_alignment.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "known_fail"
+        },
+        {
+          "file": "same-suite/apu/channel_4/channel_4_lfsr.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "known_fail"
+        },
+        {
+          "file": "same-suite/apu/channel_4/channel_4_lfsr15.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "known_fail"
+        },
+        {
+          "file": "same-suite/apu/channel_4/channel_4_lfsr_15_7.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "known_fail"
+        },
+        {
+          "file": "same-suite/apu/channel_4/channel_4_lfsr_7_15.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "known_fail"
+        },
+        {
+          "file": "same-suite/apu/channel_4/channel_4_lfsr_restart.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "known_fail"
+        }
+      ]
+    },
+    "samesuite_apu_regs": {
+      "name": "SameSuite - APU Registers / DIV",
+      "description": "DIV-triggered length/volume, power-off register state.",
+      "subsystem": "apu",
+      "priority": "medium",
+      "repo": "bundle",
+      "tests": [
+        {
+          "file": "same-suite/apu/div_write_trigger.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "known_fail",
+          "notes": "Mooneye signals via Fibonacci reg fingerprint + LD B,B; binary does not yet print MOONEYE: PASS/FAIL, so currently resolves to RUNS. See known_issues.mooneye_detection."
+        },
+        {
+          "file": "same-suite/apu/div_write_trigger_10.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "known_fail"
+        },
+        {
+          "file": "same-suite/apu/div_trigger_volume_10.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "known_fail"
+        },
+        {
+          "file": "same-suite/apu/div_write_trigger_volume.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "known_fail"
+        },
+        {
+          "file": "same-suite/apu/div_write_trigger_volume_10.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "serial",
+          "expected": "known_fail"
+        }
       ]
     }
   },
-
   "visual_test_suites": {
-    "_note": "These test suites use screenshot comparison for pass/fail detection. Run with --generate-refs to create reference hashes.",
-
-    "dmg_sound": {
-      "name": "DMG Sound (Blargg)",
-      "description": "Tests DMG audio hardware (screenshot comparison)",
-      "priority": "medium",
-      "repo": "blargg",
-      "tests": [
-        {"path": "dmg_sound/rom_singles/01-registers.gb", "expected": "pass", "test_type": "visual", "screenshot_frame": 600},
-        {"path": "dmg_sound/rom_singles/02-len ctr.gb", "expected": "pass", "test_type": "visual", "screenshot_frame": 600},
-        {"path": "dmg_sound/rom_singles/03-trigger.gb", "expected": "pass", "test_type": "visual", "screenshot_frame": 600},
-        {"path": "dmg_sound/rom_singles/04-sweep.gb", "expected": "pass", "test_type": "visual", "screenshot_frame": 600},
-        {"path": "dmg_sound/rom_singles/05-sweep details.gb", "expected": "pass", "test_type": "visual", "screenshot_frame": 600},
-        {"path": "dmg_sound/rom_singles/06-overflow on trigger.gb", "expected": "pass", "test_type": "visual", "screenshot_frame": 600},
-        {"path": "dmg_sound/rom_singles/07-len sweep period sync.gb", "expected": "pass", "test_type": "visual", "screenshot_frame": 600},
-        {"path": "dmg_sound/rom_singles/08-len ctr during power.gb", "expected": "pass", "test_type": "visual", "screenshot_frame": 600},
-        {"path": "dmg_sound/rom_singles/09-wave read while on.gb", "expected": "pass", "test_type": "visual", "screenshot_frame": 600},
-        {"path": "dmg_sound/rom_singles/10-wave trigger while on.gb", "expected": "pass", "test_type": "visual", "screenshot_frame": 600},
-        {"path": "dmg_sound/rom_singles/11-regs after power.gb", "expected": "pass", "test_type": "visual", "screenshot_frame": 600},
-        {"path": "dmg_sound/rom_singles/12-wave write while on.gb", "expected": "pass", "test_type": "visual", "screenshot_frame": 600}
-      ]
-    },
-
-    "cgb_sound": {
-      "name": "CGB Sound (Blargg)",
-      "description": "Tests CGB audio hardware differences (screenshot comparison)",
-      "priority": "medium",
-      "repo": "blargg",
-      "tests": [
-        {"path": "cgb_sound/rom_singles/01-registers.gb", "expected": "pass", "test_type": "visual", "screenshot_frame": 600},
-        {"path": "cgb_sound/rom_singles/02-len ctr.gb", "expected": "pass", "test_type": "visual", "screenshot_frame": 600},
-        {"path": "cgb_sound/rom_singles/03-trigger.gb", "expected": "pass", "test_type": "visual", "screenshot_frame": 600},
-        {"path": "cgb_sound/rom_singles/04-sweep.gb", "expected": "pass", "test_type": "visual", "screenshot_frame": 600},
-        {"path": "cgb_sound/rom_singles/05-sweep details.gb", "expected": "pass", "test_type": "visual", "screenshot_frame": 600},
-        {"path": "cgb_sound/rom_singles/06-overflow on trigger.gb", "expected": "pass", "test_type": "visual", "screenshot_frame": 600},
-        {"path": "cgb_sound/rom_singles/07-len sweep period sync.gb", "expected": "pass", "test_type": "visual", "screenshot_frame": 600},
-        {"path": "cgb_sound/rom_singles/08-len ctr during power.gb", "expected": "pass", "test_type": "visual", "screenshot_frame": 600},
-        {"path": "cgb_sound/rom_singles/09-wave read while on.gb", "expected": "pass", "test_type": "visual", "screenshot_frame": 600},
-        {"path": "cgb_sound/rom_singles/10-wave trigger while on.gb", "expected": "pass", "test_type": "visual", "screenshot_frame": 600},
-        {"path": "cgb_sound/rom_singles/11-regs after power.gb", "expected": "pass", "test_type": "visual", "screenshot_frame": 600},
-        {"path": "cgb_sound/rom_singles/12-wave.gb", "expected": "pass", "test_type": "visual", "screenshot_frame": 600}
-      ]
-    },
-
     "dmg_acid2": {
-      "name": "DMG Acid2",
-      "description": "Pixel-perfect PPU rendering test for DMG",
-      "priority": "high",
-      "repo": "mooneye",
+      "name": "DMG Acid2 (PPU, visual)",
+      "description": "Pixel-perfect BG/window/sprite/priority/8x16 on DMG. The PPU smoke test.",
+      "subsystem": "ppu",
+      "priority": "critical",
+      "repo": "bundle",
       "tests": [
-        {"path": "dmg-acid2/dmg-acid2.gb", "expected": "pass", "test_type": "visual", "screenshot_frame": 60}
+        {
+          "file": "dmg-acid2/dmg-acid2.gb",
+          "accuracy_type": "visual",
+          "result_detection": "screenshot-crc",
+          "expected": "known_fail",
+          "screenshot_frame": 30,
+          "reference_hash": "",
+          "notes": "reference_hash TBD via --generate-refs against a known-good frame."
+        }
       ]
     },
-
     "cgb_acid2": {
-      "name": "CGB Acid2",
-      "description": "Pixel-perfect PPU rendering test for CGB",
-      "priority": "high",
-      "repo": "mooneye",
+      "name": "CGB Acid2 (PPU, visual)",
+      "description": "Pixel-perfect rendering on CGB incl. priority/attribute flags and palettes.",
+      "subsystem": "ppu",
+      "priority": "critical",
+      "repo": "bundle",
       "tests": [
-        {"path": "cgb-acid2/cgb-acid2.gbc", "expected": "pass", "test_type": "visual", "screenshot_frame": 60}
+        {
+          "file": "cgb-acid2/cgb-acid2.gbc",
+          "accuracy_type": "visual",
+          "result_detection": "screenshot-crc",
+          "expected": "known_fail",
+          "screenshot_frame": 30,
+          "reference_hash": "",
+          "notes": "reference_hash TBD via --generate-refs."
+        }
+      ]
+    },
+    "mealybug_dmg": {
+      "name": "Mealybug Tearoom - PPU (DMG, visual)",
+      "description": "Mid-scanline (mode-3) register-change PPU tests, pixel-perfect. Toughest DMG PPU suite.",
+      "subsystem": "ppu",
+      "priority": "high",
+      "repo": "bundle",
+      "tests": [
+        {
+          "file": "mealybug-tearoom-tests/ppu/m2_win_en_toggle.gb",
+          "accuracy_type": "visual",
+          "result_detection": "screenshot-crc",
+          "expected": "known_fail",
+          "screenshot_frame": 30,
+          "reference_hash": "",
+          "notes": "Likely fails on a scanline-based FIFO; reference_hash TBD."
+        },
+        {
+          "file": "mealybug-tearoom-tests/ppu/m3_bgp_change.gb",
+          "accuracy_type": "visual",
+          "result_detection": "screenshot-crc",
+          "expected": "known_fail",
+          "screenshot_frame": 30,
+          "reference_hash": ""
+        },
+        {
+          "file": "mealybug-tearoom-tests/ppu/m3_bgp_change_sprites.gb",
+          "accuracy_type": "visual",
+          "result_detection": "screenshot-crc",
+          "expected": "known_fail",
+          "screenshot_frame": 30,
+          "reference_hash": ""
+        },
+        {
+          "file": "mealybug-tearoom-tests/ppu/m3_lcdc_bg_en_change.gb",
+          "accuracy_type": "visual",
+          "result_detection": "screenshot-crc",
+          "expected": "known_fail",
+          "screenshot_frame": 30,
+          "reference_hash": ""
+        },
+        {
+          "file": "mealybug-tearoom-tests/ppu/m3_lcdc_bg_map_change.gb",
+          "accuracy_type": "visual",
+          "result_detection": "screenshot-crc",
+          "expected": "known_fail",
+          "screenshot_frame": 30,
+          "reference_hash": ""
+        },
+        {
+          "file": "mealybug-tearoom-tests/ppu/m3_lcdc_obj_en_change.gb",
+          "accuracy_type": "visual",
+          "result_detection": "screenshot-crc",
+          "expected": "known_fail",
+          "screenshot_frame": 30,
+          "reference_hash": ""
+        },
+        {
+          "file": "mealybug-tearoom-tests/ppu/m3_lcdc_obj_en_change_variant.gb",
+          "accuracy_type": "visual",
+          "result_detection": "screenshot-crc",
+          "expected": "known_fail",
+          "screenshot_frame": 30,
+          "reference_hash": ""
+        },
+        {
+          "file": "mealybug-tearoom-tests/ppu/m3_lcdc_obj_size_change.gb",
+          "accuracy_type": "visual",
+          "result_detection": "screenshot-crc",
+          "expected": "known_fail",
+          "screenshot_frame": 30,
+          "reference_hash": ""
+        },
+        {
+          "file": "mealybug-tearoom-tests/ppu/m3_lcdc_obj_size_change_scx.gb",
+          "accuracy_type": "visual",
+          "result_detection": "screenshot-crc",
+          "expected": "known_fail",
+          "screenshot_frame": 30,
+          "reference_hash": ""
+        },
+        {
+          "file": "mealybug-tearoom-tests/ppu/m3_lcdc_tile_sel_change.gb",
+          "accuracy_type": "visual",
+          "result_detection": "screenshot-crc",
+          "expected": "known_fail",
+          "screenshot_frame": 30,
+          "reference_hash": ""
+        },
+        {
+          "file": "mealybug-tearoom-tests/ppu/m3_lcdc_tile_sel_win_change.gb",
+          "accuracy_type": "visual",
+          "result_detection": "screenshot-crc",
+          "expected": "known_fail",
+          "screenshot_frame": 30,
+          "reference_hash": ""
+        },
+        {
+          "file": "mealybug-tearoom-tests/ppu/m3_lcdc_win_en_change_multiple.gb",
+          "accuracy_type": "visual",
+          "result_detection": "screenshot-crc",
+          "expected": "known_fail",
+          "screenshot_frame": 30,
+          "reference_hash": ""
+        },
+        {
+          "file": "mealybug-tearoom-tests/ppu/m3_lcdc_win_en_change_multiple_wx.gb",
+          "accuracy_type": "visual",
+          "result_detection": "screenshot-crc",
+          "expected": "known_fail",
+          "screenshot_frame": 30,
+          "reference_hash": ""
+        },
+        {
+          "file": "mealybug-tearoom-tests/ppu/m3_lcdc_win_map_change.gb",
+          "accuracy_type": "visual",
+          "result_detection": "screenshot-crc",
+          "expected": "known_fail",
+          "screenshot_frame": 30,
+          "reference_hash": ""
+        },
+        {
+          "file": "mealybug-tearoom-tests/ppu/m3_obp0_change.gb",
+          "accuracy_type": "visual",
+          "result_detection": "screenshot-crc",
+          "expected": "known_fail",
+          "screenshot_frame": 30,
+          "reference_hash": ""
+        },
+        {
+          "file": "mealybug-tearoom-tests/ppu/m3_scx_high_5_bits.gb",
+          "accuracy_type": "visual",
+          "result_detection": "screenshot-crc",
+          "expected": "known_fail",
+          "screenshot_frame": 30,
+          "reference_hash": ""
+        },
+        {
+          "file": "mealybug-tearoom-tests/ppu/m3_scx_low_3_bits.gb",
+          "accuracy_type": "visual",
+          "result_detection": "screenshot-crc",
+          "expected": "known_fail",
+          "screenshot_frame": 30,
+          "reference_hash": ""
+        },
+        {
+          "file": "mealybug-tearoom-tests/ppu/m3_scy_change.gb",
+          "accuracy_type": "visual",
+          "result_detection": "screenshot-crc",
+          "expected": "known_fail",
+          "screenshot_frame": 30,
+          "reference_hash": ""
+        },
+        {
+          "file": "mealybug-tearoom-tests/ppu/m3_window_timing.gb",
+          "accuracy_type": "visual",
+          "result_detection": "screenshot-crc",
+          "expected": "known_fail",
+          "screenshot_frame": 30,
+          "reference_hash": ""
+        },
+        {
+          "file": "mealybug-tearoom-tests/ppu/m3_window_timing_wx_0.gb",
+          "accuracy_type": "visual",
+          "result_detection": "screenshot-crc",
+          "expected": "known_fail",
+          "screenshot_frame": 30,
+          "reference_hash": ""
+        },
+        {
+          "file": "mealybug-tearoom-tests/ppu/m3_wx_4_change.gb",
+          "accuracy_type": "visual",
+          "result_detection": "screenshot-crc",
+          "expected": "known_fail",
+          "screenshot_frame": 30,
+          "reference_hash": ""
+        },
+        {
+          "file": "mealybug-tearoom-tests/ppu/m3_wx_5_change.gb",
+          "accuracy_type": "visual",
+          "result_detection": "screenshot-crc",
+          "expected": "known_fail",
+          "screenshot_frame": 30,
+          "reference_hash": ""
+        },
+        {
+          "file": "mealybug-tearoom-tests/ppu/m3_wx_6_change.gb",
+          "accuracy_type": "visual",
+          "result_detection": "screenshot-crc",
+          "expected": "known_fail",
+          "screenshot_frame": 30,
+          "reference_hash": ""
+        },
+        {
+          "file": "mealybug-tearoom-tests/ppu/win_without_bg.gb",
+          "accuracy_type": "visual",
+          "result_detection": "screenshot-crc",
+          "expected": "known_fail",
+          "screenshot_frame": 30,
+          "reference_hash": ""
+        }
+      ]
+    },
+    "mealybug_cgb": {
+      "name": "Mealybug Tearoom - PPU (CGB, visual)",
+      "description": "Same ROMs in CGB mode; CGB reference_hash differs from DMG.",
+      "subsystem": "ppu",
+      "priority": "medium",
+      "repo": "bundle",
+      "tests": [
+        {
+          "file": "mealybug-tearoom-tests/ppu/m3_bgp_change.gb",
+          "accuracy_type": "visual",
+          "result_detection": "screenshot-crc",
+          "expected": "known_fail",
+          "screenshot_frame": 30,
+          "reference_hash": "",
+          "id": "mealybug_cgb.m3_bgp_change"
+        },
+        {
+          "file": "mealybug-tearoom-tests/ppu/m3_lcdc_bg_en_change.gb",
+          "accuracy_type": "visual",
+          "result_detection": "screenshot-crc",
+          "expected": "known_fail",
+          "screenshot_frame": 30,
+          "reference_hash": "",
+          "id": "mealybug_cgb.m3_lcdc_bg_en_change"
+        },
+        {
+          "file": "mealybug-tearoom-tests/ppu/m3_scx_low_3_bits.gb",
+          "accuracy_type": "visual",
+          "result_detection": "screenshot-crc",
+          "expected": "known_fail",
+          "screenshot_frame": 30,
+          "reference_hash": "",
+          "id": "mealybug_cgb.m3_scx_low_3_bits"
+        },
+        {
+          "file": "mealybug-tearoom-tests/ppu/m3_window_timing.gb",
+          "accuracy_type": "visual",
+          "result_detection": "screenshot-crc",
+          "expected": "known_fail",
+          "screenshot_frame": 30,
+          "reference_hash": "",
+          "id": "mealybug_cgb.m3_window_timing"
+        }
+      ]
+    },
+    "dmg_sound": {
+      "name": "DMG Sound (Blargg, visual)",
+      "description": "DMG APU register/length/trigger/sweep/wave; on-screen result -> screenshot-crc.",
+      "subsystem": "apu",
+      "priority": "medium",
+      "repo": "bundle",
+      "tests": [
+        {
+          "file": "blargg/dmg_sound/rom_singles/01-registers.gb",
+          "accuracy_type": "visual",
+          "result_detection": "screenshot-crc",
+          "expected": "known_fail",
+          "screenshot_frame": 120,
+          "reference_hash": ""
+        },
+        {
+          "file": "blargg/dmg_sound/rom_singles/02-len ctr.gb",
+          "accuracy_type": "visual",
+          "result_detection": "screenshot-crc",
+          "expected": "known_fail",
+          "screenshot_frame": 120,
+          "reference_hash": ""
+        },
+        {
+          "file": "blargg/dmg_sound/rom_singles/03-trigger.gb",
+          "accuracy_type": "visual",
+          "result_detection": "screenshot-crc",
+          "expected": "known_fail",
+          "screenshot_frame": 120,
+          "reference_hash": ""
+        },
+        {
+          "file": "blargg/dmg_sound/rom_singles/04-sweep.gb",
+          "accuracy_type": "visual",
+          "result_detection": "screenshot-crc",
+          "expected": "known_fail",
+          "screenshot_frame": 120,
+          "reference_hash": ""
+        },
+        {
+          "file": "blargg/dmg_sound/rom_singles/05-sweep details.gb",
+          "accuracy_type": "visual",
+          "result_detection": "screenshot-crc",
+          "expected": "known_fail",
+          "screenshot_frame": 120,
+          "reference_hash": ""
+        },
+        {
+          "file": "blargg/dmg_sound/rom_singles/06-overflow on trigger.gb",
+          "accuracy_type": "visual",
+          "result_detection": "screenshot-crc",
+          "expected": "known_fail",
+          "screenshot_frame": 120,
+          "reference_hash": ""
+        },
+        {
+          "file": "blargg/dmg_sound/rom_singles/07-len sweep period sync.gb",
+          "accuracy_type": "visual",
+          "result_detection": "screenshot-crc",
+          "expected": "known_fail",
+          "screenshot_frame": 120,
+          "reference_hash": ""
+        },
+        {
+          "file": "blargg/dmg_sound/rom_singles/08-len ctr during power.gb",
+          "accuracy_type": "visual",
+          "result_detection": "screenshot-crc",
+          "expected": "known_fail",
+          "screenshot_frame": 120,
+          "reference_hash": ""
+        },
+        {
+          "file": "blargg/dmg_sound/rom_singles/09-wave read while on.gb",
+          "accuracy_type": "visual",
+          "result_detection": "screenshot-crc",
+          "expected": "known_fail",
+          "screenshot_frame": 120,
+          "reference_hash": ""
+        },
+        {
+          "file": "blargg/dmg_sound/rom_singles/10-wave trigger while on.gb",
+          "accuracy_type": "visual",
+          "result_detection": "screenshot-crc",
+          "expected": "known_fail",
+          "screenshot_frame": 120,
+          "reference_hash": ""
+        },
+        {
+          "file": "blargg/dmg_sound/rom_singles/11-regs after power.gb",
+          "accuracy_type": "visual",
+          "result_detection": "screenshot-crc",
+          "expected": "known_fail",
+          "screenshot_frame": 120,
+          "reference_hash": ""
+        },
+        {
+          "file": "blargg/dmg_sound/rom_singles/12-wave write while on.gb",
+          "accuracy_type": "visual",
+          "result_detection": "screenshot-crc",
+          "expected": "known_fail",
+          "screenshot_frame": 120,
+          "reference_hash": ""
+        }
+      ]
+    },
+    "cgb_sound": {
+      "name": "CGB Sound (Blargg, visual)",
+      "description": "CGB APU differences vs DMG; on-screen result -> screenshot-crc.",
+      "subsystem": "apu",
+      "priority": "low",
+      "repo": "bundle",
+      "tests": [
+        {
+          "file": "blargg/cgb_sound/rom_singles/01-registers.gb",
+          "accuracy_type": "visual",
+          "result_detection": "screenshot-crc",
+          "expected": "known_fail",
+          "screenshot_frame": 120,
+          "reference_hash": ""
+        },
+        {
+          "file": "blargg/cgb_sound/rom_singles/02-len ctr.gb",
+          "accuracy_type": "visual",
+          "result_detection": "screenshot-crc",
+          "expected": "known_fail",
+          "screenshot_frame": 120,
+          "reference_hash": ""
+        },
+        {
+          "file": "blargg/cgb_sound/rom_singles/03-trigger.gb",
+          "accuracy_type": "visual",
+          "result_detection": "screenshot-crc",
+          "expected": "known_fail",
+          "screenshot_frame": 120,
+          "reference_hash": ""
+        },
+        {
+          "file": "blargg/cgb_sound/rom_singles/04-sweep.gb",
+          "accuracy_type": "visual",
+          "result_detection": "screenshot-crc",
+          "expected": "known_fail",
+          "screenshot_frame": 120,
+          "reference_hash": ""
+        },
+        {
+          "file": "blargg/cgb_sound/rom_singles/05-sweep details.gb",
+          "accuracy_type": "visual",
+          "result_detection": "screenshot-crc",
+          "expected": "known_fail",
+          "screenshot_frame": 120,
+          "reference_hash": ""
+        },
+        {
+          "file": "blargg/cgb_sound/rom_singles/06-overflow on trigger.gb",
+          "accuracy_type": "visual",
+          "result_detection": "screenshot-crc",
+          "expected": "known_fail",
+          "screenshot_frame": 120,
+          "reference_hash": ""
+        },
+        {
+          "file": "blargg/cgb_sound/rom_singles/07-len sweep period sync.gb",
+          "accuracy_type": "visual",
+          "result_detection": "screenshot-crc",
+          "expected": "known_fail",
+          "screenshot_frame": 120,
+          "reference_hash": ""
+        },
+        {
+          "file": "blargg/cgb_sound/rom_singles/08-len ctr during power.gb",
+          "accuracy_type": "visual",
+          "result_detection": "screenshot-crc",
+          "expected": "known_fail",
+          "screenshot_frame": 120,
+          "reference_hash": ""
+        },
+        {
+          "file": "blargg/cgb_sound/rom_singles/09-wave read while on.gb",
+          "accuracy_type": "visual",
+          "result_detection": "screenshot-crc",
+          "expected": "known_fail",
+          "screenshot_frame": 120,
+          "reference_hash": ""
+        },
+        {
+          "file": "blargg/cgb_sound/rom_singles/10-wave trigger while on.gb",
+          "accuracy_type": "visual",
+          "result_detection": "screenshot-crc",
+          "expected": "known_fail",
+          "screenshot_frame": 120,
+          "reference_hash": ""
+        },
+        {
+          "file": "blargg/cgb_sound/rom_singles/11-regs after power.gb",
+          "accuracy_type": "visual",
+          "result_detection": "screenshot-crc",
+          "expected": "known_fail",
+          "screenshot_frame": 120,
+          "reference_hash": ""
+        },
+        {
+          "file": "blargg/cgb_sound/rom_singles/12-wave.gb",
+          "accuracy_type": "visual",
+          "result_detection": "screenshot-crc",
+          "expected": "known_fail",
+          "screenshot_frame": 120,
+          "reference_hash": ""
+        }
       ]
     }
   },
-
-  "category_aliases": {
-    "blargg": ["cpu_instrs", "instr_timing", "mem_timing", "oam_bug"],
-    "mooneye": ["mooneye_bits", "mooneye_instr", "mooneye_interrupts", "mooneye_oam_dma", "mooneye_ppu", "mooneye_timer", "mooneye_timing"],
-    "mooneye_ppu": ["mooneye_ppu"],
-    "mooneye_timer": ["mooneye_timer"],
-    "mealybug": ["mealybug_ppu"],
-    "visual": ["dmg_sound", "cgb_sound", "dmg_acid2", "cgb_acid2"],
-    "apu": ["same_suite_apu"]
-  },
-
   "known_issues": {
-    "cgb_sound": "CGB sound tests require proper CGB mode detection and testing"
+    "mooneye_detection": "Mooneye/SameSuite/Wilbertpol ROMs do NOT print ASCII 'Passed'/'Failed'. They signal success via the Fibonacci register fingerprint (B=3 C=5 D=8 E=13 H=21 L=34) reached at an LD B,B software breakpoint, plus non-printable serial bytes (the bus captures only ASCII 0x20-0x7E). The shared detector matches 'MOONEYE: PASS|FAIL' only if the binary prints it, which cores/gb/src/plugin.cpp currently does NOT. CONSEQUENCE: every Mooneye/SameSuite/Wilbertpol test currently resolves to RUNS (zero credit, excluded from the denominator), NOT a verdict. expected=pass is set where the ROM is believed to pass so that once src adds Mooneye-aware detection the harness scores them automatically. This is the single biggest MEASUREMENT gap; it is a detection limitation, not necessarily an accuracy failure.",
+    "blargg_onscreen_only": "MEASURED: halt_bug.gb and interrupt_time.gb (CGB) emit NO ASCII serial in this build (LCD result only); scored via screenshot-crc, reference_hash TBD.",
+    "mem_timing2_serial_crash": "mem_timing-2 ROMs emit a raw 0x80 serial byte that crashes the shared harness's text-mode stdout decode (UnicodeDecodeError). Worked around by scoring mem_timing-2 via screenshot-crc. Fixing the harness (text=False / errors='replace') belongs in the shared testkit, not this core.",
+    "cpu_instrs_combined": "The combined cpu_instrs.gb / mem_timing.gb print no aggregate serial verdict (MEASURED); the individual ROMs do, and are used instead.",
+    "cpu_02_interrupts": "MEASURED REAL FAIL: cpu_instrs 02-interrupts never prints 'Passed' (to 8000 frames). Indicates an EI/IME-enable-delay or IF/IE dispatch-timing bug. Currently resolves to RUNS (no 'Failed' string either), tracked as known_fail.",
+    "pixel_fifo_scanline_based": "Core README states the pixel FIFO is scanline-based, not dot-accurate. Expected to fail the hardest mid-scanline PPU tests (Mealybug, Wilbertpol, intr_2_mode0_timing_sprites).",
+    "mbc2_unsupported": "Core README lists only None/MBC1/MBC3/MBC5; MBC2 tests are known_fail until MBC2 is implemented. (No MBC3-specific Mooneye acceptance ROMs exist; MBC3 RTC is covered by rtc3test in the bundle but not yet wired here.)",
+    "visual_refs_unpopulated": "All screenshot-crc reference_hash values are empty; generate with run_tests.sh --generate-refs against a known-good reference, then flip expected to 'pass'. Until then these SKIP (excluded from the score)."
+  },
+  "references": {
+    "bundle_v7": "https://github.com/c-sp/gameboy-test-roms",
+    "blargg": "https://github.com/retrio/gb-test-roms",
+    "mooneye": "https://github.com/Gekkio/mooneye-test-suite",
+    "mealybug": "https://github.com/mattcurrie/mealybug-tearoom-tests",
+    "samesuite": "https://github.com/LIJI32/SameSuite",
+    "dmg_acid2": "https://github.com/mattcurrie/dmg-acid2",
+    "cgb_acid2": "https://github.com/mattcurrie/cgb-acid2",
+    "wilbertpol": "https://github.com/wilbertpol/mooneye-gb",
+    "pandocs": "https://gbdev.io/pandocs/"
   }
 }

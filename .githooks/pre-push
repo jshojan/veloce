@@ -1,0 +1,27 @@
+#!/bin/sh
+# Block direct pushes to protected branches — all changes must go through a PR.
+# This keeps parallel work (multiple system agents) from colliding on main.
+#
+# Activate once per clone with:   git config core.hooksPath .githooks
+# Intentional override (discouraged):   git push --no-verify
+protected_branches="main master"
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+    for protected in $protected_branches; do
+        if [ "$remote_ref" = "refs/heads/$protected" ]; then
+            echo "" >&2
+            echo "  Direct pushes to '$protected' are blocked." >&2
+            echo "   All changes go through a pull request so parallel work stays in sync." >&2
+            echo "" >&2
+            echo "   Put your work on a branch and open a PR instead:" >&2
+            echo "     git switch -c feat/my-change" >&2
+            echo "     git push -u origin feat/my-change" >&2
+            echo "   then open the PR from the link git prints (or 'gh pr create')." >&2
+            echo "" >&2
+            echo "   (Override only if you really mean it: git push --no-verify)" >&2
+            exit 1
+        fi
+    done
+done
+
+exit 0

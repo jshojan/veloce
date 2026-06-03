@@ -138,215 +138,6 @@ cmake --build build
 - CMake 3.16+
 - No external dependencies (header-only integration with Veloce)
 
-## Testing
-
-### Test Suite
-
-The NES core uses the [nes-test-roms](https://github.com/christopherpow/nes-test-roms) collection for validation:
-
-```bash
-cd cores/nes/tests
-./run_tests.sh              # Run all tests
-./run_tests.sh cpu          # CPU tests only
-./run_tests.sh ppu          # PPU tests only
-./run_tests.sh mapper       # Mapper tests only
-./run_tests.sh apu          # APU tests only
-./run_tests.sh --verbose    # Show detailed output
-```
-
-Python test runner with JSON output for CI:
-
-```bash
-python test_runner.py --json
-```
-
-### Test Results Summary
-
-**Overall: 82/90 Pass (91.1%)** - 8 known edge cases
-
-#### CPU Instructions (Critical) - 16/16 Pass
-
-| Test | Status | Notes |
-|------|--------|-------|
-| 01-basics.nes | Pass | |
-| 02-implied.nes | Pass | |
-| 03-immediate.nes | Pass | |
-| 04-zero_page.nes | Pass | |
-| 05-zp_xy.nes | Pass | |
-| 06-absolute.nes | Pass | |
-| 07-abs_xy.nes | Pass | |
-| 08-ind_x.nes | Pass | |
-| 09-ind_y.nes | Pass | |
-| 10-branches.nes | Pass | |
-| 11-stack.nes | Pass | |
-| 12-jmp_jsr.nes | Pass | |
-| 13-rts.nes | Pass | |
-| 14-rti.nes | Pass | |
-| 15-brk.nes | Pass | |
-| 16-special.nes | Pass | |
-
-#### Blargg CPU Test5 (Critical) - 2/2 Pass
-
-| Test | Status |
-|------|--------|
-| official.nes | Pass |
-| cpu.nes | Pass |
-
-#### CPU Timing (High) - 6/6 Pass
-
-| Test | Status |
-|------|--------|
-| cpu_timing_test.nes | Pass |
-| 1.Branch_Basics.nes | Pass |
-| 2.Backward_Branch.nes | Pass |
-| 3.Forward_Branch.nes | Pass |
-| 1-instr_timing.nes | Pass |
-| 2-branch_timing.nes | Pass |
-
-#### CPU Interrupts (High) - 2/5 Pass
-
-| Test | Status | Notes |
-|------|--------|-------|
-| 1-cli_latency.nes | Pass | |
-| 2-nmi_and_brk.nes | Known Fail | NMI/BRK hijacking timing edge case |
-| 3-nmi_and_irq.nes | Known Fail | NMI/IRQ hijacking timing edge case |
-| 4-irq_and_dma.nes | Known Fail | IRQ/DMA interaction |
-| 5-branch_delays_irq.nes | Pass | |
-
-#### CPU Dummy Reads (High) - 1/1 Pass
-
-| Test | Status |
-|------|--------|
-| cpu_dummy_reads.nes | Pass |
-
-#### CPU Dummy Writes (High) - 2/2 Pass
-
-| Test | Status |
-|------|--------|
-| cpu_dummy_writes_oam.nes | Pass |
-| cpu_dummy_writes_ppumem.nes | Pass |
-
-#### Instruction Miscellaneous (Medium) - 4/4 Pass
-
-| Test | Status |
-|------|--------|
-| 01-abs_x_wrap.nes | Pass |
-| 02-branch_wrap.nes | Pass |
-| 03-dummy_reads.nes | Pass |
-| 04-dummy_reads_apu.nes | Pass |
-
-#### PPU VBlank/NMI (Critical) - 10/10 Pass
-
-| Test | Status |
-|------|--------|
-| 01-vbl_basics.nes | Pass |
-| 02-vbl_set_time.nes | Pass |
-| 03-vbl_clear_time.nes | Pass |
-| 04-nmi_control.nes | Pass |
-| 05-nmi_timing.nes | Pass |
-| 06-suppression.nes | Pass |
-| 07-nmi_on_timing.nes | Pass |
-| 08-nmi_off_timing.nes | Pass |
-| 09-even_odd_frames.nes | Pass |
-| 10-even_odd_timing.nes | Pass |
-
-#### PPU Sprites (High) - 11/11 Pass
-
-| Test | Status |
-|------|--------|
-| 01.basics.nes | Pass |
-| 02.alignment.nes | Pass |
-| 03.corners.nes | Pass |
-| 04.flip.nes | Pass |
-| 05.left_clip.nes | Pass |
-| 06.right_edge.nes | Pass |
-| 07.screen_bottom.nes | Pass |
-| 08.double_height.nes | Pass |
-| 09.timing_basics.nes | Pass |
-| 10.timing_order.nes | Pass |
-| 11.edge_timing.nes | Pass |
-
-#### Sprite Overflow (High) - 5/5 Pass
-
-| Test | Status |
-|------|--------|
-| 1.Basics.nes | Pass |
-| 2.Details.nes | Pass |
-| 3.Timing.nes | Pass |
-| 4.Obscure.nes | Pass |
-| 5.Emulator.nes | Pass |
-
-#### PPU Miscellaneous (Medium) - 3/3 Pass
-
-| Test | Status |
-|------|--------|
-| ppu_open_bus.nes | Pass |
-| oam_read.nes | Pass |
-| oam_stress.nes | Pass |
-
-#### PPU Read Buffer (Medium) - 1/1 Pass
-
-| Test | Status |
-|------|--------|
-| test_ppu_read_buffer.nes | Pass |
-
-#### MMC3 Mapper (Critical) - 5/6 Pass
-
-| Test | Status | Notes |
-|------|--------|-------|
-| 1-clocking.nes | Pass | |
-| 2-details.nes | Pass | |
-| 3-A12_clocking.nes | Pass | |
-| 4-scanline_timing.nes | Known Fail | Scanline 0 timing with 8x16 sprites |
-| 5-MMC3.nes | Pass | |
-| 6-MMC3_alt.nes | Pass | |
-
-#### MMC3 IRQ Tests (High) - 6/6 Pass
-
-| Test | Status |
-|------|--------|
-| 1.Clocking.nes | Pass |
-| 2.Details.nes | Pass |
-| 3.A12_clocking.nes | Pass |
-| 4.Scanline_timing.nes | Pass |
-| 5.MMC3_rev_A.nes | Pass |
-| 6.MMC3_rev_B.nes | Pass |
-
-#### APU (Medium) - 5/8 Pass
-
-| Test | Status | Notes |
-|------|--------|-------|
-| 1-len_ctr.nes | Pass | |
-| 2-len_table.nes | Pass | |
-| 3-irq_flag.nes | Pass | |
-| 4-jitter.nes | Known Fail | Frame counter jitter |
-| 5-len_timing.nes | Known Fail | Length counter timing |
-| 6-irq_flag_timing.nes | Known Fail | IRQ flag timing |
-| 7-dmc_basics.nes | Pass | |
-| 8-dmc_rates.nes | Pass | |
-
-#### DMC Channel (Medium) - 4/4 Pass
-
-| Test | Status |
-|------|--------|
-| buffer_retained.nes | Pass |
-| latency.nes | Pass |
-| status.nes | Pass |
-| status_irq.nes | Pass |
-
-### Known Test Failures
-
-| Test | Issue | Impact |
-|------|-------|--------|
-| cpu_interrupts_v2/2-nmi_and_brk | NMI/BRK hijacking edge case | Minimal - very rare scenario |
-| cpu_interrupts_v2/3-nmi_and_irq | NMI/IRQ hijacking edge case | Minimal - very rare scenario |
-| cpu_interrupts_v2/4-irq_and_dma | IRQ/DMA timing edge case | Minimal - very rare scenario |
-| mmc3_test_2/4-scanline_timing | Scanline 0 timing with 8x16 sprites | Uncommon scenario |
-| apu_test/4-jitter | APU frame counter jitter | Hardware variance |
-| apu_test/5-len_timing | APU length counter timing | Hardware variance |
-| apu_test/6-irq_flag_timing | APU IRQ flag timing | Hardware variance |
-| instr_test-v5/03-immediate | LAX immediate ($AB) opcode | Unstable - varies by chip |
-
 ## Architecture
 
 ### Components
@@ -386,3 +177,85 @@ The NES core implements INetplayCapable for rollback netplay:
 | src/bus.cpp/hpp | Memory bus |
 | src/cartridge.cpp/hpp | ROM loading and mapper dispatch |
 | src/mappers/ | Mapper implementations |
+
+## Testing
+
+The NES core ships an authoritative, subsystem-organized accuracy suite in
+`tests/test_config.json` (schema v2), driven by the shared `veloce_testkit`
+harness so detection and scoring are identical across all consoles. For the
+methodology and the platform-wide picture see the top-level
+[TESTING.md](../../TESTING.md) and [COMPLETENESS.md](../../COMPLETENESS.md).
+
+### Verified accuracy (evidence-based)
+
+Headline accuracy is **approximately 90-94%**, dominated by CPU and PPU. This is
+the most thoroughly verified Veloce core because most critical tests use the
+Blargg `$6000` `memory` protocol, which the binary reads directly under
+`DEBUG=1` (no reference hashes needed). Measured 2026-06-02 against
+`build/bin/veloce`.
+
+| Subsystem | Verified score | Notes |
+|-----------|----------------|-------|
+| CPU | ~96% | All 16 `instr_test-v5` official singles + `official_only` PASS; lone scored fail `exec_space_apu`; `03-immediate` known_fail (unstable opcodes) |
+| PPU | ~92% | `ppu_vbl_nmi` 9/10 PASS; OAM/open-bus PASS; sprite-hit/overflow/2005 palette suites visual and unverified |
+| Mapper | ~88% | MMC3 core verified; MMC6 + `4-scanline_timing` known_fail; MMC1/MMC5 visual/unverified |
+| APU | ~70% | Functional/length/IRQ gates pass; cycle-accurate frame-counter cluster (`apu_test` 4/5/6) fails |
+| Timing | ~40% (weakest) | `cpu_interrupts_v2` 2/3/4 fail; DMA collisions expected-fail |
+
+Full per-test justification, the verified-versus-unverified breakdown, and the
+honest coverage caveats (nestest trace, screenshot-crc reference hashes, reset
+injection, mapper breadth, PAL) are documented in
+[COMPLETENESS.md](../../COMPLETENESS.md#nes). The headline reflects the verified
+`memory`-detected subset; the 62 `screenshot-crc` tests and nestest contribute
+zero until reference hashes or a `TRACE=1` emitter exist.
+
+### Running
+
+```bash
+# from cores/nes/tests/ (requires a built build/bin/veloce and python3)
+./run_tests.sh                 # all suites, human scorecard
+./run_tests.sh cpu ppu apu     # filter by subsystem key or suite id
+./run_tests.sh -v              # per-test PASS/FAIL/KNOWN/RUNS lines
+./run_tests.sh --json          # scorecard JSON (consumed by tests/run_all.py)
+./run_tests.sh --generate-refs # emit measured CRCs for screenshot-crc tests
+```
+
+`run_tests.sh` is a thin shim over `runner.py`, which calls
+`veloce_testkit.runner.run_console_main("nes", ...)`. The ROM provider clones
+`christopherpow/nes-test-roms` on first run into `tests/nes-test-roms/`.
+
+### Coverage (172 tests across 32 suites)
+
+| Subsystem | Suites |
+|-----------|--------|
+| CPU | instr_test-v5 (official), illegal opcodes (all_instrs, nes_instr_test), blargg_nes_cpu_test5, nestest golden trace, instr/branch timing, dummy reads, dummy writes (RMW), exec-from-I/O space, misc edge cases, reset |
+| PPU | ppu_vbl_nmi, vbl_nmi_timing, sprite-0 hit, sprite overflow, OAM (read/stress), open-bus + read-buffer, blargg_ppu_2005 (palette/VRAM/power-up), full_palette/scanline render |
+| Timing | cpu_interrupts_v2 (NMI/IRQ/BRK hijacking), DMA collisions (sprdma_and_dmc_dma, dmc_dma_during_read4) |
+| APU | blargg_apu_2005, apu_test, apu_mixer, apu_reset, DMC, PAL framing |
+| Mapper | MMC3 (mmc3_test, mmc3_test_2, mmc3_irq_tests), MMC1 A12, MMC5 (mmc5test, exram) |
+| Misc | controllers (read_joy3) |
+
+### Result detection
+
+- **memory** (Blargg `$6000` protocol): the headless binary prints
+  `Status code: N (PASSED|FAILED)`; `0` is a pass. Used by the newer
+  `rom_singles` / v5 suites.
+- **screenshot-crc** (visual): older 2005-era Blargg suites
+  (`sprite_hit_tests_2005`, `sprite_overflow_tests`, `vbl_nmi_timing`,
+  `blargg_ppu_tests_2005`, `mmc3_irq_tests`, `blargg_nes_cpu_test5`,
+  `cpu_dummy_reads`) report only on-screen and **do not** write `$6000`; they are
+  classified visual and require reference hashes generated via `--generate-refs`.
+- **cpu-trace** (nestest): compares a `TRACE=1` nestest-format instruction stream
+  against the golden `nestest.log`. Requires a `TRACE=1` emitter in the binary and
+  the golden log (not shipped); currently reported as unverified.
+
+### Known measurement gaps
+
+The nestest golden trace (needs a `TRACE=1` emitter plus the golden
+`nestest.log`), reset-injection tests, screenshot-crc reference hashes, PAL
+framing, unstable illegal immediates, and narrow mapper breadth are all
+documented with their impact in
+[COMPLETENESS.md](../../COMPLETENESS.md#nes). Optional mapper PCB stress ROMs
+from `pinobatch/holy-mapperel` are referenced in the config but not auto-fetched;
+build them from that GPL repo and drop the per-mapper `.nes` files in to extend
+mapper coverage.

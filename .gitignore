@@ -82,3 +82,11 @@ _deps/
 # Temporary files
 *.tmp
 *.temp
+
+# Python bytecode
+__pycache__/
+*.pyc
+
+# stray headless-run screenshots in repo root
+/screenshot_frame_*.png
+/screenshot_final.png

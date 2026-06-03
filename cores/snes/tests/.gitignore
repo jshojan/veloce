@@ -1,0 +1,8 @@
+# Cloned SNES test-ROM repositories (re-fetched on demand by test_runner.py)
+roms/
+
+# Captured framebuffer PNGs from screenshot-crc tests
+screenshots/
+
+__pycache__/
+*.pyc

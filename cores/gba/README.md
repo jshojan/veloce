@@ -235,13 +235,78 @@ Based on comparison with GBATEK documentation and reference emulators (mGBA, Nan
 
 ## Test Status
 
-**Pass Rate: 90.9% (20/22 tests pass, 2 known issues)**
+For the testing methodology and the platform-wide picture see the top-level
+[TESTING.md](../../TESTING.md) and [COMPLETENESS.md](../../COMPLETENESS.md).
 
-Run the test suite with:
+**Verified accuracy: partial.** CPU, memory, BIOS, and saves are verified through
+the R12 spin-loop `serial` protocol (`cpu_arm`, `cpu_thumb`, `memory`, `bios`,
+SRAM/Flash all PASS; `cpu_psr` is a measured FAIL for CPSR/SPSR banking). The
+large cycle-accurate timing block is largely verified via the NanoBoyAdvance
+DMA/IRQ/timer/HALTCNT/bus tests, while the sub-scanline PPU tests are
+`known_fail` pending references. The earlier "90.9% pass rate" figure predated the
+weighted, unverified-aware methodology and is superseded; full per-subsystem
+justification is in [COMPLETENESS.md](../../COMPLETENESS.md#gba).
+
+The GBA core ships an authoritative, subsystem-organized test suite
+(`cores/gba/tests/test_config.json`, schema v2) covering **132 ROMs across 29
+suites**. Every test is tagged with a subsystem (cpu / ppu / timing / memory /
+mapper / misc), an accuracy_type (functional / timing / cycle-accurate /
+visual), a priority, and a result-detection method, so the platform-wide
+weighted scorecard can state how architecturally correct *and* cycle-accurate
+the core is. Breakdown: 23 cpu, 81 timing (DMA/IRQ/timer/prefetch/interactions/
+fifo), 18 ppu, 4 memory, 4 mapper (saves), 2 misc (BIOS) — 79 of which are
+cycle-accurate-class tests.
+
+### Test ROM sources
+
+| Repo | Subsystems | License |
+|------|------------|---------|
+| [jsmolka/gba-tests](https://github.com/jsmolka/gba-tests) | ARM/Thumb, memory, BIOS, PPU smoke, saves | MIT |
+| [alyosha-tas/gba-tests](https://github.com/alyosha-tas/gba-tests) | timing, IRQ, DMA, prefetch, LDM, interactions, PSR | MIT (fork) |
+| [nba-emu/hw-test](https://github.com/nba-emu/hw-test) | DMA, IRQ delay, timer, HALTCNT, bus, PPU status/affine | see upstream |
+| [DenSinH/FuzzARM](https://github.com/DenSinH/FuzzARM) | randomized ARM/Thumb CPU fuzz | see upstream |
+| [destoer/armwrestler-gba-fixed](https://github.com/destoer/armwrestler-gba-fixed) | ARM ALU + load/store | see upstream |
+
+Not bundled (documented in `known_issues`): the **mGBA suite** (`suite.gba`) is
+interactive with no headless verdict; the **AGS aging cartridge** is Nintendo
+proprietary and not redistributable. FuzzARM/ARMWrestler report pass/fail by
+drawing to the framebuffer (no R12 spin loop), so they are currently
+`known_fail` pending a screenshot reference or a debug-string harness.
+
+### Running
+
 ```bash
 cd cores/gba/tests
+
+# Scorecard runner (shared testkit; weighted accuracy %, JSON for CI)
+python3 runner.py            # all suites, render scorecard
+python3 runner.py cpu timing # filter by subsystem (or by suite id)
+python3 runner.py --json     # scorecard JSON consumed by tests/run_all.py
+
+# Legacy flat-summary runner (authoritative per-repo ROM resolution)
 python3 test_runner.py -v
 ```
+
+Result detection: jsmolka/alyosha/nba ROMs spin with **R12 = failing test #**
+(0 = pass); the Veloce GBA plugin detects the stable-PC spin loop and prints
+`[GBA] PASSED` / `[GBA] FAILED - Failed at test #N`, parsed by the shared
+`detect.detect_gba_register`. Visual affine tests use `SAVE_SCREENSHOT` +
+CRC32 against a pinned `reference_hash`.
+
+### Measured results (representative subset, this build)
+
+| Suite | Result |
+|-------|--------|
+| cpu_arm (`arm/arm.gba`) | **PASS** |
+| cpu_thumb (`thumb/thumb.gba`) | **PASS** |
+| cpu_psr (`psr/psr.gba`) | **FAIL** (CPSR/SPSR banking gap) |
+| memory_access (`memory/memory.gba`) | **PASS** |
+| bios (`bios/bios.gba`) | **PASS** |
+
+The remaining timing/PPU cycle-accurate suites are measured by running
+`python3 runner.py` after cloning the repos (the runner auto-clones). Suites
+known to need sub-scanline accuracy (`ppu_status_dma`, `ppu_affine_visual`) are
+pre-marked `known_fail` and excluded from the headline score until verified.
 
 ### CPU Tests (jsmolka gba-tests)
 
@@ -392,7 +457,7 @@ cd cores/gba/tests
 - [x] Implement mosaic effect - DONE (BG and OBJ mosaic, regular and affine)
 - [x] Audio interpolation for Direct Sound - DONE (linear interpolation)
 - [x] Variable multiply timing - DONE (1-4 cycles based on operand)
-- [x] Comprehensive test suite validation - DONE (90.9% pass rate)
+- [x] Comprehensive test suite validation - DONE (see COMPLETENESS.md for the verified scorecard)
 - [ ] Serial/link cable support
 - [ ] GPIO/RTC full implementation
 

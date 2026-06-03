@@ -189,7 +189,8 @@ class GBATestRunner:
 
         for repo_name, repo_config in repositories.items():
             url = repo_config.get("url")
-            directory = repo_config.get("directory", repo_name)
+            # v2 schema uses "dir"; legacy used "directory".
+            directory = repo_config.get("dir", repo_config.get("directory", repo_name))
             local_path = self.script_dir / directory
             self.repo_dirs[repo_name] = local_path
 
@@ -415,32 +416,46 @@ class GBATestRunner:
 
     def load_suites(self, categories: Optional[list[str]] = None):
         """Load test suites from configuration."""
-        # Map category names to suite names in config
-        category_map = {
-            "arm": ["arm"],
-            "thumb": ["thumb"],
-            "memory": ["memory"],
-            "ppu": ["ppu", "nba_ppu"],
-            "bios": ["bios"],
+        all_suites = self.config.get("test_suites", {})
+
+        # Category names map to the canonical "subsystem" key of each suite (v2),
+        # plus a few convenience aliases that map to specific suite ids.
+        subsystem_filters = {"cpu", "ppu", "timing", "memory", "mapper", "apu", "misc"}
+        alias_map = {
+            "arm": ["cpu_arm", "cpu_alyosha_core"],
+            "thumb": ["cpu_thumb", "cpu_alyosha_core"],
+            "fuzz": ["cpu_fuzz"],
+            "psr": ["cpu_psr"],
+            "ldm": ["cpu_ldm"],
+            "prefetch": ["prefetch"],
+            "irq": ["timing_irq", "timing_irq_nba"],
+            "dma": ["timing_dma", "timing_dma_nba"],
+            "fifo": ["timing_fifo_dma"],
+            "timer": ["timing_timer", "timing_timer_nba"],
+            "haltcnt": ["timing_haltcnt"],
+            "interactions": ["timing_interactions"],
+            "bus": ["memory_bus"],
+            "bios": ["bios", "bios_alyosha"],
             "save": ["save"],
-            "unsafe": ["unsafe"],
-            "dma": ["nba_dma"],
-            "irq": ["nba_irq"],
-            "timer": ["nba_timer"],
-            "haltcnt": ["nba_haltcnt"],
-            "bus": ["nba_bus"],
+            "unsafe": ["memory_unsafe"],
+            "ppu": ["ppu"],  # also handled by subsystem filter below
         }
 
         # Determine which suites to load
         if categories:
             suite_names = set()
             for cat in categories:
-                if cat in category_map:
-                    suite_names.update(category_map[cat])
-                elif cat in self.config.get("test_suites", {}):
+                if cat in all_suites:
                     suite_names.add(cat)
+                elif cat in subsystem_filters:
+                    suite_names.update(
+                        sid for sid, sc in all_suites.items()
+                        if sc.get("subsystem", "") == cat
+                    )
+                elif cat in alias_map:
+                    suite_names.update(s for s in alias_map[cat] if s in all_suites)
         else:
-            suite_names = set(self.config.get("test_suites", {}).keys())
+            suite_names = set(all_suites.keys())
 
         # Load suites from config
         for suite_name in sorted(suite_names):
@@ -454,8 +469,8 @@ class GBATestRunner:
                 priority=suite_config.get("priority", "medium"),
             )
 
-            # Get the repository for this suite
-            suite_repo = suite_config.get("repository", "jsmolka")
+            # Get the repository for this suite (v2 "repo", legacy "repository")
+            suite_repo = suite_config.get("repo", suite_config.get("repository", "jsmolka"))
 
             for test_config in suite_config.get("tests", []):
                 # Parse test type

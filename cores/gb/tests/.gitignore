@@ -1,0 +1,17 @@
+# Downloaded test ROM bundle (c-sp gameboy-test-roms v7.0) and any legacy clones
+roms/
+rom-repos/
+gb-test-roms/
+gameboy-test-roms/
+mooneye-test-suite/
+mealybug-tearoom-tests/
+SameSuite/
+dmg-acid2/
+cgb-acid2/
+
+# Captured screenshots from screenshot-crc tests (regenerated each run)
+screenshots/*.png
+
+# Python cache
+__pycache__/
+*.pyc

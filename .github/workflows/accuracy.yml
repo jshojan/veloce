@@ -1,0 +1,84 @@
+name: Accuracy
+
+# Cross-console test + accuracy-measurement CI for the Veloce emulator platform.
+# Two tiers:
+#   * fast-gates : pure-logic unit test + config schema validation (every push/PR)
+#   * accuracy   : full per-console ROM suites + aggregate scorecard (needs build
+#                  + network for test ROMs). Runs on PRs to main and nightly.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "0 6 * * *"   # nightly aggregate scorecard
+  workflow_dispatch:
+
+jobs:
+  fast-gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Testkit self-test (pure logic)
+        run: python3 tests/veloce_testkit/selftest.py
+      - name: Validate all test_config.json
+        run: python3 tests/validate_configs.py
+
+  accuracy:
+    needs: fast-gates
+    if: github.event_name != 'push'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        console: [nes, snes, gb, gba]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build libsdl2-dev
+      - name: Build veloce (headless)
+        run: |
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --target veloce -j
+      - name: Run ${{ matrix.console }} accuracy suite
+        run: |
+          python3 cores/${{ matrix.console }}/tests/test_runner.py --json \
+            | tee scorecard-${{ matrix.console }}.json
+      - name: Upload scorecard + screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scorecard-${{ matrix.console }}
+          path: |
+            scorecard-${{ matrix.console }}.json
+            cores/${{ matrix.console }}/tests/screenshots/
+
+  aggregate:
+    needs: accuracy
+    if: always() && github.event_name != 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/download-artifact@v4
+        with:
+          path: scorecards
+      # Aggregation note: run_all.py normally invokes each runner itself; in CI we
+      # already have per-console JSON artifacts, so a follow-up step (owned by the
+      # platform agent) can merge them. The platform scorecard gate lives here:
+      - name: Platform scorecard (regression gate stub)
+        run: |
+          echo "Aggregate scorecards collected under scorecards/."
+          echo "Wire --baseline / --no-regressions once a baseline scorecard.json is committed."
