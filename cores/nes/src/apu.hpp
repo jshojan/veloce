@@ -67,17 +67,24 @@ private:
     // Frame counter
     int m_frame_counter_mode = 0;
     int m_frame_counter_step = 0;
-    int m_frame_counter_cycles = 0;
     bool m_irq_inhibit = false;
     bool m_frame_irq = false;
 
+    // APU half-cycle clock tracking
+    // The APU runs at half CPU rate. Frame counter events happen at APU cycle boundaries.
+    // Per nesdev wiki: "The sequencer is clocked on every other CPU cycle"
+    // We track:
+    //   m_apu_cycles: increments every 2 CPU cycles (on the second CPU cycle)
+    //   m_apu_odd_cycle: true on odd CPU cycles (between APU cycle boundaries)
+    int m_apu_cycles = 0;           // APU cycle counter
+    bool m_apu_odd_cycle = false;   // True on odd CPU cycles
+
     // Frame counter reset delay (handles $4017 write timing jitter)
     // When $4017 is written:
-    // - On even CPU cycle: reset happens 3 cycles later
-    // - On odd CPU cycle: reset happens 4 cycles later
-    // The offset compensates to ensure IRQ fires at consistent timing
+    // - During APU cycle (even CPU): reset after 3 CPU cycles
+    // - Between APU cycles (odd CPU): reset after 4 CPU cycles
+    // The reset aligns to an APU cycle boundary, eliminating jitter.
     int m_frame_counter_reset_delay = 0;
-    int m_frame_counter_reset_offset = -1;  // Starting value for cycle counter
     bool m_frame_counter_reset_pending = false;
     int m_pending_frame_counter_mode = 0;
 
@@ -192,19 +199,18 @@ private:
     static constexpr int SAMPLE_RATE = 44100;
     int m_cpu_freq = 1789773;  // NTSC: 1789773, PAL: 1662607, Dendy: 1773448
 
-    // Frame counter step thresholds (varies by region)
-    // Per blargg's apu_test:
-    // Frame counter timing (NTSC defaults per Mesen2):
-    // 4-step: {7457, 14913, 22371, 29828, 29829, 29830}
-    // 5-step: {7457, 14913, 22371, 29829, 37281, 37282}
-    int m_frame_step1 = 7457;   // Quarter frame 1: envelope/linear
-    int m_frame_step2 = 14913;  // Quarter frame 2: envelope/linear, length/sweep
-    int m_frame_step3 = 22371;  // Quarter frame 3: envelope/linear
-    int m_frame_step4 = 29829;  // Quarter frame 4: envelope/linear, length/sweep
-    int m_frame_irq_cycle = 29828;  // IRQ flag set 1 cycle before step 4
-    int m_frame_step5 = 37281;  // 5-step mode: envelope/linear, length/sweep
-    int m_frame_reset4 = 29831; // Reset after IRQ window
-    int m_frame_reset5 = 37282;
+    // Frame counter step thresholds in APU cycles (varies by region)
+    // The APU sequencer is clocked every 2 CPU cycles (1 APU cycle).
+    // NTSC CPU cycle thresholds: 7457, 14913, 22371, 29829 (4-step), 37281 (5-step)
+    // Converting: CPU C → APU (C+1)/2
+    // IRQ is set 1 CPU cycle before step 4, on the odd half-cycle.
+    int m_frame_step1 = 3729;   // Quarter frame (CPU 7457)
+    int m_frame_step2 = 7457;   // Half frame (CPU 14913)
+    int m_frame_step3 = 11186;  // Quarter frame (CPU 22371)
+    int m_frame_step4 = 14915;  // Half frame (CPU 29829), IRQ at step4-1 (CPU 29828)
+    int m_frame_step5 = 18641;  // 5-step mode half frame (CPU 37281)
+    int m_frame_reset4 = 14916; // Reset APU cycle for 4-step mode (CPU 29831)
+    int m_frame_reset5 = 18642; // Reset APU cycle for 5-step mode (CPU 37283)
 
     // High-pass and low-pass filter state (matching NES hardware characteristics)
     // The NES has a high-pass filter at ~37Hz and low-pass at ~14kHz

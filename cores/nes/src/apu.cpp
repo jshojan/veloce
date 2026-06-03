@@ -64,39 +64,40 @@ void APU::set_region(Region region) {
             m_cpu_freq = 1789773;
             m_noise_period_table = s_noise_period_ntsc;
             m_dmc_rate_table_ptr = s_dmc_rate_ntsc;
-            // NTSC frame counter timing (in CPU cycles)
-            // Per nesdev wiki, APU cycles are: 3728, 7456, 11185, 14914 (4-step) / 18640 (5-step)
-            // These are APU cycles, multiply by 2 for CPU cycles and add 1 for response delay.
-            // The wiki states: "clocked on every other CPU cycle" and "with an additional
-            // delay of one CPU cycle for the quarter and half frame signals"
-            // So APU 3728 -> CPU 7456+1 = 7457, etc.
-            // IRQ flag set "every 29830 CPU cycles" per wiki.
-            // Per Mesen2: 4-step mode uses cycles {7457, 14913, 22371, 29828, 29829, 29830}
-            // The last 3 cycles are when IRQ is asserted (29828-29830)
-            m_frame_step1 = 7457;   // Quarter frame
-            m_frame_step2 = 14913;  // Half frame
-            m_frame_step3 = 22371;  // Quarter frame
-            m_frame_step4 = 29829;  // Half frame (step 4)
-            m_frame_irq_cycle = 29828;  // IRQ starts 1 cycle before step 4
-            m_frame_step5 = 37281;  // 5-step mode half frame
-            m_frame_reset4 = 29831; // Reset after the 3-cycle IRQ window
-            m_frame_reset5 = 37282;
+            // NTSC frame counter timing in APU cycles
+            // Converting from CPU cycles (7457, 14913, 22371, 29829) to APU cycles:
+            //   CPU cycle C is reached when m_apu_cycles = (C+1)/2
+            //   CPU 7457  → APU 3729
+            //   CPU 14913 → APU 7457
+            //   CPU 22371 → APU 11186
+            //   CPU 29829 → APU 14915
+            // IRQ is set at CPU 29828, which is the odd cycle when m_apu_cycles = 14914
+            m_frame_step1 = 3729;   // Quarter frame (CPU 7457)
+            m_frame_step2 = 7457;   // Half frame (CPU 14913)
+            m_frame_step3 = 11186;  // Quarter frame (CPU 22371)
+            m_frame_step4 = 14915;  // Half frame (CPU 29829)
+            m_frame_step5 = 18641;  // 5-step mode half frame (CPU 37281)
+            m_frame_reset4 = 14916; // Reset after step 4 (CPU 29831)
+            m_frame_reset5 = 18642; // Reset after step 5 (CPU 37283)
             break;
         case Region::PAL:
             m_cpu_freq = 1662607;
             m_noise_period_table = s_noise_period_pal;
             m_dmc_rate_table_ptr = s_dmc_rate_pal;
-            // PAL frame counter timing per Mesen2:
-            // 4-step: {8313, 16627, 24939, 33252, 33253, 33254}
-            // 5-step: {8313, 16627, 24939, 33253, 41565, 41566}
-            m_frame_step1 = 8313;
-            m_frame_step2 = 16627;
-            m_frame_step3 = 24939;
-            m_frame_step4 = 33253;
-            m_frame_irq_cycle = 33252;
-            m_frame_step5 = 41565;
-            m_frame_reset4 = 33254;
-            m_frame_reset5 = 41566;
+            // PAL frame counter timing in APU cycles
+            // PAL CPU cycles: 8313, 16627, 24939, 33253 (4-step) / 41565 (5-step)
+            //   CPU 8313  → APU 4157
+            //   CPU 16627 → APU 8314
+            //   CPU 24939 → APU 12470
+            //   CPU 33253 → APU 16627
+            //   CPU 41565 → APU 20783
+            m_frame_step1 = 4157;
+            m_frame_step2 = 8314;
+            m_frame_step3 = 12470;
+            m_frame_step4 = 16627;
+            m_frame_step5 = 20783;
+            m_frame_reset4 = 16628;
+            m_frame_reset5 = 20784;
             break;
         case Region::Dendy:
             // Dendy uses PAL-like timing but with slightly different clock
@@ -104,14 +105,13 @@ void APU::set_region(Region region) {
             m_noise_period_table = s_noise_period_pal;  // Uses PAL tables
             m_dmc_rate_table_ptr = s_dmc_rate_pal;
             // Dendy uses PAL frame counter timing
-            m_frame_step1 = 8313;
-            m_frame_step2 = 16627;
-            m_frame_step3 = 24939;
-            m_frame_step4 = 33253;
-            m_frame_irq_cycle = 33252;
-            m_frame_step5 = 41565;
-            m_frame_reset4 = 33254;
-            m_frame_reset5 = 41566;
+            m_frame_step1 = 4157;
+            m_frame_step2 = 8314;
+            m_frame_step3 = 12470;
+            m_frame_step4 = 16627;
+            m_frame_step5 = 20783;
+            m_frame_reset4 = 16628;
+            m_frame_reset5 = 20784;
             break;
     }
 
@@ -122,12 +122,15 @@ void APU::set_region(Region region) {
 void APU::reset() {
     m_frame_counter_mode = 0;
     m_frame_counter_step = 0;
-    m_frame_counter_cycles = 0;
     m_irq_inhibit = false;
     m_frame_irq = false;
     m_frame_counter_reset_delay = 0;
     m_frame_counter_reset_pending = false;
     m_pending_frame_counter_mode = 0;
+
+    // Reset APU cycle tracking
+    m_apu_cycles = 0;
+    m_apu_odd_cycle = false;
 
     m_pulse[0] = Pulse{};
     m_pulse[1] = Pulse{};
@@ -179,8 +182,13 @@ void APU::step(int cpu_cycles) {
     for (int i = 0; i < cpu_cycles; i++) {
         m_cycles++;
 
+        // Toggle APU half-cycle state
+        // The APU runs at half CPU rate. m_apu_odd_cycle alternates each CPU cycle.
+        // m_apu_cycles increments on the transition from odd to even (every 2 CPU cycles).
+        m_apu_odd_cycle = !m_apu_odd_cycle;
+
         // Handle pending frame counter reset (from $4017 write)
-        // The reset happens after a 3-4 cycle delay depending on CPU cycle parity
+        // The reset happens after a 3-4 CPU cycle delay to align with APU cycle boundary
         bool just_reset = false;
         if (m_frame_counter_reset_pending) {
             m_frame_counter_reset_delay--;
@@ -188,9 +196,9 @@ void APU::step(int cpu_cycles) {
                 m_frame_counter_reset_pending = false;
                 m_frame_counter_mode = m_pending_frame_counter_mode;
                 m_frame_counter_step = 0;
-                // Use the offset determined at write time to compensate for jitter
-                // This ensures the IRQ fires at a consistent point relative to the $4017 write
-                m_frame_counter_cycles = m_frame_counter_reset_offset;
+                // Reset APU cycle counter to 0 - the delay ensures we're aligned
+                // to an APU cycle boundary, eliminating jitter
+                m_apu_cycles = 0;
                 just_reset = true;
 
                 // In 5-step mode, clock counters immediately when reset takes effect
@@ -215,8 +223,8 @@ void APU::step(int cpu_cycles) {
         // Clock DMC timer every CPU cycle
         clock_dmc();
 
-        // Clock pulse and noise every 2 CPU cycles
-        if ((m_cycles & 1) == 0) {
+        // Clock pulse and noise every 2 CPU cycles (on APU cycle boundaries)
+        if (!m_apu_odd_cycle) {
             for (int p = 0; p < 2; p++) {
                 if (m_pulse[p].timer == 0) {
                     m_pulse[p].timer = m_pulse[p].timer_period;
@@ -235,47 +243,56 @@ void APU::step(int cpu_cycles) {
             } else {
                 m_noise.timer--;
             }
-        }
 
-        // Frame counter - accurate step timing per nesdev wiki
-        // The frame counter cycles track CPU cycles since $4017 reset
-        m_frame_counter_cycles++;
-
-        // Check for IRQ (mode 0 only) - set at step 4 and remains set
-        // The IRQ flag is set at m_frame_irq_cycle and remains set until
-        // cleared by reading $4015 or setting the inhibit flag
-        if (m_frame_counter_mode == 0 &&
-            m_frame_counter_cycles == m_frame_irq_cycle &&
-            !m_irq_inhibit) {
-            m_frame_irq = true;
-        }
-
-        // Check for frame counter clock events
-        bool should_clock = false;
-        if (m_frame_counter_mode == 0) {
-            // 4-step mode: clock at steps 1-4
-            // Step 4 occurs at m_frame_step4 (29829), which is in the middle of the IRQ window
-            should_clock = (m_frame_counter_cycles == m_frame_step1 ||
-                           m_frame_counter_cycles == m_frame_step2 ||
-                           m_frame_counter_cycles == m_frame_step3 ||
-                           m_frame_counter_cycles == m_frame_step4);
-            if (m_frame_counter_cycles >= m_frame_reset4) {
-                m_frame_counter_cycles = 0;
+            // Increment APU cycle counter (every 2 CPU cycles)
+            if (!just_reset) {
+                m_apu_cycles++;
             }
-        } else {
-            // 5-step mode
-            should_clock = (m_frame_counter_cycles == m_frame_step1 ||
-                           m_frame_counter_cycles == m_frame_step2 ||
-                           m_frame_counter_cycles == m_frame_step3 ||
-                           m_frame_counter_cycles == m_frame_step5);
-            // Note: step4 is skipped in 5-step mode (no clock, just wait)
-            if (m_frame_counter_cycles >= m_frame_reset5) {
-                m_frame_counter_cycles = 0;
+
+            // Check for frame counter clock events (at APU cycle boundaries)
+            // Per nesdev wiki, NTSC 4-step timing:
+            //   APU 3729  (CPU 7457):  quarter frame (envelope, linear)
+            //   APU 7457  (CPU 14913): half frame (length, sweep)
+            //   APU 11186 (CPU 22371): quarter frame
+            //   APU 14915 (CPU 29829): half frame
+            // We use thresholds that match these CPU cycle counts.
+            bool should_clock = false;
+            if (m_frame_counter_mode == 0) {
+                // 4-step mode: clock at steps 1-4
+                should_clock = (m_apu_cycles == m_frame_step1 ||
+                               m_apu_cycles == m_frame_step2 ||
+                               m_apu_cycles == m_frame_step3 ||
+                               m_apu_cycles == m_frame_step4);
+                if (m_apu_cycles >= m_frame_reset4) {
+                    m_apu_cycles = 0;
+                }
+            } else {
+                // 5-step mode: clock at steps 1-3 and 5 (step 4 is skipped)
+                should_clock = (m_apu_cycles == m_frame_step1 ||
+                               m_apu_cycles == m_frame_step2 ||
+                               m_apu_cycles == m_frame_step3 ||
+                               m_apu_cycles == m_frame_step5);
+                if (m_apu_cycles >= m_frame_reset5) {
+                    m_apu_cycles = 0;
+                }
+            }
+
+            if (should_clock) {
+                clock_frame_counter();
             }
         }
 
-        if (should_clock) {
-            clock_frame_counter();
+        // Frame counter IRQ - checked every CPU cycle for proper timing
+        // In 4-step mode, IRQ flag is set at CPU cycle 29828 (1 cycle before step 4 at 29829).
+        // Trace:
+        //   CPU 29827: m_apu_cycles increments to 14914, m_apu_odd_cycle becomes false
+        //   CPU 29828: m_apu_odd_cycle becomes true, m_apu_cycles still 14914
+        //   CPU 29829: m_apu_cycles increments to 14915 (step 4 clock), m_apu_odd_cycle false
+        // So IRQ fires when: m_apu_odd_cycle==true AND m_apu_cycles==m_frame_step4-1
+        if (m_frame_counter_mode == 0 && !m_irq_inhibit) {
+            if (m_apu_odd_cycle && m_apu_cycles == m_frame_step4 - 1) {
+                m_frame_irq = true;
+            }
         }
 
         // Get raw mixed output
@@ -805,42 +822,35 @@ void APU::cpu_write(uint16_t address, uint8_t value) {
         // Frame counter
         case 0x4017:
             // Per nesdev wiki and blargg's apu_test:
-            // Writing to $4017 resets the frame counter with a delay:
-            // - On odd CPU cycle: reset happens 3 cycles later
-            // - On even CPU cycle: reset happens 4 cycles later
-            // The APU runs at half CPU speed (every 2 CPU cycles = 1 APU cycle),
-            // so we track based on whether total CPU cycles is even/odd.
+            // Writing to $4017 resets the frame counter with a delay that aligns
+            // the reset to an APU cycle boundary, eliminating jitter.
             //
-            // For accurate timing, we defer the reset using a countdown.
-            // CRITICAL: Use the global CPU cycle counter for jitter test accuracy.
-            // The bus sets this before calling cpu_write to ensure we see the
-            // exact cycle when the write occurred.
+            // The APU runs at half CPU speed (every 2 CPU cycles = 1 APU cycle).
+            // The reset delay depends on where we are in the current APU cycle:
+            // - If on odd CPU cycle (between APU cycles): delay 3 CPU cycles
+            //   This puts reset at the start of the next APU cycle
+            // - If on even CPU cycle (during APU cycle): delay 4 CPU cycles
+            //   This puts reset at the start of the APU cycle after next
+            //
+            // Either way, the reset happens at an APU cycle boundary (even CPU cycle),
+            // and the APU cycle counter resets to 0, ensuring consistent IRQ timing.
             m_irq_inhibit = (value & 0x40) != 0;
             if (m_irq_inhibit) m_frame_irq = false;
 
             // Store the pending mode - actual mode change happens after delay
             m_pending_frame_counter_mode = (value & 0x80) ? 1 : 0;
 
-            // Determine delay based on CPU cycle parity
-            // Per nesdev: if write during APU cycle (even), delay = 3
-            //             if write between APU cycles (odd), delay = 4
-            // The purpose of this jitter is to align the reset to a consistent
-            // APU cycle boundary. We compensate by adjusting the starting cycle
-            // so that the IRQ fires at a consistent point relative to the $4017 write.
-            //
-            // The test expects IRQ at a specific point. Using fixed delay=4 passes.
-            // With delay=4, offset=-1, IRQ fires at W + 4 + (29828 - (-1) - 1) = W + 29832
-            // So for delay=3, we need: W + 3 + (29828 - X - 1) = W + 29832
-            //   29828 - X - 1 = 29829
-            //   X = -2
-            if (m_global_cpu_cycle & 1) {
-                // Odd CPU cycle: delay 4, start at -1
-                m_frame_counter_reset_delay = 4;
-                m_frame_counter_reset_offset = -1;
-            } else {
-                // Even CPU cycle: delay 3, start at -2
+            // Determine delay based on current APU half-cycle state
+            // We want the reset to happen at the START of an APU cycle (when !m_apu_odd_cycle)
+            // After the delay, m_apu_odd_cycle will toggle (delay) times.
+            // If currently odd: need odd number of toggles to end up even (delay 3)
+            // If currently even: need even number of toggles to end up even (delay 4)
+            if (m_apu_odd_cycle) {
+                // Currently between APU cycles - reset in 3 CPU cycles
                 m_frame_counter_reset_delay = 3;
-                m_frame_counter_reset_offset = -2;
+            } else {
+                // Currently during APU cycle - reset in 4 CPU cycles
+                m_frame_counter_reset_delay = 4;
             }
             m_frame_counter_reset_pending = true;
 
@@ -896,13 +906,15 @@ void APU::save_state(std::vector<uint8_t>& data) {
     // Frame counter
     write_value(data, m_frame_counter_mode);
     write_value(data, m_frame_counter_step);
-    write_value(data, m_frame_counter_cycles);
+    write_value(data, m_apu_cycles);  // APU cycle counter
     write_value(data, static_cast<uint8_t>(m_irq_inhibit ? 1 : 0));
     write_value(data, static_cast<uint8_t>(m_frame_irq ? 1 : 0));
     // Frame counter reset delay fields
     write_value(data, m_frame_counter_reset_delay);
     write_value(data, static_cast<uint8_t>(m_frame_counter_reset_pending ? 1 : 0));
     write_value(data, m_pending_frame_counter_mode);
+    // APU half-cycle tracking
+    write_value(data, static_cast<uint8_t>(m_apu_odd_cycle ? 1 : 0));
 
     // Pulse channels
     for (int i = 0; i < 2; i++) {
@@ -990,7 +1002,7 @@ void APU::load_state(const uint8_t*& data, size_t& remaining) {
     // Frame counter
     read_value(data, remaining, m_frame_counter_mode);
     read_value(data, remaining, m_frame_counter_step);
-    read_value(data, remaining, m_frame_counter_cycles);
+    read_value(data, remaining, m_apu_cycles);  // APU cycle counter
     uint8_t flag;
     read_value(data, remaining, flag);
     m_irq_inhibit = flag != 0;
@@ -1001,6 +1013,13 @@ void APU::load_state(const uint8_t*& data, size_t& remaining) {
     read_value(data, remaining, flag);
     m_frame_counter_reset_pending = flag != 0;
     read_value(data, remaining, m_pending_frame_counter_mode);
+    // APU half-cycle tracking (may not exist in old save states)
+    if (remaining >= 1) {
+        read_value(data, remaining, flag);
+        m_apu_odd_cycle = flag != 0;
+    } else {
+        m_apu_odd_cycle = false;
+    }
 
     // Pulse channels
     for (int i = 0; i < 2; i++) {
