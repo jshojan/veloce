@@ -663,6 +663,15 @@ void Bus::write16(uint32_t address, uint16_t value) {
                 SaveType save_type = m_cartridge->get_save_type();
                 if (save_type == SaveType::EEPROM_512 || save_type == SaveType::EEPROM_8K) {
                     if (rom_addr >= 0x1FFFF00 || rom_addr >= m_cartridge->get_rom_size()) {
+                        // This write is the current DMA channel's transfer if
+                        // one is actively stepping through its Write phase
+                        // (see step_dma); real EEPROM commands are only ever
+                        // sent as a fixed-length DMA burst, so the transfer's
+                        // total unit count reveals the address-bit width the
+                        // game expects (gba-28) before we act on this bit.
+                        if (m_active_dma >= 0) {
+                            m_cartridge->latch_eeprom_size_from_dma(m_dma[m_active_dma].internal_count);
+                        }
                         // EEPROM writes only use bit 0
                         m_cartridge->write_sram(address & 0xFFFF, static_cast<uint8_t>(value & 1));
                         break;

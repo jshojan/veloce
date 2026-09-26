@@ -137,6 +137,10 @@ bool Cartridge::load(const uint8_t* data, size_t size, SystemType system_type) {
 
     m_save_data.resize(save_size, 0xFF);
 
+    // The size above is only the ROM-size heuristic's guess for EEPROM
+    // carts; allow the first EEPROM-bound DMA to correct it (gba-28).
+    m_eeprom_size_locked = false;
+
     // Detect RTC
     m_has_rtc = detect_rtc(data, size);
     if (m_has_rtc && is_debug_mode()) {
@@ -541,6 +545,47 @@ void Cartridge::write_eeprom(uint8_t value) {
             m_eeprom_state = EEPROMState::Idle;
             break;
     }
+}
+
+void Cartridge::latch_eeprom_size_from_dma(uint32_t dma_units) {
+    if (m_eeprom_size_locked) return;
+    if (m_save_type != SaveType::EEPROM_512 && m_save_type != SaveType::EEPROM_8K) return;
+
+    // GBATEK / mGBA: a game always sends EEPROM commands as a fixed-length
+    // DMA burst whose length reveals the address width it expects --
+    // 2 opcode bits + 6-or-14 address bits + (0 or 64 data bits) + 1 stop
+    // bit. This is the standard autodetect technique (no cart-side size
+    // register exists), and is far more reliable than guessing from total
+    // ROM size: 4-8MB titles with an 8KB EEPROM (e.g. Boktai, several mGBA
+    // save-type overrides) were getting the 512B/6-bit heuristic and
+    // corrupting every save.
+    SaveType detected;
+    switch (dma_units) {
+        case 9:   // READ: 2 + 6 + 1
+        case 73:  // WRITE: 2 + 6 + 64 + 1
+            detected = SaveType::EEPROM_512;
+            break;
+        case 17:  // READ: 2 + 14 + 1
+        case 81:  // WRITE: 2 + 14 + 64 + 1
+            detected = SaveType::EEPROM_8K;
+            break;
+        default:
+            // Not one of the standard command lengths (e.g. a partial or
+            // non-standard transfer) -- keep today's ROM-size guess and try
+            // again on the next EEPROM-bound DMA rather than locking onto
+            // something we're not sure of.
+            return;
+    }
+
+    if (detected != m_save_type) {
+        size_t new_size = (detected == SaveType::EEPROM_8K) ? 8 * 1024 : 512;
+        std::vector<uint8_t> resized(new_size, 0xFF);
+        size_t keep = std::min(new_size, m_save_data.size());
+        std::copy(m_save_data.begin(), m_save_data.begin() + keep, resized.begin());
+        m_save_data = std::move(resized);
+        m_save_type = detected;
+    }
+    m_eeprom_size_locked = true;
 }
 
 uint8_t Cartridge::read_sram(uint32_t address) {

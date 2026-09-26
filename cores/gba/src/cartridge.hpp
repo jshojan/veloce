@@ -69,6 +69,14 @@ public:
     uint8_t read_sram(uint32_t address);
     void write_sram(uint32_t address, uint8_t value);
 
+    // Called by the bus with the total halfword-unit count of the DMA
+    // transfer currently writing an EEPROM command, so the real EEPROM size
+    // (512B vs 8KB) can be detected from the address-bit width the game
+    // actually uses instead of guessed from total ROM size (gba-28). A
+    // no-op once the size has been latched, or if `dma_units` doesn't match
+    // one of the standard EEPROM command lengths.
+    void latch_eeprom_size_from_dma(uint32_t dma_units);
+
     // Get CRC32
     uint32_t get_crc32() const { return m_crc32; }
 
@@ -132,6 +140,7 @@ private:
     int m_eeprom_bits_to_send = 0;        // Bits remaining to send
     uint8_t m_eeprom_command = 0;         // Current command (2 = read, 3 = write)
     bool m_eeprom_ready = true;           // Ready for operations (false during write)
+    bool m_eeprom_size_locked = false;    // True once latch_eeprom_size_from_dma has committed
 
     // GPIO/RTC support
     bool m_has_rtc = false;
