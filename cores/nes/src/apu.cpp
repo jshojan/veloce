@@ -215,7 +215,9 @@ void APU::step(int cpu_cycles) {
         // Clock DMC timer every CPU cycle
         clock_dmc();
 
-        // Clock pulse and noise every 2 CPU cycles
+        // Clock pulse every 2 CPU cycles ("APU cycle"); its register period
+        // means 2*(P+1) CPU cycles, so the divider only steps on alternate
+        // CPU cycles.
         if ((m_cycles & 1) == 0) {
             for (int p = 0; p < 2; p++) {
                 if (m_pulse[p].timer == 0) {
@@ -225,16 +227,20 @@ void APU::step(int cpu_cycles) {
                     m_pulse[p].timer--;
                 }
             }
+        }
 
-            if (m_noise.timer == 0) {
-                m_noise.timer = m_noise.timer_period;
-                uint16_t bit = m_noise.mode ?
-                    ((m_noise.shift_register >> 6) ^ m_noise.shift_register) & 1 :
-                    ((m_noise.shift_register >> 1) ^ m_noise.shift_register) & 1;
-                m_noise.shift_register = (m_noise.shift_register >> 1) | (bit << 14);
-            } else {
-                m_noise.timer--;
-            }
+        // Clock the noise timer every CPU cycle, like triangle/DMC (NOT
+        // gated to alternate cycles like pulse): the $400E rate table
+        // already gives the LFSR clock period directly in CPU cycles, so
+        // m_noise.timer_period is loaded as (table value - 1).
+        if (m_noise.timer == 0) {
+            m_noise.timer = m_noise.timer_period;
+            uint16_t bit = m_noise.mode ?
+                ((m_noise.shift_register >> 6) ^ m_noise.shift_register) & 1 :
+                ((m_noise.shift_register >> 1) ^ m_noise.shift_register) & 1;
+            m_noise.shift_register = (m_noise.shift_register >> 1) | (bit << 14);
+        } else {
+            m_noise.timer--;
         }
 
         // Frame counter - accurate step timing per nesdev wiki
@@ -733,7 +739,12 @@ void APU::cpu_write(uint16_t address, uint8_t value) {
             break;
         case 0x400E:
             m_noise.mode = (value & 0x80) != 0;
-            m_noise.timer_period = m_noise_period_table[value & 0x0F];
+            // The rate table gives the LFSR clock period directly in CPU
+            // cycles; timer counts (period-1)..0 before reloading, so
+            // subtract 1 to make the reload-to-reload interval exactly
+            // the table value (Mesen/nesdev convention). All table entries
+            // are >= 4, so this never underflows.
+            m_noise.timer_period = m_noise_period_table[value & 0x0F] - 1;
             break;
         case 0x400F:
             // Length counter is only reloaded if channel is enabled
