@@ -848,9 +848,20 @@ int ARM7TDMI::arm_data_processing(uint32_t instruction) {
         // Note: no pipeline flush for these cases as PC is not modified
     }
 
-    // Update flags
+    // Update flags. Logical operations (AND/EOR/TST/TEQ/ORR/MOV/BIC/MVN) only
+    // affect N, Z and C (from the shifter carry-out) - the V flag is left
+    // untouched, per ARM7TDMI/GBATEK. Arithmetic ops (SUB/RSB/ADD/ADC/SBC/
+    // RSC/CMP/CMN) do set V from the actual overflow computed above.
     if (set_flags && rd != 15) {
-        set_nzcv_flags(result, carry_out, overflow);
+        switch (opcode) {
+            case 0x0: case 0x1: case 0x8: case 0x9:  // AND/EOR/TST/TEQ
+            case 0xC: case 0xD: case 0xE: case 0xF:  // ORR/MOV/BIC/MVN
+                set_nzc_flags(result, carry_out);
+                break;
+            default:  // SUB/RSB/ADD/ADC/SBC/RSC/CMP/CMN
+                set_nzcv_flags(result, carry_out, overflow);
+                break;
+        }
     }
 
     return (rd == 15 && write_result) ? 3 : 1;
@@ -1467,7 +1478,9 @@ int ARM7TDMI::thumb_immediate(uint16_t instruction) {
     switch (op) {
         case 0:  // MOV
             result = imm;
-            break;
+            m_regs[rd] = result;
+            set_nz_flags(result);  // C, V unchanged (no shift/add, so no carry-out)
+            return 1;
         case 1:  // CMP
             result = value - imm;
             carry = value >= imm;
@@ -1623,7 +1636,23 @@ int ARM7TDMI::thumb_alu(uint16_t instruction) {
     }
 
     m_regs[rd] = result;
-    set_nzcv_flags(result, carry, overflow);
+    // Logical/shift ops (AND/EOR/LSL/LSR/ASR/ROR/ORR/BIC/MVN) only set N,Z,C
+    // (C from the shift's carry-out where applicable) and leave V unchanged.
+    // MUL's C is architecturally unpredictable on ARMv4; we leave it alone
+    // too and only update N,Z. ADC/SBC/NEG are arithmetic and do set V.
+    switch (op) {
+        case 0x0: case 0x1: case 0x2: case 0x3:  // AND/EOR/LSL/LSR
+        case 0x4: case 0x7:                       // ASR/ROR
+        case 0xC: case 0xE: case 0xF:             // ORR/BIC/MVN
+            set_nzc_flags(result, carry);
+            break;
+        case 0xD:  // MUL
+            set_nz_flags(result);
+            break;
+        default:  // ADC/SBC/NEG
+            set_nzcv_flags(result, carry, overflow);
+            break;
+    }
     // Thumb MUL timing: m cycles based on Rs significant bits
     return (op == 0xD) ? multiply_cycles(b) : 1;
 }
