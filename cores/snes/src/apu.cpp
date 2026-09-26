@@ -33,10 +33,10 @@ void APU::reset() {
 
 void APU::step(int master_cycles) {
     // Fixed-point clock ratio (see apu.hpp): m_spc_accumulator tracks
-    // elapsed SPC cycles in Q32.32 so the average SPC clock is exactly
-    // SPC_CLOCK_HZ / MASTER_CLOCK_HZ master cycles per SPC cycle, instead of
-    // a fixed integer divisor that drifts the APU's clock away from the
-    // CPU/PPU's.
+    // elapsed SPC cycles in Q32.32 so the long-run average is exactly
+    // MASTER_CLOCK_HZ / SPC_CLOCK_HZ (~20.948) master cycles per SPC cycle,
+    // instead of a fixed integer divisor that drifts the APU's clock away
+    // from the CPU/PPU's.
     //
     // The SPC700's step() executes one full instruction and returns
     // the number of SPC cycles it consumed.
@@ -56,7 +56,7 @@ void APU::step(int master_cycles) {
         m_spc_accumulator -= static_cast<int64_t>(spc_cycles) << 32;
 
         // Accumulate SPC cycles for DSP timing
-        // DSP generates one sample every 32 SPC cycles (1.024 MHz / 32 = 32 kHz)
+        // DSP generates one sample every 32 SPC cycles (1,025,280 Hz / 32 = 32,040 Hz)
         m_sample_counter += spc_cycles;
 
         while (m_sample_counter >= 32) {
