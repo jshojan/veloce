@@ -157,6 +157,12 @@ public:
     bool load_config(const std::string& path);
     bool save_config(const std::string& path = "");
 
+    // The current ROM's display name: its filename without directory or
+    // extension (e.g. "/path/MyGame.nes" -> "MyGame"). Empty if no ROM is
+    // loaded. This is the actual game/ROM name, distinct from the emulator
+    // core/platform name returned by get_emulator_plugin()->get_info().name.
+    std::string get_current_rom_name() const;
+
     // Get active plugin instances
     const ActivePlugins& get_active_plugins() const { return m_active; }
     IEmulatorPlugin* get_emulator_plugin() const { return m_active.emulator; }

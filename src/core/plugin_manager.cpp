@@ -691,12 +691,18 @@ void PluginManager::update_game_plugins() {
     }
 }
 
+std::string PluginManager::get_current_rom_name() const {
+    if (m_current_rom_path.empty()) {
+        return "";
+    }
+    return fs::path(m_current_rom_path).stem().string();
+}
+
 void PluginManager::notify_game_plugins_rom_loaded() {
     // Get ROM info from emulator and update the host
     if (m_active.emulator && m_active.emulator->is_rom_loaded()) {
         // Extract ROM name from path (filename without extension)
-        fs::path rom_path(m_current_rom_path);
-        std::string rom_name = rom_path.stem().string();
+        std::string rom_name = get_current_rom_name();
         uint32_t crc32 = m_active.emulator->get_rom_crc32();
 
         m_game_host->set_rom_info(rom_name, crc32);

@@ -709,6 +709,13 @@ bool Application::load_rom(const std::string& path) {
         return false;
     }
 
+    // Let the savestate manager tag new saves with the actual ROM name
+    // (previously never set, so savestate headers' rom_name field was
+    // always empty).
+    if (m_savestate_manager) {
+        m_savestate_manager->set_current_rom_name(m_plugin_manager->get_current_rom_name());
+    }
+
     // Get controller layout from emulator plugin and pass to input manager (not in headless mode)
     if (!m_headless_mode) {
         auto* plugin = m_plugin_manager->get_active_plugin();
@@ -864,12 +871,10 @@ const char* Application::get_rom_name() const {
         m_cached_rom_name = "";
         return m_cached_rom_name.c_str();
     }
-    auto* emulator = m_plugin_manager->get_emulator_plugin();
-    if (emulator) {
-        m_cached_rom_name = emulator->get_info().name;
-    } else {
-        m_cached_rom_name = "";
-    }
+    // The actual ROM/game name (filename stem), not the emulator core name --
+    // see get_platform_name() for the latter. Netplay lobby/game-selection
+    // messages use this to identify what a peer is playing.
+    m_cached_rom_name = m_plugin_manager->get_current_rom_name();
     return m_cached_rom_name.c_str();
 }
 
