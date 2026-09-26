@@ -180,61 +180,75 @@ void PPU::step() {
         if (m_cycle >= 1 && m_cycle <= 256) {
             render_pixel();
 
-            // Background fetches
-            update_shifters();
+            // Background fetches (NT/AT/pattern reads and the A12
+            // address-bus notifications that ride along with them) only
+            // happen on hardware while rendering is enabled (PPUMASK bit
+            // 3 or 4). With rendering disabled (forced blank), the PPU
+            // makes no bus transactions here at all: no
+            // notify_ppu_address_bus() calls (which would incorrectly
+            // keep clocking MMC3-style A12 watchers and, on this
+            // codebase's simplified MMC5 scanline detector, keep the
+            // $5204 in-frame flag/scanline IRQ running) and no pattern-
+            // table ppu_read() calls (which would keep flipping MMC2/
+            // MMC4's $xFD8/$xFE8 CHR latches). $2007 accesses remain the
+            // only real reads in this state. render_pixel() above still
+            // runs unconditionally: it outputs the backdrop colour when
+            // rendering is off.
+            if ((m_mask & 0x18) != 0) {
+                update_shifters();
 
-            switch ((m_cycle - 1) % 8) {
-                case 0: {
-                    // The reload at cycle 1 would be a THIRD load of the
-                    // tile that was already fetched and loaded at cycle
-                    // 329 (into the shifters' low byte) and again at
-                    // cycle 337 (per hardware, the correct final
-                    // prefetch reload) of the previous scanline.
-                    // Reloading again here duplicates that tile at pixel
-                    // 8/9 and shifts everything from pixel 9 onward one
-                    // dot late. Hardware reloads only at 9, 17, ..., 257
-                    // (this loop) and 329, 337 (prefetch); the fetch
-                    // itself (below) still needs to happen at cycle 1 to
-                    // keep the NT/AT/pattern pipeline primed.
-                    if (m_cycle != 1) {
-                        load_background_shifters();
+                switch ((m_cycle - 1) % 8) {
+                    case 0: {
+                        // The reload at cycle 1 would be a THIRD load of
+                        // the tile that was already fetched and loaded at
+                        // cycle 329 (into the shifters' low byte) and
+                        // again at cycle 337 (per hardware, the correct
+                        // final prefetch reload) of the previous
+                        // scanline. Reloading again here duplicates that
+                        // tile at pixel 8/9 and shifts everything from
+                        // pixel 9 onward one dot late. Hardware reloads
+                        // only at 9, 17, ..., 257 (this loop) and 329,
+                        // 337 (prefetch); the fetch itself (below) still
+                        // needs to happen at cycle 1 to keep the NT/AT/
+                        // pattern pipeline primed.
+                        if (m_cycle != 1) {
+                            load_background_shifters();
+                        }
+                        uint16_t nt_addr = 0x2000 | (m_v & 0x0FFF);
+                        m_bus.notify_ppu_address_bus(nt_addr, frame_cycle);  // A12 tracking for MMC3
+                        m_bg_next_tile_id = m_bus.ppu_read(nt_addr, frame_cycle);
+                        break;
                     }
-                    uint16_t nt_addr = 0x2000 | (m_v & 0x0FFF);
-                    m_bus.notify_ppu_address_bus(nt_addr, frame_cycle);  // A12 tracking for MMC3
-                    m_bg_next_tile_id = m_bus.ppu_read(nt_addr, frame_cycle);
-                    break;
-                }
-                case 2: {
-                    uint16_t at_addr = 0x23C0 | (m_v & 0x0C00) | ((m_v >> 4) & 0x38) | ((m_v >> 2) & 0x07);
-                    m_bus.notify_ppu_address_bus(at_addr, frame_cycle);  // A12 tracking for MMC3
-                    m_bg_next_tile_attrib = m_bus.ppu_read(at_addr, frame_cycle);
-                    if (m_v & 0x40) m_bg_next_tile_attrib >>= 4;
-                    if (m_v & 0x02) m_bg_next_tile_attrib >>= 2;
-                    break;
-                }
-                case 4: {
-                    uint16_t addr = ((m_ctrl & 0x10) << 8) + (m_bg_next_tile_id << 4) + ((m_v >> 12) & 7);
-                    m_bus.notify_ppu_address_bus(addr, frame_cycle);
-                    m_bg_next_tile_lo = m_bus.ppu_read(addr, frame_cycle);
-                    break;
-                }
-                case 6: {
-                    uint16_t addr = ((m_ctrl & 0x10) << 8) + (m_bg_next_tile_id << 4) + ((m_v >> 12) & 7) + 8;
-                    m_bus.notify_ppu_address_bus(addr, frame_cycle);
-                    m_bg_next_tile_hi = m_bus.ppu_read(addr, frame_cycle);
-                    break;
-                }
-                case 7:
-                    // Increment horizontal
-                    if ((m_mask & 0x18) != 0) {
+                    case 2: {
+                        uint16_t at_addr = 0x23C0 | (m_v & 0x0C00) | ((m_v >> 4) & 0x38) | ((m_v >> 2) & 0x07);
+                        m_bus.notify_ppu_address_bus(at_addr, frame_cycle);  // A12 tracking for MMC3
+                        m_bg_next_tile_attrib = m_bus.ppu_read(at_addr, frame_cycle);
+                        if (m_v & 0x40) m_bg_next_tile_attrib >>= 4;
+                        if (m_v & 0x02) m_bg_next_tile_attrib >>= 2;
+                        break;
+                    }
+                    case 4: {
+                        uint16_t addr = ((m_ctrl & 0x10) << 8) + (m_bg_next_tile_id << 4) + ((m_v >> 12) & 7);
+                        m_bus.notify_ppu_address_bus(addr, frame_cycle);
+                        m_bg_next_tile_lo = m_bus.ppu_read(addr, frame_cycle);
+                        break;
+                    }
+                    case 6: {
+                        uint16_t addr = ((m_ctrl & 0x10) << 8) + (m_bg_next_tile_id << 4) + ((m_v >> 12) & 7) + 8;
+                        m_bus.notify_ppu_address_bus(addr, frame_cycle);
+                        m_bg_next_tile_hi = m_bus.ppu_read(addr, frame_cycle);
+                        break;
+                    }
+                    case 7:
+                        // Increment horizontal
                         if ((m_v & 0x001F) == 31) {
                             m_v &= ~0x001F;
                             m_v ^= 0x0400;
                         } else {
                             m_v++;
                         }
-                    }
-                    break;
+                        break;
+                }
             }
         }
 
