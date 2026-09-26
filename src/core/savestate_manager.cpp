@@ -32,12 +32,16 @@ namespace {
 // data_size before it is handed to std::vector's allocator (shared-08).
 constexpr uint64_t MAX_SAVESTATE_DATA_SIZE = 64ull * 1024 * 1024;
 
-// Reads exactly sizeof(SavestateHeader) from `file` and validates the magic
-// and version range. Returns false (leaving `header` partially read) on a
-// short read, bad magic, or unsupported version -- callers must not use
-// `header` further in that case. Shared by get_slot_info() and
-// read_savestate_file() so both apply the same validation (shared-08).
-bool read_and_validate_header(std::ifstream& file, SavestateHeader& header) {
+// Reads exactly sizeof(SavestateHeader) from `file` and validates the magic,
+// the version range and data_size (bounded by a sane absolute cap and by
+// what actually remains in the file after the header, so a truncated or
+// crafted file is rejected before anything is allocated for it). Returns
+// false on any failure -- callers must not use `header` further in that case.
+// On success the stream is positioned at the start of the state data. Shared
+// by get_slot_info() and read_savestate_file() so a slot the menu lists as
+// valid is one read_savestate_file() will accept (shared-08). `log_errors`
+// is off for get_slot_info(), which the GUI calls repeatedly.
+bool read_and_validate_header(std::ifstream& file, SavestateHeader& header, bool log_errors) {
     file.read(reinterpret_cast<char*>(&header), sizeof(header));
     if (!file) {
         return false;
@@ -46,9 +50,30 @@ bool read_and_validate_header(std::ifstream& file, SavestateHeader& header) {
         return false;
     }
     if (header.version < 1 || header.version > 2) {
+        if (log_errors) {
+            std::cerr << "Unsupported savestate version: " << header.version << std::endl;
+        }
         return false;
     }
-    return true;
+
+    // A corrupt/crafted file can claim any data_size up to UINT32_MAX, which
+    // read_savestate_file() would otherwise hand straight to std::vector.
+    const std::streamoff header_end = file.tellg();
+    file.seekg(0, std::ios::end);
+    const std::streamoff total_size = file.tellg();
+    if (header_end < 0 || total_size < header_end) {
+        return false;
+    }
+    const uint64_t remaining = static_cast<uint64_t>(total_size - header_end);
+    if (header.data_size > MAX_SAVESTATE_DATA_SIZE || header.data_size > remaining) {
+        if (log_errors) {
+            std::cerr << "Savestate data_size out of range (" << header.data_size
+                      << " bytes, " << remaining << " available)" << std::endl;
+        }
+        return false;
+    }
+    file.seekg(header_end);
+    return static_cast<bool>(file);
 }
 
 // The writer NUL-terminates rom_name (see write_savestate_file), but a
@@ -186,7 +211,7 @@ SavestateInfo SavestateManager::get_slot_info(int slot) const {
     }
 
     SavestateHeader header;
-    if (read_and_validate_header(file, header)) {
+    if (read_and_validate_header(file, header, /*log_errors=*/false)) {
         info.rom_name = extract_rom_name(header);
         info.rom_crc32 = header.rom_crc32;
         info.frame_count = header.frame_count;
@@ -328,30 +353,11 @@ std::optional<std::vector<uint8_t>> SavestateManager::read_savestate_file(const 
 
     // Read header
     SavestateHeader header;
-    if (!read_and_validate_header(file, header)) {
+    if (!read_and_validate_header(file, header, /*log_errors=*/true)) {
         return std::nullopt;
     }
     // Note: Version 1 savestates are not compatible with version 2 due to
     // added NMI/sprite state fields. Old savestates will fail to load correctly.
-
-    // Validate data_size before allocating for it: a corrupt/crafted file
-    // could claim an arbitrarily large size (up to UINT32_MAX) here, which
-    // would otherwise be passed straight to std::vector's allocator
-    // (shared-08). Bound it by both a sane absolute cap and by what
-    // actually remains in the file after the header.
-    const std::streamoff header_end = file.tellg();
-    file.seekg(0, std::ios::end);
-    const std::streamoff total_size = file.tellg();
-    if (total_size < header_end) {
-        return std::nullopt;
-    }
-    const uint64_t remaining = static_cast<uint64_t>(total_size - header_end);
-    if (header.data_size > MAX_SAVESTATE_DATA_SIZE || header.data_size > remaining) {
-        std::cerr << "Savestate data_size out of range (" << header.data_size
-                   << " bytes, " << remaining << " available)" << std::endl;
-        return std::nullopt;
-    }
-    file.seekg(header_end);
 
     // Fill info
     info.rom_name = extract_rom_name(header);
