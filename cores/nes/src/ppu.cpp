@@ -827,13 +827,16 @@ uint8_t PPU::cpu_read(uint16_t address) {
 
         case 7: { // PPUDATA
             data = m_data_buffer;
-            m_data_buffer = ppu_read(m_v);
 
             // Palette reads are not buffered - return directly
             // But the latch behavior is special: palette reads put the palette value
             // in data, but the buffer gets the underlying nametable data at that address
+            // (the PPU's internal bus mirrors $3000-$3FFF down to $2000-$2FFF, so the
+            // buffer refill for a palette read actually re-reads the nametable, not
+            // the palette, per real hardware).
             if (m_v >= 0x3F00) {
-                data = m_data_buffer;
+                data = ppu_read(m_v);
+                m_data_buffer = ppu_read(m_v & 0x2FFF);
                 // For palette reads, the lower 6 bits come from the palette,
                 // upper 2 bits come from open bus
                 data = (data & 0x3F) | (m_io_latch & 0xC0);
@@ -845,6 +848,7 @@ uint8_t PPU::cpu_read(uint16_t address) {
                     }
                 }
             } else {
+                m_data_buffer = ppu_read(m_v);
                 // Non-palette reads refresh all 8 bits
                 m_io_latch = data;
                 for (int i = 0; i < 8; i++) {
