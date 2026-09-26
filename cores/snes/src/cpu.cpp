@@ -291,13 +291,17 @@ uint32_t CPU::addr_direct_x_indirect() {
     return (static_cast<uint32_t>(m_dbr) << 16) | (lo | (hi << 8));
 }
 
-uint32_t CPU::addr_direct_indirect_y() {
+uint32_t CPU::addr_direct_indirect_y(bool always_penalty) {
     uint32_t dp_addr = addr_direct();
     uint8_t lo = read(dp_addr);
     uint8_t hi = read((dp_addr + 1) & 0xFFFF);
     uint16_t base = lo | (hi << 8);
-    // Page crossing penalty
-    if (((base & 0xFF) + (m_y & 0xFF)) > 0xFF) m_cycles += 6;
+    // Idle penalty cycle: always paid with 16-bit Y (X flag clear) or when
+    // the low-byte addition crosses a page; also always paid for a store
+    // or RMW (always_penalty=true), since the CPU can't skip the extra
+    // bus cycle when it doesn't yet know the access is a plain read.
+    bool crossed = ((base & 0xFF) + (m_y & 0xFF)) > 0xFF;
+    if (always_penalty || !get_flag(FLAG_X) || crossed) m_cycles += 6;
     // Use addition instead of OR to allow carry to propagate into bank
     // This matches hardware behavior where base + Y can cross bank boundaries
     return ((static_cast<uint32_t>(m_dbr) << 16) + base + m_y) & 0xFFFFFF;
@@ -317,18 +321,23 @@ uint32_t CPU::addr_absolute() {
     return (static_cast<uint32_t>(m_dbr) << 16) | addr;
 }
 
-uint32_t CPU::addr_absolute_x() {
+uint32_t CPU::addr_absolute_x(bool always_penalty) {
     uint16_t base = read_pc16();
-    // Page crossing penalty (not always applied)
-    if (((base & 0xFF) + (m_x & 0xFF)) > 0xFF) m_cycles += 6;
+    // Idle penalty cycle: always paid with 16-bit X (X flag clear) or when
+    // the low-byte addition crosses a page; also always paid for a store
+    // or RMW (always_penalty=true) - the CPU can't retroactively skip the
+    // extra bus cycle once it knows the access isn't a plain read.
+    bool crossed = ((base & 0xFF) + (m_x & 0xFF)) > 0xFF;
+    if (always_penalty || !get_flag(FLAG_X) || crossed) m_cycles += 6;
     // Use addition instead of OR to allow carry to propagate into bank
     return ((static_cast<uint32_t>(m_dbr) << 16) + base + m_x) & 0xFFFFFF;
 }
 
-uint32_t CPU::addr_absolute_y() {
+uint32_t CPU::addr_absolute_y(bool always_penalty) {
     uint16_t base = read_pc16();
-    // Page crossing penalty
-    if (((base & 0xFF) + (m_y & 0xFF)) > 0xFF) m_cycles += 6;
+    // See addr_absolute_x() above.
+    bool crossed = ((base & 0xFF) + (m_y & 0xFF)) > 0xFF;
+    if (always_penalty || !get_flag(FLAG_X) || crossed) m_cycles += 6;
     // Use addition instead of OR to allow carry to propagate into bank
     return ((static_cast<uint32_t>(m_dbr) << 16) + base + m_y) & 0xFFFFFF;
 }
@@ -1102,7 +1111,7 @@ void CPU::execute() {
         case 0x06: { uint32_t a = addr_direct(); m_cycles += 6; if (get_flag(FLAG_M)) write(a, op_asl8(read(a))); else { uint16_t v = read(a)|(read(a+1)<<8); v = op_asl16(v); write(a, v&0xFF); write(a+1, v>>8); } break; }
         case 0x16: { uint32_t a = addr_direct_x(); m_cycles += 6; if (get_flag(FLAG_M)) write(a, op_asl8(read(a))); else { uint16_t v = read(a)|(read(a+1)<<8); v = op_asl16(v); write(a, v&0xFF); write(a+1, v>>8); } break; }
         case 0x0E: { uint32_t a = addr_absolute(); m_cycles += 6; if (get_flag(FLAG_M)) write(a, op_asl8(read(a))); else { uint16_t v = read(a)|(read(a+1)<<8); v = op_asl16(v); write(a, v&0xFF); write(a+1, v>>8); } break; }
-        case 0x1E: { uint32_t a = addr_absolute_x(); m_cycles += 6; if (get_flag(FLAG_M)) write(a, op_asl8(read(a))); else { uint16_t v = read(a)|(read(a+1)<<8); v = op_asl16(v); write(a, v&0xFF); write(a+1, v>>8); } break; }
+        case 0x1E: { uint32_t a = addr_absolute_x(true); if (get_flag(FLAG_M)) write(a, op_asl8(read(a))); else { uint16_t v = read(a)|(read(a+1)<<8); v = op_asl16(v); write(a, v&0xFF); write(a+1, v>>8); } break; }
 
         // BCC/BCS/BEQ/BMI/BNE/BPL/BVC/BVS - Branches
         case 0x90: branch(!get_flag(FLAG_C)); break;  // BCC
@@ -1215,7 +1224,7 @@ void CPU::execute() {
         case 0xC6: { uint32_t a = addr_direct(); m_cycles += 6; if (get_flag(FLAG_M)) write(a, op_dec8(read(a))); else { uint16_t v = read(a)|(read(a+1)<<8); v = op_dec16(v); write(a, v&0xFF); write(a+1, v>>8); } break; }
         case 0xD6: { uint32_t a = addr_direct_x(); m_cycles += 6; if (get_flag(FLAG_M)) write(a, op_dec8(read(a))); else { uint16_t v = read(a)|(read(a+1)<<8); v = op_dec16(v); write(a, v&0xFF); write(a+1, v>>8); } break; }
         case 0xCE: { uint32_t a = addr_absolute(); m_cycles += 6; if (get_flag(FLAG_M)) write(a, op_dec8(read(a))); else { uint16_t v = read(a)|(read(a+1)<<8); v = op_dec16(v); write(a, v&0xFF); write(a+1, v>>8); } break; }
-        case 0xDE: { uint32_t a = addr_absolute_x(); m_cycles += 6; if (get_flag(FLAG_M)) write(a, op_dec8(read(a))); else { uint16_t v = read(a)|(read(a+1)<<8); v = op_dec16(v); write(a, v&0xFF); write(a+1, v>>8); } break; }
+        case 0xDE: { uint32_t a = addr_absolute_x(true); if (get_flag(FLAG_M)) write(a, op_dec8(read(a))); else { uint16_t v = read(a)|(read(a+1)<<8); v = op_dec16(v); write(a, v&0xFF); write(a+1, v>>8); } break; }
 
         // DEX/DEY - Decrement X/Y
         case 0xCA:
@@ -1271,7 +1280,7 @@ void CPU::execute() {
         case 0xE6: { uint32_t a = addr_direct(); m_cycles += 6; if (get_flag(FLAG_M)) write(a, op_inc8(read(a))); else { uint16_t v = read(a)|(read(a+1)<<8); v = op_inc16(v); write(a, v&0xFF); write(a+1, v>>8); } break; }
         case 0xF6: { uint32_t a = addr_direct_x(); m_cycles += 6; if (get_flag(FLAG_M)) write(a, op_inc8(read(a))); else { uint16_t v = read(a)|(read(a+1)<<8); v = op_inc16(v); write(a, v&0xFF); write(a+1, v>>8); } break; }
         case 0xEE: { uint32_t a = addr_absolute(); m_cycles += 6; if (get_flag(FLAG_M)) write(a, op_inc8(read(a))); else { uint16_t v = read(a)|(read(a+1)<<8); v = op_inc16(v); write(a, v&0xFF); write(a+1, v>>8); } break; }
-        case 0xFE: { uint32_t a = addr_absolute_x(); m_cycles += 6; if (get_flag(FLAG_M)) write(a, op_inc8(read(a))); else { uint16_t v = read(a)|(read(a+1)<<8); v = op_inc16(v); write(a, v&0xFF); write(a+1, v>>8); } break; }
+        case 0xFE: { uint32_t a = addr_absolute_x(true); if (get_flag(FLAG_M)) write(a, op_inc8(read(a))); else { uint16_t v = read(a)|(read(a+1)<<8); v = op_inc16(v); write(a, v&0xFF); write(a+1, v>>8); } break; }
 
         // INX/INY - Increment X/Y
         case 0xE8:
@@ -1410,7 +1419,7 @@ void CPU::execute() {
         case 0x46: { uint32_t a = addr_direct(); m_cycles += 6; if (get_flag(FLAG_M)) write(a, op_lsr8(read(a))); else { uint16_t v = read(a)|(read(a+1)<<8); v = op_lsr16(v); write(a, v&0xFF); write(a+1, v>>8); } break; }
         case 0x56: { uint32_t a = addr_direct_x(); m_cycles += 6; if (get_flag(FLAG_M)) write(a, op_lsr8(read(a))); else { uint16_t v = read(a)|(read(a+1)<<8); v = op_lsr16(v); write(a, v&0xFF); write(a+1, v>>8); } break; }
         case 0x4E: { uint32_t a = addr_absolute(); m_cycles += 6; if (get_flag(FLAG_M)) write(a, op_lsr8(read(a))); else { uint16_t v = read(a)|(read(a+1)<<8); v = op_lsr16(v); write(a, v&0xFF); write(a+1, v>>8); } break; }
-        case 0x5E: { uint32_t a = addr_absolute_x(); m_cycles += 6; if (get_flag(FLAG_M)) write(a, op_lsr8(read(a))); else { uint16_t v = read(a)|(read(a+1)<<8); v = op_lsr16(v); write(a, v&0xFF); write(a+1, v>>8); } break; }
+        case 0x5E: { uint32_t a = addr_absolute_x(true); if (get_flag(FLAG_M)) write(a, op_lsr8(read(a))); else { uint16_t v = read(a)|(read(a+1)<<8); v = op_lsr16(v); write(a, v&0xFF); write(a+1, v>>8); } break; }
 
         // MVN/MVP - Block Move
         case 0x54: {  // MVN (Move Negative/Increment)
@@ -1621,7 +1630,7 @@ void CPU::execute() {
         case 0x26: { uint32_t a = addr_direct(); m_cycles += 6; if (get_flag(FLAG_M)) write(a, op_rol8(read(a))); else { uint16_t v = read(a)|(read(a+1)<<8); v = op_rol16(v); write(a, v&0xFF); write(a+1, v>>8); } break; }
         case 0x36: { uint32_t a = addr_direct_x(); m_cycles += 6; if (get_flag(FLAG_M)) write(a, op_rol8(read(a))); else { uint16_t v = read(a)|(read(a+1)<<8); v = op_rol16(v); write(a, v&0xFF); write(a+1, v>>8); } break; }
         case 0x2E: { uint32_t a = addr_absolute(); m_cycles += 6; if (get_flag(FLAG_M)) write(a, op_rol8(read(a))); else { uint16_t v = read(a)|(read(a+1)<<8); v = op_rol16(v); write(a, v&0xFF); write(a+1, v>>8); } break; }
-        case 0x3E: { uint32_t a = addr_absolute_x(); m_cycles += 6; if (get_flag(FLAG_M)) write(a, op_rol8(read(a))); else { uint16_t v = read(a)|(read(a+1)<<8); v = op_rol16(v); write(a, v&0xFF); write(a+1, v>>8); } break; }
+        case 0x3E: { uint32_t a = addr_absolute_x(true); if (get_flag(FLAG_M)) write(a, op_rol8(read(a))); else { uint16_t v = read(a)|(read(a+1)<<8); v = op_rol16(v); write(a, v&0xFF); write(a+1, v>>8); } break; }
 
         // ROR - Rotate Right
         case 0x6A:  // ROR A
@@ -1635,7 +1644,7 @@ void CPU::execute() {
         case 0x66: { uint32_t a = addr_direct(); m_cycles += 6; if (get_flag(FLAG_M)) write(a, op_ror8(read(a))); else { uint16_t v = read(a)|(read(a+1)<<8); v = op_ror16(v); write(a, v&0xFF); write(a+1, v>>8); } break; }
         case 0x76: { uint32_t a = addr_direct_x(); m_cycles += 6; if (get_flag(FLAG_M)) write(a, op_ror8(read(a))); else { uint16_t v = read(a)|(read(a+1)<<8); v = op_ror16(v); write(a, v&0xFF); write(a+1, v>>8); } break; }
         case 0x6E: { uint32_t a = addr_absolute(); m_cycles += 6; if (get_flag(FLAG_M)) write(a, op_ror8(read(a))); else { uint16_t v = read(a)|(read(a+1)<<8); v = op_ror16(v); write(a, v&0xFF); write(a+1, v>>8); } break; }
-        case 0x7E: { uint32_t a = addr_absolute_x(); m_cycles += 6; if (get_flag(FLAG_M)) write(a, op_ror8(read(a))); else { uint16_t v = read(a)|(read(a+1)<<8); v = op_ror16(v); write(a, v&0xFF); write(a+1, v>>8); } break; }
+        case 0x7E: { uint32_t a = addr_absolute_x(true); if (get_flag(FLAG_M)) write(a, op_ror8(read(a))); else { uint16_t v = read(a)|(read(a+1)<<8); v = op_ror16(v); write(a, v&0xFF); write(a+1, v>>8); } break; }
 
         // RTI - Return from Interrupt
         case 0x40:
@@ -1712,14 +1721,14 @@ void CPU::execute() {
         case 0x85: { uint32_t a = addr_direct(); if (get_flag(FLAG_M)) write(a, m_a&0xFF); else { write(a, m_a&0xFF); write(a+1, m_a>>8); } break; }
         case 0x95: { uint32_t a = addr_direct_x(); if (get_flag(FLAG_M)) write(a, m_a&0xFF); else { write(a, m_a&0xFF); write(a+1, m_a>>8); } break; }
         case 0x8D: { uint32_t a = addr_absolute(); if (get_flag(FLAG_M)) write(a, m_a&0xFF); else { write(a, m_a&0xFF); write(a+1, m_a>>8); } break; }
-        case 0x9D: { uint32_t a = addr_absolute_x(); if (get_flag(FLAG_M)) write(a, m_a&0xFF); else { write(a, m_a&0xFF); write(a+1, m_a>>8); } break; }
-        case 0x99: { uint32_t a = addr_absolute_y(); if (get_flag(FLAG_M)) write(a, m_a&0xFF); else { write(a, m_a&0xFF); write(a+1, m_a>>8); } break; }
+        case 0x9D: { uint32_t a = addr_absolute_x(true); if (get_flag(FLAG_M)) write(a, m_a&0xFF); else { write(a, m_a&0xFF); write(a+1, m_a>>8); } break; }
+        case 0x99: { uint32_t a = addr_absolute_y(true); if (get_flag(FLAG_M)) write(a, m_a&0xFF); else { write(a, m_a&0xFF); write(a+1, m_a>>8); } break; }
         case 0x8F: { uint32_t a = addr_absolute_long(); if (get_flag(FLAG_M)) write(a, m_a&0xFF); else { write(a, m_a&0xFF); write(a+1, m_a>>8); } break; }
         case 0x9F: { uint32_t a = addr_absolute_long_x(); if (get_flag(FLAG_M)) write(a, m_a&0xFF); else { write(a, m_a&0xFF); write(a+1, m_a>>8); } break; }
         case 0x92: { uint32_t a = addr_direct_indirect(); if (get_flag(FLAG_M)) write(a, m_a&0xFF); else { write(a, m_a&0xFF); write(a+1, m_a>>8); } break; }
         case 0x87: { uint32_t a = addr_direct_indirect_long(); if (get_flag(FLAG_M)) write(a, m_a&0xFF); else { write(a, m_a&0xFF); write(a+1, m_a>>8); } break; }
         case 0x81: { uint32_t a = addr_direct_x_indirect(); if (get_flag(FLAG_M)) write(a, m_a&0xFF); else { write(a, m_a&0xFF); write(a+1, m_a>>8); } break; }
-        case 0x91: { uint32_t a = addr_direct_indirect_y(); if (get_flag(FLAG_M)) write(a, m_a&0xFF); else { write(a, m_a&0xFF); write(a+1, m_a>>8); } break; }
+        case 0x91: { uint32_t a = addr_direct_indirect_y(true); if (get_flag(FLAG_M)) write(a, m_a&0xFF); else { write(a, m_a&0xFF); write(a+1, m_a>>8); } break; }
         case 0x97: { uint32_t a = addr_direct_indirect_long_y(); if (get_flag(FLAG_M)) write(a, m_a&0xFF); else { write(a, m_a&0xFF); write(a+1, m_a>>8); } break; }
         case 0x83: { uint32_t a = addr_stack_relative(); if (get_flag(FLAG_M)) write(a, m_a&0xFF); else { write(a, m_a&0xFF); write(a+1, m_a>>8); } break; }
         case 0x93: { uint32_t a = addr_stack_relative_indirect_y(); if (get_flag(FLAG_M)) write(a, m_a&0xFF); else { write(a, m_a&0xFF); write(a+1, m_a>>8); } break; }
@@ -1744,7 +1753,7 @@ void CPU::execute() {
         case 0x64: { uint32_t a = addr_direct(); if (get_flag(FLAG_M)) write(a, 0); else { write(a, 0); write(a+1, 0); } break; }
         case 0x74: { uint32_t a = addr_direct_x(); if (get_flag(FLAG_M)) write(a, 0); else { write(a, 0); write(a+1, 0); } break; }
         case 0x9C: { uint32_t a = addr_absolute(); if (get_flag(FLAG_M)) write(a, 0); else { write(a, 0); write(a+1, 0); } break; }
-        case 0x9E: { uint32_t a = addr_absolute_x(); if (get_flag(FLAG_M)) write(a, 0); else { write(a, 0); write(a+1, 0); } break; }
+        case 0x9E: { uint32_t a = addr_absolute_x(true); if (get_flag(FLAG_M)) write(a, 0); else { write(a, 0); write(a+1, 0); } break; }
 
         // TAX/TAY/TCD/TCS/TDC/TSC/TSX/TXA/TXS/TXY/TYA/TYX - Transfers
         case 0xAA:  // TAX
