@@ -234,6 +234,16 @@ bool Application::initialize(int argc, char* argv[]) {
     // Set this application as the netplay host for the plugin manager
     m_plugin_manager->set_netplay_host(this);
 
+    // Re-resolve the cached INetplayCapable pointer whenever the active
+    // emulator instance changes (e.g. loading a new ROM destroys the old
+    // instance and creates a new one). Without this, m_netplay_capable_plugin
+    // keeps pointing at the destroyed instance while netplay stays connected.
+    m_plugin_manager->on_plugin_changed([this](PluginType type, const std::string&) {
+        if (type == PluginType::Emulator) {
+            update_netplay_cache();
+        }
+    });
+
     // Initialize the netplay plugin with this application as its host
     if (auto* netplay_plugin = m_plugin_manager->get_netplay_plugin()) {
         netplay_plugin->initialize(this);
