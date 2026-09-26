@@ -1441,7 +1441,27 @@ void PPU::render_pixel(int x) {
     // Sprite palettes 0-3 reject color math (only palettes 4-7 can be blended)
     // ============================================================================
 
-    uint16_t final_color = main_pixel.color;
+    // ============================================================================
+    // CLIP TO BLACK (CGWSEL bits 6-7)
+    // ============================================================================
+    // Forces the main screen color to black based on the color window.
+    // (1 = NotMathWin: clip outside the window, 2 = MathWindow: clip inside.)
+    // On hardware the clip is applied to the main color BEFORE color math,
+    // so a clipped pixel still receives the sub screen / fixed color when
+    // math is enabled (0 + sub), and the half-result is suppressed for
+    // clipped pixels. Reference: fullsnes CGWSEL/CGADSUB; bsnes ppu-fast
+    // Line::pixel(): "if(!windowAbove[x]) above.color = 0; ...
+    // blend(above, below, io.col.halve && windowAbove[x] ...)".
+    bool clip_to_black = false;
+    switch (m_color_math_clip) {
+        case 0: clip_to_black = false; break;  // Never
+        case 1: clip_to_black = !get_color_window(x); break;  // Outside window
+        case 2: clip_to_black = get_color_window(x); break;   // Inside window
+        case 3: clip_to_black = true; break;   // Always
+    }
+
+    const uint16_t main_color = clip_to_black ? 0 : main_pixel.color;
+    uint16_t final_color = main_color;
 
     // Determine if color math should be applied
     // CGWSEL bits 4-5 control color math enable based on color window
@@ -1470,9 +1490,9 @@ void PPU::render_pixel(int x) {
         }
 
         // Extract RGB components (5 bits each)
-        int main_r = main_pixel.color & 0x1F;
-        int main_g = (main_pixel.color >> 5) & 0x1F;
-        int main_b = (main_pixel.color >> 10) & 0x1F;
+        int main_r = main_color & 0x1F;
+        int main_g = (main_color >> 5) & 0x1F;
+        int main_b = (main_color >> 10) & 0x1F;
 
         int blend_r = blend_color & 0x1F;
         int blend_g = (blend_color >> 5) & 0x1F;
@@ -1494,7 +1514,8 @@ void PPU::render_pixel(int x) {
 
         // Apply half-brightness if enabled
         // Note: Half only applies when sub screen has a non-backdrop pixel or using fixed color
-        if (m_color_math_half) {
+        // Half is also suppressed when the main color was clipped to black.
+        if (m_color_math_half && !clip_to_black) {
             // Only halve if sub screen has content or using fixed color
             bool should_halve = !m_sub_screen_bg_obj || (sub_pixel.source != 0);
             if (should_halve) {
@@ -1510,22 +1531,6 @@ void PPU::render_pixel(int x) {
         result_b = std::clamp(result_b, 0, 31);
 
         final_color = result_r | (result_g << 5) | (result_b << 10);
-    }
-
-    // ============================================================================
-    // CLIP TO BLACK (CGWSEL bits 6-7)
-    // ============================================================================
-    // This can force the main screen to black based on color window
-    bool clip_to_black = false;
-    switch (m_color_math_clip) {
-        case 0: clip_to_black = false; break;  // Never
-        case 1: clip_to_black = !get_color_window(x); break;  // Inside window
-        case 2: clip_to_black = get_color_window(x); break;   // Outside window
-        case 3: clip_to_black = true; break;   // Always
-    }
-
-    if (clip_to_black) {
-        final_color = 0;
     }
 
     // ============================================================================
