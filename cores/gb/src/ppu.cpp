@@ -377,8 +377,22 @@ void PPU::render_sprites() {
                           });
     }
 
-    // Render sprites (back to front for correct priority)
-    for (int i = sprite_count - 1; i >= 0; i--) {
+    // Resolve the winning sprite pixel for each column first, then composite
+    // against the background once. Painting each sprite straight into the
+    // framebuffer back-to-front (as this used to do) lets a sprite that gets
+    // masked out by BG-to-OBJ priority leave behind whatever a LOWER-priority
+    // sprite already painted underneath it - hardware instead picks the
+    // winning OBJ pixel first (front-to-back, first non-transparent pixel in
+    // sorted/OAM order wins) and only then decides BG-vs-OBJ for that single
+    // winner (Pan Docs "Drawing priority").
+    struct ObjPixel {
+        bool present = false;
+        bool bg_priority = false;
+        uint32_t color = 0;
+    };
+    std::array<ObjPixel, 160> obj_pixel{};
+
+    for (int i = 0; i < sprite_count; i++) {
         SpriteEntry& sprite = sprites[i];
 
         bool h_flip = sprite.attr & 0x20;
@@ -411,26 +425,14 @@ void PPU::render_sprites() {
             int screen_x = sprite.x + pixel;
             if (screen_x < 0 || screen_x >= 160) continue;
 
+            // A higher-priority sprite already claimed this column.
+            if (obj_pixel[screen_x].present) continue;
+
             int actual_pixel = h_flip ? (7 - pixel) : pixel;
             int color_bit = 7 - actual_pixel;
             uint8_t color_num = ((hi >> color_bit) & 1) << 1 | ((lo >> color_bit) & 1);
 
             if (color_num == 0) continue;  // Transparent
-
-            // Check priority. On CGB, BG map attribute bit 7 (stored as 2 in
-            // m_bg_priority) forces the BG in front of ANY sprite whenever the
-            // LCDC.0 master-priority switch is set, regardless of this
-            // sprite's own OAM priority bit; LCDC.0 clear gives sprites
-            // unconditional priority instead (Pan Docs LCDC.0 in CGB mode).
-            // On DMG, only the sprite's own OBJ-to-BG priority bit applies.
-            if (m_cgb_mode) {
-                if ((m_lcdc & 0x01) && m_bg_priority[screen_x] != 0 &&
-                    (m_bg_priority[screen_x] == 2 || bg_priority)) {
-                    continue;
-                }
-            } else if (bg_priority && m_bg_priority[screen_x] != 0) {
-                continue;
-            }
 
             uint32_t color;
             if (m_cgb_mode) {
@@ -443,8 +445,30 @@ void PPU::render_sprites() {
                 color = get_dmg_color(shade);
             }
 
-            m_framebuffer[m_ly * 160 + screen_x] = color;
+            obj_pixel[screen_x] = {true, bg_priority, color};
         }
+    }
+
+    // Composite the resolved OBJ pixel (if any) against the background.
+    for (int screen_x = 0; screen_x < 160; screen_x++) {
+        if (!obj_pixel[screen_x].present) continue;
+
+        // Check priority. On CGB, BG map attribute bit 7 (stored as 2 in
+        // m_bg_priority) forces the BG in front of ANY sprite whenever the
+        // LCDC.0 master-priority switch is set, regardless of this
+        // sprite's own OAM priority bit; LCDC.0 clear gives sprites
+        // unconditional priority instead (Pan Docs LCDC.0 in CGB mode).
+        // On DMG, only the sprite's own OBJ-to-BG priority bit applies.
+        if (m_cgb_mode) {
+            if ((m_lcdc & 0x01) && m_bg_priority[screen_x] != 0 &&
+                (m_bg_priority[screen_x] == 2 || obj_pixel[screen_x].bg_priority)) {
+                continue;
+            }
+        } else if (obj_pixel[screen_x].bg_priority && m_bg_priority[screen_x] != 0) {
+            continue;
+        }
+
+        m_framebuffer[m_ly * 160 + screen_x] = obj_pixel[screen_x].color;
     }
 }
 
