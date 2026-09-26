@@ -772,6 +772,18 @@ void APU::consume_fifo_sample(int idx) {
     DSPipe& pipe = m_dsound_pipe[idx];
     DSFIFO& fifo = m_dsound_fifo[idx];
 
+    // Request a refill DMA whenever the FIFO is half-empty (<=4 words),
+    // *before* looking at the pipe. On real hardware (and mGBA's
+    // GBAAudioSampleFIFO) the request fires unconditionally on the FIFO's
+    // level. Doing this after the pipe-refill check meant that once the pipe
+    // and FIFO both ran dry we returned on the underrun path below without
+    // ever requesting a refill, so a FIFO that starts out empty (game arms
+    // the FIFO DMA, then starts the timer) never got its first refill and
+    // Direct Sound stalled permanently.
+    if (fifo.size() <= 4 && m_request_fifo_dma) {
+        m_request_fifo_dma(idx);
+    }
+
     // If pipe is empty, try to refill from FIFO
     if (pipe.bytes_left == 0) {
         if (!fifo.empty()) {
@@ -796,11 +808,6 @@ void APU::consume_fifo_sample(int idx) {
 
     // Reset interpolation position - we just got a new sample
     pipe.interp_pos = 0.0f;
-
-    // Request DMA refill when FIFO is half-empty (4 or fewer words)
-    if (fifo.size() <= 4 && m_request_fifo_dma) {
-        m_request_fifo_dma(idx);
-    }
 }
 
 void APU::on_timer_overflow(int timer_id) {
