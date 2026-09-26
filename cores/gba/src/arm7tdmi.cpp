@@ -3157,12 +3157,15 @@ void ARM7TDMI::bios_lz77_uncomp_vram() {
     uint8_t pending_low = 0;
 
     // Read decompressed byte `pos` (relative to dst_base) the way hardware
-    // would see it: the not-yet-flushed pending low byte if that's what
-    // `pos` is, otherwise whatever is actually in VRAM there.
+    // would see it: whatever is actually in VRAM there.
+    //
+    // The pending (not-yet-flushed) low byte is deliberately NOT visible to
+    // back-references: hardware reads [dest-disp-1] from memory, and with
+    // disp=0 at an odd position that byte has not been written yet, so the
+    // stale VRAM content is read instead (GBATEK "LZ77UnCompReadNormalWrite16bit":
+    // "the 'Vram' function works only with disp=001h..FFFh, but not with
+    // disp=000h"; mGBA's _unLz77 width==2 path also reads memory).
     auto read_decompressed_byte = [&](uint32_t pos) -> uint8_t {
-        if (have_pending && pos + 1 == dst_pos) {
-            return pending_low;
-        }
         uint32_t addr = dst_base + pos;
         uint16_t hw = read16(addr & ~1u);
         return (addr & 1) ? static_cast<uint8_t>(hw >> 8) : static_cast<uint8_t>(hw & 0xFF);
