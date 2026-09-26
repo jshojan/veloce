@@ -18,7 +18,7 @@ TOP-LEVEL DOCUMENT
   "frame_limit": 1800,                     # default FRAMES= if a test omits it
   "result_policy": "legacy",               # legacy | strict (see VALIDATION below)
   "rom_build": {"dockerfile": "tools/rom-toolchain/Dockerfile",
-                "recipes": "tests/roms-src/<console>/build.py"},   # for rom_variant "veloce"
+                "recipes": "tests/roms-src/<console>"},   # recipe dir for rom_variant "veloce"
   "repositories": { <id>: {url,dir,type,license,...} },
   "test_suites": { <suite_id>: SuiteSpec },
   "visual_test_suites": { <suite_id>: SuiteSpec },   # non-scoring pixel tests
@@ -282,7 +282,9 @@ def _parse_test(
         expected_checks=_as_int(raw.get("expected_checks"), 0),
         allow_empty=bool(raw.get("allow_empty", False)),
         resets=_as_int(raw.get("resets"), 3),
-        input=raw.get("input", "") or "",
+        # Non-string values are kept out of the INPUT= env var (the validator
+        # reports them); a list here would otherwise crash the harness.
+        input=raw["input"] if isinstance(raw.get("input"), str) else "",
         raw=raw,
     )
 
@@ -476,6 +478,9 @@ def validate_config(
                     errors.append(f"test '{t.id}' {key} must be a non-negative integer")
             if "allow_empty" in t.raw and not isinstance(t.raw["allow_empty"], bool):
                 errors.append(f"test '{t.id}' allow_empty must be true/false")
+            if "input" in t.raw and t.raw["input"] not in ("", None) \
+                    and not isinstance(t.raw["input"], str):
+                errors.append(f"test '{t.id}' input must be a string 'frame:hexmask,...'")
             if t.input and not _INPUT_RE.match(t.input):
                 errors.append(f"test '{t.id}' input must look like 'frame:hexmask,...'")
 

@@ -80,16 +80,18 @@ These rules apply in order. `pass`/`total` are recomputed from the `CHECK` lines
 
 1. **The file or header is missing.** The verdict is `ERROR`. If the wall-clock timeout killed the process, the verdict is `TIMEOUT` instead.
 2. **`require_channel` is set.** If the file came from an adapter other than the required channel, or the core does not list that channel, the verdict is `SKIP` ("needs modified ROM"). This is how a config demands a Tier A ROM.
-3. **There is an `END p/t` line.**
+3. **A `CHECK` line is malformed** (not `CHECK <id> PASS|FAIL ...`, before the first `END`): `ERROR`. A broken emitter must not be able to drop a failing check from the tally.
+4. **There is an `END p/t` line.**
    - `CHECK` lines exist and `p/t` differs from their tally: `ERROR` (tally mismatch, meaning the emitter is broken).
    - `END 0/0`: `ERROR`, unless the test sets `allow_empty` (smoke ROMs), in which case it is `PASS`.
    - `t < expected_checks`: `FAIL` with progress `p / expected_checks` (the ROM died early or skipped checks).
    - `p == t`: `PASS`.
    - Otherwise: `FAIL` with progress `p / t` and `status_code` = `code`, else `t - p`.
    - With no `CHECK` lines, the `END` tally is taken as-is. Legacy adapters emit only `END 1/1` or `END 0/1 code=N`.
-4. **There is no `END` line.**
+5. **There is no `END` line.**
    - `reason=reset_limit`: `FAIL`.
    - `reason=terminator` with a trailer `status`: a core called `finish()` without an `END` line. `status` 0 is `PASS`, >0 is `FAIL`.
+   - The trailer is missing and the process exited with a non-zero code on its own (a crash): `ERROR`.
    - The trailer is missing (the process was killed) or the harness timed out: `TIMEOUT`.
    - Any `CHECK ... FAIL`: `FAIL`.
    - Otherwise: `RUNS`, which is unscored. The detail says how many checks passed before the frame budget ran out, or that the channel was silent.
@@ -183,7 +185,7 @@ The testkit handles the result file as follows (`tests/veloce_testkit`):
   - `frames_used`, `end_reason`, `adapter`, `result_path`
   - `source` (`file` / `stdout` / `screenshot` / `trace`)
 - **Baseline diff.** `run_all.py --baseline <json>`, or `python -m veloce_testkit.baseline base.json cur.json`, reports:
-  - per-test status changes (a PASS that becomes FAIL/TIMEOUT/ERROR counts as a regression; `--no-regressions` gates on it)
+  - per-test status changes (a PASS that becomes FAIL/TIMEOUT/ERROR/RUNS counts as a regression; `--no-regressions` gates on it)
   - per-`CHECK` changes
   - `frames_used` drift on tests that pass in both runs
 

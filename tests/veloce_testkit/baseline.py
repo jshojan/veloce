@@ -24,7 +24,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 PASSING = {"pass"}
-HARD_FAIL = {"fail", "timeout", "error"}
+# "runs" counts: a test that had a verdict and now produces none (e.g. a core
+# stopped emitting to the result channel) has lost coverage, not changed state.
+HARD_FAIL = {"fail", "timeout", "error", "runs"}
 
 
 @dataclass
@@ -106,7 +108,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("baseline")
     ap.add_argument("current")
     ap.add_argument("--fail-on-regression", action="store_true",
-                    help="exit 1 if a baseline PASS became FAIL/TIMEOUT/ERROR")
+                    help="exit 1 if a baseline PASS became FAIL/TIMEOUT/ERROR/RUNS")
     args = ap.parse_args(argv)
     diffs = diff_documents(json.loads(Path(args.baseline).read_text()),
                            json.loads(Path(args.current).read_text()))

@@ -236,7 +236,8 @@ class Harness:
             if m == DetectionMethod.FILE or (rf is not None and rf.has_verdict):
                 if rf is None:
                     return DetectionResult(TestStatus.ERROR, "no result path")
-                return detect_result_file(result_path, parsed=rf, **self._file_kwargs(test))
+                return detect_result_file(result_path, parsed=rf, exit_code=exit_code,
+                                          **self._file_kwargs(test))
             # Deprecated alias and the core has no channel yet: legacy stdout parse.
             if m == DetectionMethod.MEMORY:
                 return detect_blargg_memory(output, exit_code)

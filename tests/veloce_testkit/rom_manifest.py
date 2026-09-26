@@ -118,13 +118,18 @@ def check_rom_variant(
     manifest = load_manifest_cached(project_root)
     if not manifest.exists:
         return f"rom_variant veloce but no {DEFAULT_MANIFEST_REL} (run tests/roms-src/build.py)"
-    entry = manifest.lookup(rel_path)
-    if entry is None:
-        return f"rom_variant veloce but '{rel_path}' is not in rom_manifest.json"
     try:
         actual = sha256_file(rom_path)
     except OSError as e:
         return f"rom_variant veloce but ROM unreadable for hash check: {e}"
+    entry = manifest.lookup(rel_path)
+    if entry is None:
+        # The plan's rule is "hash on record": a config's roms_dir need not be
+        # build/roms, so accept any manifest entry with this exact sha256.
+        if any(e.sha256 == actual for e in manifest.roms.values()):
+            return None
+        return (f"rom_variant veloce but '{rel_path}' (sha256 {actual[:12]}…) "
+                "is not in rom_manifest.json")
     if actual != entry.sha256:
         return (
             f"rom_variant veloce but sha256 mismatch for '{rel_path}' "

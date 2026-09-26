@@ -56,22 +56,25 @@ def run_console(console: str) -> dict | None:
 
 
 def _last_json_object(text: str) -> dict:
-    # Tolerate human log lines before the JSON: find the last top-level {...}.
-    depth = 0
-    start = None
+    # Tolerate human log lines before the JSON: return the last top-level
+    # object that actually decodes. Brace counting is not enough: log lines can
+    # have unbalanced braces and JSON strings (ROM-provided CHECK names,
+    # verdict details) can contain them.
+    decoder = json.JSONDecoder()
     last = None
-    for i, ch in enumerate(text):
-        if ch == "{":
-            if depth == 0:
-                start = i
-            depth += 1
-        elif ch == "}":
-            depth -= 1
-            if depth == 0 and start is not None:
-                last = text[start:i + 1]
+    i = text.find("{")
+    while i != -1:
+        try:
+            obj, end = decoder.raw_decode(text, i)
+        except ValueError:
+            i = text.find("{", i + 1)
+            continue
+        if isinstance(obj, dict):
+            last = obj
+        i = text.find("{", end)
     if last is None:
         raise ValueError("no JSON object found")
-    return json.loads(last)
+    return last
 
 
 def render(cards: dict[str, dict]) -> str:

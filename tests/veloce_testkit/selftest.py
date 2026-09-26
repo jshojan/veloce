@@ -237,6 +237,7 @@ if spec.get("stderr"):
 if spec.get("dump_env"):
     json.dump(dict(os.environ), open(spec["dump_env"], "w"))
 time.sleep(spec.get("sleep", 0))
+sys.exit(spec.get("exit", 0))
 """)
 _fake.chmod(0o755)
 
@@ -260,6 +261,8 @@ _hcfg_path = _write_cfg("nes", {"timeout_seconds": 2, "frame_limit": 900, "test_
      "result_detection": "memory"},
     {"id": "t.no_file", "file": _rom("no_file.nes"), "result_detection": "file"},
     {"id": "t.hang", "file": _rom("hang.nes", copy=str(TRANSCRIPTS / "killed_timeout.result"), sleep=10),
+     "result_detection": "file"},
+    {"id": "t.crash", "file": _rom("crash.nes", copy=str(TRANSCRIPTS / "killed_timeout.result"), exit=139),
      "result_detection": "file"},
     {"id": "t.env", "file": _rom("env.nes", dump_env=str(_tmp / "env.json")),
      "result_detection": "file", "resets": 1, "input": "10:1", "frames": 77},
@@ -310,6 +313,9 @@ if os.name == "posix":
     _r = _h.run_test(_tests["t.hang"])
     check("e2e timeout keeps partial checks",
           _r.status == TestStatus.TIMEOUT and len(_r.checks) == 2 and "timeout 2s" in _r.detail)
+    _r = _h.run_test(_tests["t.crash"])
+    check("e2e crash (no trailer, exit!=0) -> ERROR, not TIMEOUT",
+          _r.status == TestStatus.ERROR and "exited with code 139" in _r.detail)
     _h.run_test(_tests["t.env"])
     _seen = json.loads((_tmp / "env.json").read_text())
     check("e2e env: resets/input/frames forwarded",
@@ -335,6 +341,68 @@ check("baseline: pass->fail is a regression", len(_dd.regressions) == 1 and _dd.
 check("baseline: per-check changes", len(_dd.check_changes) == 2)
 check("baseline: frames_used drift", _dd.frame_drift == ["a: frames_used 40 -> 43"])
 check("baseline: identical docs -> empty", diff_documents(_base, _base)[0].is_empty())
+
+_base2 = {"console": "nes", "results": [{"id": "r", "status": "pass", "checks": []}]}
+_cur2 = {"console": "nes", "results": [{"id": "r", "status": "runs", "checks": []}]}
+check("baseline: pass->runs (verdict lost) is a regression",
+      len(diff_documents(_base2, _cur2)[0].regressions) == 1)
+
+# ===========================================================================
+# adversarial parser edge cases (review follow-ups)
+# ===========================================================================
+_hdr = "#VELOCE 1 core=NES rom_crc32=00000000 channels=port\n"
+_trl = "#VELOCE end reason=terminator frames=3 cycles=9 status=0\n"
+
+
+def _det(body: str, trailer: str = _trl, **kw):
+    fp = _tmp / f"edge_{abs(hash(body + trailer))}.result"
+    fp.write_text(_hdr + body + trailer)
+    return detect_result_file(fp, **kw)
+
+
+check("malformed CHECK cannot be dropped from the tally",
+      _det("CHECK 1 PASS a\nCHECK 2 fail b\nEND 1/1\n").status == TestStatus.ERROR)
+check("CHECK with no verdict word -> ERROR",
+      _det("CHECK 1\nEND 0/0\n", allow_empty=True).status == TestStatus.ERROR)
+check("END with spaces around '/' is malformed (sink would not terminate on it)",
+      _det("END 1 / 1\n").status == TestStatus.ERROR)
+check("END code= is decimal, never octal",
+      _det("CHECK 1 FAIL a\nEND 0/1 code=010\n").status_code == 10)
+check("END code= 0x hex",
+      _det("CHECK 1 FAIL a\nEND 0/1 code=0x1f\n").status_code == 31)
+check("END tab-separated accepted",
+      _det("CHECK 1 PASS a\nEND\t1/1\n").status == TestStatus.PASS)
+check("no trailer + non-zero exit -> ERROR (crash)",
+      _det("CHECK 1 PASS a\n", trailer="", exit_code=-11).status == TestStatus.ERROR)
+check("no trailer + exit 0/unknown -> TIMEOUT",
+      _det("CHECK 1 PASS a\n", trailer="").status == TestStatus.TIMEOUT)
+
+sys.path.insert(0, str(REPO / "tests"))
+from run_all import _last_json_object  # noqa: E402
+check("run_all JSON extraction survives braces in strings and logs",
+      _last_json_object('log {oops\n{"results": [{"detail": "exp={01} }}"}]}\n')
+      == {"results": [{"detail": "exp={01} }}"}]})
+
+e, _ = _validate("nes", {"test_suites": {"s": _suite(
+    {"file": "a.nes", "result_detection": "file", "input": ["10:1"]})}})
+check("non-string input is a validation error (not a crash)", any("input must be" in x for x in e))
+_lt = load_config(_write_cfg("nes", {"test_suites": {"s": _suite(
+    {"file": "a.nes", "result_detection": "file", "input": ["10:1"]})}}), "nes").suites[0].tests[0]
+check("non-string input never reaches INPUT=", _lt.input == "")
+
+from veloce_testkit.rom_manifest import check_rom_variant  # noqa: E402
+_mroot = _tmp / "mroot"
+(_mroot / "tests" / "roms-src").mkdir(parents=True)
+(_mroot / "r").mkdir()
+(_mroot / "r" / "x.nes").write_bytes(b"veloce-rom")
+import hashlib  # noqa: E402
+(_mroot / "tests" / "roms-src" / "rom_manifest.json").write_text(json.dumps({"roms": {
+    "nes/suite/x.nes": {"sha256": hashlib.sha256(b"veloce-rom").hexdigest()}}}))
+check("manifest: hash on record accepted under another path",
+      check_rom_variant(_mroot, "suite/x.nes", _mroot / "r" / "x.nes", "veloce") is None)
+(_mroot / "r" / "y.nes").write_bytes(b"other")
+check("manifest: unknown hash refused",
+      "not in rom_manifest.json" in (check_rom_variant(_mroot, "y.nes", _mroot / "r" / "y.nes", "veloce") or ""))
 
 shutil.rmtree(_tmp, ignore_errors=True)
 

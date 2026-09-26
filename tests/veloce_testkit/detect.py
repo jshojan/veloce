@@ -279,7 +279,20 @@ def _norm_trace_line(line: str) -> str:
 # 0. VELOCE-RESULT/1 file
 # --------------------------------------------------------------------------
 _HEADER_RE = re.compile(r"^#VELOCE 1(?: |$)")
-_END_RE = re.compile(r"^END\s+(\d+)\s*/\s*(\d+)")
+# Exactly "END <digits>/<digits>" followed by whitespace or end of line; the
+# application's sink (src/core/test_file_sink.cpp) uses the same rule to decide
+# that the run is over, so the two must agree.
+_END_RE = re.compile(r"^END[ \t]+(\d+)/(\d+)(?:[ \t]|$)")
+_CODE_RE = re.compile(r"^(?:0[xX]([0-9a-fA-F]+)|(\d+))$")
+
+
+def _parse_code(value: str) -> Optional[int]:
+    """code=<n>: decimal, or hex with an explicit 0x prefix (never octal),
+    matching the sink's parser."""
+    m = _CODE_RE.match(value)
+    if not m:
+        return None
+    return int(m.group(1), 16) if m.group(1) is not None else int(m.group(2))
 
 
 def _kv_tokens(tokens: list[str]) -> dict[str, str]:
@@ -313,6 +326,7 @@ class ResultFile:
     end: Optional[tuple[int, int]] = None      # (pass, total) of the first END line
     end_code: Optional[int] = None
     end_malformed: bool = False
+    malformed_checks: list[str] = field(default_factory=list)   # CHECK lines without id/PASS|FAIL
     trailer: dict[str, str] = field(default_factory=dict)   # "#VELOCE end ..." tokens
 
     @property
@@ -343,6 +357,7 @@ class ResultFile:
         """True once the core put a verdict on the channel (END, CHECK, or an
         adapter terminator). False for a core without a channel."""
         return (self.end is not None or self.end_malformed or bool(self.checks)
+                or bool(self.malformed_checks)
                 or self.trailer_status is not None
                 or self.end_reason == "reset_limit")
 
@@ -417,16 +432,17 @@ def parse_result_file(path: str | Path) -> ResultFile:
                 exp=kv.pop("exp", ""), got=kv.pop("got", ""),
                 mask=kv.pop("mask", ""), at=kv.pop("at", ""), extra=kv,
             ))
+        elif kw == "CHECK":
+            # A broken emitter must not be able to drop a failing check from
+            # the tally ("CHECK 3 fail x" + "END 2/2" would otherwise PASS).
+            rf.malformed_checks.append(line)
         elif kw == "END":
             m = _END_RE.match(line)
             if m:
                 rf.end = (int(m.group(1)), int(m.group(2)))
                 code = _kv_tokens(toks[2:]).get("code")
                 if code is not None:
-                    try:
-                        rf.end_code = int(code, 0)
-                    except ValueError:
-                        pass
+                    rf.end_code = _parse_code(code)
             else:
                 rf.end_malformed = True
     return rf
@@ -451,6 +467,7 @@ def detect_result_file(
     require_channel: str = "",
     allow_empty: bool = False,
     timed_out: bool = False,
+    exit_code: Optional[int] = None,
     parsed: Optional[ResultFile] = None,
 ) -> DetectionResult:
     """Verdict from a VELOCE-RESULT/1 file. Rules: docs/testing/VELOCE-RESULT.md s.3."""
@@ -485,6 +502,10 @@ def detect_result_file(
     frames = f" after {rf.frames_used} frames" if rf.has_trailer else ""
 
     # 3. END present
+    if rf.malformed_checks:
+        return mk(TestStatus.ERROR,
+                  f"malformed CHECK line: {rf.malformed_checks[0][:80]!r} "
+                  f"({len(rf.malformed_checks)} total)")
     if rf.end_malformed:
         return mk(TestStatus.ERROR, "malformed END line")
     if rf.end is not None:
@@ -522,6 +543,10 @@ def detect_result_file(
         if ts == 0 and not any(not c.passed for c in rf.checks):
             return mk(TestStatus.PASS, "terminator status 0", 0, 1.0)
         return mk(TestStatus.FAIL, f"terminator status {ts}", ts, progress)
+    if not timed_out and not rf.has_trailer and exit_code not in (None, 0):
+        return mk(TestStatus.ERROR,
+                  f"no END; process exited with code {exit_code} before the trailer "
+                  f"(crash?); {passed}/{total} checks passed", None, progress)
     if timed_out or not rf.has_trailer:
         return mk(TestStatus.TIMEOUT,
                   f"no END; {passed}/{total} checks passed before the run was killed",
