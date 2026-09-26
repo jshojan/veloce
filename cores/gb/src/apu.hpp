@@ -119,7 +119,7 @@ private:
         uint8_t divisor_code = 0;
         bool width_mode = false;
         uint8_t clock_shift = 0;
-        uint16_t timer = 0;
+        uint32_t timer = 0;
         uint16_t lfsr = 0x7FFF;
     };
     Noise m_noise;

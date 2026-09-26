@@ -104,9 +104,9 @@ void APU::step(int cycles) {
         if (m_noise.timer > 0) {
             m_noise.timer--;
         }
-        if (m_noise.timer == 0) {
+        if (m_noise.timer == 0 && m_noise.clock_shift < 14) {
             // Divisor table: r=0 -> 8, else r*16
-            uint16_t divisor = m_noise.divisor_code == 0 ? 8 : (m_noise.divisor_code * 16);
+            uint32_t divisor = m_noise.divisor_code == 0 ? 8 : (m_noise.divisor_code * 16);
             m_noise.timer = divisor << m_noise.clock_shift;
 
             // Clock LFSR - XOR bits 0 and 1
@@ -118,6 +118,9 @@ void APU::step(int cycles) {
                 m_noise.lfsr |= xor_result << 6;
             }
         }
+        // clock_shift 14/15 give a divisor*shift product that never completes on
+        // real hardware within any practical timeframe; the LFSR effectively
+        // freezes (timer left untouched rather than reloaded/clocked).
 
         // Generate sample at target rate (~44100 Hz)
         // GB CPU: 4194304 Hz (T-cycles), target: 44100 Hz -> 4194304/44100 = ~95.1 cycles per sample
@@ -676,7 +679,7 @@ void APU::write_register(uint16_t address, uint8_t value) {
                         m_noise.length_counter--;
                     }
                 }
-                uint16_t divisor = m_noise.divisor_code == 0 ? 8 : (m_noise.divisor_code * 16);
+                uint32_t divisor = m_noise.divisor_code == 0 ? 8 : (m_noise.divisor_code * 16);
                 m_noise.timer = divisor << m_noise.clock_shift;
                 m_noise.volume = m_noise.envelope_initial;
                 m_noise.envelope_counter = m_noise.envelope_period > 0 ? m_noise.envelope_period : 8;
