@@ -250,6 +250,47 @@ static void test_reset_limit() {
     CHECK(r.text.find("#VELOCE end reason=reset_limit frames=11") != std::string::npos);
 }
 
+static void test_reset_limit_exit_disabled() {
+    std::cerr << "test_reset_limit_exit_disabled\n";
+    // VELOCE_TEST_EXIT=0 (screenshot tests) must reach the frame budget even
+    // when the ROM exhausts its resets; the trailer still says reset_limit.
+    StubPlugin p;
+    auto req = [](emu::ITestSink& k, StubPlugin&) { k.request_reset(); };
+    for (uint64_t f = 0; f < 40; f += 5) p.script[f] = {req};
+    TestRunConfig c = cfg_for("limit_noexit.result");
+    c.max_resets = 1;
+    c.reset_delay_frames = 1;
+    c.exit_on_finish = false;
+    RunResult r = run_session(p, c, 50);
+    CHECK_EQ(r.frames_run, uint64_t(50));
+    CHECK_EQ(p.resets, 1);
+    CHECK(r.text.find("#VELOCE end reason=reset_limit frames=50") != std::string::npos);
+}
+
+static std::string end_status_for(const char* name, const std::string& line) {
+    StubPlugin p;
+    p.script[0] = {put(line)};
+    RunResult r = run_session(p, cfg_for(name), 3);
+    size_t at = r.text.find("#VELOCE end ");
+    return at == std::string::npos ? std::string() : r.text.substr(at);
+}
+
+static void test_end_line_parsing() {
+    std::cerr << "test_end_line_parsing\n";
+    // Same rules as veloce_testkit.detect: code= is decimal (a leading zero is
+    // not octal) or 0x-prefixed hex; tabs separate tokens like spaces.
+    CHECK_EQ(end_status_for("e1.result", "END 0/1 code=010\n"),
+             std::string("#VELOCE end reason=terminator frames=1 cycles=100 status=10\n"));
+    CHECK_EQ(end_status_for("e2.result", "END 0/1 code=0x1f\n"),
+             std::string("#VELOCE end reason=terminator frames=1 cycles=100 status=31\n"));
+    CHECK_EQ(end_status_for("e3.result", "END\t2/2\n"),
+             std::string("#VELOCE end reason=terminator frames=1 cycles=100 status=0\n"));
+    CHECK_EQ(end_status_for("e4.result", "END 1/2 xcode=5\n"),
+             std::string("#VELOCE end reason=terminator frames=1 cycles=100 status=1\n"));
+    CHECK_EQ(end_status_for("e5.result", "ENDING 1/1\n"),
+             std::string("#VELOCE end reason=frames frames=3 cycles=300\n"));
+}
+
 static void test_blob() {
     std::cerr << "test_blob\n";
     StubPlugin p;
@@ -320,6 +361,8 @@ int main() {
     test_finish_from_adapter_and_partial_line();
     test_reset_protocol();
     test_reset_limit();
+    test_reset_limit_exit_disabled();
+    test_end_line_parsing();
     test_blob();
     test_core_without_channel();
     test_v1_plugin_not_called();

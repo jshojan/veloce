@@ -1,5 +1,6 @@
 #include "test_file_sink.hpp"
 
+#include <cctype>
 #include <cinttypes>
 #include <cstdlib>
 #include <cstring>
@@ -56,10 +57,10 @@ std::string value_safe(const char* s) {
 // line is not an END line.
 bool parse_end_line(const std::string& line, int32_t& status) {
     if (line.compare(0, 3, "END") != 0) return false;
-    if (line.size() > 3 && line[3] != ' ') return false;
+    if (line.size() > 3 && line[3] != ' ' && line[3] != '\t') return false;
     long pass = -1, total = -1, code = -1;
     const char* p = line.c_str() + 3;
-    while (*p == ' ') ++p;
+    while (*p == ' ' || *p == '\t') ++p;
     char* end = nullptr;
     long a = std::strtol(p, &end, 10);
     if (end != p && *end == '/') {
@@ -67,11 +68,17 @@ bool parse_end_line(const std::string& line, int32_t& status) {
         long b = std::strtol(q, &end, 10);
         if (end != q) { pass = a; total = b; }
     }
-    const char* c = std::strstr(line.c_str(), " code=");
-    if (c) {
-        const char* q = c + 6;
-        long v = std::strtol(q, &end, 0);
-        if (end != q) code = v;
+    // code=<n>: decimal, or hex with an explicit 0x prefix. Never octal: a
+    // leading zero ("code=010") is decimal, matching the testkit's parser.
+    for (const char* c = std::strstr(line.c_str(), "code="); c; c = std::strstr(c + 5, "code=")) {
+        if (c != line.c_str() && c[-1] != ' ' && c[-1] != '\t') continue;   // "xcode=" is not it
+        const char* q = c + 5;
+        int base = 10;
+        if (q[0] == '0' && (q[1] == 'x' || q[1] == 'X')) { q += 2; base = 16; }
+        if (!std::isxdigit(static_cast<unsigned char>(*q))) break;
+        long v = std::strtol(q, &end, base);
+        if (end != q && (*end == '\0' || *end == ' ' || *end == '\t')) code = v;
+        break;
     }
     if (code >= 0) status = static_cast<int32_t>(code);
     else if (total >= 0 && pass == total) status = 0;   // includes END 0/0
@@ -240,8 +247,10 @@ bool TestFileSink::after_frame(uint64_t frames_run) {
             if (m_plugin_has_test_api) m_plugin->on_test_reset();
         }
     }
-    if (m_reset_limit_hit) return true;
-    return m_finished && m_config.exit_on_finish;
+    // VELOCE_TEST_EXIT=0 (e.g. screenshot tests) always runs the full budget;
+    // the trailer still records reason=reset_limit.
+    if (!m_config.exit_on_finish) return false;
+    return m_reset_limit_hit || m_finished;
 }
 
 void TestFileSink::close(EndReason fallback, uint64_t frames_run, uint64_t cycles) {

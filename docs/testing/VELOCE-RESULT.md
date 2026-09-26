@@ -12,7 +12,7 @@ This document covers the whole path: the ROM-facing port on each console, the pl
 |---|---|---|
 | `VELOCE_TEST_OUT=<path>` | unset | Create (truncate) `<path>` and write the result file there. Implies `HEADLESS=1` unless `HEADLESS=0` is given explicitly. |
 | `VELOCE_TEST_EXIT=0\|1` | `1` | Stop the frame loop after the frame in which the terminator (`END` line or adapter `finish()`) was seen. |
-| `VELOCE_TEST_RESETS=<n>` | `3` | Most resets the ROM may request (blargg status `0x81`). One more request ends the run with `reason=reset_limit`. |
+| `VELOCE_TEST_RESETS=<n>` | `3` | Most resets the ROM may request (blargg status `0x81`). One more request ends the run with `reason=reset_limit`. With `VELOCE_TEST_EXIT=0` the run still continues to the frame budget, and the trailer still says `reason=reset_limit`. |
 | `FRAMES=<n>` | `600` headless | Frame budget only. When it runs out first the trailer says `reason=frames`. The exit code is still 0. |
 | `INPUT=frame:hexmask,...` | none | The existing deterministic button schedule, for ROMs that need input. |
 
@@ -57,7 +57,7 @@ LOG <text>                               free text (blargg console output lands 
 END <pass>/<total> [code=<n>]            terminator; total counts CHECK lines
 ```
 
-Everything after `PASS`/`FAIL` up to the first `key=value` token is the check name. Only the first `END` counts. When the sink completes an `END` line it treats it as the terminator by itself (status = `code`, else 0 when `pass == total`, else 1). A core that emits `END` lines therefore never has to call `finish()`.
+Everything after `PASS`/`FAIL` up to the first `key=value` token is the check name. `END` is exactly `END <digits>/<digits>` (no spaces around `/`); `code=` is decimal, or hex with an explicit `0x` prefix, never octal. Only the first `END` counts. When the sink completes an `END` line it treats it as the terminator by itself (status = `code`, else 0 when `pass == total`, else 1). A core that emits `END` lines therefore never has to call `finish()`.
 
 Example (a modified PeterLemon `CPUADC`, SNES, [`transcripts/port_fail_partial.result`](transcripts/port_fail_partial.result)):
 

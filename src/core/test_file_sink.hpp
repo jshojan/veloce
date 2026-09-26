@@ -63,7 +63,8 @@ public:
 
     // Call once after every completed run_frame() with the number of frames
     // run so far (including this one). Performs a pending reset when due.
-    // Returns true when the frame loop should stop.
+    // Returns true when the frame loop should stop: terminator seen or reset
+    // limit hit, and only with VELOCE_TEST_EXIT=1 (exit_on_finish).
     bool after_frame(uint64_t frames_run);
 
     // Detach from the plugin, flush a partial line, write the trailer and

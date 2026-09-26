@@ -729,6 +729,13 @@ void Application::render() {
 bool Application::load_rom(const std::string& path) {
     std::cout << "Loading ROM: " << path << std::endl;
 
+    // A test session belongs to the ROM it was opened for. Loading another ROM
+    // (GUI browser, drag-and-drop) may replace the emulator plugin the sink is
+    // attached to, so write the trailer and detach while that plugin is alive.
+    if (m_test_sink) {
+        end_test_session(false);
+    }
+
     // Find appropriate plugin for this file type
     if (!m_plugin_manager->set_active_plugin_for_file(path)) {
         std::cerr << "No plugin found for file: " << path << std::endl;
