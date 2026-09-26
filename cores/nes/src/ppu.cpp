@@ -871,7 +871,10 @@ uint8_t PPU::cpu_read(uint16_t address) {
             // (the PPU's internal bus mirrors $3000-$3FFF down to $2000-$2FFF, so the
             // buffer refill for a palette read actually re-reads the nametable, not
             // the palette, per real hardware).
-            if (m_v >= 0x3F00) {
+            // The PPU address bus is 14 bits: v's bit 14 (the top fine-Y bit,
+            // reachable by incrementing past $3FFF) is not decoded, so $4000+
+            // must be treated as $0000+ (pattern space), not as palette.
+            if ((m_v & 0x3FFF) >= 0x3F00) {
                 data = ppu_read(m_v);
                 m_data_buffer = ppu_read(m_v & 0x2FFF);
                 // For palette reads, the lower 6 bits come from the palette,
@@ -897,7 +900,7 @@ uint8_t PPU::cpu_read(uint16_t address) {
 
             // Increment VRAM address and notify mapper (for MMC3 A12 clocking)
             uint16_t old_v = m_v;
-            m_v += (m_ctrl & 0x04) ? 32 : 1;
+            m_v = (m_v + ((m_ctrl & 0x04) ? 32 : 1)) & 0x7FFF;  // v is 15 bits
             uint32_t fc = static_cast<uint32_t>(m_scanline * 341 + m_cycle);
             m_bus.notify_ppu_addr_change(old_v, m_v, fc);
             break;
@@ -990,7 +993,7 @@ void PPU::cpu_write(uint16_t address, uint8_t value) {
             ppu_write(m_v, value);
             // Increment VRAM address and notify mapper (for MMC3 A12 clocking)
             uint16_t old_v = m_v;
-            m_v += (m_ctrl & 0x04) ? 32 : 1;
+            m_v = (m_v + ((m_ctrl & 0x04) ? 32 : 1)) & 0x7FFF;  // v is 15 bits
             uint32_t fc = static_cast<uint32_t>(m_scanline * 341 + m_cycle);
             m_bus.notify_ppu_addr_change(old_v, m_v, fc);
             break;
