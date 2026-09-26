@@ -185,7 +185,20 @@ void PPU::step() {
 
             switch ((m_cycle - 1) % 8) {
                 case 0: {
-                    load_background_shifters();
+                    // The reload at cycle 1 would be a THIRD load of the
+                    // tile that was already fetched and loaded at cycle
+                    // 329 (into the shifters' low byte) and again at
+                    // cycle 337 (per hardware, the correct final
+                    // prefetch reload) of the previous scanline.
+                    // Reloading again here duplicates that tile at pixel
+                    // 8/9 and shifts everything from pixel 9 onward one
+                    // dot late. Hardware reloads only at 9, 17, ..., 257
+                    // (this loop) and 329, 337 (prefetch); the fetch
+                    // itself (below) still needs to happen at cycle 1 to
+                    // keep the NT/AT/pattern pipeline primed.
+                    if (m_cycle != 1) {
+                        load_background_shifters();
+                    }
                     uint16_t nt_addr = 0x2000 | (m_v & 0x0FFF);
                     m_bus.notify_ppu_address_bus(nt_addr, frame_cycle);  // A12 tracking for MMC3
                     m_bg_next_tile_id = m_bus.ppu_read(nt_addr, frame_cycle);
