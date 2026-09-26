@@ -3,7 +3,6 @@
 #include <cstring>
 #include <iostream>
 #include <algorithm>
-#include <ctime>
 
 namespace gba {
 
@@ -966,6 +965,58 @@ static int unbcd(uint8_t value) {
     return ((value >> 4) & 0xF) * 10 + (value & 0xF);
 }
 
+// Portable UTC calendar <-> epoch-seconds conversion for the emulated RTC
+// clock. timegm() is a POSIX/BSD extension that MSVC does not provide, and
+// gmtime() returns a shared static (or null) -- neither is needed for a
+// proleptic-Gregorian day count (H. Hinnant's days_from_civil /
+// civil_from_days). Also used to derive the weekday (1970-01-01 = Thursday).
+struct RtcCivil { int year, month, day, wday, hour, min, sec; };
+
+static int64_t rtc_days_from_civil(int64_t y, int m, int d) {
+    y -= m <= 2;
+    const int64_t era = (y >= 0 ? y : y - 399) / 400;
+    const int64_t yoe = y - era * 400;
+    const int64_t doy = (153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + d - 1;
+    const int64_t doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    return era * 146097 + doe - 719468;
+}
+
+static RtcCivil rtc_civil_from_epoch(uint64_t epoch) {
+    int64_t days = static_cast<int64_t>(epoch / 86400);
+    int64_t rem = static_cast<int64_t>(epoch % 86400);
+    RtcCivil c{};
+    c.hour = static_cast<int>(rem / 3600);
+    c.min = static_cast<int>((rem % 3600) / 60);
+    c.sec = static_cast<int>(rem % 60);
+    c.wday = static_cast<int>((days + 4) % 7);  // 0 = Sunday
+    int64_t z = days + 719468;
+    const int64_t era = (z >= 0 ? z : z - 146096) / 146097;
+    const int64_t doe = z - era * 146097;
+    const int64_t yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    const int64_t doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    const int64_t mp = (5 * doy + 2) / 153;
+    c.day = static_cast<int>(doy - (153 * mp + 2) / 5 + 1);
+    c.month = static_cast<int>(mp < 10 ? mp + 3 : mp - 9);
+    c.year = static_cast<int>(yoe + era * 400 + (c.month <= 2));
+    return c;
+}
+
+// Returns false for fields outside the ranges the S-3511A accepts, so a
+// malformed write leaves the clock unchanged instead of normalising into
+// an unrelated date.
+static bool rtc_epoch_from_civil(int year, int month, int day, int hour, int min, int sec,
+                                 uint64_t& out) {
+    if (month < 1 || month > 12 || day < 1 || day > 31 ||
+        hour < 0 || hour > 23 || min < 0 || min > 59 || sec < 0 || sec > 59) {
+        return false;
+    }
+    int64_t days = rtc_days_from_civil(year, month, day);
+    if (days < 0) return false;
+    out = static_cast<uint64_t>(days) * 86400 + static_cast<uint64_t>(hour) * 3600 +
+          static_cast<uint64_t>(min) * 60 + static_cast<uint64_t>(sec);
+    return true;
+}
+
 // S-3511A write-command payload length, keyed the same way the read side
 // already is below (rtc_process_command): date/time = 7 bytes, time-only =
 // 3, either status register = 1, reset = 0. A write command this cartridge
@@ -990,31 +1041,25 @@ static int rtc_write_payload_length(uint8_t command) {
 void Cartridge::rtc_apply_write() {
     switch (m_rtc_command & 0x0F) {
         case 0x5: {
-            // Date/time (7 bytes: year, month, day, weekday, hour, min, sec)
-            struct tm t{};
-            t.tm_year = unbcd(m_rtc_data[0]) + 100;  // tm_year is years since 1900
-            t.tm_mon  = unbcd(m_rtc_data[1]) - 1;
-            t.tm_mday = unbcd(m_rtc_data[2]);
-            t.tm_hour = unbcd(m_rtc_data[4]);
-            t.tm_min  = unbcd(m_rtc_data[5]);
-            t.tm_sec  = unbcd(m_rtc_data[6]);
-            time_t epoch = timegm(&t);
-            if (epoch >= 0) {
-                m_rtc_epoch_seconds = static_cast<uint64_t>(epoch);
+            // Date/time (7 bytes: year, month, day, weekday, hour, min, sec).
+            // The weekday byte is derived from the date on read, as on the
+            // emulated clock there is no separate weekday counter.
+            uint64_t epoch = 0;
+            if (rtc_epoch_from_civil(2000 + unbcd(m_rtc_data[0]), unbcd(m_rtc_data[1]),
+                                     unbcd(m_rtc_data[2]), unbcd(m_rtc_data[4] & 0x3F),
+                                     unbcd(m_rtc_data[5]), unbcd(m_rtc_data[6]), epoch)) {
+                m_rtc_epoch_seconds = epoch;
                 m_rtc_cycle_accum = 0;
             }
             break;
         }
         case 0x7: {
             // Time only (3 bytes: hour, min, sec) -- keep the current date.
-            time_t now = static_cast<time_t>(m_rtc_epoch_seconds);
-            struct tm t = *gmtime(&now);
-            t.tm_hour = unbcd(m_rtc_data[0]);
-            t.tm_min  = unbcd(m_rtc_data[1]);
-            t.tm_sec  = unbcd(m_rtc_data[2]);
-            time_t epoch = timegm(&t);
-            if (epoch >= 0) {
-                m_rtc_epoch_seconds = static_cast<uint64_t>(epoch);
+            RtcCivil c = rtc_civil_from_epoch(m_rtc_epoch_seconds);
+            uint64_t epoch = 0;
+            if (rtc_epoch_from_civil(c.year, c.month, c.day, unbcd(m_rtc_data[0] & 0x3F),
+                                     unbcd(m_rtc_data[1]), unbcd(m_rtc_data[2]), epoch)) {
+                m_rtc_epoch_seconds = epoch;
                 m_rtc_cycle_accum = 0;
             }
             break;
@@ -1085,6 +1130,12 @@ void Cartridge::rtc_clock_edge() {
                     m_rtc_state = RTCState::ReceiveData;
                     m_rtc_bit_count = 0;
                     m_rtc_byte_count = 0;
+                    // Bits are OR-ed in below, and only bytes 1.. are
+                    // cleared as they start; byte 0 still held the previous
+                    // read's reply, which rtc_apply_write() would then
+                    // commit (e.g. a time-only write after a date read
+                    // turned hour 12 into 0x12|0x24 = 36).
+                    std::memset(m_rtc_data, 0, sizeof(m_rtc_data));
                     // A command with a 0-byte payload (e.g. reset) has
                     // nothing left to receive: apply it and go straight
                     // back to Idle rather than sitting in ReceiveData
@@ -1174,32 +1225,30 @@ void Cartridge::rtc_process_command() {
         case 0x65: {
             // Read date/time - return the emulated RTC clock in BCD format.
             // Derived from m_rtc_epoch_seconds (advanced from emulated CPU
-            // cycles by advance_rtc(), not the host's wall clock) via
-            // gmtime, not localtime: the GBA's RTC has no timezone or DST
+            // cycles by advance_rtc(), not the host's wall clock) as a
+            // plain UTC calendar, not localtime: the GBA's RTC has no timezone or DST
             // concept, and reading the host's local time made every read
             // both nondeterministic across hosts/replays and dependent on
             // the host's timezone setting (gba-09).
-            time_t now = static_cast<time_t>(m_rtc_epoch_seconds);
-            struct tm t = *gmtime(&now);
+            RtcCivil t = rtc_civil_from_epoch(m_rtc_epoch_seconds);
 
-            m_rtc_data[0] = bcd(t.tm_year % 100);  // Year (00-99)
-            m_rtc_data[1] = bcd(t.tm_mon + 1);      // Month (1-12)
-            m_rtc_data[2] = bcd(t.tm_mday);          // Day (1-31)
-            m_rtc_data[3] = bcd(t.tm_wday);          // Day of week (0-6)
-            m_rtc_data[4] = bcd(t.tm_hour);          // Hour (0-23)
-            m_rtc_data[5] = bcd(t.tm_min);           // Minute (0-59)
-            m_rtc_data[6] = bcd(t.tm_sec);           // Second (0-59)
+            m_rtc_data[0] = bcd(t.year % 100);  // Year (00-99)
+            m_rtc_data[1] = bcd(t.month);       // Month (1-12)
+            m_rtc_data[2] = bcd(t.day);         // Day (1-31)
+            m_rtc_data[3] = bcd(t.wday);        // Day of week (0-6)
+            m_rtc_data[4] = bcd(t.hour);        // Hour (0-23)
+            m_rtc_data[5] = bcd(t.min);         // Minute (0-59)
+            m_rtc_data[6] = bcd(t.sec);         // Second (0-59)
             break;
         }
 
         case 0x67: {
             // Read time only (3 bytes) - see 0x65 above.
-            time_t now = static_cast<time_t>(m_rtc_epoch_seconds);
-            struct tm t = *gmtime(&now);
+            RtcCivil t = rtc_civil_from_epoch(m_rtc_epoch_seconds);
 
-            m_rtc_data[0] = bcd(t.tm_hour);
-            m_rtc_data[1] = bcd(t.tm_min);
-            m_rtc_data[2] = bcd(t.tm_sec);
+            m_rtc_data[0] = bcd(t.hour);
+            m_rtc_data[1] = bcd(t.min);
+            m_rtc_data[2] = bcd(t.sec);
             break;
         }
 
