@@ -1186,13 +1186,14 @@ void Bus::write_dma_control(int channel, uint16_t value) {
     dma.control = value;
 
     if (!was_enabled && enabled) {
-        // Rising edge: drop any leftover latch/phase from a previous run so
-        // the next schedule_dma() call relatches internal_src/internal_dst
-        // from the freshly-written SAD/DAD/CNT_L, and abort anything that
-        // (shouldn't, but) was still mid-flight.
-        dma.active = false;
+        // Rising edge: latch internal_src/internal_dst from SAD/DAD now
+        // (GBATEK/mGBA latch on the 0->1 edge, not at the first start
+        // trigger, so a SAD/DAD write between enabling and the VBlank/
+        // HBlank/FIFO trigger does not leak into this run), and drop any
+        // leftover phase from a previous run.
         dma.phase = DMAChannel::Phase::Idle;
         dma.scheduled = false;
+        latch_dma_addresses(channel);
         trigger_dma(channel);
     } else if (was_enabled && !enabled) {
         // Falling edge: disabling aborts any in-flight or pending transfer
@@ -1203,6 +1204,23 @@ void Bus::write_dma_control(int channel, uint16_t value) {
     }
     // was_enabled && enabled (rewriting the same enabled control value) must
     // NOT relatch or retrigger a running/repeat-armed transfer.
+}
+
+// Load the internal source/destination latches from SAD/DAD and mark the
+// channel as latched (dma.active) so later start triggers of a repeating
+// channel keep walking the internal addresses instead of relatching.
+void Bus::latch_dma_addresses(int channel) {
+    DMAChannel& dma = m_dma[channel];
+    dma.internal_src = dma.src;
+    dma.internal_dst = dma.dst;
+    if (channel == 0) {
+        dma.internal_src &= 0x07FFFFFF;
+        dma.internal_dst &= 0x07FFFFFF;
+    } else {
+        dma.internal_src &= 0x0FFFFFFF;
+        dma.internal_dst &= 0x0FFFFFFF;
+    }
+    dma.active = true;
 }
 
 int Bus::run_dma() {
@@ -1360,20 +1378,10 @@ void Bus::schedule_dma(int channel) {
         return;
     }
 
-    // Set up internal registers if this is the first trigger
+    // Normally latched on the enable edge (write_dma_control); this only
+    // covers a channel whose latch state was never set up that way.
     if (!dma.active) {
-        dma.internal_src = dma.src;
-        dma.internal_dst = dma.dst;
-        dma.active = true;
-
-        // Mask addresses based on channel
-        if (channel == 0) {
-            dma.internal_src &= 0x07FFFFFF;
-            dma.internal_dst &= 0x07FFFFFF;
-        } else {
-            dma.internal_src &= 0x0FFFFFFF;
-            dma.internal_dst &= 0x0FFFFFFF;
-        }
+        latch_dma_addresses(channel);
     }
 
     dma.internal_count = dma.count;

@@ -213,6 +213,7 @@ private:
     void complete_dma(int channel);     // Handle DMA completion
     int find_highest_priority_dma();    // Find highest priority pending DMA
     void write_dma_control(int channel, uint16_t value); // Handle a DMAxCNT_H write (0->1/1->0 edges)
+    void latch_dma_addresses(int channel); // Load internal src/dst from SAD/DAD
 
     // Timer registers
     struct Timer {
