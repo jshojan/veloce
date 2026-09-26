@@ -5,8 +5,8 @@
 namespace nes {
 
 // Mapper 1: MMC1 (Nintendo MMC1)
-// - PRG ROM: Up to 256KB (16 x 16KB banks)
-// - PRG RAM: Up to 32KB (battery backed)
+// - PRG ROM: Up to 512KB (SXROM: 32 x 16KB banks via a CHR-bit-4 outer bank)
+// - PRG RAM: 8KB normally, up to 32KB (battery backed) on SXROM boards
 // - CHR ROM/RAM: Up to 128KB (can be RAM)
 // - Switchable mirroring
 // Games: Zelda, Metroid, Final Fantasy, many more (~25% of NES library)
@@ -37,6 +37,7 @@ public:
 private:
     void write_register(uint16_t address, uint8_t value);
     void update_banks();
+    uint32_t prg_ram_offset(uint16_t address) const;
 
     // Shift register for serial write
     uint8_t m_shift_register = 0x10;

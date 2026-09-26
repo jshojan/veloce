@@ -121,8 +121,19 @@ bool Cartridge::load(const uint8_t* data, size_t size) {
         m_has_chr_ram = true;
     }
 
-    // Allocate PRG RAM (8KB default)
-    m_prg_ram.resize(8192, 0);
+    // Allocate PRG RAM. Standard boards (including plain MMC1/SNROM,
+    // PRG <= 256KB) have a single non-banked 8KB PRG RAM chip. The SXROM
+    // board used for 512KB-and-up MMC1 titles (Final Fantasy I&II, Dragon
+    // Warrior III/IV, ...) wires PRG-RAM A13/A14 to the CHR bank 0
+    // register, giving 32KB of banked PRG RAM (Mapper001 banks it once
+    // given more than 8KB). The iNES header's PRG-RAM size byte is a
+    // rarely-set, unreliable "archaic" extension, so detect this board
+    // class from the oversized PRG ROM instead.
+    size_t prg_ram_size = 8192;
+    if (m_mapper_number == 1 && prg_size > 256 * 1024) {
+        prg_ram_size = 32768;
+    }
+    m_prg_ram.resize(prg_ram_size, 0);
 
     // Calculate CRC32 of PRG+CHR ROM (excluding header)
     m_crc32 = calculate_crc32(data + sizeof(iNESHeader) + (m_has_trainer ? 512 : 0),
