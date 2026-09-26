@@ -177,7 +177,13 @@ private:
     bool m_sprite_zero_rendering = false;
 
     // Memory
-    std::array<uint8_t, 2048> m_nametable;  // 2KB nametable RAM
+    // 4KB: 2KB of on-console nametable RAM plus the 2KB of extra VRAM that a
+    // four-screen cartridge (mapper flags6 bit 3, e.g. Gauntlet/mapper 206)
+    // supplies on the cart. Mirroring modes 0-3 only ever address the first
+    // 2KB; four-screen (mode 4) uses the full 4KB unmirrored. This is a
+    // PPU-side stand-in for that cartridge VRAM until the mapper interface
+    // exposes it directly (see nes-08).
+    std::array<uint8_t, 4096> m_nametable;
     std::array<uint8_t, 32> m_palette;      // Palette RAM
 
     // Framebuffer (256x240 RGBA)
