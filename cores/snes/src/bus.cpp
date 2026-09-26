@@ -1164,6 +1164,11 @@ void Bus::load_state(const uint8_t*& data, size_t& remaining) {
     // Load I/O state
     m_nmitimen = *data++; remaining--;
     m_wrio = *data++; remaining--;
+    // Keep the PPU's WRIO mirror (used to gate the $2137 counter latch) in
+    // sync with the restored port value.
+    if (m_ppu) {
+        m_ppu->restore_wrio(m_wrio);
+    }
     m_htime = data[0] | (data[1] << 8);
     data += 2; remaining -= 2;
     m_vtime = data[0] | (data[1] << 8);

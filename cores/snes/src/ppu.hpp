@@ -37,8 +37,13 @@ public:
     // Reference: fullsnes 2137h/4201h, bsnes cpu.pio().
     void set_wrio(uint8_t value);
 
-    // Latch the current H/V dot/scanline into $213C/$213D (OPHCT/OPVCT)
-    // and reset their byte-read toggles.
+    // Restore the WRIO mirror after a savestate load (no edge detection,
+    // so it never produces a spurious counter latch).
+    void restore_wrio(uint8_t value) { m_wrio = value; }
+
+    // Latch the current H/V dot/scanline into $213C/$213D (OPHCT/OPVCT) and
+    // set the STAT78 latch flag. The byte-read toggles are NOT reset here;
+    // only a $213F (STAT78) read resets them (bsnes latchCounters()).
     void latch_counters();
 
     // Get framebuffer (256x224 or 512x448 in hi-res)
