@@ -179,6 +179,7 @@ void LR35902::handle_interrupts(uint8_t pending) {
     for (const auto& irq : interrupts) {
         if (pending & irq.bit) {
             m_ime = false;
+            m_ime_pending = false;
             m_bus.clear_interrupt(irq.bit);
             push(m_pc);
             m_pc = irq.vector;
@@ -962,7 +963,7 @@ int LR35902::step() {
         case 0xF2: m_a = read(0xFF00 + m_c); break;
 
         // DI
-        case 0xF3: m_ime = false; break;
+        case 0xF3: m_ime = false; m_ime_pending = false; break;
 
         // PUSH AF (4 cycles: fetch + internal + push hi + push lo)
         case 0xF5: internal_cycle(); push(get_af()); break;
@@ -992,8 +993,12 @@ int LR35902::step() {
         // LD A, (nn)
         case 0xFA: m_a = read(fetch16()); break;
 
-        // EI
-        case 0xFB: m_ime_pending = true; break;
+        // EI - only arm the delayed enable if IME is not already set and no
+        // enable is already pending; a second EI while one is already queued
+        // (e.g. EI;EI as the first two instructions of an ISR) must not
+        // re-arm the toggle, or IME can end up re-enabled a cycle earlier
+        // than hardware allows.
+        case 0xFB: if (!m_ime && !m_ime_pending) m_ime_pending = true; break;
 
         // CP n
         case 0xFE: alu_cp(fetch()); break;
