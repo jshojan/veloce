@@ -2215,6 +2215,10 @@ void ARM7TDMI::bank_registers(ProcessorMode old_mode, ProcessorMode new_mode) {
             break;
         case ProcessorMode::User:
         case ProcessorMode::System:
+        default:
+            // Undefined mode-bit patterns (bit 4 forced set by set_cpsr, but
+            // bits[3:0] not one of the seven architectural modes) alias to
+            // the User/System bank, matching mGBA's fallback behaviour.
             m_usr_sp_lr[0] = m_regs[13];
             m_usr_sp_lr[1] = m_regs[14];
             break;
@@ -2244,6 +2248,8 @@ void ARM7TDMI::bank_registers(ProcessorMode old_mode, ProcessorMode new_mode) {
             break;
         case ProcessorMode::User:
         case ProcessorMode::System:
+        default:
+            // See the matching default: case above.
             m_regs[13] = m_usr_sp_lr[0];
             m_regs[14] = m_usr_sp_lr[1];
             break;
@@ -2251,38 +2257,38 @@ void ARM7TDMI::bank_registers(ProcessorMode old_mode, ProcessorMode new_mode) {
 }
 
 void ARM7TDMI::set_cpsr(uint32_t value) {
-    ProcessorMode new_mode = static_cast<ProcessorMode>(value & 0x1F);
+    // Hardware quirk: the mode field's bit 4 is always forced set, even if
+    // software writes it clear (e.g. MSR CPSR_c, #0x03 behaves as mode
+    // 0x13/Supervisor, not a rejected write). Only the mode bits are
+    // corrected; the rest of the value (flags, I/F/T) is stored verbatim.
+    // Reference: alyosha-tas psr.gba t001 (hardware-validated) writes mode
+    // 0x03 and expects CPSR to read back mode 0x13.
+    uint32_t effective_mode_bits = (value & 0x1F) | 0x10;
+    ProcessorMode new_mode = static_cast<ProcessorMode>(effective_mode_bits);
 
-    // Validate mode - ARM7TDMI only has specific valid modes
-    bool valid_mode = (new_mode == ProcessorMode::User ||
-                       new_mode == ProcessorMode::FIQ ||
-                       new_mode == ProcessorMode::IRQ ||
-                       new_mode == ProcessorMode::Supervisor ||
-                       new_mode == ProcessorMode::Abort ||
-                       new_mode == ProcessorMode::Undefined ||
-                       new_mode == ProcessorMode::System);
-
-    if (!valid_mode) {
-        GBA_DEBUG_PRINT("=== INVALID CPSR MODE ===\n");
-        GBA_DEBUG_PRINT("  Attempting to set CPSR=0x%08X (mode=0x%02X)\n", value, value & 0x1F);
-        GBA_DEBUG_PRINT("  Current PC=0x%08X, CPSR=0x%08X, mode=%s\n",
-                        m_regs[15], m_cpsr,
-                        m_mode == ProcessorMode::System ? "System" :
-                        m_mode == ProcessorMode::User ? "User" :
-                        m_mode == ProcessorMode::IRQ ? "IRQ" :
-                        m_mode == ProcessorMode::FIQ ? "FIQ" :
-                        m_mode == ProcessorMode::Supervisor ? "SVC" :
-                        m_mode == ProcessorMode::Abort ? "ABT" :
-                        m_mode == ProcessorMode::Undefined ? "UND" : "???");
-        GBA_DEBUG_PRINT("  Current SPSR=%08X\n", get_spsr());
-        // Don't apply invalid mode - this would crash
-        return;
+    if (effective_mode_bits != (value & 0x1F)) {
+        GBA_DEBUG_PRINT("CPSR write with mode bit 4 clear (0x%02X), forcing to 0x%02X per hardware quirk\n",
+                        value & 0x1F, effective_mode_bits);
+    }
+    // effective_mode_bits is always one of 0x10-0x1F. Only 7 of those 16
+    // patterns are architectural ARM7TDMI modes; the rest are undefined and
+    // switch_mode()/bank_registers() alias them to the User/System bank.
+    bool recognized_mode = (new_mode == ProcessorMode::User ||
+                            new_mode == ProcessorMode::FIQ ||
+                            new_mode == ProcessorMode::IRQ ||
+                            new_mode == ProcessorMode::Supervisor ||
+                            new_mode == ProcessorMode::Abort ||
+                            new_mode == ProcessorMode::Undefined ||
+                            new_mode == ProcessorMode::System);
+    if (!recognized_mode) {
+        GBA_DEBUG_PRINT("CPSR write to undefined mode 0x%02X (PC=0x%08X); treating as User-bank\n",
+                        effective_mode_bits, m_regs[15]);
     }
 
     if (new_mode != m_mode) {
         switch_mode(new_mode);
     }
-    m_cpsr = value;
+    m_cpsr = (value & ~0x1Fu) | effective_mode_bits;
 }
 
 uint32_t ARM7TDMI::get_spsr() const {
@@ -2297,30 +2303,16 @@ uint32_t ARM7TDMI::get_spsr() const {
 }
 
 void ARM7TDMI::set_spsr(uint32_t value) {
-    // Validate the mode bits in the SPSR value being written
-    // If the mode is invalid (0x00), preserve the current valid SPSR
-    // This helps prevent corruption when game code incorrectly uses SPSR operations
-    uint8_t mode_bits = value & 0x1F;
-    bool valid_mode = (mode_bits == 0x10 || mode_bits == 0x11 || mode_bits == 0x12 ||
-                       mode_bits == 0x13 || mode_bits == 0x17 || mode_bits == 0x1B ||
-                       mode_bits == 0x1F);
-
+    // SPSR is just a register: it has no mode-forcing hardware behaviour of
+    // its own (unlike CPSR). Store whatever is written verbatim; validation
+    // only matters when the value is later restored into CPSR via
+    // set_cpsr(get_spsr()), which applies the bit-4 quirk at that point.
     switch (m_mode) {
-        case ProcessorMode::FIQ:
-            if (valid_mode || value == m_spsr_fiq) m_spsr_fiq = value;
-            break;
-        case ProcessorMode::Supervisor:
-            if (valid_mode || value == m_spsr_svc) m_spsr_svc = value;
-            break;
-        case ProcessorMode::Abort:
-            if (valid_mode || value == m_spsr_abt) m_spsr_abt = value;
-            break;
-        case ProcessorMode::IRQ:
-            if (valid_mode || value == m_spsr_irq) m_spsr_irq = value;
-            break;
-        case ProcessorMode::Undefined:
-            if (valid_mode || value == m_spsr_und) m_spsr_und = value;
-            break;
+        case ProcessorMode::FIQ:        m_spsr_fiq = value; break;
+        case ProcessorMode::Supervisor: m_spsr_svc = value; break;
+        case ProcessorMode::Abort:      m_spsr_abt = value; break;
+        case ProcessorMode::IRQ:        m_spsr_irq = value; break;
+        case ProcessorMode::Undefined:  m_spsr_und = value; break;
         default: break;
     }
 }
