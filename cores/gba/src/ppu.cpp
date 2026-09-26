@@ -481,12 +481,23 @@ void PPU::render_sprites() {
         uint16_t attr1 = m_oam[sprite * 8 + 2] | (m_oam[sprite * 8 + 3] << 8);
         uint16_t attr2 = m_oam[sprite * 8 + 4] | (m_oam[sprite * 8 + 5] << 8);
 
-        // Check object mode
-        int obj_mode = (attr0 >> 8) & 3;
-        if (obj_mode == 2) continue;  // Disabled/hidden
-
+        // ATTR0 bit8 is the rotation/scaling (affine) flag. Bit9 means
+        // "disabled" for a regular sprite but "double-size" for an affine
+        // one (GBATEK OBJ Attribute 0) -- these two bits alone don't carry
+        // the OBJ Mode. That's bits 10-11 (Normal / Semi-transparent /
+        // OBJ-window / Prohibited), which apply the same way regardless of
+        // whether the sprite is affine (gba-04: this used to compute
+        // "obj_mode" from bits 8-9 instead, so it was really re-reading
+        // the affine/disable/double-size bits under another name --
+        // regular sprites could never be semi-transparent or OBJ-window,
+        // and every affine sprite's mode was misread from bit9 alone).
         bool is_affine = attr0 & 0x0100;
+        bool disabled = !is_affine && (attr0 & 0x0200);
         bool double_size = is_affine && (attr0 & 0x0200);
+        if (disabled) continue;
+
+        int gfx_mode = (attr0 >> 10) & 3;
+        if (gfx_mode == 3) continue;  // Prohibited
 
         // Get sprite dimensions
         int shape = (attr0 >> 14) & 3;
@@ -519,7 +530,7 @@ void PPU::render_sprites() {
 
         // Handle affine sprites separately
         if (is_affine) {
-            render_affine_sprite(sprite, attr0, attr1, attr2);
+            render_affine_sprite(sprite, attr0, attr1, attr2, gfx_mode);
             continue;
         }
 
@@ -538,13 +549,9 @@ void PPU::render_sprites() {
         uint8_t priority = (attr2 >> 10) & 3;
         int palette = (attr2 >> 12) & 0xF;
         bool is_256_color = attr0 & 0x2000;
-        bool semi_transparent = (obj_mode == 1);  // Semi-transparent mode
-        bool is_obj_window = (obj_mode == 2);     // Actually obj_mode == 2 is disabled, obj_mode == 3 is window
+        bool semi_transparent = (gfx_mode == 1);  // Semi-transparent mode
+        bool is_obj_window = (gfx_mode == 2);     // OBJ window mode
         bool obj_mosaic = (attr0 & 0x1000) != 0;
-
-        if (obj_mode == 3) {
-            is_obj_window = true;
-        }
 
         // OBJ mosaic sizes (bits 8-15 of MOSAIC register)
         int obj_mosaic_h = ((m_mosaic >> 8) & 0xF) + 1;
@@ -643,7 +650,7 @@ void PPU::render_sprites() {
     }
 }
 
-void PPU::render_affine_sprite([[maybe_unused]] int sprite_idx, uint16_t attr0, uint16_t attr1, uint16_t attr2) {
+void PPU::render_affine_sprite([[maybe_unused]] int sprite_idx, uint16_t attr0, uint16_t attr1, uint16_t attr2, int gfx_mode) {
     bool double_size = attr0 & 0x0200;
     bool obj_mosaic = (attr0 & 0x1000) != 0;
 
@@ -685,9 +692,14 @@ void PPU::render_affine_sprite([[maybe_unused]] int sprite_idx, uint16_t attr0, 
     uint8_t priority = (attr2 >> 10) & 3;
     int palette = (attr2 >> 12) & 0xF;
     bool is_256_color = attr0 & 0x2000;
-    int obj_mode = (attr0 >> 8) & 3;
-    bool semi_transparent = (obj_mode == 1);
-    bool is_obj_window = (obj_mode == 3);
+    // gfx_mode (ATTR0 bits 10-11) is passed in from render_sprites rather
+    // than re-derived here: re-deriving it as (attr0>>8)&3 read the
+    // affine/double-size bits instead (gba-04), so every plain affine
+    // sprite (bit8=1,bit9=0) was misread as semi-transparent and every
+    // double-size affine sprite (bit8=1,bit9=1) was misread as an
+    // OBJ-window sprite and never drew any pixels.
+    bool semi_transparent = (gfx_mode == 1);
+    bool is_obj_window = (gfx_mode == 2);
 
     // OBJ mosaic sizes (bits 8-15 of MOSAIC register)
     int obj_mosaic_h = ((m_mosaic >> 8) & 0xF) + 1;

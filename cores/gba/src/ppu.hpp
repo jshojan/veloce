@@ -49,7 +49,7 @@ private:
     void render_sprites();
     void render_background(int layer);
     void render_affine_background(int layer);
-    void render_affine_sprite(int sprite_idx, uint16_t attr0, uint16_t attr1, uint16_t attr2);
+    void render_affine_sprite(int sprite_idx, uint16_t attr0, uint16_t attr1, uint16_t attr2, int gfx_mode);
 
     void compose_scanline();
     bool is_inside_window(int x, int window_id);
