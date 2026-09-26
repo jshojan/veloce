@@ -173,8 +173,15 @@ void PPU::render_scanline() {
         }
     }
 
-    if (((m_lcdc & 0x01) || m_cgb_mode) && (m_lcdc & 0x20) && m_wy <= m_ly) {  // Window enable (DMG: gated on BG/window master enable too)
-        render_window();
+    if ((m_lcdc & 0x20) && m_wy <= m_ly) {  // Window enable
+        if ((m_lcdc & 0x01) || m_cgb_mode) {
+            render_window();
+        } else if (m_wx <= 166) {
+            // DMG with LCDC.0 clear: the window is blanked (the line was
+            // already filled with color 0 above), but the window fetcher
+            // still runs, so its internal line counter keeps advancing.
+            m_window_line++;
+        }
     }
 
     if (m_lcdc & 0x02) {  // Sprites enable
