@@ -1907,6 +1907,30 @@ int ARM7TDMI::thumb_push_pop(uint16_t instruction) {
 
     int reg_count = popcount_u32(reg_list) + (pc_lr ? 1 : 0);
 
+    if (reg_count == 0) {
+        // Undocumented ARM7TDMI hardware quirk (mirrors arm_block_data_transfer's
+        // empty-Rlist case): PUSH/POP with an empty register list and no LR/PC
+        // bit still transfers R15, using the address that would apply if all
+        // 16 words were transferred, and adjusts SP by 0x40 (64 bytes).
+        if (load) {
+            // POP {}: PC = [SP] (word aligned, triggers a pipeline flush), SP += 0x40.
+            uint32_t addr = m_regs[13];
+            m_regs[15] = read32(addr) & ~1u;
+            m_regs[13] = addr + 0x40;
+            flush_pipeline();
+        } else {
+            // PUSH {}: SP -= 0x40, [SP] = PC. The stored value follows the
+            // Thumb STM-of-R15 quirk: instruction_address + 6 (m_regs[15] is
+            // instruction_address + 2 right after fetch, so +4 more).
+            uint32_t addr = m_regs[13] - 0x40;
+            write32(addr, m_regs[15] + 4);
+            m_regs[13] = addr;
+        }
+        // Cycle cost mirrors the existing empty-Rlist convention used by
+        // thumb_multiple_load_store: treated as a single-register transfer.
+        return load ? 3 : 2;
+    }
+
     if (load) {
         // POP
         uint32_t addr = m_regs[13];
@@ -1947,7 +1971,20 @@ int ARM7TDMI::thumb_multiple_load_store(uint16_t instruction) {
     uint8_t reg_list = instruction & 0xFF;
 
     int reg_count = popcount_u32(reg_list);
-    if (reg_count == 0) reg_count = 1;  // Empty list behaves specially
+
+    if (reg_count == 0) {
+        // Same undocumented empty-Rlist quirk as thumb_push_pop / the ARM
+        // block data transfer path: transfer R15 only, base += 0x40.
+        uint32_t base = m_regs[rb];
+        if (load) {
+            m_regs[15] = read32(base) & ~1u;
+            flush_pipeline();
+        } else {
+            write32(base, m_regs[15] + 4);
+        }
+        m_regs[rb] = base + 0x40;
+        return load ? 3 : 2;
+    }
 
     uint32_t addr = m_regs[rb];
 
