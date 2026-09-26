@@ -300,6 +300,13 @@ void PluginManager::shutdown() {
 
     unload_rom();
 
+    // The active emulator instance is the one that actually ran the ROM and
+    // may hold live config edits; deactivate_plugin(Emulator) below saves its
+    // config before destroying it. Remember its name so the browsing-instance
+    // save loop that follows does not immediately clobber that save with the
+    // (never-edited) browsing instance's stale config for the same core.
+    std::string active_emulator_name = m_config.get_selected_plugin(PluginType::Emulator);
+
     // Deactivate all plugins
     deactivate_plugin(PluginType::Netplay);
     deactivate_all_game_plugins();  // Use new method for multiple game plugins
@@ -312,6 +319,20 @@ void PluginManager::shutdown() {
     // Save and destroy all emulator plugin instances (used for configuration)
     for (auto& inst : m_emulator_plugins) {
         if (inst.plugin) {
+            // The currently-active core's authoritative config was already
+            // saved from the live instance above; skip it here so this
+            // browsing instance's stale copy doesn't overwrite it.
+            if (!active_emulator_name.empty() && inst.name == active_emulator_name) {
+                if (inst.handle) {
+                    using DestroyFunc = void (*)(IEmulatorPlugin*);
+                    auto destroy = reinterpret_cast<DestroyFunc>(inst.handle->destroy_func);
+                    if (destroy) {
+                        destroy(inst.plugin);
+                    }
+                }
+                continue;
+            }
+
             // Save configuration before destroying
             fs::path config_path = get_core_config_path(inst.name);
             if (inst.plugin->save_config(config_path.string().c_str())) {
@@ -412,7 +433,20 @@ bool PluginManager::activate_emulator_plugin(const std::string& name) {
         return false;
     }
 
-    // Deactivate old plugin
+    // Load this core's persisted configuration into the instance that will
+    // actually emulate. load_all_emulator_plugins() only loads config into
+    // the separate "browsing" instances used for menu metadata; without this,
+    // settings such as sprite-limit/overscan/fast-mode never reach the
+    // running core and edits made against it are never saved (shared-11).
+    fs::path config_path = get_core_config_path(name);
+    if (instance->load_config(config_path.string().c_str())) {
+        if (fs::exists(config_path)) {
+            std::cout << "Loaded config for " << name << " into active instance from "
+                      << config_path << std::endl;
+        }
+    }
+
+    // Deactivate old plugin (saves its config before destroying it)
     deactivate_plugin(PluginType::Emulator);
 
     // Set new plugin
@@ -789,6 +823,19 @@ void PluginManager::deactivate_plugin(PluginType type) {
     switch (type) {
         case PluginType::Emulator:
             if (m_active.emulator && m_active.emulator_handle) {
+                // Persist any live edits made against the running instance
+                // before it is destroyed (shared-11); the config is per-instance
+                // (e.g. sprite-limit/overscan/fast-mode), so this is the last
+                // chance to save them for this core.
+                std::string active_name = m_config.get_selected_plugin(PluginType::Emulator);
+                if (!active_name.empty()) {
+                    fs::path config_path = get_core_config_path(active_name);
+                    if (m_active.emulator->save_config(config_path.string().c_str())) {
+                        std::cout << "Saved config for " << active_name << " from active instance to "
+                                  << config_path << std::endl;
+                    }
+                }
+
                 using DestroyFunc = void (*)(IEmulatorPlugin*);
                 auto destroy = reinterpret_cast<DestroyFunc>(m_active.emulator_handle->destroy_func);
                 if (destroy) destroy(m_active.emulator);
