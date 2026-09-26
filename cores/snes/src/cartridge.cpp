@@ -711,17 +711,27 @@ uint8_t Cartridge::read_hirom(uint32_t address) {
         return 0;
     }
 
-    // ROM access
+    // ROM access. Banks $40-$7D and $C0-$FF are both full 64KB ROM banks
+    // that decode through the bank's low 6 bits (bank & 0x3F) into the same
+    // <=4MB ROM window (fullsnes: "$C0-$FF are all 64 ROM banks; only
+    // $7E/$7F are WRAM"). The old code folded $C0-$FF down via
+    // effective_bank = bank - 0x80 (giving $40-$7F) and then only matched
+    // the $40-$7D range, so $FE/$FF (effective_bank $7E/$7F) fell through
+    // to the "WRAM bank" case below and returned 0 - zeroing the last
+    // 128KB of every HiROM/ExHiROM cartridge.
     size_t rom_addr;
-    if (effective_bank >= 0x40 && effective_bank <= 0x7D) {
-        // Banks $40-$7D: full 64KB
-        rom_addr = ((effective_bank - 0x40) * 0x10000) + offset;
+    if (bank >= 0x40 && bank <= 0x7D) {
+        // Banks $40-$7D: full 64KB, direct low mirror.
+        rom_addr = (static_cast<size_t>(bank & 0x3F) * 0x10000) + offset;
     } else if (effective_bank <= 0x3F) {
-        // Banks $00-$3F: only $8000-$FFFF
+        // Banks $00-$3F, $80-$BF: only $8000-$FFFF is ROM.
         if (offset < 0x8000) return 0;
-        rom_addr = (effective_bank * 0x10000) + offset;
+        rom_addr = (static_cast<size_t>(effective_bank) * 0x10000) + offset;
+    } else if (bank >= 0xC0) {
+        // Banks $C0-$FF: full 64KB, including $FE/$FF.
+        rom_addr = (static_cast<size_t>(bank & 0x3F) * 0x10000) + offset;
     } else {
-        // Banks $7E-$7F are WRAM (not handled here)
+        // Banks $7E-$7F are WRAM (not reached; Bus intercepts them first).
         return 0;
     }
 
