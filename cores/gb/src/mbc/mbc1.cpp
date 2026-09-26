@@ -52,8 +52,12 @@ void MBC1::write(uint16_t address, uint8_t value) {
         m_bank_hi = value & 0x03;
 
         if (m_mode) {
-            // RAM banking mode
-            m_ram_bank = m_bank_hi;
+            // RAM banking mode. Per Pan Docs, this 2-bit register only
+            // switches the RAM bank on carts wired with a full 32 KiB (4
+            // bank) RAM chip; carts with a single 2 KiB/8 KiB RAM chip (the
+            // common case) must stay on bank 0 rather than being
+            // disconnected when the register is nonzero.
+            m_ram_bank = (m_ram_banks >= 4) ? m_bank_hi : 0;
         } else {
             // ROM banking mode
             m_rom_bank = m_rom_bank_lo | (m_bank_hi << 5);
@@ -63,7 +67,7 @@ void MBC1::write(uint16_t address, uint8_t value) {
         m_mode = value & 0x01;
 
         if (m_mode) {
-            m_ram_bank = m_bank_hi;
+            m_ram_bank = (m_ram_banks >= 4) ? m_bank_hi : 0;
         } else {
             m_ram_bank = 0;
         }
