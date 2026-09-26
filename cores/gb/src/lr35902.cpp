@@ -133,9 +133,16 @@ void LR35902::push(uint16_t value) {
     // OAM bug: decrementing SP when it points to OAM range triggers corruption
     // PUSH decrements SP by 2 before writing
     check_oam_bug(m_sp, false);
-    m_sp -= 2;
+    // Hardware order: SP--, write high byte, SP--, write low byte. The final
+    // bytes in RAM are the same as a single SP-=2 followed by low-then-high
+    // writes, but the bus sees the high byte write first; anything that can
+    // observe the bus mid-push (DMA completing, the OAM corruption bug, an
+    // I/O-mapped stack, IE/IF being sampled again for the ie_push case) needs
+    // the writes to land in this order.
+    m_sp--;
+    write(m_sp, value >> 8);
+    m_sp--;
     write(m_sp, value & 0xFF);
-    write(m_sp + 1, value >> 8);
 }
 
 uint16_t LR35902::pop() {
