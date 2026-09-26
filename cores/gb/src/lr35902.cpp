@@ -52,16 +52,31 @@ LR35902::LR35902(Bus& bus) : m_bus(bus) {
 
 LR35902::~LR35902() = default;
 
-void LR35902::reset() {
-    // Post-boot ROM state (simulating boot ROM execution)
-    m_a = 0x01;  // 0x11 for GBC
-    m_f = 0xB0;
-    m_b = 0x00;
-    m_c = 0x13;
-    m_d = 0x00;
-    m_e = 0xD8;
-    m_h = 0x01;
-    m_l = 0x4D;
+void LR35902::reset(bool is_cgb) {
+    // Post-boot ROM state (simulating boot ROM execution).
+    // Pan Docs "Power Up Sequence": on CGB/AGB the boot ROM leaves A=0x11
+    // (this is how a cartridge's own boot code tells DMG and CGB hardware
+    // apart) with a different B..L/F set than the DMG boot ROM leaves;
+    // SP/PC are the same on both.
+    if (is_cgb) {
+        m_a = 0x11;
+        m_f = 0x80;
+        m_b = 0x00;
+        m_c = 0x00;
+        m_d = 0xFF;
+        m_e = 0x56;
+        m_h = 0x00;
+        m_l = 0x0D;
+    } else {
+        m_a = 0x01;
+        m_f = 0xB0;
+        m_b = 0x00;
+        m_c = 0x13;
+        m_d = 0x00;
+        m_e = 0xD8;
+        m_h = 0x01;
+        m_l = 0x4D;
+    }
     m_sp = 0xFFFE;
     m_pc = 0x0100;  // Entry point after boot ROM
 

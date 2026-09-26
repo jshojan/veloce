@@ -305,7 +305,7 @@ bool GBPlugin::load_rom(const uint8_t* data, size_t size) {
     m_apu->set_cgb_mode(is_cgb);
 
     // Reset everything
-    m_cpu->reset();
+    m_cpu->reset(is_cgb);
     m_ppu->reset();
     m_apu->reset();
     m_cartridge->reset();
@@ -355,7 +355,7 @@ uint32_t GBPlugin::get_rom_crc32() const {
 void GBPlugin::reset() {
     if (!m_rom_loaded) return;
 
-    m_cpu->reset();
+    m_cpu->reset(m_bus->is_cgb_mode());
     m_ppu->reset();
     m_apu->reset();
     m_cartridge->reset();
