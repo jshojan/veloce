@@ -3130,24 +3130,53 @@ void ARM7TDMI::bios_lz77_uncomp_wram() {
 }
 
 void ARM7TDMI::bios_lz77_uncomp_vram() {
-    // Same as WRAM version but writes in 16-bit units to VRAM
-    // To handle back-references correctly, we decompress to a local buffer first
+    // Same algorithm as the WRAM version, but VRAM does not support
+    // independent byte writes the way WRAM does (a CPU byte write to VRAM
+    // writes the same byte into both halves of the containing halfword), so
+    // the real BIOS assembles each pair of decompressed bytes and commits it
+    // with a single 16-bit write. This decompresses straight through
+    // emulated memory (read16/write16), with no host-side buffer:
+    // back-references read whatever is actually at that VRAM address --
+    // either a byte this call already committed, the single byte currently
+    // buffered waiting for its other half, or (for a malformed/offset stream
+    // that references before decompression started) whatever pre-existing
+    // VRAM content was already there. That matches real hardware and means
+    // there is no host buffer for an out-of-range offset to index past.
     uint32_t src = m_regs[0];
-    uint32_t dst_start = m_regs[1];
+    uint32_t dst_base = m_regs[1];
 
     uint32_t header = read32(src);
     src += 4;
 
     uint32_t decomp_size = header >> 8;
 
-    // Allocate temporary buffer for decompression
-    // For safety, limit to reasonable size (16MB should cover any GBA graphics)
-    if (decomp_size > 0x1000000) {
-        return;  // Too large, bail out
-    }
+    uint32_t dst_pos = 0;        // decompressed byte position, relative to dst_base
+    bool have_pending = false;   // true when dst_pos is odd: its low byte is buffered, not yet flushed
+    uint8_t pending_low = 0;
 
-    std::vector<uint8_t> temp_buffer(decomp_size);
-    uint32_t dst_pos = 0;
+    // Read decompressed byte `pos` (relative to dst_base) the way hardware
+    // would see it: the not-yet-flushed pending low byte if that's what
+    // `pos` is, otherwise whatever is actually in VRAM there.
+    auto read_decompressed_byte = [&](uint32_t pos) -> uint8_t {
+        if (have_pending && pos + 1 == dst_pos) {
+            return pending_low;
+        }
+        uint32_t addr = dst_base + pos;
+        uint16_t hw = read16(addr & ~1u);
+        return (addr & 1) ? static_cast<uint8_t>(hw >> 8) : static_cast<uint8_t>(hw & 0xFF);
+    };
+
+    auto emit_byte = [&](uint8_t value) {
+        if (!have_pending) {
+            pending_low = value;
+            have_pending = true;
+        } else {
+            uint16_t hw = static_cast<uint16_t>(pending_low) | (static_cast<uint16_t>(value) << 8);
+            write16(dst_base + (dst_pos - 1), hw);
+            have_pending = false;
+        }
+        dst_pos++;
+    };
 
     while (dst_pos < decomp_size) {
         uint8_t flags = read8(src++);
@@ -3161,28 +3190,28 @@ void ARM7TDMI::bios_lz77_uncomp_vram() {
                 uint32_t len = ((b1 >> 4) & 0xF) + 3;
                 uint32_t offset = ((b1 & 0xF) << 8) | b2;
 
-                uint32_t src_ptr = dst_pos - offset - 1;
+                // dst_pos - offset - 1 underflows (wraps mod 2^32) exactly
+                // like real address arithmetic when offset >= dst_pos; once
+                // added to dst_base below it resolves to the same "before
+                // the destination" VRAM address hardware would land on, not
+                // a host out-of-bounds index.
+                uint32_t back_pos = dst_pos - offset - 1;
                 for (uint32_t j = 0; j < len && dst_pos < decomp_size; j++) {
-                    temp_buffer[dst_pos++] = temp_buffer[src_ptr++];
+                    emit_byte(read_decompressed_byte(back_pos));
+                    back_pos++;
                 }
             } else {
                 // Uncompressed
-                temp_buffer[dst_pos++] = read8(src++);
+                emit_byte(read8(src++));
             }
             flags <<= 1;
         }
     }
 
-    // Now write to VRAM in 16-bit units
-    uint32_t dst = dst_start;
-    for (uint32_t i = 0; i + 1 < decomp_size; i += 2) {
-        write16(dst, temp_buffer[i] | (temp_buffer[i + 1] << 8));
-        dst += 2;
-    }
-    // Handle odd byte if present
-    if (decomp_size & 1) {
-        // Last odd byte - write as 16-bit with 0 padding (hardware behavior)
-        write16(dst, temp_buffer[decomp_size - 1]);
+    // Flush a trailing odd byte (decomp_size odd): hardware writes it as a
+    // 16-bit value with the upper byte zero-padded.
+    if (have_pending) {
+        write16(dst_base + (dst_pos - 1), pending_low);
     }
 }
 
