@@ -7,6 +7,7 @@
 #include "savestate_manager.hpp"
 #include "paths_config.hpp"
 #include "screenshot.hpp"
+#include "test_file_sink.hpp"
 #include "gui/gui_manager.hpp"
 #include "gui/notification_manager.hpp"
 #include "emu/controller_layout.hpp"
@@ -52,6 +53,10 @@ void Application::print_usage(const char* program_name) {
     std::cout << "  FRAMES=N         Run for N frames then exit (requires HEADLESS=1)\n";
     std::cout << "  SAVE_SCREENSHOT=N      Save screenshot at frame N\n";
     std::cout << "  SAVE_SCREENSHOT=path   Save screenshot at exit to specified path\n";
+    std::cout << "  VELOCE_TEST_OUT=path   Write the ROM's test-result channel to path\n";
+    std::cout << "                         (VELOCE-RESULT/1; implies HEADLESS=1)\n";
+    std::cout << "  VELOCE_TEST_EXIT=0|1   Stop at the result terminator (default 1)\n";
+    std::cout << "  VELOCE_TEST_RESETS=N   Max ROM-requested resets (default 3)\n";
     std::cout << "\n";
     std::cout << "ROM_FILE:\n";
     std::cout << "  Optional path to a ROM file to load on startup.\n";
@@ -110,9 +115,16 @@ bool Application::initialize(int argc, char* argv[]) {
         return true;  // Not an error, just exit gracefully
     }
 
-    // Check for HEADLESS environment variable
+    // Test-result channel: VELOCE_TEST_OUT=<path> (see docs/testing/VELOCE-RESULT.md)
+    TestRunConfig test_config;
+    const bool test_session = TestRunConfig::from_env(test_config);
+
+    // Check for HEADLESS environment variable. VELOCE_TEST_OUT implies
+    // HEADLESS=1 unless HEADLESS=0 is given explicitly (test ROM under a window).
     const char* headless_env = std::getenv("HEADLESS");
     if (headless_env && headless_env[0] != '0') {
+        m_headless_mode = true;
+    } else if (test_session && !headless_env) {
         m_headless_mode = true;
     }
 
@@ -249,6 +261,22 @@ bool Application::initialize(int argc, char* argv[]) {
         }
     }
 
+    // Attach the test-result sink once the ROM is loaded.
+    if (test_session) {
+        auto* plugin = m_plugin_manager->get_active_plugin();
+        if (!plugin || !plugin->is_rom_loaded()) {
+            std::cerr << "VELOCE_TEST_OUT set but no ROM loaded; test session disabled\n";
+        } else {
+            m_test_sink = std::make_unique<TestFileSink>(test_config);
+            if (!m_test_sink->open()) {
+                std::cerr << "Failed to open VELOCE_TEST_OUT file: " << test_config.out_path << std::endl;
+                m_test_sink.reset();
+                return false;
+            }
+            m_test_sink->attach(plugin, m_plugin_manager->get_active_emulator_api_version());
+        }
+    }
+
     m_running = true;
     if (!m_headless_mode) {
         m_last_frame_time = WindowManager::get_ticks();
@@ -293,7 +321,8 @@ void Application::run() {
         emu::InputState current_input{};
         int frames_run = 0;
 
-        while (m_running && !m_quit_requested && frames_run < m_headless_frames) {
+        bool test_stop = false;
+        while (m_running && !m_quit_requested && !test_stop && frames_run < m_headless_frames) {
             // Check for scheduled input
             auto it = input_schedule.find(frames_run);
             if (it != input_schedule.end()) {
@@ -310,7 +339,11 @@ void Application::run() {
                     : m_screenshot_output_path;
                 save_screenshot(path);
             }
+
+            // Test-result channel: pending reset / terminator / reset limit
+            test_stop = test_session_after_frame();
         }
+        end_test_session(frames_run >= m_headless_frames);
 
         // Screenshot at exit (-2) or last frame
         if (m_screenshot_at_frame == -2 || m_screenshot_requested) {
@@ -405,7 +438,26 @@ void Application::run() {
     }
 }
 
+bool Application::test_session_after_frame() {
+    if (!m_test_sink) return false;
+    ++m_test_frames;
+    return m_test_sink->after_frame(m_test_frames);
+}
+
+void Application::end_test_session(bool budget_exhausted) {
+    if (!m_test_sink) return;
+    auto* plugin = m_plugin_manager ? m_plugin_manager->get_active_plugin() : nullptr;
+    uint64_t cycles = (plugin && plugin->is_rom_loaded()) ? plugin->get_cycle_count() : 0;
+    m_test_sink->close(budget_exhausted ? TestFileSink::EndReason::Frames
+                                        : TestFileSink::EndReason::Quit,
+                       m_test_frames, cycles);
+    m_test_sink.reset();
+}
+
 void Application::shutdown() {
+    // Close the test-result file while the emulator plugin is still alive
+    end_test_session(false);
+
     // Save input config before shutdown (not in headless mode)
     if (m_input_manager) {
         m_input_manager->save_platform_config(m_input_manager->get_current_platform());
@@ -627,6 +679,11 @@ void Application::run_emulation_frame() {
         InputState input;
         input.buttons = m_input_manager->get_button_state();
         plugin->run_frame(input);
+    }
+
+    // Test-result channel (GUI path): stop cleanly once the ROM is done
+    if (m_test_sink && test_session_after_frame()) {
+        request_quit();
     }
 
     // Update game plugins (for timer updates and auto-split detection)

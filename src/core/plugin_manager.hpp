@@ -229,6 +229,10 @@ public:
     PluginInfo* find_plugin_for_extension(const std::string& extension);
     PluginInfo* find_plugin_by_name(const std::string& name);
     IEmulatorPlugin* get_active_plugin() const { return m_active.emulator; }
+    // API version reported by the active emulator plugin's library (0 if unknown)
+    uint32_t get_active_emulator_api_version() const {
+        return m_active.emulator_handle ? m_active.emulator_handle->metadata.api_version : 0;
+    }
     bool set_active_plugin(const std::string& name);
     bool set_active_plugin_for_file(const std::string& filepath);
 

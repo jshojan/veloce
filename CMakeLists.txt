@@ -120,6 +120,7 @@ set(CORE_SOURCES
     src/core/paths_config.cpp
     src/core/savestate_manager.cpp
     src/core/screenshot.cpp
+    src/core/test_file_sink.cpp
     # netplay_manager and netplay_input_manager moved to plugins/netplay_default
 )
 
