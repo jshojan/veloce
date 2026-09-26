@@ -128,22 +128,43 @@ void APU::save_state(std::vector<uint8_t>& data) {
     m_spc->save_state(data);
     m_dsp->save_state(data);
 
-    // Save timing state
-    data.push_back(m_cycle_counter & 0xFF);
-    data.push_back((m_cycle_counter >> 8) & 0xFF);
-    data.push_back(m_sample_counter & 0xFF);
-    data.push_back((m_sample_counter >> 8) & 0xFF);
+    // Save timing state as explicit signed 32-bit two's complement.
+    // m_cycle_counter is transiently negative right after step() deducts
+    // an SPC instruction's cycles (the budget is only refilled on the next
+    // call), so a truncated 16-bit unsigned reload would wrap a small
+    // negative remainder (e.g. -21) into a large positive one (65515),
+    // making the APU burn ~3120 extra master cycles once after every load.
+    uint32_t cycle_counter_bits = static_cast<uint32_t>(m_cycle_counter);
+    data.push_back(cycle_counter_bits & 0xFF);
+    data.push_back((cycle_counter_bits >> 8) & 0xFF);
+    data.push_back((cycle_counter_bits >> 16) & 0xFF);
+    data.push_back((cycle_counter_bits >> 24) & 0xFF);
+
+    uint32_t sample_counter_bits = static_cast<uint32_t>(m_sample_counter);
+    data.push_back(sample_counter_bits & 0xFF);
+    data.push_back((sample_counter_bits >> 8) & 0xFF);
+    data.push_back((sample_counter_bits >> 16) & 0xFF);
+    data.push_back((sample_counter_bits >> 24) & 0xFF);
 }
 
 void APU::load_state(const uint8_t*& data, size_t& remaining) {
     m_spc->load_state(data, remaining);
     m_dsp->load_state(data, remaining);
 
-    // Load timing state
-    m_cycle_counter = data[0] | (data[1] << 8);
-    data += 2; remaining -= 2;
-    m_sample_counter = data[0] | (data[1] << 8);
-    data += 2; remaining -= 2;
+    // Load timing state (see save_state for why this must be signed 32-bit).
+    uint32_t cycle_counter_bits = static_cast<uint32_t>(data[0]) |
+        (static_cast<uint32_t>(data[1]) << 8) |
+        (static_cast<uint32_t>(data[2]) << 16) |
+        (static_cast<uint32_t>(data[3]) << 24);
+    m_cycle_counter = static_cast<int32_t>(cycle_counter_bits);
+    data += 4; remaining -= 4;
+
+    uint32_t sample_counter_bits = static_cast<uint32_t>(data[0]) |
+        (static_cast<uint32_t>(data[1]) << 8) |
+        (static_cast<uint32_t>(data[2]) << 16) |
+        (static_cast<uint32_t>(data[3]) << 24);
+    m_sample_counter = static_cast<int32_t>(sample_counter_bits);
+    data += 4; remaining -= 4;
 }
 
 } // namespace snes
