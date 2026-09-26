@@ -668,18 +668,20 @@ uint8_t Cartridge::read_lorom(uint32_t address) {
         return 0;
     }
 
-    // Mirror ROM within its actual size
+    // Mirror ROM within its actual size (power-of-two folding, so e.g. a
+    // 3MB LoROM's $60-$7D banks mirror its last 1MB rather than wrapping
+    // to the start of ROM - see mirror_rom_address()).
     if (!m_rom.empty()) {
+        size_t actual_addr = mirror_rom_address(rom_addr, m_rom.size());
         // Debug: trace reads from high ROM banks
         static int rom_trace_count = 0;
         if (is_debug_mode() && effective_bank >= 0x38 && rom_trace_count < 10) {
-            size_t actual_addr = rom_addr % m_rom.size();
             uint8_t data = m_rom[actual_addr];
             fprintf(stderr, "[ROM] Read $%02X:%04X -> rom_addr=$%06lX (actual=$%06lX) = $%02X\n",
                 bank, offset, (unsigned long)rom_addr, (unsigned long)actual_addr, data);
             rom_trace_count++;
         }
-        return m_rom[rom_addr % m_rom.size()];
+        return m_rom[actual_addr];
     }
 
     return 0;
