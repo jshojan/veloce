@@ -195,25 +195,34 @@ void PPU::step() {
             // runs unconditionally: it outputs the backdrop colour when
             // rendering is off.
             if ((m_mask & 0x18) != 0) {
+                // Shifter reloads at dots 9, 17, ..., 249 (hardware also
+                // reloads at 257, but that tile is shifted out by the
+                // 321-337 prefetch and never displayed). The reload must
+                // land BEFORE this dot's shift: render_pixel() above has
+                // already consumed this dot's pixel, so the shift here
+                // stands for the hardware shift at the start of the next
+                // dot, and the tile loaded at dot 8k+1 must then see
+                // exactly 8 shifts (dots 8k+1..8k+8) before it is
+                // displayed at x = 8k+8. Loading after the shift gave it
+                // only 7, so every tile from column 2 onward appeared one
+                // dot late (with a stale bit at x = 16). This matches the
+                // prefetch, where the tile loaded at 337 sees 8 shifts
+                // (dots 1..8) before x = 8.
+                //
+                // No reload at dot 1: the low byte already holds the
+                // tile loaded at 337 and m_bg_next_tile_* still hold that
+                // same tile, so a dot-1 reload after the shift would
+                // duplicate its first pixel at x = 8/9 (nes-17).
+                if (m_cycle != 1 && ((m_cycle - 1) % 8) == 0) {
+                    load_background_shifters();
+                }
                 update_shifters();
 
                 switch ((m_cycle - 1) % 8) {
                     case 0: {
-                        // The reload at cycle 1 would be a THIRD load of
-                        // the tile that was already fetched and loaded at
-                        // cycle 329 (into the shifters' low byte) and
-                        // again at cycle 337 (per hardware, the correct
-                        // final prefetch reload) of the previous
-                        // scanline. Reloading again here duplicates that
-                        // tile at pixel 8/9 and shifts everything from
-                        // pixel 9 onward one dot late. Hardware reloads
-                        // only at 9, 17, ..., 257 (this loop) and 329,
-                        // 337 (prefetch); the fetch itself (below) still
-                        // needs to happen at cycle 1 to keep the NT/AT/
-                        // pattern pipeline primed.
-                        if (m_cycle != 1) {
-                            load_background_shifters();
-                        }
+                        // NT fetch. The tile fetched during this 8-dot
+                        // group is loaded at the start of the next group
+                        // (above).
                         uint16_t nt_addr = 0x2000 | (m_v & 0x0FFF);
                         m_bus.notify_ppu_address_bus(nt_addr, frame_cycle);  // A12 tracking for MMC3
                         m_bg_next_tile_id = m_bus.ppu_read(nt_addr, frame_cycle);
