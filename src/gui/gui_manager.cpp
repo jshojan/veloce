@@ -337,7 +337,7 @@ void GuiManager::render_main_menu(Application& app) {
                 auto* netplay_plugin = app.get_plugin_manager().get_netplay_plugin();
                 if (netplay_plugin) {
                     bool is_visible = netplay_plugin->is_panel_visible();
-                    if (ImGui::MenuItem("Netplay Panel", nullptr, is_visible)) {
+                    if (ImGui::MenuItem("Netplay Panel", "Ctrl+N", is_visible)) {
                         netplay_plugin->show_panel(!is_visible);
                     }
                 }
@@ -748,8 +748,8 @@ void GuiManager::render_save_state_menu(Application& app) {
 
             std::string label = format_savestate_slot_label(slot, info.valid, info.timestamp);
 
-            // Hotkey text: Shift+F1 through Shift+F10
-            std::string hotkey = "Shift+F" + std::to_string(slot + 1);
+            // Hotkey text: F1 through F10 (see Application::process_events)
+            std::string hotkey = "F" + std::to_string(slot + 1);
 
             if (ImGui::MenuItem(label.c_str(), hotkey.c_str())) {
                 std::ostringstream msg;
@@ -791,8 +791,8 @@ void GuiManager::render_load_state_menu(Application& app) {
 
             std::string label = format_savestate_slot_label(slot, info.valid, info.timestamp);
 
-            // Hotkey text: F1 through F10
-            std::string hotkey = "F" + std::to_string(slot + 1);
+            // Hotkey text: Shift+F1 through Shift+F10 (see Application::process_events)
+            std::string hotkey = "Shift+F" + std::to_string(slot + 1);
 
             // Disable menu item if slot is empty
             if (ImGui::MenuItem(label.c_str(), hotkey.c_str(), false, info.valid)) {
@@ -800,6 +800,7 @@ void GuiManager::render_load_state_menu(Application& app) {
                 if (savestate_mgr.load_state(slot)) {
                     msg << "State loaded from slot " << (slot + 1);
                     notifications.success(msg.str());
+                    app.get_audio_manager().clear_buffer();
                 } else {
                     msg << "Failed to load state from slot " << (slot + 1);
                     notifications.error(msg.str());
@@ -896,6 +897,7 @@ void GuiManager::render_savestate_file_browser(Application& app) {
                                     if (savestate_mgr.load_state_from_file(path)) {
                                         notifications.success("State loaded from " + name);
                                         m_show_savestate_browser = false;
+                                        app.get_audio_manager().clear_buffer();
                                     } else {
                                         notifications.error("Failed to load state from " + name);
                                     }

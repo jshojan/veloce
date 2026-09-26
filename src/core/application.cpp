@@ -523,6 +523,15 @@ void Application::process_events() {
                             std::cout << "Debug mode: " << (m_debug_mode ? "ON" : "OFF") << std::endl;
                             break;
 
+                        case SDLK_n:
+                            if (event.key.keysym.mod & KMOD_CTRL) {
+                                auto* netplay = m_plugin_manager->get_netplay_plugin();
+                                if (netplay) {
+                                    netplay->show_panel(!netplay->is_panel_visible());
+                                }
+                            }
+                            break;
+
                         case SDLK_PRINTSCREEN:
                             if (save_screenshot()) {
                                 m_gui_manager->get_notification_manager().success("Screenshot saved");
@@ -531,7 +540,8 @@ void Application::process_events() {
                             }
                             break;
 
-                        // Savestate hotkeys: Shift+F1-F10 to save, F1-F10 to load
+                        // Savestate hotkeys (matches README / GUI menu labels):
+                        // F1-F10 to save, Shift+F1-F10 to load.
                         case SDLK_F1:
                         case SDLK_F2:
                         case SDLK_F3:
@@ -547,24 +557,27 @@ void Application::process_events() {
                             std::ostringstream msg;
 
                             if (event.key.keysym.mod & KMOD_SHIFT) {
-                                // Save state (Shift+F1-F10)
+                                // Load state (Shift+F1-F10)
+                                if (m_savestate_manager->load_state(slot)) {
+                                    msg << "State loaded from slot " << (slot + 1);
+                                    notifications.success(msg.str());
+                                    std::cout << msg.str() << std::endl;
+                                    if (m_audio_manager) {
+                                        m_audio_manager->clear_buffer();
+                                    }
+                                } else {
+                                    msg << "Failed to load state from slot " << (slot + 1);
+                                    notifications.error(msg.str());
+                                    std::cout << msg.str() << std::endl;
+                                }
+                            } else {
+                                // Save state (F1-F10)
                                 if (m_savestate_manager->save_state(slot)) {
                                     msg << "State saved to slot " << (slot + 1);
                                     notifications.success(msg.str());
                                     std::cout << msg.str() << std::endl;
                                 } else {
                                     msg << "Failed to save state to slot " << (slot + 1);
-                                    notifications.error(msg.str());
-                                    std::cout << msg.str() << std::endl;
-                                }
-                            } else {
-                                // Load state (F1-F10)
-                                if (m_savestate_manager->load_state(slot)) {
-                                    msg << "State loaded from slot " << (slot + 1);
-                                    notifications.success(msg.str());
-                                    std::cout << msg.str() << std::endl;
-                                } else {
-                                    msg << "Failed to load state from slot " << (slot + 1);
                                     notifications.error(msg.str());
                                     std::cout << msg.str() << std::endl;
                                 }
