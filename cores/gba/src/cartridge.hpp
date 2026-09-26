@@ -66,11 +66,8 @@ public:
     uint8_t read_rom(uint32_t address);
     void write_rom(uint32_t address, uint8_t value);  // For GPIO writes
 
-    // Halfword ROM read. Past the end of the ROM this returns the correct
-    // open-bus halfword ((address/2) & 0xFFFF per GBATEK), which composing
-    // two independent read_rom() byte calls cannot: for an even address the
-    // two open-bus bytes read_rom() returns are numerically identical, so
-    // byte-composition loses the high byte (gba-29).
+    // Halfword ROM read. Past the end of the ROM this returns the open-bus
+    // halfword ((address/2) & 0xFFFF per GBATEK) directly (gba-29).
     uint16_t read_rom16(uint32_t address);
 
     uint8_t read_sram(uint32_t address);

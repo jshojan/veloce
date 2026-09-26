@@ -221,9 +221,10 @@ uint8_t Cartridge::read_rom(uint32_t address) {
     if (address < m_rom.size()) {
         return m_rom[address];
     }
-    // Return open bus value for reads past ROM end
-    // (address / 2) & 0xFF for each byte
-    return (address >> 1) & 0xFF;
+    // Open bus past ROM end: the cart drives the halfword (address/2)&0xFFFF
+    // (GBATEK/mGBA); a byte read returns the addressed byte lane of it, so
+    // odd addresses see the high byte rather than a copy of the low one.
+    return static_cast<uint8_t>(((address >> 1) & 0xFFFF) >> ((address & 1) * 8));
 }
 
 uint16_t Cartridge::read_rom16(uint32_t address) {
@@ -233,12 +234,9 @@ uint16_t Cartridge::read_rom16(uint32_t address) {
     bool gpio_region = m_has_rtc && address >= 0xC4 && address <= 0xC9;
     if (!gpio_region && address + 1 >= m_rom.size()) {
         // Past (or straddling) the end of ROM: hardware open bus is
-        // (address/2) & 0xFFFF for the whole halfword (GBATEK), not two
-        // independent byte reads. read_rom()'s per-byte open-bus value is
-        // (addr>>1)&0xFF, so for an even `address` the low and high bytes
-        // it returns are numerically identical -- byte-composing them
-        // yields 0x0000 in the high byte instead of, e.g., the correct
-        // 0x8000 at offset 0x10000.
+        // (address/2) & 0xFFFF for the whole halfword (GBATEK), e.g.
+        // 0x8000 at offset 0x10000 (gba-29). read_rom() returns the
+        // matching byte lane of this same halfword for 8-bit reads.
         return static_cast<uint16_t>((address >> 1) & 0xFFFF);
     }
     return static_cast<uint16_t>(read_rom(address)) |
