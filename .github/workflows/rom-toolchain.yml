@@ -52,6 +52,11 @@ jobs:
           docker run --rm "$img" cat /opt/rom-toolchain/versions/asar.txt
           docker run --rm "$img" cat /opt/rom-toolchain/versions/spcasm.txt
 
+      - name: Rebuild recipes and verify rom_manifest.json
+        # Reproducibility gate: every recipe must rebuild inside this image to
+        # exactly the sha256 already recorded in the committed manifest.
+        run: python3 tests/roms-src/build.py --check --image veloce/rom-toolchain:${{ github.sha }}
+
       - name: Upload versions.json
         uses: actions/upload-artifact@v4
         with:

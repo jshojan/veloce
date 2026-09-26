@@ -14,14 +14,21 @@
 #      into rom_manifest.json.
 #
 # Usage: tools/rom-toolchain/build-image.sh [tag]
+#   default tag veloce/rom-toolchain:dev, the image tests/roms-src/build.py uses
+#   by default (override there with VELOCE_ROM_TOOLCHAIN_IMAGE or --image).
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-TAG="${1:-veloce/rom-toolchain:latest}"
+TAG="${1:-veloce/rom-toolchain:dev}"
 BUILD_TAG="${TAG}-prelabel"
 
 echo "== docker build -t ${BUILD_TAG} ==" >&2
-docker build -f "${HERE}/Dockerfile" -t "${BUILD_TAG}" "${HERE}/../.."
+# The Dockerfile COPYs nothing from the context (every tool is fetched at a
+# pinned SHA), so send an empty context rather than the whole repo (build
+# dirs, ROM checkouts): faster, and nothing local can leak into the image.
+EMPTY_CTX="$(mktemp -d)"
+trap 'rm -rf "${EMPTY_CTX}"' EXIT
+docker build -f "${HERE}/Dockerfile" -t "${BUILD_TAG}" "${EMPTY_CTX}"
 
 echo "== collecting tool versions ==" >&2
 VERSIONS_JSON="${HERE}/versions.json"

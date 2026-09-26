@@ -28,7 +28,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # ---------------------------------------------------------------------------
-# cc65 V2.19 (source, 555282497c3ecf8b313d87d5973093af19c35bd5)
+# cc65 at 555282497c3ecf8b313d87d5973093af19c35bd5 (the plan calls it V2.19;
+# the binary built from this commit reports "ca65 V2.18 - Git 5552824", which
+# is what rom_manifest.json records). The SHA, not the version string, is the pin.
 # Serves: NES blargg modern, bisqwit, read_joy3, dmc_dma_during_read4,
 # Holy Mapperel, all new NES ROMs; SNES gilyon cputest/spctest (S-CPU side),
 # blargg SNES shell, Sour, lidnariq/tepples.
@@ -249,7 +251,7 @@ RUN mkdir -p /src/spcasm && cd /src/spcasm && git init -q \
     && git checkout -q FETCH_HEAD
 RUN cd /src/spcasm && rustup toolchain install ${RUST_TOOLCHAIN} --profile minimal \
     && rustup default ${RUST_TOOLCHAIN} \
-    && cargo build --release -p spcasm
+    && cargo build --release --locked -p spcasm
 RUN mkdir -p /opt/rom-toolchain/versions \
     && (/src/spcasm/target/release/spcasm --version \
         || /src/spcasm/target/release/spcasm -V \

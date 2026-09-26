@@ -38,7 +38,7 @@ class RomEntry:
     source_sha: str = ""
     patches: list = field(default_factory=list)
     tool_versions: dict = field(default_factory=dict)
-    built_at: str = ""
+    toolchain_image_id: str = ""
     raw: dict = field(default_factory=dict)
 
 
@@ -77,7 +77,7 @@ def load_manifest(project_root: Path) -> RomManifest:
             source_sha=entry.get("source_sha", ""),
             patches=entry.get("patches", []) or [],
             tool_versions=entry.get("tool_versions", {}) or {},
-            built_at=entry.get("built_at", ""),
+            toolchain_image_id=entry.get("toolchain_image_id", ""),
             raw=entry,
         )
     return RomManifest(path=p, exists=True, roms=roms, tool_versions=raw.get("tool_versions", {}) or {})
