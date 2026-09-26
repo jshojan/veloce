@@ -1700,11 +1700,33 @@ void Bus::step_timers(int cycles) {
         int prescaler = prescaler_values[timer.control & 3];
         timer.prescaler_counter += cycles;
 
+        // Consume whole ticks in batches (cheap for the common no-overflow
+        // case) but stop exactly at each overflow instant so every overflow
+        // is individually accounted for - request_interrupt/APU notify/
+        // cascade must fire once per overflow, not once per batch.
         while (timer.prescaler_counter >= prescaler) {
-            timer.prescaler_counter -= prescaler;
-            timer.counter++;
+            uint32_t ticks_available = static_cast<uint32_t>(timer.prescaler_counter) / prescaler;
+            uint32_t ticks_to_overflow = 0x10000u - timer.counter;
 
-            if (timer.counter == 0) {
+            if (ticks_available < ticks_to_overflow) {
+                // Not enough ticks left in this batch to overflow: consume
+                // them all and stop.
+                timer.counter += static_cast<uint16_t>(ticks_available);
+                timer.prescaler_counter -= static_cast<int>(ticks_available) * prescaler;
+                break;
+            }
+
+            {
+                // Consume exactly the ticks needed to reach the overflow
+                // instant. Previously the remainder of the batch was
+                // discarded here (prescaler_counter = 0), which silently
+                // dropped overflows - and audio/cascade events tied to them
+                // - whenever a single step_timers() batch (e.g. a
+                // 64K-cycle atomic DMA) spanned more than one overflow
+                // period (gba-11). Keeping the remainder lets the while
+                // loop immediately re-evaluate against the new reload.
+                timer.prescaler_counter -= static_cast<int>(ticks_to_overflow) * prescaler;
+
                 // Overflow - reload counter with the current reload value
                 // (not initial_reload - the reload register can be updated mid-cycle
                 // and the new value is used on the NEXT overflow)
@@ -1714,10 +1736,12 @@ void Bus::step_timers(int cycles) {
                 // This is used by get_timer_counter() to track elapsed ticks
                 timer.initial_reload = timer.reload;
 
-                // Reset the reference point for accurate reads
-                // The timer is now counting from reload to 0xFFFF again
-                timer.last_enabled_cycle = m_global_cycles;
-                timer.prescaler_counter = 0;
+                // Back-date the reference point to the actual overflow
+                // instant (global_cycles minus the ticks worth of cycles
+                // left over), not the end of the whole batch, so
+                // get_timer_counter() stays accurate for reads that land
+                // between overflows in this batch.
+                timer.last_enabled_cycle = m_global_cycles - timer.prescaler_counter;
 
                 // Request interrupt if enabled
                 if (timer.control & 0x40) {
