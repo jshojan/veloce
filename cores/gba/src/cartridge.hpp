@@ -83,6 +83,7 @@ public:
     // no-op once the size has been latched, or if `dma_units` doesn't match
     // one of the standard EEPROM command lengths.
     void latch_eeprom_size_from_dma(uint32_t dma_units);
+    bool is_eeprom() const;
 
     // Get CRC32
     uint32_t get_crc32() const { return m_crc32; }
@@ -147,6 +148,7 @@ private:
     int m_eeprom_bits_to_send = 0;        // Bits remaining to send
     uint8_t m_eeprom_command = 0;         // Current command (2 = read, 3 = write)
     bool m_eeprom_ready = true;           // Ready for operations (false during write)
+    void set_eeprom_size(SaveType type);  // 512B <-> 8KB, keeps the data prefix
     bool m_eeprom_size_locked = false;    // True once latch_eeprom_size_from_dma has committed
 
     // GPIO/RTC support

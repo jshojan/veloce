@@ -596,15 +596,24 @@ void Cartridge::latch_eeprom_size_from_dma(uint32_t dma_units) {
             return;
     }
 
-    if (detected != m_save_type) {
-        size_t new_size = (detected == SaveType::EEPROM_8K) ? 8 * 1024 : 512;
-        std::vector<uint8_t> resized(new_size, 0xFF);
-        size_t keep = std::min(new_size, m_save_data.size());
-        std::copy(m_save_data.begin(), m_save_data.begin() + keep, resized.begin());
-        m_save_data = std::move(resized);
-        m_save_type = detected;
-    }
+    set_eeprom_size(detected);
     m_eeprom_size_locked = true;
+}
+
+// Switch an EEPROM cart between the 512B and 8KB variants, keeping the
+// overlapping prefix of the save data and padding any new space with 0xFF.
+void Cartridge::set_eeprom_size(SaveType type) {
+    if (type == m_save_type) return;
+    size_t new_size = (type == SaveType::EEPROM_8K) ? 8 * 1024 : 512;
+    std::vector<uint8_t> resized(new_size, 0xFF);
+    size_t keep = std::min(new_size, m_save_data.size());
+    std::copy(m_save_data.begin(), m_save_data.begin() + keep, resized.begin());
+    m_save_data = std::move(resized);
+    m_save_type = type;
+}
+
+bool Cartridge::is_eeprom() const {
+    return m_save_type == SaveType::EEPROM_512 || m_save_type == SaveType::EEPROM_8K;
 }
 
 uint8_t Cartridge::read_sram(uint32_t address) {
@@ -667,6 +676,16 @@ std::vector<uint8_t> Cartridge::get_save_data() const {
 
 bool Cartridge::set_save_data(const std::vector<uint8_t>& data) {
     if (!m_loaded) return false;
+    // The EEPROM size may have been corrected from the ROM-size guess by
+    // DMA-width detection in the session that wrote this file (gba-28), so
+    // an exactly-512B or exactly-8KB battery file tells us the real size.
+    // Adopt it before copying, otherwise an 8KB save for a <16MB ROM would
+    // be truncated to the 512B guess on every boot. Not locked: the game's
+    // first EEPROM DMA still has the final say.
+    if (is_eeprom() && !m_eeprom_size_locked) {
+        if (data.size() == 8 * 1024) set_eeprom_size(SaveType::EEPROM_8K);
+        else if (data.size() == 512) set_eeprom_size(SaveType::EEPROM_512);
+    }
     size_t copy_size = std::min(data.size(), m_save_data.size());
     std::memcpy(m_save_data.data(), data.data(), copy_size);
     return true;
@@ -749,6 +768,24 @@ void Cartridge::save_state(std::vector<uint8_t>& data) {
 }
 
 bool Cartridge::load_state(const uint8_t*& data, size_t& remaining) {
+    // EEPROM carts can change save size at runtime (gba-28: 512B <-> 8KB
+    // from the DMA command width), and save_state() writes m_save_data at
+    // whatever size it had then, with no length prefix. The cartridge block
+    // is the last one in the state stream and is exactly
+    // save_data + 3 (Flash) [+ 15 (EEPROM)] bytes, so recover the size the
+    // state was saved with from what is left instead of assuming the
+    // current one (which would misalign every following field).
+    if (is_eeprom()) {
+        for (size_t n : {size_t(512), size_t(8 * 1024)}) {
+            if (remaining == n + 3 + 15 || remaining == n + 3) {
+                set_eeprom_size(n == 512 ? SaveType::EEPROM_512 : SaveType::EEPROM_8K);
+                // Let the next EEPROM DMA re-confirm (idempotent if right).
+                m_eeprom_size_locked = false;
+                break;
+            }
+        }
+    }
+
     // Load save_data
     if (!state_read_bytes(data, remaining, m_save_data.data(), m_save_data.size())) return false;
 
