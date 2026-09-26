@@ -209,33 +209,7 @@ void DMA::do_dma_transfer(int channel) {
             if (direction) {
                 // B -> A (typically used for memory fill from multiply registers)
                 uint8_t value = m_bus.read(b_full);
-
-                // SMAS FIX: Preserve game-critical variables during WRAM clear DMA.
-                // The game sets $0773 (game selection index) before triggering a
-                // memory clear, but due to timing differences, the code that reads
-                // $0773 runs one frame later. On real hardware, the dispatch runs
-                // earlier so the value is read before being cleared.
-                // Preserve $0770-$077F (game selection variables) during fill operations.
-                uint8_t bank = (a_addr >> 16) & 0xFF;
-                uint16_t offset = a_addr & 0xFFFF;
-                bool is_wram_fill = (bank <= 0x3F || (bank >= 0x80 && bank <= 0xBF)) &&
-                                    offset < 0x2000 && value == 0;
-                bool is_game_critical = offset >= 0x0770 && offset <= 0x077F;
-
-                if (is_wram_fill && is_game_critical) {
-                    // Skip clearing game-critical variables
-                    // The game expects these to survive the memory clear
-                } else {
-                    m_bus.write(a_addr, value);
-                }
-
-                // Debug: Log DMA writes to $1B00-$1BFF range
-                static int dma_write_count = 0;
-                if (offset >= 0x1B00 && offset < 0x1C00 && dma_write_count < 20) {
-                    dma_write_count++;
-                    fprintf(stderr, "[SNES/DMA] B->A write: $%06X = $%02X (from B=$%04X, count=%d)\n",
-                        a_addr, value, b_full, dma_write_count);
-                }
+                m_bus.write(a_addr, value);
             } else {
                 // A -> B
                 uint8_t value = m_bus.read(a_addr);
