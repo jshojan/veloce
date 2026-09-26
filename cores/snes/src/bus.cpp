@@ -640,6 +640,17 @@ void Bus::write_cpu_io(uint16_t address, uint8_t value) {
             if (m_ppu) {
                 m_ppu->set_nmi_enabled((value & 0x80) != 0);
             }
+
+            // Reference: bsnes irq.cpp nmitimenUpdate() - disabling both H-IRQ
+            // and V-IRQ (bits 4-5 both 0) immediately clears the pending IRQ
+            // flag/line rather than leaving it latched until the next $4211
+            // read. Without this, a game that turns H/V-IRQ off specifically
+            // to stop a pending IRQ (e.g. before re-enabling interrupts with
+            // CLI) still takes one spurious IRQ from state latched earlier.
+            if ((value & 0x30) == 0) {
+                m_irq_flag = false;
+                m_timeup = 0;
+            }
             break;
 
         case 0x4201:  // WRIO - Programmable I/O port (output)
