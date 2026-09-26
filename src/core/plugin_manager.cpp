@@ -446,6 +446,18 @@ bool PluginManager::activate_emulator_plugin(const std::string& name) {
         }
     }
 
+    // Flush the outgoing core's battery-backed save RAM before it is
+    // destroyed. Previously the only caller of unload_rom()/save_battery_save()
+    // was shutdown(); opening a new ROM (or reloading the same one) went
+    // straight through activate_emulator_plugin(), which destroyed the old
+    // instance with no save, silently discarding any SRAM written since
+    // launch (shared-04). unload_rom() also notifies game plugins of the
+    // unload and clears m_current_rom_path, so it must run against the OLD
+    // active instance/path before either is replaced below.
+    if (m_active.emulator && m_active.emulator->is_rom_loaded()) {
+        unload_rom();
+    }
+
     // Deactivate old plugin (saves its config before destroying it)
     deactivate_plugin(PluginType::Emulator);
 
@@ -823,6 +835,14 @@ void PluginManager::deactivate_plugin(PluginType type) {
     switch (type) {
         case PluginType::Emulator:
             if (m_active.emulator && m_active.emulator_handle) {
+                // Last line of defence: flush battery-backed save RAM if some
+                // future caller destroys the active core without going
+                // through activate_emulator_plugin()'s explicit unload_rom()
+                // (shared-04). No-op if the ROM was already unloaded.
+                if (m_active.emulator->is_rom_loaded()) {
+                    unload_rom();
+                }
+
                 // Persist any live edits made against the running instance
                 // before it is destroyed (shared-11); the config is per-instance
                 // (e.g. sprite-limit/overscan/fast-mode), so this is the last
