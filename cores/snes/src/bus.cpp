@@ -31,9 +31,9 @@ Bus::~Bus() = default;
 // - WRAM:       8 master cycles
 // - I/O:        6-12 master cycles depending on register
 //
-// FastROM only affects ROM in banks $80-$FF when:
-// 1. The cartridge supports FastROM (header bit)
-// 2. MEMSEL ($420D) bit 0 is set
+// FastROM (MEMSEL $420D bit 0 = 1) only affects Memory-2: banks
+// $80-$BF:8000-FFFF and $C0-$FF:0000-FFFF. It never affects banks $00-$7F,
+// and the cartridge header's FastROM bit plays no part in bus timing.
 // ============================================================================
 
 bool Bus::is_fast_rom_enabled() const {
