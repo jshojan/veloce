@@ -706,8 +706,14 @@ void DSP::process_echo() {
 
     // Calculate echo buffer parameters
     uint16_t esa = m_regs[REG_ESA] << 8;
-    int edl = m_regs[REG_EDL] & 0x0F;
-    m_echo_length = edl ? (edl * 0x800) : 4;  // 0 = 4 bytes
+    // EDL is only latched when the echo cursor is at the start of the
+    // buffer, so a mid-buffer EDL write takes effect after the current
+    // pass wraps. Reference: ares/blargg SPC_DSP echo_22:
+    // "if(!echo.offset) echo.length = EDL << 11".
+    if (m_echo_offset == 0) {
+        int edl = m_regs[REG_EDL] & 0x0F;
+        m_echo_length = edl ? (edl * 0x800) : 4;  // 0 = 4 bytes
+    }
 
     // Read from echo buffer
     // NOTE: m_echo_addr is stored for use by the write phase, which happens
@@ -765,6 +771,12 @@ void DSP::load_state(const uint8_t*& data, size_t& remaining) {
     data += 2; remaining -= 2;
 
     // Recalculate derived values
+    // The latched echo length is not serialized; approximate it from EDL
+    // (it is re-latched exactly when the cursor next wraps to 0).
+    {
+        int edl = m_regs[REG_EDL] & 0x0F;
+        m_echo_length = edl ? (edl * 0x800) : 4;
+    }
     m_noise_rate = m_regs[REG_FLG] & 0x1F;
     for (int i = 0; i < 8; i++) {
         m_fir_coefficients[i] = static_cast<int8_t>(m_regs[0x0F + (i << 4)]);
