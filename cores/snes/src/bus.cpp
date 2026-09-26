@@ -37,9 +37,13 @@ Bus::~Bus() = default;
 // ============================================================================
 
 bool Bus::is_fast_rom_enabled() const {
-    // FastROM requires both MEMSEL bit 0 set AND cartridge FastROM support
-    if (!m_cartridge) return false;
-    return (m_memsel & 0x01) && m_cartridge->is_fast_rom();
+    // Reference: fullsnes 420Dh (MEMSEL). The bus access-speed decoder is a
+    // pure address/MEMSEL-bit lookup; real hardware does not consult the
+    // cartridge header at all here (the header's FastROM bit is only a
+    // convention software uses to decide what to write to MEMSEL). Gating
+    // this on Cartridge::is_fast_rom() as well double-counted the header and
+    // is not how the timing decoder behaves.
+    return (m_memsel & 0x01) != 0;
 }
 
 int Bus::get_access_cycles(uint32_t address) const {
@@ -51,9 +55,13 @@ int Bus::get_access_cycles(uint32_t address) const {
         return 8;
     }
 
-    // Banks $40-$7D: Cartridge space - 8 cycles (6 if FastROM and HiROM)
+    // Banks $40-$7D: Cartridge space - always 8 cycles.
+    // Reference: fullsnes 420Dh - MEMSEL bit 0 only speeds up Memory-2
+    // ($80-$BF:8000-FFFF and $C0-$FF); banks $40-$7D are never affected by
+    // FastROM regardless of MEMSEL, so this must not consult
+    // is_fast_rom_enabled().
     if (bank >= 0x40 && bank <= 0x7D) {
-        return is_fast_rom_enabled() ? 6 : 8;
+        return 8;
     }
 
     // Banks $C0-$FF: ROM (HiROM upper banks or LoROM mirrors)
