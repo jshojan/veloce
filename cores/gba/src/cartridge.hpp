@@ -83,6 +83,14 @@ public:
     void latch_eeprom_size_from_dma(uint32_t dma_units);
     bool is_eeprom() const;
 
+    // Advances the emulated RTC clock by `cycles` CPU cycles (16.78 MHz).
+    // Called every step from the same place the bus updates its own global
+    // cycle counter, so the RTC's notion of elapsed time is derived from
+    // emulated cycles rather than the host's wall clock (gba-09): a read
+    // command's date/time is then a pure function of how much the guest
+    // has run, reproducible across hosts, replays and savestate reloads.
+    void advance_rtc(uint32_t cycles);
+
     // Get CRC32
     uint32_t get_crc32() const { return m_crc32; }
 
@@ -165,6 +173,14 @@ private:
     uint8_t m_rtc_serial_data = 0;
     bool m_rtc_last_sck = false;
 
+    // Emulated RTC clock (gba-09). Seconds since the Unix epoch, advanced
+    // deterministically from emulated CPU cycles via advance_rtc() instead
+    // of read from the host's wall clock, plus the sub-second remainder
+    // (in cycles) that hasn't rolled over into a whole second yet.
+    uint64_t m_rtc_epoch_seconds = 946684800;  // 2000-01-01 00:00:00 UTC
+    uint32_t m_rtc_cycle_accum = 0;
+    static constexpr uint32_t RTC_CYCLES_PER_SECOND = 16777216;  // 2^24, GBA CPU clock
+
     // GPIO pin definitions for RTC
     static constexpr uint8_t GPIO_SCK = 0x01;  // Bit 0: Clock
     static constexpr uint8_t GPIO_SIO = 0x02;  // Bit 1: Data
@@ -174,6 +190,7 @@ private:
     void rtc_clock_edge();
     uint8_t rtc_get_output();
     void rtc_process_command();
+    void rtc_apply_write();  // Commits a fully-received write command into the emulated clock (gba-09)
     bool detect_rtc(const uint8_t* data, size_t size);
 };
 

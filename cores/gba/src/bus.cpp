@@ -1731,6 +1731,12 @@ void Bus::step_timers(int cycles) {
     // Update global cycle counter for accurate timer reads
     m_global_cycles += cycles;
 
+    // Advance the cartridge's emulated RTC clock from the same emulated
+    // cycle count, rather than it reading the host's wall clock (gba-09).
+    if (m_cartridge) {
+        m_cartridge->advance_rtc(static_cast<uint32_t>(cycles));
+    }
+
     static const int prescaler_values[] = {1, 64, 256, 1024};
 
     for (int i = 0; i < 4; i++) {
