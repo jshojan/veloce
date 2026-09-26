@@ -53,6 +53,32 @@ static const uint32_t s_crc32_table[256] = {
     0xB40BBE37, 0xC30C8EA1, 0x5A05DF1B, 0x2D02EF8D
 };
 
+namespace {
+
+// Address mirroring for a ROM whose size is not a power of two (e.g. a
+// 3MB or 6MB cartridge). A plain "% size" wrap is wrong here: real
+// cartridge address decoding only ever ANDs/ORs address lines, so a
+// non-power-of-two ROM behaves as the largest power-of-two block it fully
+// occupies (addressed directly, no aliasing) plus the remaining tail,
+// which itself recursively mirrors to fill out the rest of the periodic
+// window (bsnes/higan Bus::mirror; see also snesdev "ROM mirroring").
+//
+// e.g. a 6MB (0x600000) ROM: addresses [0, 0x400000) hit real data
+// directly; [0x400000, 0x800000) is the periodic window's remainder, and
+// within it the tail [0x400000, 0x600000) (the actual leftover 2MB of
+// data) repeats to fill the last 2MB, so 0x600000 folds back to 0x400000.
+size_t mirror_rom_address(size_t addr, size_t size) {
+    if (size == 0) return 0;
+    size_t pow2 = 1;
+    while (pow2 < size) pow2 <<= 1;
+    addr &= (pow2 - 1);          // wrap to the periodic window
+    if (addr < size) return addr;  // direct hit (size may or may not be po2)
+    size_t block = pow2 >> 1;      // largest power-of-two block < size
+    return block + mirror_rom_address(addr - block, size - block);
+}
+
+} // namespace
+
 Cartridge::Cartridge() = default;
 
 Cartridge::~Cartridge() = default;
@@ -735,14 +761,19 @@ uint8_t Cartridge::read_hirom(uint32_t address) {
         return 0;
     }
 
-    // Handle ExHiROM (banks $C0-$FF map to upper 4MB)
-    if (m_mapper_type == MapperType::ExHiROM && bank >= 0xC0) {
-        rom_addr = ((bank - 0xC0) * 0x10000) + offset + 0x400000;
+    // ExHiROM (mode $25, ROM > 4MB): the A22 line is inverted versus plain
+    // HiROM, so banks with bit 7 SET ($80-$BF/$C0-$FF) select the FIRST
+    // 4MB and banks with bit 7 CLEAR ($00-$3F/$40-$7D) select the SECOND
+    // 4MB (bsnes/snesdev: base = (bank & 0x80) ? 0 : 0x400000). The old
+    // code did the opposite (added +0x400000 only for bank>=0xC0, i.e.
+    // exactly backwards) and only for $C0-$FF, leaving $80-$BF/$00-$3F/
+    // $40-$7D all aliased onto the first 4MB regardless of bank.
+    if (m_mapper_type == MapperType::ExHiROM) {
+        rom_addr += (bank & 0x80) ? 0 : 0x400000;
     }
 
     if (!m_rom.empty()) {
-        rom_addr %= m_rom.size();
-        return m_rom[rom_addr];
+        return m_rom[mirror_rom_address(rom_addr, m_rom.size())];
     }
 
     return 0;
