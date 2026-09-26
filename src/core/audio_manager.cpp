@@ -408,6 +408,20 @@ void AudioManager::clear_buffer() {
     // Don't immediately zero everything - fade out the last samples
     // to prevent clicking on buffer clear
     // The audio callback will naturally fade to zero via underrun handling
+    //
+    // clear_buffer() runs on the main thread (load_rom/reset/hotkeys) while the
+    // SDL audio callback (fill_audio_buffer) may be running concurrently on the
+    // audio thread. Both sides touch m_read_pos/m_write_pos plus the non-atomic
+    // interpolation/resampler state (m_prev_sample_*, m_resample_accumulator,
+    // m_input_resample_accumulator, m_rate_adjustment) and the ring buffer
+    // contents, so this must be mutually exclusive with the callback rather than
+    // racing it. SDL_LockAudioDevice blocks until any in-flight callback
+    // invocation returns and then prevents the callback from running until we
+    // unlock, giving clear_buffer() sole ownership of this state for its
+    // duration.
+    if (m_device_id) {
+        SDL_LockAudioDevice(m_device_id);
+    }
 
     m_read_pos.store(0, std::memory_order_relaxed);
     m_write_pos.store(0, std::memory_order_relaxed);
@@ -423,6 +437,10 @@ void AudioManager::clear_buffer() {
     m_input_resample_accumulator = 0.0;
     m_rate_adjustment = 1.0;
     std::memset(m_ring_buffer, 0, sizeof(m_ring_buffer));
+
+    if (m_device_id) {
+        SDL_UnlockAudioDevice(m_device_id);
+    }
 }
 
 bool AudioManager::is_buffer_ready() const {
