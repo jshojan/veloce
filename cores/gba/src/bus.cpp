@@ -1000,10 +1000,7 @@ void Bus::write_io(uint32_t address, uint16_t value) {
         case 0x0B6: m_dma[0].dst = (m_dma[0].dst & 0x0000FFFF) | (value << 16); break;
         case 0x0B8: m_dma[0].count = value; break;
         case 0x0BA:
-            GBA_DEBUG_PRINT("DMA0 control: 0x%04X (src=0x%08X, dst=0x%08X, cnt=%d)\n",
-                           value, m_dma[0].src, m_dma[0].dst, m_dma[0].count);
-            m_dma[0].control = value;
-            if (value & 0x8000) trigger_dma(0);
+            write_dma_control(0, value);
             break;
 
         // DMA 1
@@ -1013,10 +1010,7 @@ void Bus::write_io(uint32_t address, uint16_t value) {
         case 0x0C2: m_dma[1].dst = (m_dma[1].dst & 0x0000FFFF) | (value << 16); break;
         case 0x0C4: m_dma[1].count = value; break;
         case 0x0C6:
-            GBA_DEBUG_PRINT("DMA1 control: 0x%04X (src=0x%08X, dst=0x%08X, cnt=%d)\n",
-                           value, m_dma[1].src, m_dma[1].dst, m_dma[1].count);
-            m_dma[1].control = value;
-            if (value & 0x8000) trigger_dma(1);
+            write_dma_control(1, value);
             break;
 
         // DMA 2
@@ -1026,10 +1020,7 @@ void Bus::write_io(uint32_t address, uint16_t value) {
         case 0x0CE: m_dma[2].dst = (m_dma[2].dst & 0x0000FFFF) | (value << 16); break;
         case 0x0D0: m_dma[2].count = value; break;
         case 0x0D2:
-            GBA_DEBUG_PRINT("DMA2 control: 0x%04X (src=0x%08X, dst=0x%08X, cnt=%d)\n",
-                           value, m_dma[2].src, m_dma[2].dst, m_dma[2].count);
-            m_dma[2].control = value;
-            if (value & 0x8000) trigger_dma(2);
+            write_dma_control(2, value);
             break;
 
         // DMA 3
@@ -1039,10 +1030,7 @@ void Bus::write_io(uint32_t address, uint16_t value) {
         case 0x0DA: m_dma[3].dst = (m_dma[3].dst & 0x0000FFFF) | (value << 16); break;
         case 0x0DC: m_dma[3].count = value; break;
         case 0x0DE:
-            GBA_DEBUG_PRINT("DMA3 control: 0x%04X (src=0x%08X, dst=0x%08X, cnt=%d)\n",
-                           value, m_dma[3].src, m_dma[3].dst, m_dma[3].count);
-            m_dma[3].control = value;
-            if (value & 0x8000) trigger_dma(3);
+            write_dma_control(3, value);
             break;
 
         // Timers
@@ -1167,6 +1155,45 @@ void Bus::trigger_dma(int channel) {
     }
     // Other timing modes are triggered by their respective events
     // (VBlank, HBlank, Sound FIFO)
+}
+
+// Handle a write to DMAxCNT_H. GBATEK: the internal source/destination/count
+// latches are reloaded from SAD/DAD/CNT_L whenever the enable bit transitions
+// 0->1 - not just the first time the channel is ever used. `dma.active` used
+// to mean "has been triggered at least once" and was only cleared when a
+// non-repeating transfer finished, so disabling a repeat channel, rewriting
+// SAD/DAD, and re-enabling it reused the stale pre-disable internal
+// addresses instead of relatching (Fable's probe: destination word came from
+// the old source instead of the newly-written one).
+void Bus::write_dma_control(int channel, uint16_t value) {
+    DMAChannel& dma = m_dma[channel];
+
+    bool was_enabled = (dma.control & 0x8000) != 0;
+    bool enabled = (value & 0x8000) != 0;
+
+    GBA_DEBUG_PRINT("DMA%d control: 0x%04X (src=0x%08X, dst=0x%08X, cnt=%d)\n",
+                    channel, value, dma.src, dma.dst, dma.count);
+
+    dma.control = value;
+
+    if (!was_enabled && enabled) {
+        // Rising edge: drop any leftover latch/phase from a previous run so
+        // the next schedule_dma() call relatches internal_src/internal_dst
+        // from the freshly-written SAD/DAD/CNT_L, and abort anything that
+        // (shouldn't, but) was still mid-flight.
+        dma.active = false;
+        dma.phase = DMAChannel::Phase::Idle;
+        dma.scheduled = false;
+        trigger_dma(channel);
+    } else if (was_enabled && !enabled) {
+        // Falling edge: disabling aborts any in-flight or pending transfer
+        // and forces a fresh latch on the next enable.
+        dma.active = false;
+        dma.phase = DMAChannel::Phase::Idle;
+        dma.scheduled = false;
+    }
+    // was_enabled && enabled (rewriting the same enabled control value) must
+    // NOT relatch or retrigger a running/repeat-armed transfer.
 }
 
 int Bus::run_dma() {

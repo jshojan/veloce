@@ -212,6 +212,7 @@ private:
     void schedule_dma(int channel);     // Schedule a DMA to start
     void complete_dma(int channel);     // Handle DMA completion
     int find_highest_priority_dma();    // Find highest priority pending DMA
+    void write_dma_control(int channel, uint16_t value); // Handle a DMAxCNT_H write (0->1/1->0 edges)
 
     // Timer registers
     struct Timer {
