@@ -3054,7 +3054,7 @@ uint16_t PPU::get_direct_color(uint8_t palette, uint8_t color_index) {
     // Palette format: ppp where p2 -> blue, p1 -> green, p0 -> red
     int r = (r_base << 2) | ((palette & 0x01) << 1);  // RRR r 0
     int g = (g_base << 2) | ((palette & 0x02));       // GGG g 0
-    int b = (b_base << 3) | ((palette & 0x04) << 1);  // BB p 0 0
+    int b = (b_base << 3) | (palette & 0x04);         // BB p 0 0
 
     // Combine into 15-bit BGR555 color
     return (b << 10) | (g << 5) | r;
