@@ -22,16 +22,18 @@ bool Screenshot::save_png(const std::filesystem::path& path,
         std::filesystem::create_directories(path.parent_path());
     }
 
-    // stb_image_write expects RGBA in top-to-bottom order
-    // Our framebuffer may be in BGRA format, so convert
+    // stb_image_write expects RGBA in top-to-bottom order.
+    // Our framebuffer pixels are already packed as 0xAABBGGRR, which on a
+    // little-endian host is RGBA8888 byte order (byte0=R, byte1=G, byte2=B,
+    // byte3=A) -- the same layout every core's PPU uploads via GL_RGBA. So
+    // just unpack the bytes in place; no channel swap is needed.
     std::vector<uint8_t> rgba_data(width * height * 4);
 
     for (int i = 0; i < width * height; i++) {
         uint32_t pixel = pixels[i];
-        // Convert from ARGB/BGRA to RGBA
-        rgba_data[i * 4 + 0] = (pixel >> 16) & 0xFF; // R
+        rgba_data[i * 4 + 0] = pixel & 0xFF;         // R
         rgba_data[i * 4 + 1] = (pixel >> 8) & 0xFF;  // G
-        rgba_data[i * 4 + 2] = pixel & 0xFF;         // B
+        rgba_data[i * 4 + 2] = (pixel >> 16) & 0xFF; // B
         rgba_data[i * 4 + 3] = (pixel >> 24) & 0xFF; // A
     }
 
@@ -62,14 +64,15 @@ bool Screenshot::save_bmp(const std::filesystem::path& path,
         std::filesystem::create_directories(path.parent_path());
     }
 
-    // Convert to RGBA for stb
+    // Framebuffer pixels are already RGBA8888 byte order (see save_png);
+    // unpack without swapping R and B.
     std::vector<uint8_t> rgba_data(width * height * 4);
 
     for (int i = 0; i < width * height; i++) {
         uint32_t pixel = pixels[i];
-        rgba_data[i * 4 + 0] = (pixel >> 16) & 0xFF; // R
+        rgba_data[i * 4 + 0] = pixel & 0xFF;         // R
         rgba_data[i * 4 + 1] = (pixel >> 8) & 0xFF;  // G
-        rgba_data[i * 4 + 2] = pixel & 0xFF;         // B
+        rgba_data[i * 4 + 2] = (pixel >> 16) & 0xFF; // B
         rgba_data[i * 4 + 3] = (pixel >> 24) & 0xFF; // A
     }
 
