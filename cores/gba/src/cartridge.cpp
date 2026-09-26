@@ -857,6 +857,23 @@ static uint8_t bcd(int value) {
     return static_cast<uint8_t>(((value / 10) << 4) | (value % 10));
 }
 
+// S-3511A write-command payload length, keyed the same way the read side
+// already is below (rtc_process_command): date/time = 7 bytes, time-only =
+// 3, either status register = 1, reset = 0. A write command this cartridge
+// emulation doesn't otherwise recognise gets the full 8-byte buffer so nothing
+// is silently truncated, but is still hard-bounded to sizeof(m_rtc_data) by
+// the caller (gba-20).
+static int rtc_write_payload_length(uint8_t command) {
+    switch (command & 0x0F) {
+        case 0x1: return 0;  // Reset
+        case 0x3: return 1;  // Status register 1
+        case 0x9: return 1;  // Status register 2
+        case 0x5: return 7;  // Date/time
+        case 0x7: return 3;  // Time only
+        default:  return 8;  // Unknown: accept up to the buffer, still bounded
+    }
+}
+
 // Get current bit to output from RTC
 uint8_t Cartridge::rtc_get_output() {
     if (m_rtc_state == RTCState::SendData && m_rtc_byte_count < 7) {
@@ -917,8 +934,20 @@ void Cartridge::rtc_clock_edge() {
             }
             break;
 
-        case RTCState::ReceiveData:
-            // Receive data to write
+        case RTCState::ReceiveData: {
+            // Receive data to write, bounded to this command's S-3511A
+            // payload length (and, as defence in depth, to the fixed
+            // 8-byte m_rtc_data buffer either way). Without this bound a
+            // guest clocking more than 64 bits with CS held walked
+            // m_rtc_byte_count past 7 and indexed off the end of
+            // m_rtc_data on every following clock edge (gba-20).
+            int expected = rtc_write_payload_length(m_rtc_command);
+            if (expected > 8) expected = 8;
+            if (m_rtc_byte_count >= expected) {
+                // Payload already fully received; ignore further bits
+                // until CS drops and resets the state machine.
+                break;
+            }
             if (sio_in) {
                 m_rtc_data[m_rtc_byte_count] |= (1 << m_rtc_bit_count);
             }
@@ -927,11 +956,12 @@ void Cartridge::rtc_clock_edge() {
             if (m_rtc_bit_count >= 8) {
                 m_rtc_bit_count = 0;
                 m_rtc_byte_count++;
-                if (m_rtc_byte_count < 8) {
+                if (m_rtc_byte_count < expected) {
                     m_rtc_data[m_rtc_byte_count] = 0;
                 }
             }
             break;
+        }
 
         case RTCState::SendData:
             // Advance to next bit
