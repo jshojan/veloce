@@ -306,6 +306,21 @@ private:
     std::string m_plugin_directory;
     std::vector<PluginChangedCallback> m_change_callbacks;
 
+    // Registry name of m_active.emulator. Tracked explicitly rather than read
+    // back from m_config.get_selected_plugin(Emulator): Application loads
+    // plugins.json *after* initialize() has already activated a core, so the
+    // configured selection can name a different core than the live instance,
+    // and saving the live instance's config under that name would write one
+    // core's settings into another core's config file.
+    std::string m_active_emulator_name;
+
+    // Which copy of the active core's config is authoritative. The Core
+    // Configuration window edits the active instance only while a ROM is
+    // loaded and the per-core "browsing" instance otherwise, so the active
+    // instance's config is only worth persisting once a ROM has been loaded
+    // into it; before that, the browsing instance holds the current settings.
+    bool m_active_emulator_config_authoritative = false;
+
     // Current ROM path for save file support
     std::string m_current_rom_path;
 
