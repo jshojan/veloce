@@ -44,9 +44,16 @@ int CPU::step() {
         return m_cycles;
     }
 
-    // Handle waiting state
+    // Handle waiting state. WAI wakes on NMI or on the IRQ line going high
+    // regardless of the I flag - the W65C816S datasheet (7.13) says a
+    // masked IRQ still ends WAI and execution resumes with the next
+    // instruction (I is only consulted below, to decide whether to take
+    // the interrupt or fall through to execute()). Gating the wake on
+    // !I here left WAI hung forever under SEI, breaking the common
+    // "SEI; WAI" raster-sync idiom for any interrupt source that arrives
+    // while interrupts are masked.
     if (m_wai_waiting) {
-        if (m_nmi_pending || (m_irq_line && !get_flag(FLAG_I))) {
+        if (m_nmi_pending || m_irq_line) {
             m_wai_waiting = false;
         } else {
             m_cycles = 6;
@@ -87,11 +94,16 @@ void CPU::trigger_nmi() {
 
 void CPU::trigger_irq() {
     m_irq_line = true;
+    if (m_wai_waiting) {
+        m_wai_waiting = false;
+    }
 }
 
 void CPU::set_irq_line(bool active) {
     m_irq_line = active;
-    if (active && m_wai_waiting && !get_flag(FLAG_I)) {
+    // Wake WAI on the line going high even with I set (see step()); the
+    // I flag only gates whether the interrupt is actually taken.
+    if (active && m_wai_waiting) {
         m_wai_waiting = false;
     }
 }
