@@ -226,6 +226,25 @@ uint8_t Cartridge::read_rom(uint32_t address) {
     return (address >> 1) & 0xFF;
 }
 
+uint16_t Cartridge::read_rom16(uint32_t address) {
+    // GPIO/RTC bytes are byte-special-cased inside read_rom(); leave those
+    // straddling reads exactly as they were (byte composition is correct
+    // there, it's only the past-end open-bus case that isn't).
+    bool gpio_region = m_has_rtc && address >= 0xC4 && address <= 0xC9;
+    if (!gpio_region && address + 1 >= m_rom.size()) {
+        // Past (or straddling) the end of ROM: hardware open bus is
+        // (address/2) & 0xFFFF for the whole halfword (GBATEK), not two
+        // independent byte reads. read_rom()'s per-byte open-bus value is
+        // (addr>>1)&0xFF, so for an even `address` the low and high bytes
+        // it returns are numerically identical -- byte-composing them
+        // yields 0x0000 in the high byte instead of, e.g., the correct
+        // 0x8000 at offset 0x10000.
+        return static_cast<uint16_t>((address >> 1) & 0xFFFF);
+    }
+    return static_cast<uint16_t>(read_rom(address)) |
+           (static_cast<uint16_t>(read_rom(address + 1)) << 8);
+}
+
 void Cartridge::write_rom(uint32_t address, uint8_t value) {
     // Handle GPIO writes for RTC games
     if (m_has_rtc && address >= 0xC4 && address <= 0xC9) {

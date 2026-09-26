@@ -393,7 +393,7 @@ uint16_t Bus::read16(uint32_t address) {
         case MemoryRegion::ROM_WS1:
             if (m_cartridge) {
                 uint32_t offset = address & 0x1FFFFFF;
-                return m_cartridge->read_rom(offset) | (m_cartridge->read_rom(offset + 1) << 8);
+                return m_cartridge->read_rom16(offset);
             }
             break;
 
@@ -409,7 +409,7 @@ uint16_t Bus::read16(uint32_t address) {
                         return bit;
                     }
                 }
-                return m_cartridge->read_rom(offset) | (m_cartridge->read_rom(offset + 1) << 8);
+                return m_cartridge->read_rom16(offset);
             }
             break;
 
