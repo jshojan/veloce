@@ -494,6 +494,17 @@ void Cartridge::write_eeprom(uint8_t value) {
     // Determine address bit width based on EEPROM size
     int addr_bits = (m_save_type == SaveType::EEPROM_8K) ? 14 : 6;
 
+    // The busy phase is modelled as a number of polls rather than the
+    // ~6.5ms it takes on hardware, so a game that waits out the write with
+    // a delay instead of polling must not have its next command swallowed:
+    // treat the start of a new command as the write having finished
+    // (mGBA's time-based settle likewise never blocks new commands).
+    if (m_eeprom_state == EEPROMState::WriteComplete) {
+        m_eeprom_write_busy_reads = 0;
+        m_eeprom_ready = true;
+        m_eeprom_state = EEPROMState::Idle;
+    }
+
     switch (m_eeprom_state) {
         case EEPROMState::Idle:
             // First bit of command
@@ -578,10 +589,6 @@ void Cartridge::write_eeprom(uint8_t value) {
                 m_eeprom_write_busy_reads = 3;
                 m_eeprom_state = EEPROMState::WriteComplete;
             }
-            break;
-
-        case EEPROMState::WriteComplete:
-            // Ignore writes while write is in progress
             break;
 
         default:
@@ -866,9 +873,13 @@ bool Cartridge::load_state(const uint8_t*& data, size_t& remaining) {
         if (!state_read_u8(data, remaining, m_eeprom_command)) return false;
         if (!state_read_u8(data, remaining, ready_raw)) return false;
 
-        m_eeprom_state = (eeprom_state_raw <= static_cast<uint8_t>(EEPROMState::WriteComplete))
+        m_eeprom_state = (eeprom_state_raw <= static_cast<uint8_t>(EEPROMState::WaitStop))
             ? static_cast<EEPROMState>(eeprom_state_raw)
             : EEPROMState::Idle;
+        // The busy-poll countdown is not part of the (size-sensitive)
+        // serialized block; restoring into WriteComplete reports ready on
+        // the next poll, identically on every load.
+        m_eeprom_write_busy_reads = 0;
         m_eeprom_address = static_cast<uint16_t>(addr_lo | (addr_hi << 8));
         m_eeprom_buffer = 0;
         for (int i = 0; i < 8; i++) {

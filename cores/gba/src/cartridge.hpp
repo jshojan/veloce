@@ -44,10 +44,12 @@ enum class EEPROMState {
     Idle,              // Waiting for command
     ReceiveAddress,    // Receiving address bits
     ReceiveData,       // Receiving data bits for write
-    WaitStop,          // 64 data bits received; next bit is the stop bit (gba-18)
     SendDummy,         // Sending 4 dummy bits before read data
     SendData,          // Sending 64 data bits
-    WriteComplete      // Write in progress, polling for completion
+    WriteComplete,     // Write in progress, polling for completion
+    // Appended (not inserted) so the values above -- serialized as a byte
+    // in savestates -- keep their meaning.
+    WaitStop           // 64 data bits received; next bit is the stop bit (gba-18)
 };
 
 // GBA Cartridge loader with Flash/EEPROM and RTC/GPIO support
