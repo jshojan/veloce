@@ -35,6 +35,8 @@ void Mapper024::reset() {
     m_irq_mode_cycle = false;
     m_irq_prescaler = 0;
 
+    m_ppu_banking_style = 0;
+
     // Audio registers
     for (int i = 0; i < 4; i++) {
         m_pulse1_regs[i] = 0;
@@ -223,6 +225,19 @@ void Mapper024::cpu_write(uint16_t address, uint8_t value) {
         return;
     }
 
+    // PPU banking style / mirroring: $B003 (bits 0-1 CHR A8-A9 style,
+    // bits 2-3 mirroring, bit 4 nametable data source, bit 5 VRAM enable)
+    if ((addr & 0xF003) == 0xB003) {
+        m_ppu_banking_style = value;
+        switch ((value >> 2) & 0x03) {
+            case 0: m_mirror_mode = MirrorMode::Vertical; break;
+            case 1: m_mirror_mode = MirrorMode::Horizontal; break;
+            case 2: m_mirror_mode = MirrorMode::SingleScreen0; break;
+            case 3: m_mirror_mode = MirrorMode::SingleScreen1; break;
+        }
+        return;
+    }
+
     // PRG bank 1: $C000-$C003 (8KB at $C000-$DFFF)
     if ((addr & 0xF003) == 0xC000) {
         m_prg_bank_8k = value & 0x1F;
@@ -241,26 +256,14 @@ void Mapper024::cpu_write(uint16_t address, uint8_t value) {
         return;
     }
 
-    // Mirroring: $F000
+    // IRQ latch: $F000
     if ((addr & 0xF003) == 0xF000) {
-        // Bits 2-3: Mirroring mode
-        switch ((value >> 2) & 0x03) {
-            case 0: m_mirror_mode = MirrorMode::Vertical; break;
-            case 1: m_mirror_mode = MirrorMode::Horizontal; break;
-            case 2: m_mirror_mode = MirrorMode::SingleScreen0; break;
-            case 3: m_mirror_mode = MirrorMode::SingleScreen1; break;
-        }
-        return;
-    }
-
-    // IRQ latch: $F001
-    if ((addr & 0xF003) == 0xF001) {
         m_irq_latch = value;
         return;
     }
 
-    // IRQ control: $F002
-    if ((addr & 0xF003) == 0xF002) {
+    // IRQ control: $F001
+    if ((addr & 0xF003) == 0xF001) {
         m_irq_enabled_after_ack = (value & 0x01) != 0;
         m_irq_enabled = (value & 0x02) != 0;
         m_irq_mode_cycle = (value & 0x04) != 0;
@@ -274,8 +277,9 @@ void Mapper024::cpu_write(uint16_t address, uint8_t value) {
         return;
     }
 
-    // IRQ acknowledge: $F003
-    if ((addr & 0xF003) == 0xF003) {
+    // IRQ acknowledge: $F002 ($F003 is unused - VRC6 decodes only A0-A1
+    // within each 4-address block)
+    if ((addr & 0xF003) == 0xF002) {
         m_irq_pending = false;
         m_irq_enabled = m_irq_enabled_after_ack;
         return;
@@ -455,10 +459,11 @@ void Mapper024::save_state(std::vector<uint8_t>& data) {
     data.push_back(m_irq_prescaler);
 
     data.push_back(static_cast<uint8_t>(m_mirror_mode));
+    data.push_back(m_ppu_banking_style);
 }
 
 void Mapper024::load_state(const uint8_t*& data, size_t& remaining) {
-    if (remaining < 18) return;
+    if (remaining < 19) return;
 
     m_prg_bank_16k = *data++; remaining--;
     m_prg_bank_8k = *data++; remaining--;
@@ -476,6 +481,7 @@ void Mapper024::load_state(const uint8_t*& data, size_t& remaining) {
     m_irq_prescaler = *data++; remaining--;
 
     m_mirror_mode = static_cast<MirrorMode>(*data++); remaining--;
+    m_ppu_banking_style = *data++; remaining--;
 
     update_prg_banks();
     update_chr_banks();

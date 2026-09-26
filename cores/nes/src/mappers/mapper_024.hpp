@@ -68,6 +68,13 @@ private:
     uint8_t m_chr_bank[8] = {0};       // 8 x 1KB CHR banks
     uint32_t m_chr_bank_offset[8] = {0};
 
+    // PPU banking style / mirroring ($B003): bits 0-1 CHR A8-A9 style,
+    // bits 2-3 mirroring (0=Vertical,1=Horizontal,2=SingleScreen0,
+    // 3=SingleScreen1), bit 4 nametable data source, bit 5 VRAM enable.
+    // Only the mirroring bits are consumed today; the register value is
+    // kept in full for save-state fidelity and future CHR-style support.
+    uint8_t m_ppu_banking_style = 0;
+
     // IRQ
     uint8_t m_irq_latch = 0;
     uint8_t m_irq_counter = 0;
