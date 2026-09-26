@@ -434,6 +434,7 @@ void Cartridge::reset_eeprom_state() {
     m_eeprom_bits_to_send = 0;
     m_eeprom_command = 0;
     m_eeprom_ready = true;
+    m_eeprom_write_busy_reads = 0;
 }
 
 uint8_t Cartridge::read_eeprom() {
@@ -461,8 +462,14 @@ uint8_t Cartridge::read_eeprom() {
             }
 
         case EEPROMState::WriteComplete:
-            // Polling for write completion - return 1 when ready
-            // In real hardware this takes ~6.5ms, but we complete instantly
+            // Polling for write completion. Real hardware takes ~6.5ms; a
+            // guest that polls in a tight loop expects to see busy (0) at
+            // least once before ready (gba-18), so require a few polls to
+            // observe busy before reporting ready and returning to Idle.
+            if (m_eeprom_write_busy_reads > 0) {
+                m_eeprom_write_busy_reads--;
+                return 0;  // Busy
+            }
             m_eeprom_ready = true;
             m_eeprom_state = EEPROMState::Idle;
             return 1;  // Ready
@@ -539,17 +546,29 @@ void Cartridge::write_eeprom(uint8_t value) {
             m_eeprom_bits_received++;
 
             if (m_eeprom_bits_received == 64) {
-                // Data complete, wait for stop bit
-                // The next write should be the stop bit (0)
-                m_eeprom_bits_received = 65;  // Mark that we're waiting for stop
-            } else if (m_eeprom_bits_received == 65) {
-                // This is the stop bit - perform the write
+                // Data complete; the next bit is the stop bit. Move to a
+                // dedicated state instead of continuing to count bits here
+                // (gba-18): the old '65'/'66' counter trick shifted the
+                // stop bit into m_eeprom_buffer and then never matched its
+                // own '== 65' check, so the write below was dead code and
+                // every EEPROM save silently failed to persist.
+                m_eeprom_state = EEPROMState::WaitStop;
+            }
+            break;
+
+        case EEPROMState::WaitStop:
+            // This bit is the stop bit -- commit the write regardless of
+            // its value (real hardware does the same) without touching
+            // m_eeprom_buffer, which already holds exactly 64 received
+            // bits.
+            {
                 uint32_t byte_addr = m_eeprom_address * 8;
                 for (int i = 0; i < 8 && (byte_addr + i) < m_save_data.size(); i++) {
                     int shift = (7 - i) * 8;
                     m_save_data[byte_addr + i] = (m_eeprom_buffer >> shift) & 0xFF;
                 }
                 m_eeprom_ready = false;
+                m_eeprom_write_busy_reads = 3;
                 m_eeprom_state = EEPROMState::WriteComplete;
             }
             break;

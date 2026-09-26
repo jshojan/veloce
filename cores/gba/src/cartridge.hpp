@@ -44,6 +44,7 @@ enum class EEPROMState {
     Idle,              // Waiting for command
     ReceiveAddress,    // Receiving address bits
     ReceiveData,       // Receiving data bits for write
+    WaitStop,          // 64 data bits received; next bit is the stop bit (gba-18)
     SendDummy,         // Sending 4 dummy bits before read data
     SendData,          // Sending 64 data bits
     WriteComplete      // Write in progress, polling for completion
@@ -145,6 +146,7 @@ private:
     int m_eeprom_bits_to_send = 0;        // Bits remaining to send
     uint8_t m_eeprom_command = 0;         // Current command (2 = read, 3 = write)
     bool m_eeprom_ready = true;           // Ready for operations (false during write)
+    int m_eeprom_write_busy_reads = 0;    // Remaining polls before a completed write reports ready (gba-18)
     void set_eeprom_size(SaveType type);  // 512B <-> 8KB, keeps the data prefix
     bool m_eeprom_size_locked = false;    // True once latch_eeprom_size_from_dma has committed
 
