@@ -2303,10 +2303,12 @@ uint32_t ARM7TDMI::get_spsr() const {
 }
 
 void ARM7TDMI::set_spsr(uint32_t value) {
-    // SPSR is just a register: it has no mode-forcing hardware behaviour of
-    // its own (unlike CPSR). Store whatever is written verbatim; validation
-    // only matters when the value is later restored into CPSR via
-    // set_cpsr(get_spsr()), which applies the bit-4 quirk at that point.
+    // SPSR mode bit 4 (M4) is hardwired to 1 on the ARM7TDMI, exactly like
+    // CPSR's: MSR SPSR with a bit-4-clear mode reads back with bit 4 set
+    // (mGBA MSRR/MSRRI: `spsr = (spsr & ~mask) | (operand & mask) | 0x10`).
+    // No other validation: an undefined mode pattern is stored as written and
+    // only takes effect if later restored into CPSR via set_cpsr(get_spsr()).
+    value |= 0x10u;
     switch (m_mode) {
         case ProcessorMode::FIQ:        m_spsr_fiq = value; break;
         case ProcessorMode::Supervisor: m_spsr_svc = value; break;
