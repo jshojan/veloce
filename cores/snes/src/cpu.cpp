@@ -1464,7 +1464,6 @@ void CPU::execute() {
             } else {
                 write(dst, read(src));
             }
-            write(dst, read(src));
             m_x--;
             m_y--;
             if (get_flag(FLAG_X)) { m_x &= 0xFF; m_y &= 0xFF; }
