@@ -499,8 +499,10 @@ uint8_t Bus::read_cpu_io(uint16_t address) {
                 if (m_ppu) {
                     int scanline = m_ppu->get_scanline();
                     int dot = m_ppu->get_dot();
-                    // V-blank flag (scanlines 225-261 for NTSC)
-                    if (scanline >= 225) result |= 0x80;
+                    // V-blank flag: scanlines vdisp()-261 for NTSC. vdisp() is
+                    // 225 normally, or 240 with SETINI overscan (bit 2) set,
+                    // since overscan extends the visible area to line 239.
+                    if (scanline >= m_ppu->vdisp()) result |= 0x80;
                     // H-blank flag (dots 274-339)
                     if (dot >= 274) result |= 0x40;
                 }

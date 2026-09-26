@@ -117,6 +117,14 @@ public:
     int get_screen_width() const { return 512; }
     int get_screen_height() const { return m_overscan ? 239 : 224; }
 
+    // First scanline of V-blank (SETINI bit 2 "overscan" extends the visible
+    // area from 224 to 239 lines, pushing V-blank/NMI from V=225 to V=240).
+    // Callers outside the PPU (HDMA line-range gating, the HVBJOY V-blank
+    // flag, the NMI edge) must use this instead of a hardcoded 225 so they
+    // agree with the PPU's own visible-line count.
+    // Reference: fullsnes SETINI (2133h), anomie's timing docs.
+    int vdisp() const { return m_overscan ? 240 : 225; }
+
     // OAM access for DMA
     void oam_write(uint16_t address, uint8_t value);
     uint8_t oam_read(uint16_t address);

@@ -476,15 +476,18 @@ void SNESPlugin::run_frame(const emu::InputState& input) {
         // H-blank processing
         m_bus->start_hblank();
 
-        // HDMA transfers occur at dot 278 (H-blank) on real hardware.
+        // HDMA transfers occur at dot 278 (H-blank) on real hardware, for
+        // every visible line - which, with SETINI overscan (bit 2) set,
+        // extends through line 239 instead of stopping at 224.
         // With the sync_to_hblank() call above, all visible pixels for this scanline
         // are already rendered, so HDMA changes will affect the NEXT scanline's rendering.
-        if (scanline < 225) {
+        if (scanline < m_ppu->vdisp()) {
             m_dma->hdma_transfer();
         }
 
-        // V-blank starts at scanline 225
-        if (scanline == 225) {
+        // V-blank starts at the first non-visible scanline: V=225 normally,
+        // V=240 with overscan (SETINI bit 2).
+        if (scanline == m_ppu->vdisp()) {
             m_bus->start_vblank();
         }
     }
