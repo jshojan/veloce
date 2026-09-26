@@ -1447,9 +1447,9 @@ void PPU::render_pixel(int x) {
     // CGWSEL bits 4-5 control color math enable based on color window
     bool apply_color_math = false;
     switch (m_color_math_prevent) {
-        case 0: apply_color_math = true; break;   // Always
-        case 1: apply_color_math = !get_color_window(x); break;  // Inside window
-        case 2: apply_color_math = get_color_window(x); break;   // Outside window
+        case 0: apply_color_math = true; break;             // Always
+        case 1: apply_color_math = get_color_window(x); break;   // Inside window (MathWindow)
+        case 2: apply_color_math = !get_color_window(x); break;  // Outside window (NotMathWin)
         case 3: apply_color_math = false; break;  // Never
     }
 
