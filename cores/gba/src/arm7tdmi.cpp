@@ -1672,9 +1672,16 @@ int ARM7TDMI::thumb_hi_reg_bx(uint16_t instruction) {
     uint16_t rs = ((instruction >> 3) & 7) | (h2 ? 8 : 0);
     uint16_t rd = (instruction & 7) | (h1 ? 8 : 0);
 
+    // R15 read as an operand yields the instruction address + 4 (prefetch).
+    // After fetch_thumb() m_regs[15] holds instruction + 2, so compensate
+    // here exactly like thumb_pc_relative_load/thumb_load_address do.
+    auto read_operand = [this](uint16_t r) -> uint32_t {
+        return (r == 15) ? m_regs[15] + 2 : m_regs[r];
+    };
+
     switch (op) {
         case 0:  // ADD
-            m_regs[rd] = m_regs[rd] + m_regs[rs];
+            m_regs[rd] = read_operand(rd) + read_operand(rs);
             if (rd == 15) {
                 m_regs[15] &= ~1u;
                 flush_pipeline();
@@ -1682,8 +1689,8 @@ int ARM7TDMI::thumb_hi_reg_bx(uint16_t instruction) {
             break;
         case 1:  // CMP
             {
-                uint32_t a = m_regs[rd];
-                uint32_t b = m_regs[rs];
+                uint32_t a = read_operand(rd);
+                uint32_t b = read_operand(rs);
                 uint32_t result = a - b;
                 bool carry = a >= b;
                 bool overflow = ((a ^ b) & (a ^ result)) >> 31;
@@ -1691,7 +1698,7 @@ int ARM7TDMI::thumb_hi_reg_bx(uint16_t instruction) {
             }
             break;
         case 2:  // MOV
-            m_regs[rd] = m_regs[rs];
+            m_regs[rd] = read_operand(rs);
             if (rd == 15) {
                 m_regs[15] &= ~1u;
                 flush_pipeline();
@@ -1699,7 +1706,7 @@ int ARM7TDMI::thumb_hi_reg_bx(uint16_t instruction) {
             break;
         case 3:  // BX
             {
-                uint32_t addr = m_regs[rs];
+                uint32_t addr = read_operand(rs);
                 if (addr & 1) {
                     m_cpsr |= FLAG_T;  // Switch to Thumb mode
                     m_regs[15] = addr & ~1u;
