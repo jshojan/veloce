@@ -25,6 +25,44 @@ struct SavestateHeader {
     char rom_name[256] = {0};
 };
 
+namespace {
+
+// Sanity cap on a savestate's serialized state payload. Well past any real
+// core's save_state() output; exists only to reject a corrupt/crafted
+// data_size before it is handed to std::vector's allocator (shared-08).
+constexpr uint64_t MAX_SAVESTATE_DATA_SIZE = 64ull * 1024 * 1024;
+
+// Reads exactly sizeof(SavestateHeader) from `file` and validates the magic
+// and version range. Returns false (leaving `header` partially read) on a
+// short read, bad magic, or unsupported version -- callers must not use
+// `header` further in that case. Shared by get_slot_info() and
+// read_savestate_file() so both apply the same validation (shared-08).
+bool read_and_validate_header(std::ifstream& file, SavestateHeader& header) {
+    file.read(reinterpret_cast<char*>(&header), sizeof(header));
+    if (!file) {
+        return false;
+    }
+    if (std::memcmp(header.magic, "VELO", 4) != 0) {
+        return false;
+    }
+    if (header.version < 1 || header.version > 2) {
+        return false;
+    }
+    return true;
+}
+
+// The writer NUL-terminates rom_name (see write_savestate_file), but a
+// corrupt or hand-crafted .state file might not. `header.rom_name` is a
+// fixed-size char array with no format-level guarantee of a NUL terminator,
+// so building a std::string from it via the implicit char* constructor
+// (which calls strlen) can read past the end of the array. Bound the scan
+// explicitly with strnlen instead (shared-08).
+std::string extract_rom_name(const SavestateHeader& header) {
+    return std::string(header.rom_name, strnlen(header.rom_name, sizeof(header.rom_name)));
+}
+
+} // namespace
+
 SavestateManager::SavestateManager() = default;
 SavestateManager::~SavestateManager() = default;
 
@@ -148,10 +186,8 @@ SavestateInfo SavestateManager::get_slot_info(int slot) const {
     }
 
     SavestateHeader header;
-    file.read(reinterpret_cast<char*>(&header), sizeof(header));
-
-    if (file && std::memcmp(header.magic, "VELO", 4) == 0) {
-        info.rom_name = header.rom_name;
+    if (read_and_validate_header(file, header)) {
+        info.rom_name = extract_rom_name(header);
         info.rom_crc32 = header.rom_crc32;
         info.frame_count = header.frame_count;
         info.timestamp = header.timestamp;
@@ -275,6 +311,7 @@ bool SavestateManager::write_savestate_file(const std::string& path,
     header.timestamp = info.timestamp;
     header.data_size = static_cast<uint32_t>(data.size());
     std::strncpy(header.rom_name, info.rom_name.c_str(), sizeof(header.rom_name) - 1);
+    header.rom_name[sizeof(header.rom_name) - 1] = '\0';  // guarantee NUL termination regardless
 
     file.write(reinterpret_cast<const char*>(&header), sizeof(header));
 
@@ -291,21 +328,33 @@ std::optional<std::vector<uint8_t>> SavestateManager::read_savestate_file(const 
 
     // Read header
     SavestateHeader header;
-    file.read(reinterpret_cast<char*>(&header), sizeof(header));
-
-    if (!file || std::memcmp(header.magic, "VELO", 4) != 0) {
-        return std::nullopt;
-    }
-
-    if (header.version < 1 || header.version > 2) {
-        std::cerr << "Unsupported savestate version: " << header.version << std::endl;
+    if (!read_and_validate_header(file, header)) {
         return std::nullopt;
     }
     // Note: Version 1 savestates are not compatible with version 2 due to
     // added NMI/sprite state fields. Old savestates will fail to load correctly.
 
+    // Validate data_size before allocating for it: a corrupt/crafted file
+    // could claim an arbitrarily large size (up to UINT32_MAX) here, which
+    // would otherwise be passed straight to std::vector's allocator
+    // (shared-08). Bound it by both a sane absolute cap and by what
+    // actually remains in the file after the header.
+    const std::streamoff header_end = file.tellg();
+    file.seekg(0, std::ios::end);
+    const std::streamoff total_size = file.tellg();
+    if (total_size < header_end) {
+        return std::nullopt;
+    }
+    const uint64_t remaining = static_cast<uint64_t>(total_size - header_end);
+    if (header.data_size > MAX_SAVESTATE_DATA_SIZE || header.data_size > remaining) {
+        std::cerr << "Savestate data_size out of range (" << header.data_size
+                   << " bytes, " << remaining << " available)" << std::endl;
+        return std::nullopt;
+    }
+    file.seekg(header_end);
+
     // Fill info
-    info.rom_name = header.rom_name;
+    info.rom_name = extract_rom_name(header);
     info.rom_crc32 = header.rom_crc32;
     info.frame_count = header.frame_count;
     info.timestamp = header.timestamp;
