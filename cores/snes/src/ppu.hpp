@@ -34,6 +34,16 @@ public:
     // NMI enable control (from NMITIMEN $4200 bit 7)
     void set_nmi_enabled(bool enabled) { m_nmi_enabled = enabled; }
 
+    // WRIO ($4201) mirror, used for the H/V-counter software latch ($2137):
+    // a falling edge (1->0) of bit 7 latches the counters (external-latch
+    // pin emulation), and $2137 reads only latch while bit 7 is high.
+    // Reference: fullsnes 2137h/4201h, bsnes cpu.pio().
+    void set_wrio(uint8_t value);
+
+    // Latch the current H/V dot/scanline into $213C/$213D (OPHCT/OPVCT)
+    // and reset their byte-read toggles.
+    void latch_counters();
+
     // Get framebuffer (256x224 or 512x448 in hi-res)
     const uint32_t* get_framebuffer() const { return m_framebuffer.data(); }
 
@@ -407,6 +417,7 @@ private:
     bool m_hv_latch = false;
     bool m_hcount_second = false;
     bool m_vcount_second = false;
+    uint8_t m_wrio = 0xFF;  // Mirror of Bus $4201, for the $2137 software latch
 
     // Multiplication result ($2134-$2136)
     int32_t m_mpy_result = 0;

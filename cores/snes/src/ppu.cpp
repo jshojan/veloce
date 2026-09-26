@@ -159,6 +159,7 @@ void PPU::reset() {
     m_hv_latch = false;
     m_hcount_second = false;
     m_vcount_second = false;
+    m_wrio = 0xFF;
 
     m_mpy_result = 0;
     m_sprite_count = 0;
@@ -391,9 +392,10 @@ void PPU::advance(int master_cycles) {
         dots_to_advance--;
     }
 
-    // Update H/V counters for register reads
-    m_hcount = m_dot;
-    m_vcount = m_scanline;
+    // Note: $213C/$213D (OPHCT/OPVCT) hold a *latched* copy of the dot/
+    // scanline, not a live view of them - see latch_counters(). They are
+    // updated only by a $2137 (SLHV) read while WRIO bit 7 is high, or by
+    // a falling edge of WRIO bit 7 (see set_wrio()).
 }
 
 void PPU::sync_to_current() {
@@ -731,9 +733,9 @@ void PPU::step() {
         m_scanline = saved_scanline;
     }
 
-    // Update H/V counters
-    m_hcount = m_dot;
-    m_vcount = m_scanline;
+    // Note: H/V counters ($213C/$213D) are latched, not live - see
+    // latch_counters(). This legacy step() path is unused (advance()/
+    // sync_* are the active catch-up path).
 
     // Advance dot
     m_dot++;
@@ -3113,6 +3115,25 @@ bool PPU::check_nmi() {
     return pending;
 }
 
+void PPU::latch_counters() {
+    m_hcount = m_dot;
+    m_vcount = m_scanline;
+    m_hv_latch = true;
+}
+
+void PPU::set_wrio(uint8_t value) {
+    // A falling edge (1->0) of WRIO bit 7 latches the H/V counters,
+    // emulating the external latch pin ($4201 bit 7 drives pin 6 of the
+    // controller port, used by e.g. the Super Scope light gun).
+    // Reference: fullsnes 4201h, bsnes cpu.pio().
+    bool old_bit7 = (m_wrio & 0x80) != 0;
+    bool new_bit7 = (value & 0x80) != 0;
+    if (old_bit7 && !new_bit7) {
+        latch_counters();
+    }
+    m_wrio = value;
+}
+
 uint8_t PPU::read(uint16_t address) {
     uint8_t value = 0;
 
@@ -3129,9 +3150,13 @@ uint8_t PPU::read(uint16_t address) {
             break;
 
         case 0x2137:  // SLHV - Software latch for H/V counters
-            m_hv_latch = true;
-            m_hcount_second = false;
-            m_vcount_second = false;
+            // Reference: fullsnes 2137h, bsnes cpu.pio(). Reading $2137 only
+            // latches the counters while WRIO ($4201) bit 7 is high; a game
+            // driving that pin low first (e.g. for an external light-gun
+            // latch) suppresses the software latch until it is raised again.
+            if (m_wrio & 0x80) {
+                latch_counters();
+            }
             break;
 
         case 0x2138: {  // OAMDATAREAD
@@ -3218,7 +3243,15 @@ uint8_t PPU::read(uint16_t address) {
                     (m_hv_latch ? 0x40 : 0) |
                     ((m_frame & 1) ? 0x80 : 0) |
                     0x03;  // PPU2 version
-            m_hv_latch = false;
+            // Reading STAT78 resets the OPHCT/OPVCT low/high byte-read
+            // toggles (fullsnes 213Fh), and clears the latch flag - but the
+            // flag is only cleared while WRIO bit 7 is high, matching the
+            // gating on the $2137 software latch itself (bsnes cpu.pio()).
+            m_hcount_second = false;
+            m_vcount_second = false;
+            if (m_wrio & 0x80) {
+                m_hv_latch = false;
+            }
             m_ppu2_open_bus = value;
             break;
 

@@ -655,6 +655,11 @@ void Bus::write_cpu_io(uint16_t address, uint8_t value) {
 
         case 0x4201:  // WRIO - Programmable I/O port (output)
             m_wrio = value;
+            // A falling edge of bit 7 latches the PPU's H/V counters
+            // (external light-gun latch pin emulation). See PPU::set_wrio.
+            if (m_ppu) {
+                m_ppu->set_wrio(value);
+            }
             break;
 
         case 0x4202:  // WRMPYA - Multiplication operand A
