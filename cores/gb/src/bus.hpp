@@ -116,10 +116,9 @@ private:
     uint16_t m_div_counter = 0;  // Full 16-bit DIV counter (system counter)
     bool m_prev_timer_bit = false;  // Previous state of selected bit for falling edge detection
     uint8_t m_tima_overflow_cycle = 0;  // Countdown for delayed TMA reload (0 = no overflow pending)
-    bool m_tima_reloading = false;  // True during the single M-cycle write window where a
-                                     // TIMA reload from TMA is pending for this cycle's own
-                                     // tick (Pan Docs "cycle B": TIMA writes here are ignored,
-                                     // TMA writes here are mirrored into TIMA immediately).
+    bool m_tima_reloading = false;  // True for the bus access right after the tick that
+                                     // copied TMA into TIMA (Pan Docs "cycle B": TIMA writes
+                                     // are ignored, TMA writes are mirrored into TIMA).
 
     // Serial internals
     int m_serial_counter = 0;

@@ -306,18 +306,26 @@ void Bus::write_io(uint16_t address, uint8_t value) {
         }
 
         case 0x05:
-            // Pan Docs: writing TIMA during the M-cycle right after overflow
-            // (before that cycle's own tick has copied TMA into TIMA) is
-            // ignored - the pending reload always wins over the write.
-            if (!m_tima_reloading) {
-                m_tima = value;
+            // TIMA write timing around an overflow (Pan Docs "Timer obscure
+            // behaviour"). The CPU performs its bus access before the M-cycle's
+            // timer tick (write-then-tick), so:
+            //  - cycle A: TIMA overflowed on the previous tick and still reads
+            //    0x00 (m_tima_overflow_cycle > 0). A write here overrides the
+            //    pending reload: the written value sticks, no TMA copy, no IRQ.
+            //  - cycle B: the previous tick just copied TMA into TIMA and raised
+            //    IF.2 (m_tima_reloading). A write here is ignored.
+            if (m_tima_reloading) {
+                break;
             }
+            if (m_tima_overflow_cycle > 0) {
+                m_tima_overflow_cycle = 0;  // cycle A: cancel reload + IRQ
+            }
+            m_tima = value;
             break;
         case 0x06:
             m_tma = value;
-            // Pan Docs: a TMA write during that same reload cycle is also
-            // copied into TIMA immediately, since the hardware copy-in for
-            // this cycle hasn't happened yet and will use the new value.
+            // cycle B: TIMA is being loaded from TMA during this M-cycle, so a
+            // TMA write here is copied into TIMA as well.
             if (m_tima_reloading) {
                 m_tima = value;
             }
@@ -487,10 +495,8 @@ void Bus::check_timer_falling_edge(bool new_bit) {
         m_tima++;
         if (m_tima == 0) {
             // TIMA overflow - schedule delayed reload (happens 1 M-cycle later).
-            // From this point until that cycle's own tick performs the reload,
-            // any bus write to TIMA/TMA falls in the special reload window.
+            // The next bus access sees TIMA == 0x00 (Pan Docs "cycle A").
             m_tima_overflow_cycle = 1;
-            m_tima_reloading = true;
         }
     }
     m_prev_timer_bit = new_bit;
@@ -500,6 +506,10 @@ void Bus::step_timer(int m_cycles) {
     // Timer uses falling edge detection on specific DIV bits
     // We need to tick one M-cycle at a time for accuracy
     for (int i = 0; i < m_cycles; i++) {
+        // The cycle-B write window only covers the bus access that follows
+        // the reload tick; it closes at the start of the next tick.
+        m_tima_reloading = false;
+
         // Handle delayed TIMA overflow reload
         if (m_tima_overflow_cycle > 0) {
             m_tima_overflow_cycle--;
@@ -507,8 +517,9 @@ void Bus::step_timer(int m_cycles) {
                 // TMA reload and interrupt happen now
                 m_tima = m_tma;
                 request_interrupt(0x04);  // Timer interrupt
-                // The reload window closes once this cycle's own tick has run.
-                m_tima_reloading = false;
+                // The next bus access is "cycle B": TIMA writes are ignored
+                // and TMA writes are mirrored into TIMA.
+                m_tima_reloading = true;
             }
         }
 
