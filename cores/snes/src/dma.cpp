@@ -314,21 +314,9 @@ void DMA::hdma_do_transfer(int channel) {
 
     int size = transfer_size[transfer_mode];
 
-    // Debug: Log ALL HDMA transfers to understand what SMAS uses
-    static int hdma_debug_count = 0;
-
     for (int i = 0; i < size; i++) {
         uint8_t value = m_bus.read(src_addr);
         uint16_t b_full = 0x2100 + b_addr + b_offset[transfer_mode][i];
-
-        // Log all HDMA transfers for first 200 transfers
-        if (hdma_debug_count < 200) {
-            int ppu_scanline = m_bus.ppu().get_scanline();
-            int ppu_dot = m_bus.ppu().get_dot();
-            fprintf(stderr, "[HDMA] ch%d ppu_line=%d ppu_dot=%d: $%04X <- $%02X (mode=%d)\n",
-                    channel, ppu_scanline, ppu_dot, b_full, value, transfer_mode);
-            hdma_debug_count++;
-        }
 
         m_bus.write(b_full, value);
         src_addr++;

@@ -60,7 +60,7 @@ int SPC700::step() {
 
     // IPL ROM boot loop is at $FFCF-$FFD2
     // When we exit IPL ROM (PC < $FFC0 or PC > $FFD2 and not in early IPL), boot is done
-    if (!ipl_boot_logged && m_pc < 0xFFC0) {
+    if (is_debug_mode() && !ipl_boot_logged && m_pc < 0xFFC0) {
         ipl_boot_logged = true;
         fprintf(stderr, "[SPC700] Exited IPL ROM boot at step %d, PC=$%04X, port_in[0]=$%02X\n",
                 step_count, m_pc, m_port_in[0]);
@@ -218,7 +218,7 @@ void SPC700::write(uint16_t address, uint8_t value) {
             case 0x00F5:
             case 0x00F6:
             case 0x00F7:
-                {
+                if (is_debug_mode()) {
                     static int port_write_count = 0;
                     port_write_count++;
                     if (port_write_count <= 5) {

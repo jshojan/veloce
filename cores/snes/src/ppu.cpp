@@ -1046,51 +1046,6 @@ void PPU::render_pixel(int x) {
         }
     }
 
-    // Debug: trace Mode 3/5 BG rendering at different y positions
-    static int mode_trace_debug = 0;
-    static int y10x8_render_count = 0;
-    if (mode_trace_debug < 10 && m_frame == 47) {
-        int y = m_scanline - 1;
-        // Check at y=10 (top row where text starts)
-        if (y == 10 && x == 8) {
-            y10x8_render_count++;
-            fprintf(stderr, "[BG-Debug] Render #%d at y=%d x=%d\n", y10x8_render_count, y, x);
-            mode_trace_debug++;
-            fprintf(stderr, "[BG-Debug] frame=%d y=%d x=%d mode=%d TM=$%02X BG1=%d BG2=%d\n",
-                    (int)m_frame, y, x, m_bg_mode, m_tm, bg_pixel[0], bg_pixel[1]);
-            fprintf(stderr, "[BG-Debug] BG1: tilemap=$%04X chr=$%04X hofs=%d vofs=%d tile_size=%d\n",
-                    m_bg_tilemap_addr[0], m_bg_chr_addr[0], m_bg_hofs[0], m_bg_vofs[0], m_bg_tile_size[0] ? 16 : 8);
-            // Calculate expected tile position
-            int scroll_x = m_bg_hofs[0] & 0x3FF;
-            int scroll_y = m_bg_vofs[0] & 0x3FF;
-            int px = (x + scroll_x) & 0x3FF;
-            int py = (y + scroll_y) & 0x3FF;
-            int tile_size = m_bg_tile_size[0] ? 16 : 8;
-            int tile_x = px / tile_size;
-            int tile_y = py / tile_size;
-            uint16_t tilemap_addr = m_bg_tilemap_addr[0] + (tile_y % 32) * 64 + (tile_x % 32) * 2;
-            uint8_t tile_lo = m_vram[tilemap_addr & 0xFFFF];
-            uint8_t tile_hi = m_vram[(tilemap_addr + 1) & 0xFFFF];
-            int tile_num = tile_lo | ((tile_hi & 0x03) << 8);
-            int fine_x = px % tile_size;
-            int fine_y = py % tile_size;
-            fprintf(stderr, "[BG-Debug] px=%d py=%d tile=(%d,%d) fine=(%d,%d) tilemap_addr=$%04X tile=%d\n",
-                    px, py, tile_x, tile_y, fine_x, fine_y, tilemap_addr, tile_num);
-            // For Mode 3, BG1 is 8bpp, so chr size = 64 bytes per tile
-            int bpp = 8;  // Mode 3 BG1
-            uint16_t chr_addr = m_bg_chr_addr[0] + tile_num * (bpp * 8);
-            // Dump all 4 bitplane pairs for this row
-            fprintf(stderr, "[BG-Debug] chr_addr=$%04X fine_y=%d bitplanes:\n", chr_addr, fine_y);
-            for (int pair = 0; pair < 4; pair++) {
-                int offset = pair * 16 + fine_y * 2;
-                fprintf(stderr, "  Planes %d-%d at $%04X: %02X %02X\n",
-                        pair*2, pair*2+1, chr_addr + offset,
-                        m_vram[(chr_addr + offset) & 0xFFFF],
-                        m_vram[(chr_addr + offset + 1) & 0xFFFF]);
-            }
-        }
-    }
-
     // Render sprites
     uint8_t sprite_pixel = 0;
     uint8_t sprite_priority = 0;
@@ -1594,17 +1549,6 @@ void PPU::render_pixel(int x) {
     // tiles, so main and sub screens naturally get different portions of tiles.
     // ============================================================================
     bool use_hires_output = m_pseudo_hires || (m_bg_mode == 5) || (m_bg_mode == 6);
-
-    // Debug: Log when Mode 5 is active on specific scanlines/pixels
-    static int mode5_debug_count = 0;
-    if (m_bg_mode == 5 && mode5_debug_count < 20 && m_frame > 45 && m_frame < 50) {
-        if (y == 100 && (x == 0 || x == 128 || x == 200)) {
-            mode5_debug_count++;
-            fprintf(stderr, "[Mode5-Debug] frame=%llu y=%d x=%d use_hires=%d TM=$%02X TS=$%02X main_color=$%04X sub_color=$%04X\n",
-                    (unsigned long long)m_frame, y, x, use_hires_output ? 1 : 0, m_tm, m_ts,
-                    main_pixel.color, sub_pixel.color);
-        }
-    }
 
     // Helper to convert 15-bit SNES color to 32-bit ARGB with brightness
     // Reference: bsnes/sfc/ppu/ppu.cpp lightTable generation
