@@ -3,6 +3,13 @@
 # Build directories
 build/
 cmake-build-*/
+
+# tests/roms-src (SH-3b): upstream clones-at-SHA are refetched by build.py,
+# never committed; versions.json is regenerated from the toolchain image by
+# tools/rom-toolchain/build-image.sh. rom_manifest.json IS committed (it's the
+# reproducibility ledger build.py writes and the harness reads back).
+tests/roms-src/*/*/upstream/
+tools/rom-toolchain/versions.json
 out/
 
 # IDE and editor files
