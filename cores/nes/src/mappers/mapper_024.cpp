@@ -463,7 +463,12 @@ void Mapper024::save_state(std::vector<uint8_t>& data) {
 }
 
 void Mapper024::load_state(const uint8_t*& data, size_t& remaining) {
-    if (remaining < 19) return;
+    // 18 bytes up to m_mirror_mode, plus the $B003 register appended by
+    // nes-12. Mapper state is the last block of the savestate, so a state
+    // written before nes-12 simply ends one byte early; accept it (the
+    // mirroring it needs is already in m_mirror_mode) instead of dropping
+    // the whole mapper block.
+    if (remaining < 18) return;
 
     m_prg_bank_16k = *data++; remaining--;
     m_prg_bank_8k = *data++; remaining--;
@@ -481,7 +486,9 @@ void Mapper024::load_state(const uint8_t*& data, size_t& remaining) {
     m_irq_prescaler = *data++; remaining--;
 
     m_mirror_mode = static_cast<MirrorMode>(*data++); remaining--;
-    m_ppu_banking_style = *data++; remaining--;
+    if (remaining >= 1) {
+        m_ppu_banking_style = *data++; remaining--;
+    }
 
     update_prg_banks();
     update_chr_banks();
