@@ -87,6 +87,16 @@ private:
     // Probe a library file to check if it's a valid plugin
     bool probe_plugin(const std::filesystem::path& path, PluginMetadata& metadata);
 
+    // Look up the type's get_*_plugin_api_version() export, record it into
+    // metadata.api_version, and return whether it matches this host's
+    // EMU_*_PLUGIN_API_VERSION for that plugin type. A missing export or a
+    // mismatched version returns false (shared-12): admitting a plugin built
+    // against a different ABI would let the host invoke virtual methods
+    // through a vtable layout it does not agree with, which is undefined
+    // behaviour, not just a "the version number differs" warning.
+    bool check_api_version(void* handle, PluginType type, PluginMetadata& metadata,
+                            const std::filesystem::path& path);
+
     // Load library and get function pointer
     void* load_library(const std::filesystem::path& path);
     void unload_library(void* handle);
