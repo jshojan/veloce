@@ -231,6 +231,11 @@ private:
     // Compute timer counter value on-the-fly (for accurate reads during polling)
     uint16_t get_timer_counter(int idx);
 
+    // Propagate a timer overflow into a cascade-mode downstream timer,
+    // recursing so a chain deeper than one stage (TM0->TM1->TM2->TM3) fully
+    // advances instead of stopping after the first cascade hop.
+    void timer_overflow_cascade(int idx);
+
     // Interrupt registers
     uint16_t m_ie = 0;       // Interrupt Enable
     uint16_t m_if = 0;       // Interrupt Request Flags

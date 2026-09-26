@@ -1682,6 +1682,34 @@ void Bus::write_timer_control(int timer_idx, uint16_t value) {
     timer.control = value;
 }
 
+// Propagate a timer overflow into timer `idx` when it is running in cascade
+// mode (clocked by the previous timer's overflow rather than the prescaler).
+// Recurses so a chain deeper than one stage fully advances: previously only
+// timer i+1 was ever incremented on an i overflow, so a 3+ deep cascade
+// (e.g. TM0->TM1->TM2) silently stopped propagating after the first hop and
+// TM2/TM3 never advanced (gba-24).
+void Bus::timer_overflow_cascade(int idx) {
+    if (idx > 3) return;
+    Timer& timer = m_timers[idx];
+    if ((timer.control & 0x84) != 0x84) return;  // not enabled+cascade
+
+    timer.counter++;
+    if (timer.counter != 0) return;  // no overflow yet
+
+    timer.counter = timer.reload;
+    timer.initial_reload = timer.reload;
+
+    if (timer.control & 0x40) {
+        // Timer interrupts are at bits 3-6 (0x0008, 0x0010, 0x0020, 0x0040)
+        request_interrupt(static_cast<GBAInterrupt>(0x0008 << idx));
+    }
+    if (m_apu && (idx == 0 || idx == 1)) {
+        m_apu->on_timer_overflow(idx);
+    }
+
+    timer_overflow_cascade(idx + 1);
+}
+
 void Bus::step_timers(int cycles) {
     // Update global cycle counter for accurate timer reads
     m_global_cycles += cycles;
@@ -1753,23 +1781,8 @@ void Bus::step_timers(int cycles) {
                     m_apu->on_timer_overflow(i);
                 }
 
-                // Handle cascade to next timer
-                if (i < 3 && (m_timers[i + 1].control & 0x84) == 0x84) {
-                    m_timers[i + 1].counter++;
-                    if (m_timers[i + 1].counter == 0) {
-                        m_timers[i + 1].counter = m_timers[i + 1].reload;
-                        m_timers[i + 1].initial_reload = m_timers[i + 1].reload;
-                        if (m_timers[i + 1].control & 0x40) {
-                            // Timer interrupts are at bits 3-6 (0x0008, 0x0010, 0x0020, 0x0040)
-                            // For timer i+1, the interrupt is 0x0008 << (i+1)
-                            request_interrupt(static_cast<GBAInterrupt>(0x0008 << (i + 1)));
-                        }
-                        // Also notify APU for cascaded timer 1
-                        if (m_apu && (i + 1 == 0 || i + 1 == 1)) {
-                            m_apu->on_timer_overflow(i + 1);
-                        }
-                    }
-                }
+                // Handle cascade to next timer (recurses through the full chain)
+                timer_overflow_cascade(i + 1);
             }
         }
     }
