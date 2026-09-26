@@ -303,13 +303,22 @@ void Bus::write_io(uint16_t address, uint8_t value) {
         }
 
         case 0x05:
-            // Writing to TIMA during overflow cycle cancels the reload
-            if (m_tima_overflow_cycle > 0) {
-                m_tima_overflow_cycle = 0;  // Cancel pending overflow
+            // Pan Docs: writing TIMA during the M-cycle right after overflow
+            // (before that cycle's own tick has copied TMA into TIMA) is
+            // ignored - the pending reload always wins over the write.
+            if (!m_tima_reloading) {
+                m_tima = value;
             }
-            m_tima = value;
             break;
-        case 0x06: m_tma = value; break;
+        case 0x06:
+            m_tma = value;
+            // Pan Docs: a TMA write during that same reload cycle is also
+            // copied into TIMA immediately, since the hardware copy-in for
+            // this cycle hasn't happened yet and will use the new value.
+            if (m_tima_reloading) {
+                m_tima = value;
+            }
+            break;
         case 0x07: {
             // TAC write can trigger timer increment via glitch
             // If changing from enabled to disabled, or changing clock select
@@ -458,8 +467,11 @@ void Bus::check_timer_falling_edge(bool new_bit) {
     if (m_prev_timer_bit && !new_bit) {
         m_tima++;
         if (m_tima == 0) {
-            // TIMA overflow - schedule delayed reload (happens 1 M-cycle later)
+            // TIMA overflow - schedule delayed reload (happens 1 M-cycle later).
+            // From this point until that cycle's own tick performs the reload,
+            // any bus write to TIMA/TMA falls in the special reload window.
             m_tima_overflow_cycle = 1;
+            m_tima_reloading = true;
         }
     }
     m_prev_timer_bit = new_bit;
@@ -476,6 +488,8 @@ void Bus::step_timer(int m_cycles) {
                 // TMA reload and interrupt happen now
                 m_tima = m_tma;
                 request_interrupt(0x04);  // Timer interrupt
+                // The reload window closes once this cycle's own tick has run.
+                m_tima_reloading = false;
             }
         }
 
@@ -589,6 +603,7 @@ void Bus::load_state(const uint8_t*& data, size_t& remaining) {
     // Initialize timer falling edge state from current div_counter
     m_prev_timer_bit = get_timer_bit();
     m_tima_overflow_cycle = 0;
+    m_tima_reloading = false;
 }
 
 } // namespace gb
