@@ -10,7 +10,10 @@
     #define EMU_PLUGIN_EXPORT
 #endif
 
-#define EMU_GAME_PLUGIN_API_VERSION 2
+// v3: added IGamePlugin::on_state_loaded() (between on_reset() and
+// on_run_complete(), which shifts the vtable slots of every later virtual).
+// Game plugins built against v2 headers must be rebuilt.
+#define EMU_GAME_PLUGIN_API_VERSION 3
 
 namespace emu {
 
