@@ -26,6 +26,11 @@ jobs:
         run: python3 tests/veloce_testkit/selftest.py
       - name: Validate all test_config.json
         run: python3 tests/validate_configs.py
+      - name: Result-file sink unit test (C++, no SDL)
+        run: |
+          g++ -std=c++17 -Wall -Wextra -Iinclude -Isrc \
+            tests/cpp/test_file_sink_test.cpp src/core/test_file_sink.cpp -o test_file_sink
+          ./test_file_sink
 
   accuracy:
     needs: fast-gates
@@ -54,13 +59,16 @@ jobs:
         run: |
           python3 cores/${{ matrix.console }}/tests/test_runner.py --json \
             | tee scorecard-${{ matrix.console }}.json
-      - name: Upload scorecard + screenshots
+      - name: Upload scorecard + artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: scorecard-${{ matrix.console }}
+          # artifacts/: VELOCE_TEST_OUT result files (+ blobs), screenshots and
+          # traces from the shared harness; screenshots/: older runners.
           path: |
             scorecard-${{ matrix.console }}.json
+            cores/${{ matrix.console }}/tests/artifacts/
             cores/${{ matrix.console }}/tests/screenshots/
 
   aggregate:
