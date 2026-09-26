@@ -268,6 +268,9 @@ void Bus::write_io(uint16_t address, uint8_t value) {
     switch (reg) {
         case 0x00:  // JOYP
             m_joyp = (m_joyp & 0x0F) | (value & 0x30);
+            // Selecting a group can expose an already-held line as a new
+            // falling edge on the low nibble (Pan Docs; used for STOP wake).
+            update_joyp_irq();
             break;
 
         case 0x01: m_sb = value; break;
@@ -403,13 +406,29 @@ void Bus::set_input_state(uint32_t buttons) {
     if (buttons & (1 << 8)) m_joypad_directions &= ~0x04;   // Up
     if (buttons & (1 << 9)) m_joypad_directions &= ~0x08;   // Down
 
-    // Check for joypad interrupt (any button pressed)
-    if ((m_joypad_buttons & 0x0F) != 0x0F || (m_joypad_directions & 0x0F) != 0x0F) {
-        // Only trigger if the appropriate selection is made
-        if (!(m_joyp & 0x20) || !(m_joyp & 0x10)) {
-            request_interrupt(0x10);  // Joypad interrupt
-        }
+    update_joyp_irq();
+}
+
+void Bus::update_joyp_irq() {
+    // Same low-nibble computation as read_io case 0x00, so the edge we
+    // detect always matches what the CPU would actually read.
+    uint8_t nibble;
+    if (!(m_joyp & 0x20)) {
+        nibble = m_joypad_buttons & 0x0F;
+    } else if (!(m_joyp & 0x10)) {
+        nibble = m_joypad_directions & 0x0F;
+    } else {
+        nibble = 0x0F;  // Neither group selected - no lines are pulled low
     }
+
+    // Pan Docs: the joypad interrupt fires on a high-to-low transition of a
+    // selected line, not merely "some line is currently low". A bit that was
+    // 1 (released) in the previous nibble and is 0 (pressed) now is a
+    // falling edge.
+    if (m_prev_joyp_nibble & (~nibble & 0x0F)) {
+        request_interrupt(0x10);  // Joypad interrupt
+    }
+    m_prev_joyp_nibble = nibble;
 }
 
 uint8_t Bus::get_pending_interrupts() {
@@ -604,6 +623,11 @@ void Bus::load_state(const uint8_t*& data, size_t& remaining) {
     m_prev_timer_bit = get_timer_bit();
     m_tima_overflow_cycle = 0;
     m_tima_reloading = false;
+
+    // Joypad button/direction state isn't part of this minimal savestate
+    // (it's re-supplied by the host every frame); reset edge-detection so a
+    // held button doesn't get lost or spuriously re-fire right after load.
+    m_prev_joyp_nibble = 0x0F;
 }
 
 } // namespace gb
