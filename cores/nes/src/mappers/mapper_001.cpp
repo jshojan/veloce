@@ -26,6 +26,8 @@ void Mapper001::reset() {
     m_chr_bank_0 = 0;
     m_chr_bank_1 = 0;
     m_prg_bank = 0;
+    m_cycle_count = 0;
+    m_last_write_cycle = UINT64_MAX;
     update_banks();
 }
 
@@ -75,6 +77,28 @@ void Mapper001::cpu_write(uint16_t address, uint8_t value) {
 }
 
 void Mapper001::write_register(uint16_t address, uint8_t value) {
+    // Real MMC1 hardware is too slow to latch two serial writes issued on
+    // back-to-back CPU cycles: RMW instructions (INC/DEC on an $8000+
+    // address) issue a dummy write of the old value immediately followed
+    // by the real write of the new value, one cycle apart. If that old
+    // value had bit 7 set (e.g. incrementing a ROM byte read back as
+    // $FF), the dummy write would reset the shift register, and the very
+    // next write would then shift a bogus bit into the freshly reset
+    // register. Hardware ignores the second write of such a pair
+    // entirely (nesdev: "MMC1 ignores writes on the CPU cycle immediately
+    // after a write"), so detect and drop it here before doing anything
+    // else, including the bit-7 reset.
+    bool consecutive = (m_last_write_cycle != UINT64_MAX) &&
+                        (m_cycle_count == m_last_write_cycle + 1);
+    m_last_write_cycle = m_cycle_count;
+    if (consecutive) {
+        if (is_debug_mode()) {
+            fprintf(stderr, "MMC1: ignored consecutive-cycle write (addr=%04X val=%02X)\n",
+                    address, value);
+        }
+        return;
+    }
+
     // Reset shift register if bit 7 is set
     if (value & 0x80) {
         m_shift_register = 0x10;
