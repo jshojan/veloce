@@ -1447,7 +1447,9 @@ void CPU::execute() {
             if (get_flag(FLAG_X)) { m_x &= 0xFF; m_y &= 0xFF; }
             m_a--;
             if (m_a != 0xFFFF) m_pc -= 3;  // Repeat
-            m_cycles += 6;
+            // Two internal (idle) cycles per byte: 7 CPU cycles total
+            // (ares instructionBlockMove: fetch, fetch, read, write, idle, idle).
+            m_cycles += 12;
             break;
         }
         case 0x44: {  // MVP (Move Positive/Decrement)
@@ -1472,7 +1474,9 @@ void CPU::execute() {
             if (get_flag(FLAG_X)) { m_x &= 0xFF; m_y &= 0xFF; }
             m_a--;
             if (m_a != 0xFFFF) m_pc -= 3;
-            m_cycles += 6;
+            // Two internal (idle) cycles per byte: 7 CPU cycles total
+            // (ares instructionBlockMove: fetch, fetch, read, write, idle, idle).
+            m_cycles += 12;
             break;
         }
 
