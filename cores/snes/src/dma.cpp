@@ -108,40 +108,16 @@ void DMA::write_mdmaen(uint8_t value) {
 }
 
 void DMA::write_hdmaen(uint8_t value) {
-    // Detect newly-enabled channels and initialize them immediately.
-    // On real hardware, HDMA channels must be enabled before hdma_init()
-    // (at V=0) to participate in the frame. But games often enable HDMA
-    // during their init code which runs after V=0, so we need to init
-    // newly-enabled channels to work on the current frame.
-    uint8_t newly_enabled = value & ~m_hdmaen;
+    // $420C (HDMAEN) is a plain enable-bit latch on real hardware. Channel
+    // setup (A2A <- A1T, first table-entry read, do_transfer for the first
+    // H-blank) happens exactly once per frame, at hdma_init() (V=0 H~6;
+    // see bsnes/ares hdmaSetup()). A mid-frame write here must NOT re-run
+    // that setup: a channel enabled after V=0 has no effect until the next
+    // frame's hdma_init(), exactly as on hardware - it does not get a
+    // fresh table read/transfer mid-frame. (Previously this function
+    // re-initialized "newly enabled" channels immediately on every write,
+    // which no real SNES does.)
     m_hdmaen = value;
-
-    // Initialize any newly-enabled channels
-    for (int i = 0; i < 8; i++) {
-        if (newly_enabled & (1 << i)) {
-            auto& ch = m_channels[i];
-
-            ch.a2a = ch.a1t;  // Table address = A1T
-            ch.hdma_terminated = false;
-            ch.hdma_do_transfer = false;
-
-            // Read first entry
-            ch.nltr = hdma_read_table(i);
-            ch.hdma_line_counter = ch.nltr;  // Store FULL byte including repeat bit
-
-            if (ch.nltr == 0) {
-                ch.hdma_terminated = true;
-            } else {
-                ch.hdma_do_transfer = true;
-
-                // For indirect mode, read indirect address
-                if (ch.dmap & 0x40) {
-                    ch.das = hdma_read_table(i);
-                    ch.das |= hdma_read_table(i) << 8;
-                }
-            }
-        }
-    }
 }
 
 void DMA::do_dma_transfer(int channel) {
