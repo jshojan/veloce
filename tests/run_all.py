@@ -13,6 +13,9 @@ Usage:
   python tests/run_all.py nes snes        # subset
   python tests/run_all.py --json          # machine-readable aggregate
   python tests/run_all.py --baseline scorecard.json --no-regressions
+      (--baseline also prints per-test status changes, per-CHECK changes and
+       frames_used drift warnings; --no-regressions then also fails on any
+       test that passed in the baseline and now fails)
   python tests/run_all.py --min-overall 80
 """
 
@@ -26,6 +29,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 CORES = ["nes", "snes", "gb", "gba"]
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from veloce_testkit.baseline import console_cards, diff_console  # noqa: E402
 
 
 def run_console(console: str) -> dict | None:
@@ -140,14 +146,23 @@ def main() -> int:
                 print(f"[gate] {con} below --min-overall {args.min_overall}", file=sys.stderr)
                 exit_code = 1
 
-    if args.no_regressions and args.baseline:
-        base = json.loads(Path(args.baseline).read_text()).get("consoles", {})
+    if args.baseline:
+        base = console_cards(json.loads(Path(args.baseline).read_text()))
         for con, card in cards.items():
-            prev = base.get(con, {}).get("overall_accuracy_pct")
-            cur = card.get("overall_accuracy_pct", 0)
-            if prev is not None and cur < prev - 0.1:
-                print(f"[gate] regression in {con}: {prev}% -> {cur}%", file=sys.stderr)
+            if con not in base:
+                continue
+            d = diff_console(con, base[con], card)
+            for line in d.lines():
+                print(line, file=sys.stderr)
+            if args.no_regressions and d.regressions:
                 exit_code = 1
+        if args.no_regressions:
+            for con, card in cards.items():
+                prev = base.get(con, {}).get("overall_accuracy_pct")
+                cur = card.get("overall_accuracy_pct", 0)
+                if prev is not None and cur < prev - 0.1:
+                    print(f"[gate] regression in {con}: {prev}% -> {cur}%", file=sys.stderr)
+                    exit_code = 1
     return exit_code
 
 

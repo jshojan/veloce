@@ -57,6 +57,7 @@ splits/
 saves/
 savestates/
 screenshots/
+artifacts/
 *.sav
 *.tas
 *.fm2

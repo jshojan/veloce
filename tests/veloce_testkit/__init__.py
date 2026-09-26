@@ -15,6 +15,8 @@ their own test_config.json files.
 from .schema import (
     AccuracyType,
     DetectionMethod,
+    FILE_FAMILY,
+    CONSOLE_CHANNELS,
     Priority,
     SCHEMA_VERSION,
     TestSpec,
@@ -26,6 +28,10 @@ from .schema import (
 from .detect import (
     TestStatus,
     DetectionResult,
+    CheckResult,
+    ResultFile,
+    parse_result_file,
+    detect_result_file,
     detect_blargg_memory,
     detect_serial_output,
     detect_gba_register,
@@ -44,9 +50,11 @@ from .scoring import (
 )
 
 __all__ = [
-    "AccuracyType", "DetectionMethod", "Priority", "SCHEMA_VERSION",
+    "AccuracyType", "DetectionMethod", "FILE_FAMILY", "CONSOLE_CHANNELS",
+    "Priority", "SCHEMA_VERSION",
     "TestSpec", "SuiteSpec", "ConsoleConfig", "load_config", "validate_config",
-    "TestStatus", "DetectionResult",
+    "TestStatus", "DetectionResult", "CheckResult", "ResultFile",
+    "parse_result_file", "detect_result_file",
     "detect_blargg_memory", "detect_serial_output", "detect_gba_register",
     "detect_screenshot_crc", "detect_cpu_trace",
     "Harness", "RunSettings", "RunOutput",

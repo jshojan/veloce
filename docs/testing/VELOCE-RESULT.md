@@ -163,7 +163,31 @@ A core adopts the channel in five steps:
 
 The core never opens files, buffers lines or counts frames. The application owns early exit, the reset delay (3 frames), the reset cap, the 255-byte cap and flushing. The app only calls the v2 methods on plugins whose `get_plugin_api_version()` is at least 2.
 
-## 8. Reference transcripts
+## 8. Testkit and config
+
+The testkit handles the result file as follows (`tests/veloce_testkit`):
+
+- **Methods.** `result_detection: "file"` is the target for every scored test. `memory` and `serial` are deprecated aliases. The harness reads the result file first and uses that verdict as soon as the file has one (an `END`, a `CHECK`, or an adapter terminator). Only while a core has not adopted the sink does it fall back to the old stdout parsers. For those aliases alone it still sets `DEBUG=1`, because today's cores print their verdict only under `DEBUG`. The legacy shims are deleted in SH-8.
+- **Environment.** The harness always sets `VELOCE_TEST_OUT=<artifacts>/<rom>.result` and `VELOCE_TEST_RESETS=<resets>`. It sets `INPUT=<input>` when the test declares one. It sets `VELOCE_TEST_EXIT=0` only for screenshot tests, which must reach their frame. Stale result and blob files are deleted before each run. On a wall-clock timeout the partial file is still parsed.
+- **Per-test config fields:**
+  - `channel`: what the ROM reports through; one of the console's channels, or `auto`.
+  - `require_channel`: the verdict must come from this channel, otherwise `SKIP`.
+  - `rom_variant`: `upstream` or `veloce`. `veloce` requires `rom_build.recipes` to exist.
+  - `expected_checks`, `allow_empty`: see section 3.
+  - `resets`: default 3.
+  - `input`: `frame:hexmask,...`.
+- **Top-level config fields:** `result_policy` (`legacy` or `strict`) and `rom_build`.
+- **Validator.** Under `strict`, a bare `screenshot-crc` test in `test_suites`, a Tier C channel, or a `memory`/`serial` alias is an error. Under `legacy`, each of these is reported as a warning count.
+- **Output.** `runner.py --json` `results[]` entries keep the v1 keys and add:
+  - `checks: [{id, name, status, exp, got, mask, at}]`
+  - `frames_used`, `end_reason`, `adapter`, `result_path`
+  - `source` (`file` / `stdout` / `screenshot` / `trace`)
+- **Baseline diff.** `run_all.py --baseline <json>`, or `python -m veloce_testkit.baseline base.json cur.json`, reports:
+  - per-test status changes (a PASS that becomes FAIL/TIMEOUT/ERROR counts as a regression; `--no-regressions` gates on it)
+  - per-`CHECK` changes
+  - `frames_used` drift on tests that pass in both runs
+
+## 9. Reference transcripts
 
 Every file in [`transcripts/`](transcripts/) is exactly what `TestFileSink` writes. [`transcripts/expected.json`](transcripts/expected.json) lists the verdict each one must produce, and `tests/veloce_testkit/selftest.py` checks it.
 

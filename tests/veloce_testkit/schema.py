@@ -16,8 +16,12 @@ TOP-LEVEL DOCUMENT
   "description": "...",
   "timeout_seconds": 60,                   # default per-test wall-clock timeout
   "frame_limit": 1800,                     # default FRAMES= if a test omits it
+  "result_policy": "legacy",               # legacy | strict (see VALIDATION below)
+  "rom_build": {"dockerfile": "tools/rom-toolchain/Dockerfile",
+                "recipes": "tests/roms-src/<console>/build.py"},   # for rom_variant "veloce"
   "repositories": { <id>: {url,dir,type,license,...} },
   "test_suites": { <suite_id>: SuiteSpec },
+  "visual_test_suites": { <suite_id>: SuiteSpec },   # non-scoring pixel tests
   "known_issues": { ... },                 # free-form, human notes
   "references": { ... }                    # free-form citation links
 }
@@ -42,7 +46,8 @@ TestSpec  (one ROM)
   "file": "ppu_vbl_nmi/rom_singles/01-vbl_basics.nes",   # alias: "path"
   "subsystem": "ppu",                      # overrides suite subsystem if present
   "accuracy_type": "timing",               # functional | timing | cycle-accurate | visual
-  "result_detection": "memory",            # memory | serial | screenshot-crc | cpu-trace
+  "result_detection": "file",              # file | cpu-trace | screenshot-crc
+                                           #   (memory | serial: DEPRECATED aliases of file)
   "expected": "pass",                      # pass | known_fail | <int status> | <crc hex>
   "priority": "critical",                  # overrides suite priority if present
   "source_url": "https://github.com/christopherpow/nes-test-roms",
@@ -53,13 +58,34 @@ TestSpec  (one ROM)
   "screenshot_frame": 60,                  # for screenshot-crc / visual
   "reference_hash": "a1b2c3d4",            # CRC32 hex for screenshot-crc
   "trace_log": "nestest/nestest.log",      # golden log for cpu-trace
-  "trace_limit": 8991                      # # of trace lines to compare
+  "trace_limit": 8991,                     # # of trace lines to compare
+  # VELOCE-RESULT/1 file extras (docs/testing/VELOCE-RESULT.md):
+  "channel": "port",                       # what the ROM reports through: auto | one of
+                                           #   CONSOLE_CHANNELS[console]
+  "require_channel": "port",               # verdict must come from this channel, else SKIP
+  "rom_variant": "veloce",                 # upstream | veloce (built from patched source)
+  "expected_checks": 12,                   # fewer CHECK lines than this -> FAIL (died early)
+  "allow_empty": false,                    # END 0/0 is a PASS (smoke ROMs)
+  "resets": 3,                             # max ROM-requested resets (VELOCE_TEST_RESETS)
+  "input": "200:40,201:0"                  # deterministic INPUT= schedule (frame:hexmask)
 }
+
+===========================================================================
+VALIDATION (validate_config)
+===========================================================================
+Always: channel / require_channel must be one the console supports;
+channel only on file-family tests; rom_variant "veloce" needs rom_build.recipes
+to exist; expected_checks / resets are non-negative ints; input is well formed.
+result_policy "strict" (set by the config flip, SH-7) additionally rejects:
+bare screenshot-crc tests in test_suites (move them to visual_test_suites),
+Tier C channels (mooneye, r12), and the deprecated memory/serial aliases.
+Under "legacy" those are reported as warnings.
 """
 
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -79,10 +105,31 @@ class AccuracyType(str, Enum):
 
 
 class DetectionMethod(str, Enum):
-    MEMORY = "memory"                # Blargg $6000 status protocol
-    SERIAL = "serial"               # Game Boy serial / textual PASS-FAIL stream
-    SCREENSHOT_CRC = "screenshot-crc"  # CRC32 of captured frame vs reference
+    FILE = "file"                    # VELOCE-RESULT/1 file written via VELOCE_TEST_OUT
+    MEMORY = "memory"                # DEPRECATED alias of FILE (blargg $6000 stdout fallback)
+    SERIAL = "serial"                # DEPRECATED alias of FILE (serial / GBA stdout fallback)
+    SCREENSHOT_CRC = "screenshot-crc"  # CRC32 of captured frame vs reference (non-scoring in strict)
     CPU_TRACE = "cpu-trace"          # golden trace log compare (e.g. nestest.log)
+
+
+# Methods whose verdict comes from the VELOCE-RESULT/1 file. MEMORY/SERIAL keep
+# a stdout fallback until every core emits to the sink (removed in SH-8).
+FILE_FAMILY = (DetectionMethod.FILE, DetectionMethod.MEMORY, DetectionMethod.SERIAL)
+LEGACY_ALIASES = (DetectionMethod.MEMORY, DetectionMethod.SERIAL)
+
+# Channel drivers per console (header "channels=", "#VELOCE adapter=", config
+# "channel"/"require_channel"). Tier A = ROM-emitted stream from patched source;
+# Tier C = CPU-register heuristics, bootstrap only.
+CONSOLE_CHANNELS = {
+    "nes": ("port", "blargg6000"),
+    "snes": ("port", "blargg6000", "stp", "sram", "spcport"),
+    "gb": ("serial", "mooneye", "a000", "hram"),
+    "gba": ("mgba", "r12"),
+}
+TIER_A_CHANNELS = ("port", "serial", "mgba")
+TIER_C_CHANNELS = ("mooneye", "r12")
+ROM_VARIANTS = ("upstream", "veloce")
+RESULT_POLICIES = ("legacy", "strict")
 
 
 class Priority(str, Enum):
@@ -120,6 +167,14 @@ class TestSpec:
     reference_hash: str = ""
     trace_log: str = ""
     trace_limit: int = 0
+    # VELOCE-RESULT/1 file extras
+    channel: str = "auto"
+    require_channel: str = ""
+    rom_variant: str = "upstream"
+    expected_checks: int = 0
+    allow_empty: bool = False
+    resets: int = 3
+    input: str = ""
     raw: dict = field(default_factory=dict)
 
 
@@ -132,6 +187,7 @@ class SuiteSpec:
     priority: Priority
     repo: str
     tests: list[TestSpec] = field(default_factory=list)
+    visual: bool = False             # declared under visual_test_suites (non-scoring)
 
 
 @dataclass
@@ -144,6 +200,8 @@ class ConsoleConfig:
     repositories: dict[str, dict]
     suites: list[SuiteSpec]
     raw: dict = field(default_factory=dict)
+    rom_build: dict = field(default_factory=dict)
+    result_policy: str = "legacy"
 
 
 def _coerce_enum(enum_cls, value, default):
@@ -218,8 +276,24 @@ def _parse_test(
         reference_hash=raw.get("reference_hash", ""),
         trace_log=raw.get("trace_log", ""),
         trace_limit=raw.get("trace_limit", 0),
+        channel=raw.get("channel") or "auto",
+        require_channel=raw.get("require_channel", "") or "",
+        rom_variant=raw.get("rom_variant") or "upstream",
+        expected_checks=_as_int(raw.get("expected_checks"), 0),
+        allow_empty=bool(raw.get("allow_empty", False)),
+        resets=_as_int(raw.get("resets"), 3),
+        input=raw.get("input", "") or "",
         raw=raw,
     )
+
+
+def _as_int(value, default: int) -> int:
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
 
 
 def load_config(path: str | Path, console: Optional[str] = None) -> ConsoleConfig:
@@ -244,6 +318,7 @@ def load_config(path: str | Path, console: Optional[str] = None) -> ConsoleConfi
             f"Cannot determine console for {path}; add a top-level \"console\" key."
         )
 
+    visual_ids = set(raw.get("visual_test_suites", {}))
     all_suites = {**raw.get("test_suites", {}), **raw.get("visual_test_suites", {})}
 
     suites: list[SuiteSpec] = []
@@ -273,6 +348,7 @@ def load_config(path: str | Path, console: Optional[str] = None) -> ConsoleConfi
                 priority=suite_priority,
                 repo=suite_repo,
                 tests=tests,
+                visual=suite_id in visual_ids,
             )
         )
 
@@ -285,6 +361,8 @@ def load_config(path: str | Path, console: Optional[str] = None) -> ConsoleConfi
         repositories=raw.get("repositories", {}),
         suites=suites,
         raw=raw,
+        rom_build=raw.get("rom_build", {}) or {},
+        result_policy=raw.get("result_policy", "legacy") or "legacy",
     )
 
 
@@ -310,12 +388,31 @@ def _infer_subsystem(suite_id: str, name: str) -> str:
     return "misc"
 
 
-def validate_config(path: str | Path, console: Optional[str] = None) -> list[str]:
+_INPUT_RE = re.compile(r"^\d+:[0-9A-Fa-f]+(,\d+:[0-9A-Fa-f]+)*$")
+
+
+def _repo_root_for(config_path: Path) -> Path:
+    # cores/<console>/tests/test_config.json -> repo root
+    p = config_path.resolve()
+    for parent in p.parents:
+        if (parent / "cores").is_dir() and (parent / "tests").is_dir():
+            return parent
+    return p.parent
+
+
+def validate_config(
+    path: str | Path,
+    console: Optional[str] = None,
+    warnings: Optional[list[str]] = None,
+) -> list[str]:
     """Return a list of human-readable validation errors (empty == valid).
 
+    Non-fatal findings (rules that only become errors under
+    result_policy "strict") are appended to `warnings` when a list is given.
     Console agents should run this in CI before committing a test_config.json.
     """
     errors: list[str] = []
+    warns: list[str] = warnings if warnings is not None else []
     try:
         cfg = load_config(path, console)
     except Exception as e:  # noqa: BLE001
@@ -323,6 +420,17 @@ def validate_config(path: str | Path, console: Optional[str] = None) -> list[str
 
     if cfg.console not in VALID_CONSOLES:
         errors.append(f"invalid console '{cfg.console}'")
+    if cfg.result_policy not in RESULT_POLICIES:
+        errors.append(f"result_policy must be one of {RESULT_POLICIES}, got '{cfg.result_policy}'")
+    strict = cfg.result_policy == "strict"
+    console_channels = CONSOLE_CHANNELS.get(cfg.console, ())
+
+    recipes = (cfg.rom_build or {}).get("recipes", "")
+    recipes_ok = bool(recipes) and (_repo_root_for(Path(path)) / recipes).exists()
+
+    bare_visual: list[str] = []
+    tier_c: list[str] = []
+    aliases = 0
 
     seen_ids: set[str] = set()
     for suite in cfg.suites:
@@ -332,6 +440,9 @@ def validate_config(path: str | Path, console: Optional[str] = None) -> list[str
             if t.id in seen_ids:
                 errors.append(f"duplicate test id '{t.id}'")
             seen_ids.add(t.id)
+            raw_det = t.raw.get("result_detection")
+            if raw_det and raw_det not in [m.value for m in DetectionMethod]:
+                errors.append(f"test '{t.id}' has unknown result_detection '{raw_det}'")
             if t.result_detection == DetectionMethod.SCREENSHOT_CRC and not t.reference_hash \
                     and t.expected not in ("known_fail",):
                 errors.append(
@@ -340,4 +451,57 @@ def validate_config(path: str | Path, console: Optional[str] = None) -> list[str
                 )
             if t.result_detection == DetectionMethod.CPU_TRACE and not t.trace_log:
                 errors.append(f"test '{t.id}' is cpu-trace but has no trace_log")
+
+            # --- VELOCE-RESULT/1 fields ---
+            file_family = t.result_detection in FILE_FAMILY
+            for key in ("channel", "require_channel"):
+                val = getattr(t, key)
+                if val in ("", "auto"):
+                    continue
+                if val not in console_channels:
+                    errors.append(
+                        f"test '{t.id}' {key} '{val}' is not a {cfg.console} channel "
+                        f"(one of: {', '.join(console_channels)})")
+                elif not file_family:
+                    errors.append(f"test '{t.id}' sets {key} but is {t.result_detection.value}")
+            if t.rom_variant not in ROM_VARIANTS:
+                errors.append(f"test '{t.id}' rom_variant must be one of {ROM_VARIANTS}")
+            elif t.rom_variant == "veloce" and not recipes_ok:
+                errors.append(
+                    f"test '{t.id}' is rom_variant veloce but rom_build.recipes "
+                    f"{'is missing' if not recipes else repr(recipes) + ' does not exist'}")
+            for key in ("expected_checks", "resets"):
+                if key in t.raw and (not isinstance(t.raw[key], int) or isinstance(t.raw[key], bool)
+                                     or t.raw[key] < 0):
+                    errors.append(f"test '{t.id}' {key} must be a non-negative integer")
+            if "allow_empty" in t.raw and not isinstance(t.raw["allow_empty"], bool):
+                errors.append(f"test '{t.id}' allow_empty must be true/false")
+            if t.input and not _INPUT_RE.match(t.input):
+                errors.append(f"test '{t.id}' input must look like 'frame:hexmask,...'")
+
+            # --- rules that are errors only after the config flip ---
+            if t.result_detection == DetectionMethod.SCREENSHOT_CRC and not suite.visual:
+                bare_visual.append(t.id)
+            if t.channel in TIER_C_CHANNELS or t.require_channel in TIER_C_CHANNELS:
+                tier_c.append(t.id)
+            if t.result_detection in LEGACY_ALIASES:
+                aliases += 1
+
+    if strict:
+        for tid in bare_visual:
+            errors.append(f"test '{tid}' is screenshot-crc in test_suites "
+                          "(move it to visual_test_suites; screenshots never score)")
+        for tid in tier_c:
+            errors.append(f"test '{tid}' uses a Tier C channel (mooneye/r12); "
+                          "flip it to a ROM-emitted channel")
+        if aliases:
+            errors.append(f"{aliases} test(s) use deprecated result_detection memory/serial; use file")
+    else:
+        if bare_visual:
+            warns.append(f"{len(bare_visual)} screenshot-crc test(s) in test_suites "
+                         "(error under result_policy strict; move to visual_test_suites)")
+        if tier_c:
+            warns.append(f"{len(tier_c)} test(s) use Tier C channels (error under result_policy strict)")
+        if aliases:
+            warns.append(f"{aliases} test(s) use deprecated memory/serial (alias of file)")
     return errors

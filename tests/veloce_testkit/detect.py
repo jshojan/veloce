@@ -1,8 +1,22 @@
 """
 Result-detection conventions for every detection method.
 
-All four detection protocols return a DetectionResult so the scoring layer is
+All detection protocols return a DetectionResult so the scoring layer is
 agnostic to how a verdict was obtained.
+
+===========================================================================
+0. VELOCE-RESULT/1 FILE  (all consoles; method = "file")
+===========================================================================
+The binary runs with VELOCE_TEST_OUT=<path>; the application writes the ROM's
+result channel to that file (header "#VELOCE 1 core= rom_crc32= channels=",
+ROM lines VELOCE/INFO/TEST/CHECK/REG/LOG/END, trailer "#VELOCE end reason=").
+detect_result_file() turns it into a verdict with per-check detail. This is
+the only method that scores in strict configs; the full spec and the verdict
+rules are in docs/testing/VELOCE-RESULT.md.
+
+"memory" and "serial" (sections 1-3) are DEPRECATED aliases of "file": the
+harness reads the result file first and only falls back to the stdout parsers
+below while a core has not yet adopted the channel (no verdict in the file).
 
 ===========================================================================
 1. BLARGG MEMORY PROTOCOL  (NES / SNES; method = "memory")
@@ -66,7 +80,7 @@ from __future__ import annotations
 
 import re
 import zlib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Optional
@@ -83,6 +97,28 @@ class TestStatus(str, Enum):
 
 
 @dataclass
+class CheckResult:
+    """One CHECK line of a VELOCE-RESULT/1 file."""
+    id: str
+    name: str
+    passed: bool
+    exp: str = ""
+    got: str = ""
+    mask: str = ""
+    at: str = ""
+    extra: dict = field(default_factory=dict)   # any other key=value tokens (code=, ...)
+
+    def to_dict(self) -> dict:
+        d = {"id": self.id, "name": self.name, "status": "pass" if self.passed else "fail"}
+        for k in ("exp", "got", "mask", "at"):
+            v = getattr(self, k)
+            if v:
+                d[k] = v
+        d.update(self.extra)
+        return d
+
+
+@dataclass
 class DetectionResult:
     status: TestStatus
     detail: str = ""            # human text (error code, divergent line, hash, ...)
@@ -90,6 +126,11 @@ class DetectionResult:
     # progress in [0,1] for partial-credit aware methods (cpu-trace). For binary
     # methods this is 1.0 on pass and 0.0 on fail.
     progress: float = 0.0
+    # --- VELOCE-RESULT/1 file detail (empty for the legacy stdout methods) ---
+    checks: list[CheckResult] = field(default_factory=list)
+    end_reason: str = ""        # terminator | frames | reset_limit | quit | missing
+    frames_used: int = 0
+    adapter: str = ""           # "" for a ROM-emitted stream, else blargg6000|mooneye|r12|...
 
 
 # --------------------------------------------------------------------------
@@ -232,3 +273,266 @@ def _norm_trace_line(line: str) -> str:
     # Collapse whitespace so spacing differences between emitters do not
     # cause spurious divergence; comparison stays on tokens (PC, opcode, regs).
     return " ".join(line.split())
+
+
+# --------------------------------------------------------------------------
+# 0. VELOCE-RESULT/1 file
+# --------------------------------------------------------------------------
+_HEADER_RE = re.compile(r"^#VELOCE 1(?: |$)")
+_END_RE = re.compile(r"^END\s+(\d+)\s*/\s*(\d+)")
+
+
+def _kv_tokens(tokens: list[str]) -> dict[str, str]:
+    out: dict[str, str] = {}
+    for t in tokens:
+        if "=" in t:
+            k, v = t.split("=", 1)
+            out[k] = v
+    return out
+
+
+@dataclass
+class ResultFile:
+    """Parsed VELOCE-RESULT/1 file (see docs/testing/VELOCE-RESULT.md)."""
+    path: Path
+    exists: bool = False
+    header_ok: bool = False
+    core: str = ""
+    rom_crc32: str = ""
+    channels: list[str] = field(default_factory=list)
+    adapter: str = ""
+    notes: dict[str, str] = field(default_factory=dict)
+    blobs: list[dict] = field(default_factory=list)
+    resets: int = 0
+    suite: str = ""
+    console: str = ""
+    info: dict[str, str] = field(default_factory=dict)
+    regs: dict[str, str] = field(default_factory=dict)
+    log: list[str] = field(default_factory=list)
+    checks: list[CheckResult] = field(default_factory=list)
+    end: Optional[tuple[int, int]] = None      # (pass, total) of the first END line
+    end_code: Optional[int] = None
+    end_malformed: bool = False
+    trailer: dict[str, str] = field(default_factory=dict)   # "#VELOCE end ..." tokens
+
+    @property
+    def has_trailer(self) -> bool:
+        return bool(self.trailer)
+
+    @property
+    def end_reason(self) -> str:
+        return self.trailer.get("reason", "missing") if self.trailer else "missing"
+
+    @property
+    def frames_used(self) -> int:
+        try:
+            return int(self.trailer.get("frames", "0"))
+        except ValueError:
+            return 0
+
+    @property
+    def trailer_status(self) -> Optional[int]:
+        v = self.trailer.get("status")
+        try:
+            return int(v) if v is not None else None
+        except ValueError:
+            return None
+
+    @property
+    def has_verdict(self) -> bool:
+        """True once the core put a verdict on the channel (END, CHECK, or an
+        adapter terminator). False for a core without a channel."""
+        return (self.end is not None or self.end_malformed or bool(self.checks)
+                or self.trailer_status is not None
+                or self.end_reason == "reset_limit")
+
+
+def parse_result_file(path: str | Path) -> ResultFile:
+    path = Path(path)
+    rf = ResultFile(path=path)
+    if not path.exists():
+        return rf
+    rf.exists = True
+    lines = path.read_text(encoding="ascii", errors="replace").splitlines()
+    if not lines or not _HEADER_RE.match(lines[0]):
+        return rf
+    rf.header_ok = True
+    head = _kv_tokens(lines[0].split()[2:])
+    rf.core = head.get("core", "")
+    rf.rom_crc32 = head.get("rom_crc32", "")
+    rf.channels = [c for c in head.get("channels", "").split(",") if c]
+
+    for line in lines[1:]:
+        if line.startswith("#VELOCE"):
+            rest = line[len("#VELOCE"):].strip()
+            if not rest:
+                continue
+            first = rest.split(None, 1)[0]
+            if "=" in first:                       # single note: key=value-to-EOL
+                key, value = rest.split("=", 1)
+                rf.notes[key] = value
+                if key == "adapter":
+                    rf.adapter = value.strip()
+                continue
+            toks = rest.split()
+            kv = _kv_tokens(toks[1:])
+            if first == "end":
+                rf.trailer = kv
+            elif first == "blob":
+                rf.blobs.append(kv)
+            elif first == "reset":
+                try:
+                    rf.resets = max(rf.resets, int(kv.get("n", "0")))
+                except ValueError:
+                    pass
+            continue
+
+        toks = line.split()
+        if not toks:
+            continue
+        kw = toks[0]
+        if rf.end is not None or rf.end_malformed:
+            # Only the first END counts; anything after it is informational.
+            if kw == "LOG":
+                rf.log.append(line[4:])
+            continue
+        if kw == "VELOCE" and len(toks) >= 4:
+            rf.console, rf.suite = toks[2], toks[3]
+        elif kw == "INFO":
+            rf.info.update(_kv_tokens(toks[1:]))
+        elif kw == "REG":
+            rf.regs.update(_kv_tokens(toks[1:]))
+        elif kw == "LOG":
+            rf.log.append(line[4:])
+        elif kw == "CHECK" and len(toks) >= 3 and toks[2] in ("PASS", "FAIL"):
+            name_parts: list[str] = []
+            rest_toks = toks[3:]
+            i = 0
+            while i < len(rest_toks) and "=" not in rest_toks[i]:
+                name_parts.append(rest_toks[i])
+                i += 1
+            kv = _kv_tokens(rest_toks[i:])
+            rf.checks.append(CheckResult(
+                id=toks[1], name=" ".join(name_parts), passed=toks[2] == "PASS",
+                exp=kv.pop("exp", ""), got=kv.pop("got", ""),
+                mask=kv.pop("mask", ""), at=kv.pop("at", ""), extra=kv,
+            ))
+        elif kw == "END":
+            m = _END_RE.match(line)
+            if m:
+                rf.end = (int(m.group(1)), int(m.group(2)))
+                code = _kv_tokens(toks[2:]).get("code")
+                if code is not None:
+                    try:
+                        rf.end_code = int(code, 0)
+                    except ValueError:
+                        pass
+            else:
+                rf.end_malformed = True
+    return rf
+
+
+def _fail_summary(checks: list[CheckResult], limit: int = 3) -> str:
+    parts = []
+    for c in [c for c in checks if not c.passed][:limit]:
+        s = f"{c.id} {c.name}".strip()
+        if c.exp or c.got:
+            s += f" exp={c.exp} got={c.got}"
+        if c.mask:
+            s += f" mask={c.mask}"
+        parts.append(s)
+    return "; ".join(parts)
+
+
+def detect_result_file(
+    path: str | Path,
+    *,
+    expected_checks: int = 0,
+    require_channel: str = "",
+    allow_empty: bool = False,
+    timed_out: bool = False,
+    parsed: Optional[ResultFile] = None,
+) -> DetectionResult:
+    """Verdict from a VELOCE-RESULT/1 file. Rules: docs/testing/VELOCE-RESULT.md s.3."""
+    rf = parsed if parsed is not None else parse_result_file(path)
+
+    def mk(status: TestStatus, detail: str, code: Optional[int] = None,
+           progress: float = 0.0) -> DetectionResult:
+        return DetectionResult(
+            status, detail, code, progress,
+            checks=list(rf.checks), end_reason=rf.end_reason if rf.header_ok else "",
+            frames_used=rf.frames_used, adapter=rf.adapter,
+        )
+
+    # 1. file / header
+    if not rf.exists:
+        return mk(TestStatus.TIMEOUT if timed_out else TestStatus.ERROR,
+                  f"no result file {rf.path.name}")
+    if not rf.header_ok:
+        return mk(TestStatus.TIMEOUT if timed_out else TestStatus.ERROR,
+                  "missing '#VELOCE 1' header")
+
+    # 2. channel requirement (Tier A demands a modified ROM, not an adapter)
+    if require_channel:
+        if rf.adapter and rf.adapter != require_channel:
+            return mk(TestStatus.SKIP,
+                      f"needs modified ROM (channel {require_channel}, got adapter {rf.adapter})")
+        if require_channel not in rf.channels:
+            return mk(TestStatus.SKIP, f"core has no '{require_channel}' channel")
+
+    passed = sum(1 for c in rf.checks if c.passed)
+    total = len(rf.checks)
+    frames = f" after {rf.frames_used} frames" if rf.has_trailer else ""
+
+    # 3. END present
+    if rf.end_malformed:
+        return mk(TestStatus.ERROR, "malformed END line")
+    if rf.end is not None:
+        p, t = rf.end
+        if total and (p, t) != (passed, total):
+            return mk(TestStatus.ERROR,
+                      f"tally mismatch: END {p}/{t} but CHECK lines {passed}/{total}")
+        if t == 0:
+            if allow_empty:
+                return mk(TestStatus.PASS, "END 0/0 (allow_empty)", 0, 1.0)
+            return mk(TestStatus.ERROR, "END 0/0 with no checks (set allow_empty for smoke ROMs)")
+        if expected_checks and t < expected_checks:
+            return mk(TestStatus.FAIL,
+                      f"only {t} of {expected_checks} expected checks ran ({p} passed)",
+                      rf.end_code if rf.end_code is not None else expected_checks - p,
+                      p / expected_checks)
+        if p == t:
+            return mk(TestStatus.PASS, f"{p}/{t} checks passed", 0, 1.0)
+        code = rf.end_code if rf.end_code is not None else t - p
+        detail = f"{p}/{t} checks passed"
+        summary = _fail_summary(rf.checks)
+        if summary:
+            detail += f": {summary}"
+        elif rf.end_code is not None:
+            detail = f"failed code {rf.end_code}"
+        return mk(TestStatus.FAIL, detail, code, p / t)
+
+    # 4. no END
+    progress = passed / total if total else 0.0
+    reason = rf.end_reason
+    if reason == "reset_limit":
+        return mk(TestStatus.FAIL, f"reset limit reached ({rf.resets} resets)", None, progress)
+    ts = rf.trailer_status
+    if reason == "terminator" and ts is not None and ts >= 0:
+        if ts == 0 and not any(not c.passed for c in rf.checks):
+            return mk(TestStatus.PASS, "terminator status 0", 0, 1.0)
+        return mk(TestStatus.FAIL, f"terminator status {ts}", ts, progress)
+    if timed_out or not rf.has_trailer:
+        return mk(TestStatus.TIMEOUT,
+                  f"no END; {passed}/{total} checks passed before the run was killed",
+                  None, progress)
+    if total and passed < total:
+        return mk(TestStatus.FAIL,
+                  f"no END{frames}; {passed}/{total} checks passed: {_fail_summary(rf.checks)}",
+                  total - passed, progress)
+    if total:
+        return mk(TestStatus.RUNS, f"no END{frames}; {passed}/{total} checks passed",
+                  None, progress)
+    if not rf.channels:
+        return mk(TestStatus.RUNS, f"core has no result channel (no verdict{frames})")
+    return mk(TestStatus.RUNS, f"no result on channel{frames}")
