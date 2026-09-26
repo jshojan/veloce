@@ -147,8 +147,15 @@ void PPU::set_ppu_variant(PPUVariant variant) {
 // 25% reduction (this uses the commonly cited ~0.75x approximation rather
 // than decoder-accurate NTSC voltages).
 // Reference: https://www.nesdev.org/wiki/PPU_palettes#Color_Emphasis
+//
+// The RGB PPUs used by Vs. System / PlayChoice hardware (2C03, 2C04, 2C05)
+// behave differently: an emphasis bit drives that component to full
+// brightness instead of dimming the others (all three set = white).
 void PPU::build_emphasis_palette() {
     static constexpr float kAttenuation = 0.75f;
+    const bool rgb_ppu = m_variant != PPUVariant::RP2C02 &&
+                         m_variant != PPUVariant::RP2C07 &&
+                         m_variant != PPUVariant::Dendy;
     for (int emphasis = 0; emphasis < 8; emphasis++) {
         bool emph_r = emphasis & 0x1;
         bool emph_g = emphasis & 0x2;
@@ -162,7 +169,11 @@ void PPU::build_emphasis_palette() {
             // Any emphasis bit set attenuates every channel *not* covered by
             // one of the set bits (e.g. emphasize-red alone dims G and B;
             // emphasize-red+green dims only B).
-            if (emph_r || emph_g || emph_b) {
+            if (rgb_ppu) {
+                if (emph_r) r = 0xFF;
+                if (emph_g) g = 0xFF;
+                if (emph_b) b = 0xFF;
+            } else if (emph_r || emph_g || emph_b) {
                 if (!emph_r) r = static_cast<uint8_t>(r * kAttenuation);
                 if (!emph_g) g = static_cast<uint8_t>(g * kAttenuation);
                 if (!emph_b) b = static_cast<uint8_t>(b * kAttenuation);
@@ -876,6 +887,10 @@ uint8_t PPU::cpu_read(uint16_t address) {
             // must be treated as $0000+ (pattern space), not as palette.
             if ((m_v & 0x3FFF) >= 0x3F00) {
                 data = ppu_read(m_v);
+                // Greyscale (PPUMASK bit 0) is an AND with $30 on the palette
+                // RAM output, so it applies to PPUDATA palette reads as well as
+                // to the display (the stored entry itself is unchanged).
+                if (m_mask & 0x01) data &= 0x30;
                 m_data_buffer = ppu_read(m_v & 0x2FFF);
                 // For palette reads, the lower 6 bits come from the palette,
                 // upper 2 bits come from open bus
@@ -1225,8 +1240,14 @@ void PPU::render_pixel() {
         color_index &= 0x30;
     }
     // PPUMASK bits 5-7 (emphasize red/green/blue) select one of the 8
-    // pre-attenuated palette variants.
-    const uint32_t* palette_table = m_emphasis_palette[(m_mask >> 5) & 0x07].data();
+    // pre-attenuated palette variants. PAL (2C07) and Dendy PPUs swap the
+    // red and green emphasis bits (bit 5 = green, bit 6 = red).
+    uint8_t emphasis = (m_mask >> 5) & 0x07;
+    if (m_region != Region::NTSC || m_variant == PPUVariant::RP2C07 ||
+        m_variant == PPUVariant::Dendy) {
+        emphasis = (emphasis & 0x04) | ((emphasis & 0x01) << 1) | ((emphasis & 0x02) >> 1);
+    }
+    const uint32_t* palette_table = m_emphasis_palette[emphasis].data();
     // Overscan cropping is purely a display preference: the full pixel pipeline
     // above (including the sprite-0 hit test) must run for every row regardless,
     // so hardware-observable state (like $2002 bit 6) doesn't depend on it. Only
