@@ -25,9 +25,10 @@ public:
     // Signal an IRQ (level-triggered)
     void signal_irq();
 
-    // Save/load state
+    // Save/load state. load_state returns false (without reading past
+    // `remaining`) if the buffer runs out before every field is read.
     void save_state(std::vector<uint8_t>& data);
-    void load_state(const uint8_t*& data, size_t& remaining);
+    bool load_state(const uint8_t*& data, size_t& remaining);
 
     // Debug access
     uint32_t get_register(int reg) const;

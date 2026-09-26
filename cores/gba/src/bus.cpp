@@ -1735,33 +1735,31 @@ void Bus::save_state(std::vector<uint8_t>& data) {
     // TODO: Save more state as needed
 }
 
-void Bus::load_state(const uint8_t*& data, size_t& remaining) {
+bool Bus::load_state(const uint8_t*& data, size_t& remaining) {
     // Load EWRAM
-    std::memcpy(m_ewram.data(), data, m_ewram.size());
-    data += m_ewram.size();
-    remaining -= m_ewram.size();
+    if (!state_read_bytes(data, remaining, m_ewram.data(), m_ewram.size())) return false;
 
     // Load IWRAM
-    std::memcpy(m_iwram.data(), data, m_iwram.size());
-    data += m_iwram.size();
-    remaining -= m_iwram.size();
+    if (!state_read_bytes(data, remaining, m_iwram.data(), m_iwram.size())) return false;
 
     // Load key I/O registers
-    auto load16 = [&data, &remaining]() {
-        uint16_t val = data[0] | (data[1] << 8);
-        data += 2;
-        remaining -= 2;
-        return val;
+    auto load16 = [&data, &remaining](uint16_t& out) {
+        uint8_t lo, hi;
+        if (!state_read_u8(data, remaining, lo) || !state_read_u8(data, remaining, hi)) return false;
+        out = static_cast<uint16_t>(lo | (hi << 8));
+        return true;
     };
 
-    m_dispcnt = load16();
-    m_dispstat = load16();
-    m_vcount = load16();
-    m_ie = load16();
-    m_if = load16();
-    m_ime = load16();
-    m_keyinput = load16();
-    m_if_serviced = load16();
+    if (!load16(m_dispcnt)) return false;
+    if (!load16(m_dispstat)) return false;
+    if (!load16(m_vcount)) return false;
+    if (!load16(m_ie)) return false;
+    if (!load16(m_if)) return false;
+    if (!load16(m_ime)) return false;
+    if (!load16(m_keyinput)) return false;
+    if (!load16(m_if_serviced)) return false;
+
+    return true;
 }
 
 void Bus::flush_debug_string() {

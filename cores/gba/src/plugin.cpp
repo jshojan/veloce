@@ -436,33 +436,44 @@ bool GBAPlugin::save_state(std::vector<uint8_t>& data) {
 bool GBAPlugin::load_state(const std::vector<uint8_t>& data) {
     if (!m_rom_loaded || data.empty()) return false;
 
+    // Snapshot the current, known-good machine state first. Every
+    // component's load_state() is bounds-checked (state_read/state_read_bytes)
+    // so a truncated or corrupted `data` can no longer read past its own end,
+    // but a failure partway through still leaves whatever fields were read
+    // before the failure applied. Roll back to this snapshot in that case so
+    // a rejected load never leaves the machine half-updated. save_state()
+    // never fails once a ROM is loaded, so `backup` is always well-formed and
+    // its own load_state() replay below cannot itself fail.
+    std::vector<uint8_t> backup;
+    if (!save_state(backup)) return false;
+
+    auto do_load = [&](const std::vector<uint8_t>& src) -> bool {
+        const uint8_t* ptr = src.data();
+        size_t remaining = src.size();
+
+        if (!state_read(ptr, remaining, m_frame_count)) return false;
+        if (!state_read(ptr, remaining, m_total_cycles)) return false;
+
+        return m_cpu->load_state(ptr, remaining) &&
+               m_ppu->load_state(ptr, remaining) &&
+               m_bus->load_state(ptr, remaining) &&
+               m_apu->load_state(ptr, remaining) &&
+               m_cartridge->load_state(ptr, remaining);
+    };
+
+    bool ok;
     try {
-        const uint8_t* ptr = data.data();
-        size_t remaining = data.size();
-
-        // Load frame count and cycles
-        if (remaining < sizeof(m_frame_count) + sizeof(m_total_cycles)) {
-            return false;
-        }
-
-        std::memcpy(&m_frame_count, ptr, sizeof(m_frame_count));
-        ptr += sizeof(m_frame_count);
-        remaining -= sizeof(m_frame_count);
-
-        std::memcpy(&m_total_cycles, ptr, sizeof(m_total_cycles));
-        ptr += sizeof(m_total_cycles);
-        remaining -= sizeof(m_total_cycles);
-
-        m_cpu->load_state(ptr, remaining);
-        m_ppu->load_state(ptr, remaining);
-        m_bus->load_state(ptr, remaining);
-        m_apu->load_state(ptr, remaining);
-        m_cartridge->load_state(ptr, remaining);
-
-        return true;
+        ok = do_load(data);
     } catch (...) {
+        ok = false;
+    }
+
+    if (!ok) {
+        do_load(backup);
         return false;
     }
+
+    return true;
 }
 
 bool GBAPlugin::has_battery_save() const {

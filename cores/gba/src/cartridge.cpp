@@ -684,36 +684,54 @@ void Cartridge::save_state(std::vector<uint8_t>& data) {
     data.push_back(m_eeprom_ready ? 1 : 0);
 }
 
-void Cartridge::load_state(const uint8_t*& data, size_t& remaining) {
+bool Cartridge::load_state(const uint8_t*& data, size_t& remaining) {
     // Load save_data
-    std::memcpy(m_save_data.data(), data, m_save_data.size());
-    data += m_save_data.size();
-    remaining -= m_save_data.size();
+    if (!state_read_bytes(data, remaining, m_save_data.data(), m_save_data.size())) return false;
 
     // Load Flash state
-    m_flash_state = static_cast<FlashState>(data[0]);
-    m_flash_bank = data[1];
-    m_flash_id_mode = data[2] != 0;
-    data += 3;
-    remaining -= 3;
+    uint8_t flash_state_raw = 0, flash_id_mode_raw = 0;
+    if (!state_read_u8(data, remaining, flash_state_raw)) return false;
+    if (!state_read_u8(data, remaining, m_flash_bank)) return false;
+    if (!state_read_u8(data, remaining, flash_id_mode_raw)) return false;
+    // Range-check: a corrupted/bit-flipped byte here must not become an
+    // enum value with no matching case anywhere the state machine switches
+    // on it.
+    m_flash_state = (flash_state_raw <= static_cast<uint8_t>(FlashState::ChipID))
+        ? static_cast<FlashState>(flash_state_raw)
+        : FlashState::Ready;
+    m_flash_id_mode = flash_id_mode_raw != 0;
 
-    // Load EEPROM state (if present - backwards compatibility)
-    if (remaining >= 14) {
-        m_eeprom_state = static_cast<EEPROMState>(data[0]);
-        m_eeprom_address = data[1] | (data[2] << 8);
+    // Load EEPROM state (if present - backwards compatibility). The stored
+    // block is 15 bytes (1 state + 2 address + 8 buffer + 1 bits_received +
+    // 1 bits_to_send + 1 command + 1 ready), so the guard must require 15,
+    // not 14 -- the original off-by-one let the ready byte (data[14]) be
+    // read one past a buffer that only guaranteed 14 bytes were present.
+    if (remaining >= 15) {
+        uint8_t eeprom_state_raw = 0, addr_lo = 0, addr_hi = 0, ready_raw = 0;
+        uint8_t buf[8];
+        if (!state_read_u8(data, remaining, eeprom_state_raw)) return false;
+        if (!state_read_u8(data, remaining, addr_lo)) return false;
+        if (!state_read_u8(data, remaining, addr_hi)) return false;
+        if (!state_read_bytes(data, remaining, buf, sizeof(buf))) return false;
+        if (!state_read_u8(data, remaining, m_eeprom_bits_received)) return false;
+        if (!state_read_u8(data, remaining, m_eeprom_bits_to_send)) return false;
+        if (!state_read_u8(data, remaining, m_eeprom_command)) return false;
+        if (!state_read_u8(data, remaining, ready_raw)) return false;
+
+        m_eeprom_state = (eeprom_state_raw <= static_cast<uint8_t>(EEPROMState::WriteComplete))
+            ? static_cast<EEPROMState>(eeprom_state_raw)
+            : EEPROMState::Idle;
+        m_eeprom_address = static_cast<uint16_t>(addr_lo | (addr_hi << 8));
         m_eeprom_buffer = 0;
         for (int i = 0; i < 8; i++) {
-            m_eeprom_buffer |= static_cast<uint64_t>(data[3 + i]) << (i * 8);
+            m_eeprom_buffer |= static_cast<uint64_t>(buf[i]) << (i * 8);
         }
-        m_eeprom_bits_received = data[11];
-        m_eeprom_bits_to_send = data[12];
-        m_eeprom_command = data[13];
-        m_eeprom_ready = data[14] != 0;
-        data += 15;
-        remaining -= 15;
+        m_eeprom_ready = ready_raw != 0;
     } else {
         reset_eeprom_state();
     }
+
+    return true;
 }
 
 // RTC helper: convert BCD to binary

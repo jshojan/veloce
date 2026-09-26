@@ -1,8 +1,51 @@
 #pragma once
 
 #include <cstdint>
+#include <cstring>
 
 namespace gba {
+
+// Bounds-checked savestate reader helpers.
+//
+// Every component's load_state(data, remaining) walks a shared buffer with
+// a raw pointer and a running byte count. Before this helper existed, each
+// call site did `memcpy(dst, data, n); data += n; remaining -= n;` with no
+// check that `remaining >= n` first. A truncated or corrupted savestate
+// (e.g. a save file cut short, or a bit-flipped length/enum byte earlier in
+// the stream) could make `remaining -= n` underflow the unsigned byte count
+// to a huge value, after which every subsequent read walks further past the
+// end of the buffer with no way to detect it -- an out-of-bounds host-memory
+// read that a try/catch around the caller cannot catch. state_read_bytes()
+// and state_read() refuse to read (and return false) whenever fewer than
+// `n`/`sizeof(T)` bytes remain, leaving `data`/`remaining` untouched so the
+// caller can stop cleanly instead of underflowing.
+inline bool state_read_bytes(const uint8_t*& data, size_t& remaining, void* dst, size_t n) {
+    if (remaining < n) return false;
+    // A zero-length component (e.g. no battery save attached yet) is a
+    // legitimate no-op read: avoid calling memcpy at all in that case, since
+    // an empty std::vector's data() may be null and a null pointer is UB to
+    // pass to memcpy even with n == 0.
+    if (n > 0) std::memcpy(dst, data, n);
+    data += n;
+    remaining -= n;
+    return true;
+}
+
+template <typename T>
+inline bool state_read(const uint8_t*& data, size_t& remaining, T& value) {
+    return state_read_bytes(data, remaining, &value, sizeof(T));
+}
+
+// Reads a single byte into `value` (as whatever integral/enum type T is),
+// bounds-checked the same way as state_read_bytes/state_read.
+template <typename T>
+inline bool state_read_u8(const uint8_t*& data, size_t& remaining, T& value) {
+    if (remaining < 1) return false;
+    value = static_cast<T>(data[0]);
+    data += 1;
+    remaining -= 1;
+    return true;
+}
 
 // System type detection
 enum class SystemType {

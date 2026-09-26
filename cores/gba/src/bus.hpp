@@ -62,9 +62,10 @@ public:
     void step_timers(int cycles);
     void write_timer_control(int timer, uint16_t value);
 
-    // Save state
+    // Save state. load_state returns false (without reading past
+    // `remaining`) if the buffer runs out before every field is read.
     void save_state(std::vector<uint8_t>& data);
-    void load_state(const uint8_t*& data, size_t& remaining);
+    bool load_state(const uint8_t*& data, size_t& remaining);
 
     // PPU register access
     uint16_t get_bgcnt(int layer) const { return m_bgcnt[layer]; }

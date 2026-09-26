@@ -2414,70 +2414,53 @@ void ARM7TDMI::save_state(std::vector<uint8_t>& data) {
     data.insert(data.end(), last_fetch, last_fetch + 4);
 }
 
-void ARM7TDMI::load_state(const uint8_t*& data, size_t& remaining) {
+bool ARM7TDMI::load_state(const uint8_t*& data, size_t& remaining) {
     // Load registers
     for (int i = 0; i < 16; i++) {
-        std::memcpy(&m_regs[i], data, 4);
-        data += 4;
-        remaining -= 4;
+        if (!state_read(data, remaining, m_regs[i])) return false;
     }
 
     // Load banked registers
-    for (auto& reg : m_fiq_regs) {
-        std::memcpy(&reg, data, 4);
-        data += 4;
-        remaining -= 4;
-    }
-    for (auto& reg : m_svc_regs) {
-        std::memcpy(&reg, data, 4);
-        data += 4;
-        remaining -= 4;
-    }
-    for (auto& reg : m_abt_regs) {
-        std::memcpy(&reg, data, 4);
-        data += 4;
-        remaining -= 4;
-    }
-    for (auto& reg : m_irq_regs) {
-        std::memcpy(&reg, data, 4);
-        data += 4;
-        remaining -= 4;
-    }
-    for (auto& reg : m_und_regs) {
-        std::memcpy(&reg, data, 4);
-        data += 4;
-        remaining -= 4;
-    }
+    for (auto& reg : m_fiq_regs) { if (!state_read(data, remaining, reg)) return false; }
+    for (auto& reg : m_svc_regs) { if (!state_read(data, remaining, reg)) return false; }
+    for (auto& reg : m_abt_regs) { if (!state_read(data, remaining, reg)) return false; }
+    for (auto& reg : m_irq_regs) { if (!state_read(data, remaining, reg)) return false; }
+    for (auto& reg : m_und_regs) { if (!state_read(data, remaining, reg)) return false; }
 
     // Load CPSR and SPSRs
-    std::memcpy(&m_cpsr, data, 4);
-    data += 4;
-    remaining -= 4;
-
-    std::memcpy(&m_spsr_fiq, data, 4); data += 4; remaining -= 4;
-    std::memcpy(&m_spsr_svc, data, 4); data += 4; remaining -= 4;
-    std::memcpy(&m_spsr_abt, data, 4); data += 4; remaining -= 4;
-    std::memcpy(&m_spsr_irq, data, 4); data += 4; remaining -= 4;
-    std::memcpy(&m_spsr_und, data, 4); data += 4; remaining -= 4;
+    if (!state_read(data, remaining, m_cpsr)) return false;
+    if (!state_read(data, remaining, m_spsr_fiq)) return false;
+    if (!state_read(data, remaining, m_spsr_svc)) return false;
+    if (!state_read(data, remaining, m_spsr_abt)) return false;
+    if (!state_read(data, remaining, m_spsr_irq)) return false;
+    if (!state_read(data, remaining, m_spsr_und)) return false;
 
     // Load state flags
-    m_irq_pending = *data++ != 0; remaining--;
-    m_halted = *data++ != 0; remaining--;
-    m_mode = static_cast<ProcessorMode>(*data++); remaining--;
+    uint8_t irq_pending = 0, halted = 0;
+    if (!state_read_u8(data, remaining, irq_pending)) return false;
+    if (!state_read_u8(data, remaining, halted)) return false;
+    m_irq_pending = irq_pending != 0;
+    m_halted = halted != 0;
+    if (!state_read_u8(data, remaining, m_mode)) return false;
 
     // Load IRQ delay counter (added for 7-cycle IRQ delay implementation)
+    // Absent entirely in older savestates, so a short remainder here is not
+    // an error: only report failure if a partial (but non-empty) field is
+    // present, mirroring the original backwards-compatibility contract.
     if (remaining >= 1) {
-        m_irq_delay = *data++; remaining--;
+        if (!state_read_u8(data, remaining, m_irq_delay)) return false;
     } else {
         m_irq_delay = 0;
     }
 
     // Load IntrWait state (check if data is available for backwards compatibility)
     if (remaining >= 11) {
-        m_in_intr_wait = *data++ != 0; remaining--;
-        std::memcpy(&m_intr_wait_flags, data, 2); data += 2; remaining -= 2;
-        std::memcpy(&m_intr_wait_return_pc, data, 4); data += 4; remaining -= 4;
-        std::memcpy(&m_intr_wait_return_cpsr, data, 4); data += 4; remaining -= 4;
+        uint8_t in_intr_wait = 0;
+        if (!state_read_u8(data, remaining, in_intr_wait)) return false;
+        m_in_intr_wait = in_intr_wait != 0;
+        if (!state_read(data, remaining, m_intr_wait_flags)) return false;
+        if (!state_read(data, remaining, m_intr_wait_return_pc)) return false;
+        if (!state_read(data, remaining, m_intr_wait_return_cpsr)) return false;
     } else {
         // Old save state without IntrWait data
         m_in_intr_wait = false;
@@ -2489,25 +2472,33 @@ void ARM7TDMI::load_state(const uint8_t*& data, size_t& remaining) {
     // Load prefetch buffer state (check if data is available for backwards compatibility)
     if (remaining >= 15) {
         // New format with next_address and active
-        std::memcpy(&m_prefetch.head_address, data, 4); data += 4; remaining -= 4;
-        std::memcpy(&m_prefetch.next_address, data, 4); data += 4; remaining -= 4;
-        m_prefetch.count = *data++; remaining--;
-        m_prefetch.countdown = static_cast<int8_t>(*data++); remaining--;
-        m_prefetch.active = *data++ != 0; remaining--;
-        std::memcpy(&m_last_fetch_addr, data, 4); data += 4; remaining -= 4;
+        if (!state_read(data, remaining, m_prefetch.head_address)) return false;
+        if (!state_read(data, remaining, m_prefetch.next_address)) return false;
+        if (!state_read_u8(data, remaining, m_prefetch.count)) return false;
+        uint8_t countdown = 0;
+        if (!state_read_u8(data, remaining, countdown)) return false;
+        m_prefetch.countdown = static_cast<int8_t>(countdown);
+        uint8_t active = 0;
+        if (!state_read_u8(data, remaining, active)) return false;
+        m_prefetch.active = active != 0;
+        if (!state_read(data, remaining, m_last_fetch_addr)) return false;
     } else if (remaining >= 10) {
         // Old format without next_address and active
-        std::memcpy(&m_prefetch.head_address, data, 4); data += 4; remaining -= 4;
+        if (!state_read(data, remaining, m_prefetch.head_address)) return false;
         m_prefetch.next_address = m_prefetch.head_address;
-        m_prefetch.count = *data++; remaining--;
-        m_prefetch.countdown = static_cast<int8_t>(*data++); remaining--;
+        if (!state_read_u8(data, remaining, m_prefetch.count)) return false;
+        uint8_t countdown = 0;
+        if (!state_read_u8(data, remaining, countdown)) return false;
+        m_prefetch.countdown = static_cast<int8_t>(countdown);
         m_prefetch.active = m_prefetch.count > 0;
-        std::memcpy(&m_last_fetch_addr, data, 4); data += 4; remaining -= 4;
+        if (!state_read(data, remaining, m_last_fetch_addr)) return false;
     } else {
         // Old save state without prefetch data
         m_prefetch.reset();
         m_last_fetch_addr = 0xFFFFFFFF;
     }
+
+    return true;
 }
 
 // ============================================================================

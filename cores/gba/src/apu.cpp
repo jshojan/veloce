@@ -682,15 +682,16 @@ void APU::save_state(std::vector<uint8_t>& data) {
     // Simplified - full state would save all channel data
 }
 
-void APU::load_state(const uint8_t*& data, size_t& remaining) {
-    m_nr50 = *data++; remaining--;
-    m_nr51 = *data++; remaining--;
-    m_nr52 = *data++; remaining--;
-    m_enabled = (*data++ != 0); remaining--;
+bool APU::load_state(const uint8_t*& data, size_t& remaining) {
+    uint8_t enabled = 0;
+    if (!state_read_u8(data, remaining, m_nr50)) return false;
+    if (!state_read_u8(data, remaining, m_nr51)) return false;
+    if (!state_read_u8(data, remaining, m_nr52)) return false;
+    if (!state_read_u8(data, remaining, enabled)) return false;
+    m_enabled = enabled != 0;
 
-    std::memcpy(m_wave.wave_ram.data(), data, 16);
-    data += 16;
-    remaining -= 16;
+    if (!state_read_bytes(data, remaining, m_wave.wave_ram.data(), 16)) return false;
+    return true;
 }
 
 // ============================================================================

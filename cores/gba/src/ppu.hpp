@@ -33,9 +33,10 @@ public:
     // Get current scanline (for VCOUNT)
     uint16_t get_vcount() const { return m_vcount; }
 
-    // Save state
+    // Save state. load_state returns false (without reading past
+    // `remaining`) if the buffer runs out before every field is read.
     void save_state(std::vector<uint8_t>& data);
-    void load_state(const uint8_t*& data, size_t& remaining);
+    bool load_state(const uint8_t*& data, size_t& remaining);
 
 private:
     void render_scanline();

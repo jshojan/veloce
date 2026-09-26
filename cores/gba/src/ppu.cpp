@@ -1118,37 +1118,27 @@ void PPU::save_state(std::vector<uint8_t>& data) {
     }
 }
 
-void PPU::load_state(const uint8_t*& data, size_t& remaining) {
-    std::memcpy(m_vram.data(), data, m_vram.size());
-    data += m_vram.size();
-    remaining -= m_vram.size();
+bool PPU::load_state(const uint8_t*& data, size_t& remaining) {
+    if (!state_read_bytes(data, remaining, m_vram.data(), m_vram.size())) return false;
+    if (!state_read_bytes(data, remaining, m_palette.data(), m_palette.size())) return false;
+    if (!state_read_bytes(data, remaining, m_oam.data(), m_oam.size())) return false;
 
-    std::memcpy(m_palette.data(), data, m_palette.size());
-    data += m_palette.size();
-    remaining -= m_palette.size();
+    uint8_t b0, b1;
+    if (!state_read_u8(data, remaining, b0) || !state_read_u8(data, remaining, b1)) return false;
+    m_vcount = static_cast<uint16_t>(b0 | (b1 << 8));
+    if (!state_read_u8(data, remaining, b0) || !state_read_u8(data, remaining, b1)) return false;
+    m_hcount = static_cast<uint16_t>(b0 | (b1 << 8));
 
-    std::memcpy(m_oam.data(), data, m_oam.size());
-    data += m_oam.size();
-    remaining -= m_oam.size();
-
-    m_vcount = data[0] | (data[1] << 8);
-    data += 2; remaining -= 2;
-    m_hcount = data[0] | (data[1] << 8);
-    data += 2; remaining -= 2;
-
-    // Load affine internal registers if present
+    // Load affine internal registers if present (backwards compatibility:
+    // absent entirely in older savestates is not an error).
     if (remaining >= 16) {
-        auto load32 = [&data, &remaining]() -> int32_t {
-            int32_t val = data[0] | (data[1] << 8) | (data[2] << 16) | (data[3] << 24);
-            data += 4; remaining -= 4;
-            return val;
-        };
-
         for (int i = 0; i < 2; i++) {
-            m_bgx_internal[i] = load32();
-            m_bgy_internal[i] = load32();
+            if (!state_read(data, remaining, m_bgx_internal[i])) return false;
+            if (!state_read(data, remaining, m_bgy_internal[i])) return false;
         }
     }
+
+    return true;
 }
 
 } // namespace gba
