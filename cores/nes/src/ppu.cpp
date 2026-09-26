@@ -78,6 +78,7 @@ const uint32_t PPU::s_palette_rp2c04_0004[64] = {
 };
 
 PPU::PPU(Bus& bus) : m_bus(bus) {
+    build_emphasis_palette();
     reset();
 }
 
@@ -135,6 +136,42 @@ void PPU::set_ppu_variant(PPUVariant variant) {
         case PPUVariant::RP2C04_0004:
             m_current_palette = s_palette_rp2c04_0004;
             break;
+    }
+    build_emphasis_palette();
+}
+
+// Build the 8 color-emphasis variants of m_current_palette. PPUMASK bits
+// 5-7 (emphasize red/green/blue) attenuate the channels NOT selected: real
+// RP2C02 hardware does this by inserting an extra resistance into the
+// non-emphasized color-decoder outputs, which measures out to roughly a
+// 25% reduction (this uses the commonly cited ~0.75x approximation rather
+// than decoder-accurate NTSC voltages).
+// Reference: https://www.nesdev.org/wiki/PPU_palettes#Color_Emphasis
+void PPU::build_emphasis_palette() {
+    static constexpr float kAttenuation = 0.75f;
+    for (int emphasis = 0; emphasis < 8; emphasis++) {
+        bool emph_r = emphasis & 0x1;
+        bool emph_g = emphasis & 0x2;
+        bool emph_b = emphasis & 0x4;
+        for (int i = 0; i < 64; i++) {
+            uint32_t rgb = m_current_palette[i];
+            uint8_t r = rgb & 0xFF;
+            uint8_t g = (rgb >> 8) & 0xFF;
+            uint8_t b = (rgb >> 16) & 0xFF;
+            uint8_t a = (rgb >> 24) & 0xFF;
+            // Any emphasis bit set attenuates every channel *not* covered by
+            // one of the set bits (e.g. emphasize-red alone dims G and B;
+            // emphasize-red+green dims only B).
+            if (emph_r || emph_g || emph_b) {
+                if (!emph_r) r = static_cast<uint8_t>(r * kAttenuation);
+                if (!emph_g) g = static_cast<uint8_t>(g * kAttenuation);
+                if (!emph_b) b = static_cast<uint8_t>(b * kAttenuation);
+            }
+            m_emphasis_palette[emphasis][i] = (static_cast<uint32_t>(a) << 24) |
+                                               (static_cast<uint32_t>(b) << 16) |
+                                               (static_cast<uint32_t>(g) << 8) |
+                                               static_cast<uint32_t>(r);
+        }
     }
 }
 
@@ -1167,15 +1204,33 @@ void PPU::render_pixel() {
         }
     }
 
-    // Get color from palette (use current palette for region/Vs. System support)
-    uint8_t color_index = ppu_read(0x3F00 + (palette << 2) + pixel) & 0x3F;
+    // Get color from palette (use current palette for region/Vs. System support).
+    // Hardware quirk: with both bg and sprite rendering disabled, the palette
+    // address the PPU outputs is not fixed to the universal background color
+    // ($3F00) - it tracks the current VRAM address (v) whenever v itself
+    // points into palette space, letting a program "paint" the backdrop by
+    // pointing $2006 at a palette entry while rendering is off.
+    uint8_t color_index;
+    if ((m_mask & 0x18) == 0 && (m_v & 0x3FFF) >= 0x3F00) {
+        color_index = ppu_read(m_v) & 0x3F;
+    } else {
+        color_index = ppu_read(0x3F00 + (palette << 2) + pixel) & 0x3F;
+    }
+    // PPUMASK bit 0 (greyscale): force the palette index into its luma tier
+    // (top 2 bits), discarding hue (bottom 4 bits).
+    if (m_mask & 0x01) {
+        color_index &= 0x30;
+    }
+    // PPUMASK bits 5-7 (emphasize red/green/blue) select one of the 8
+    // pre-attenuated palette variants.
+    const uint32_t* palette_table = m_emphasis_palette[(m_mask >> 5) & 0x07].data();
     // Overscan cropping is purely a display preference: the full pixel pipeline
     // above (including the sprite-0 hit test) must run for every row regardless,
     // so hardware-observable state (like $2002 bit 6) doesn't depend on it. Only
     // the framebuffer write itself is cropped to black for the top/bottom 8 rows.
     m_framebuffer[y * 256 + x] = (m_crop_overscan && (y < 8 || y >= 232))
         ? 0xFF000000  // Black with full alpha
-        : m_current_palette[color_index];
+        : palette_table[color_index];
 
     // Update sprite shifters
     for (int i = 0; i < m_sprite_count; i++) {

@@ -216,6 +216,13 @@ private:
     // Current palette pointer (points to one of the above)
     const uint32_t* m_current_palette = s_palette;
 
+    // Color-emphasis-expanded palette: m_emphasis_palette[e][i] is palette
+    // entry i with the RGB attenuation PPUMASK bits 5-7 (emphasize
+    // red/green/blue) apply for emphasis selector e = (mask >> 5) & 7.
+    // Rebuilt whenever m_current_palette changes (set_ppu_variant / ctor).
+    std::array<std::array<uint32_t, 64>, 8> m_emphasis_palette;
+    void build_emphasis_palette();
+
     // Emulation options
     bool m_sprite_limit_enabled = true;  // True = accurate 8 sprite limit
     bool m_crop_overscan = false;        // True = hide top/bottom 8 rows
