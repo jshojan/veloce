@@ -195,8 +195,15 @@ int LR35902::step() {
         m_ime = true;
     }
 
-    // If halted, just consume 1 cycle
+    // If halted, still advance the bus one M-cycle so the timer, serial
+    // transfer, and OAM DMA keep running while the CPU is idle. Without this
+    // a HALT that is meant to be woken by a timer or serial interrupt (with
+    // no VBlank/STAT source enabled) never sees its wakeup condition and
+    // hangs forever, since tick_m_cycle is the only path that steps those
+    // peripherals. (Pan Docs: HALT ends when IE & IF != 0; only STOP halts
+    // DIV.)
     if (m_halted) {
+        internal_cycle();
         return 1;
     }
 
