@@ -1279,6 +1279,39 @@ void SPC700::execute() {
             break;
         }
 
+        // OR/AND/EOR/CMP (X), (Y)
+        case 0x19: {
+            uint8_t x_val = read_dp(m_x);
+            uint8_t y_val = read_dp(m_y);
+            write_dp(m_x, op_or(x_val, y_val));
+            m_cycles += 1;
+            break;
+        }
+        case 0x39: {
+            uint8_t x_val = read_dp(m_x);
+            uint8_t y_val = read_dp(m_y);
+            write_dp(m_x, op_and(x_val, y_val));
+            m_cycles += 1;
+            break;
+        }
+        case 0x59: {
+            uint8_t x_val = read_dp(m_x);
+            uint8_t y_val = read_dp(m_y);
+            write_dp(m_x, op_eor(x_val, y_val));
+            m_cycles += 1;
+            break;
+        }
+        case 0x79: {
+            uint8_t x_val = read_dp(m_x);
+            uint8_t y_val = read_dp(m_y);
+            op_cmp(x_val, y_val);
+            // CMP does not write the result back to (X); charge the same
+            // total cycle count (5) as OR/AND/EOR (X),(Y) with a dummy
+            // cycle in place of the write-back's read()+m_cycles bump.
+            m_cycles += 2;
+            break;
+        }
+
         default:
             SNES_APU_DEBUG("Unknown SPC700 opcode: $%02X at $%04X\n", opcode, m_pc - 1);
             m_cycles += 2;
