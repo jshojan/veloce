@@ -51,6 +51,7 @@ from .detect import (
     detect_cpu_trace,
 )
 from .scoring import score_test, TestPoint
+from .rom_manifest import check_rom_variant
 
 
 def find_emulator(project_root: Path) -> Path:
@@ -174,6 +175,14 @@ class Harness:
         rom = (self.s.roms_dir / test.file)
         if not rom.exists():
             return self._finish(test, DetectionResult(TestStatus.SKIP, "ROM not found"))
+
+        # SH-3b: a rom_variant "veloce" ROM must be reproducible from a
+        # recorded build (tests/roms-src/build.py's rom_manifest.json), never
+        # scored on faith. rom_variant "upstream" isn't gated here — the
+        # golden gate in build.py is what vouches for those.
+        skip_reason = check_rom_variant(self.s.project_root, str(test.file), rom, test.rom_variant)
+        if skip_reason is not None:
+            return self._finish(test, DetectionResult(TestStatus.SKIP, skip_reason))
 
         env, paths = self.build_env(test)
         result_path = paths["result"]
