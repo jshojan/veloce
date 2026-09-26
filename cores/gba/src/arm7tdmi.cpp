@@ -266,6 +266,31 @@ void ARM7TDMI::write32(uint32_t address, uint32_t value) {
     m_bus.write32_unaligned(address, value);
 }
 
+uint32_t ARM7TDMI::load_word_rotated(uint32_t address) {
+    uint32_t value = read32(address);
+    if (address & 3) {
+        value = ror(value, (address & 3) * 8);
+    }
+    return value;
+}
+
+uint32_t ARM7TDMI::load_half_rotated(uint32_t address) {
+    uint32_t value = read16(address);
+    if (address & 1) {
+        value = ror(value, 8);
+    }
+    return value;
+}
+
+uint32_t ARM7TDMI::load_signed_half(uint32_t address) {
+    // A misaligned LDRSH reads the single byte at the odd address and
+    // sign-extends it from bit 7, rather than the halfword at address-1.
+    if (address & 1) {
+        return static_cast<uint32_t>(sign_extend_8(read8(address)));
+    }
+    return static_cast<uint32_t>(sign_extend_16(read16(address)));
+}
+
 uint32_t ARM7TDMI::fetch_arm() {
     uint32_t pc = m_regs[15];
     uint32_t instruction = read32(pc);
@@ -972,11 +997,7 @@ int ARM7TDMI::arm_single_data_transfer(uint32_t instruction) {
         if (byte) {
             m_regs[rd] = read8(addr);
         } else {
-            m_regs[rd] = read32(addr);
-            // Handle misaligned loads
-            if (addr & 3) {
-                m_regs[rd] = ror(m_regs[rd], (addr & 3) * 8);
-            }
+            m_regs[rd] = load_word_rotated(addr);
         }
         if (rd == 15) {
             flush_pipeline();
@@ -1042,22 +1063,13 @@ int ARM7TDMI::arm_halfword_data_transfer(uint32_t instruction) {
     if (load) {
         switch (op) {
             case 1:  // LDRH - unsigned halfword
-                m_regs[rd] = read16(addr);
-                // Misaligned halfword load rotates the value by 8 bits
-                if (addr & 1) {
-                    m_regs[rd] = ror(m_regs[rd], 8);
-                }
+                m_regs[rd] = load_half_rotated(addr);
                 break;
             case 2:  // LDRSB - signed byte
                 m_regs[rd] = static_cast<uint32_t>(sign_extend_8(read8(addr)));
                 break;
             case 3:  // LDRSH - signed halfword
-                // Misaligned LDRSH reads a byte and sign-extends it
-                if (addr & 1) {
-                    m_regs[rd] = static_cast<uint32_t>(sign_extend_8(read8(addr)));
-                } else {
-                    m_regs[rd] = static_cast<uint32_t>(sign_extend_16(read16(addr)));
-                }
+                m_regs[rd] = load_signed_half(addr);
                 break;
         }
     } else {
@@ -1264,11 +1276,7 @@ int ARM7TDMI::arm_swap(uint32_t instruction) {
         write8(addr, static_cast<uint8_t>(m_regs[rm]));
         m_regs[rd] = temp;
     } else {
-        uint32_t temp = read32(addr);
-        // Handle misaligned word swap - rotate like LDR
-        if (addr & 3) {
-            temp = ror(temp, (addr & 3) * 8);
-        }
+        uint32_t temp = load_word_rotated(addr);
         write32(addr, m_regs[rm]);
         m_regs[rd] = temp;
     }
@@ -1719,8 +1727,7 @@ int ARM7TDMI::thumb_pc_relative_load(uint16_t instruction) {
     // Calculate memory access timing
     int mem_cycles = data_access_cycles(addr, 32, false);
 
-    uint32_t value = read32(addr);
-    m_regs[rd] = value;
+    m_regs[rd] = load_word_rotated(addr);
 
     return 1 + mem_cycles;
 }
@@ -1742,7 +1749,7 @@ int ARM7TDMI::thumb_load_store_reg(uint16_t instruction) {
         if (byte) {
             m_regs[rd] = read8(addr);
         } else {
-            m_regs[rd] = read32(addr);
+            m_regs[rd] = load_word_rotated(addr);
         }
     } else {
         if (byte) {
@@ -1778,10 +1785,10 @@ int ARM7TDMI::thumb_load_store_sign(uint16_t instruction) {
             m_regs[rd] = static_cast<uint32_t>(sign_extend_8(read8(addr)));
             break;
         case 2:  // LDRH
-            m_regs[rd] = read16(addr);
+            m_regs[rd] = load_half_rotated(addr);
             break;
         case 3:  // LDSH
-            m_regs[rd] = static_cast<uint32_t>(sign_extend_16(read16(addr)));
+            m_regs[rd] = load_signed_half(addr);
             break;
     }
 
@@ -1805,7 +1812,7 @@ int ARM7TDMI::thumb_load_store_imm(uint16_t instruction) {
         if (byte) {
             m_regs[rd] = read8(addr);
         } else {
-            m_regs[rd] = read32(addr);
+            m_regs[rd] = load_word_rotated(addr);
         }
     } else {
         if (byte) {
@@ -1830,7 +1837,7 @@ int ARM7TDMI::thumb_load_store_half(uint16_t instruction) {
     int mem_cycles = data_access_cycles(addr, 16, !load);
 
     if (load) {
-        m_regs[rd] = read16(addr);
+        m_regs[rd] = load_half_rotated(addr);
     } else {
         write16(addr, static_cast<uint16_t>(m_regs[rd]));
     }
@@ -1849,7 +1856,7 @@ int ARM7TDMI::thumb_sp_relative_load_store(uint16_t instruction) {
     int mem_cycles = data_access_cycles(addr, 32, !load);
 
     if (load) {
-        m_regs[rd] = read32(addr);
+        m_regs[rd] = load_word_rotated(addr);
     } else {
         write32(addr, m_regs[rd]);
     }

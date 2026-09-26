@@ -45,6 +45,15 @@ private:
     void write16(uint32_t address, uint16_t value);
     void write32(uint32_t address, uint32_t value);
 
+    // Misaligned-access helpers shared by the ARM and Thumb load handlers.
+    // The ARM7TDMI does not fault on a misaligned LDR/LDRH/LDRSH: it reads
+    // the word/halfword at the word/halfword-aligned address containing the
+    // requested one and rotates (LDR/LDRH) or resamples as a byte (LDRSH)
+    // to compensate for the low address bits it ignored.
+    uint32_t load_word_rotated(uint32_t address);
+    uint32_t load_half_rotated(uint32_t address);
+    uint32_t load_signed_half(uint32_t address);
+
     // Instruction fetch with pipeline emulation
     uint32_t fetch_arm();
     uint16_t fetch_thumb();
