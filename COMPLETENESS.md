@@ -203,14 +203,22 @@ tests across 29 suites (23 cpu, 81 timing, 18 ppu, 4 memory, 4 mapper/saves,
 | Memory | verified | `memory_access` (`memory.gba`) PASS. |
 | Misc / BIOS | verified | `bios` (`bios.gba`) PASS (Div, Sqrt, ArcTan, CpuSet, LZ77, etc.). |
 | Mapper / saves | verified | SRAM, Flash 64KB, Flash 128KB, none all PASS. |
-| Timing (DMA / IRQ / timer / HALTCNT / bus) | largely verified via NBA | NanoBoyAdvance DMA latch/start-delay/force-nseq/burst PASS; IRQ delay PASS; timer start-stop/reload PASS; HALTCNT PASS; 128KB bus boundary PASS. |
+| Timing (DMA / IRQ / timer / HALTCNT / bus) | **mostly failing, not verified** | Measured this build (`cd cores/gba/tests && python3 runner.py --json timing`): only 12/80 timing tests pass. NanoBoyAdvance DMA `start_delay`/`burst_into_tears` PASS but `latch`/`force_nseq_access` **FAIL**; NBA `irq_delay` **FAIL**; NBA timer `start_stop`/`reload` **FAIL**; `haltcnt` **FAIL**; the 128KB bus boundary test PASSes. `timing_irq`, `timing_dma`, `timing_fifo_dma`, `timing_cpu_mem` and `prefetch` fail almost wholesale. Root cause tracked separately (instruction-granular stepping + atomic bulk-DMA catch-up, per-instruction cycle guesswork, timer remainder/cascade loss - opus-class scheduler work). |
 | PPU | partly verified, partly pending | smoke (`hello`, `shades`, `stripes`) PASS; `ppu_status_dma` and the affine visual tests need sub-scanline accuracy and are `known_fail` / visual pending references. |
 
 **Detection method.** jsmolka / alyosha / nba ROMs spin with `R12` holding the
 failing test number (`0` = all pass); the GBA plugin detects the stable-PC spin
 and prints `[GBA] PASSED` / `[GBA] FAILED - Failed at test #N`, parsed by the
-shared GBA register detector. This is a reliable, reference-free protocol, which
-is why the GBA verified subset is broader than the SNES one.
+shared GBA register detector.
+
+**Known limitation of the detector itself.** The stable-PC heuristic can also
+report a ROM that has hung or crashed into an unrelated stable state as
+`PASSED` - it does not confirm the ROM ever reached its own "all tests passed"
+spin. This is tracked as a separate finding; until it is fixed, treat every
+PASS above as measured-but-provisional, not reference-grade, and re-derive
+this table from a fresh `runner.py --json` run rather than trusting hand-copied
+numbers - the previous version of this table (NBA DMA/IRQ/timer/HALTCNT all
+claimed PASS) had drifted from what the suite actually measures.
 
 **Honest caveats.**
 
