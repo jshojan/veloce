@@ -18,9 +18,6 @@ public:
 
     void reset();
 
-    // Step one dot (pixel clock)
-    void step();
-
     // Register access ($2100-$213F)
     uint8_t read(uint16_t address);
     void write(uint16_t address, uint8_t value);
@@ -265,6 +262,7 @@ private:
     uint16_t m_oam_addr_reload = 0;
     uint8_t m_oam_latch = 0;
     bool m_oam_high_byte = false;
+    bool m_oam_priority_rotate = false;  // $2103 bit 7 - OAM priority rotation
 
     // $2105 - BGMODE - BG mode and tile size
     uint8_t m_bgmode = 0;

@@ -47,6 +47,7 @@ void PPU::reset() {
     m_oam_addr_reload = 0;
     m_oam_latch = 0;
     m_oam_high_byte = false;
+    m_oam_priority_rotate = false;
 
     m_bgmode = 0;
     m_bg_mode = 0;
@@ -316,6 +317,18 @@ void PPU::advance(int master_cycles) {
 
         // Check for sprite timing events
         int visible_lines = m_overscan ? 239 : 224;
+
+        // OAM address reload at V-blank start: on real hardware, OAMADDR is
+        // reloaded from the OAMADD registers ($2102/$2103) at the start of
+        // V-blank, unless force-blank is active. Without this, a game that
+        // sets OAMADDR mid-frame (e.g. for OAM priority rotation, snes-21)
+        // and expects the next frame's CPU-side OAM upload to start from
+        // the reload value instead sees whatever address rendering left it
+        // at. Reference: fullsnes 2102h/2103h "OAM Address reset".
+        if (m_dot == 0 && m_scanline == visible_lines + 1 && !m_force_blank) {
+            m_oam_addr = m_oam_addr_reload << 1;
+            m_oam_high_byte = false;
+        }
 
         // ====================================================================
         // SPRITE TIMING: TWO SEPARATE FORCE_BLANK LATCH POINTS
@@ -699,97 +712,6 @@ void PPU::sync_to_hblank(int scanline) {
         // This scanline's visible region is now complete; latch BG scroll for
         // the next scanline (see latch_bg_scroll / m_bg_hofs_latched).
         latch_bg_scroll();
-    }
-}
-
-void PPU::step() {
-    // Render visible scanlines (1-224 or 1-239 in overscan)
-    int visible_lines = m_overscan ? 239 : 224;
-
-    if (m_scanline >= 1 && m_scanline <= visible_lines && m_dot >= 22 && m_dot < 278) {
-        // Render visible pixels (22-277 = 256 pixels)
-        int x = m_dot - 22;
-        if (!m_force_blank) {
-            render_pixel(x);
-        } else {
-            // Force blank - output black (512-pixel stride with duplicated pixels)
-            int y = m_scanline - 1;
-            m_framebuffer[y * 512 + x * 2] = 0xFF000000;
-            m_framebuffer[y * 512 + x * 2 + 1] = 0xFF000000;
-        }
-    }
-
-    // Sprite evaluation happens during HBlank (around dot 278-285)
-    // This evaluates sprites for the NEXT scanline.
-    // If force_blank is active during HBlank, sprites will not be loaded.
-    // Reference: Mesen-S does sprite evaluation at Hdot 285.
-    if (m_dot == 285 && m_scanline >= 0 && m_scanline < visible_lines) {
-        // Evaluate sprites for scanline (m_scanline + 1)
-        // The evaluate_sprites function checks m_force_blank internally
-        int next_scanline = m_scanline + 1;
-        int saved_scanline = m_scanline;
-        m_scanline = next_scanline;
-        evaluate_sprites();
-        m_scanline = saved_scanline;
-    }
-
-    // Note: H/V counters ($213C/$213D) are latched, not live - see
-    // latch_counters(). This legacy step() path is unused (advance()/
-    // sync_* are the active catch-up path).
-
-    // Advance dot
-    m_dot++;
-    if (m_dot >= DOTS_PER_SCANLINE) {
-        m_dot = 0;
-        m_scanline++;
-
-        // VBlank start (scanline 225 or 240)
-        if (m_scanline == visible_lines + 1) {
-            m_nmi_flag = true;
-            if (m_nmi_enabled) {
-                m_nmi_pending = true;
-            }
-            m_frame_complete = true;
-
-            // Reset OAM address at VBlank start
-            m_oam_addr = m_oam_addr_reload;
-        }
-
-        // End of frame
-        if (m_scanline >= SCANLINES_PER_FRAME) {
-            m_scanline = 0;
-            m_frame++;
-            m_nmi_flag = false;
-            m_time_over = false;
-            m_range_over = false;
-
-            // Debug: Log full PPU state every 30 frames starting at frame 60
-            if (is_debug_mode() && m_frame >= 60 && (m_frame % 30) == 0) {
-                fprintf(stderr, "[SNES/PPU] === Frame %llu PPU State ===\n", (unsigned long long)m_frame);
-                fprintf(stderr, "[SNES/PPU]   BGMODE=$%02X (mode=%d) TM=$%02X TS=$%02X\n",
-                    m_bgmode, m_bg_mode, m_tm, m_ts);
-                fprintf(stderr, "[SNES/PPU]   BG1: tilemap=$%04X chr=$%04X hofs=%d vofs=%d tile16=%d\n",
-                    m_bg_tilemap_addr[0], m_bg_chr_addr[0], m_bg_hofs[0], m_bg_vofs[0], m_bg_tile_size[0]);
-                fprintf(stderr, "[SNES/PPU]   BG2: tilemap=$%04X chr=$%04X hofs=%d vofs=%d tile16=%d\n",
-                    m_bg_tilemap_addr[1], m_bg_chr_addr[1], m_bg_hofs[1], m_bg_vofs[1], m_bg_tile_size[1]);
-                // Warn if tilemap and chr overlap
-                if (m_bg_chr_addr[0] < m_bg_tilemap_addr[0] + 0x2000 &&
-                    m_bg_chr_addr[0] + 0x8000 > m_bg_tilemap_addr[0]) {
-                    fprintf(stderr, "[SNES/PPU] WARNING: BG1 tilemap/chr may overlap!\n");
-                }
-                // Sample tilemap and character data
-                fprintf(stderr, "[SNES/PPU]   Tilemap0[0]: %02X%02X Tilemap0[2]: %02X%02X\n",
-                    m_vram[m_bg_tilemap_addr[0]+1], m_vram[m_bg_tilemap_addr[0]],
-                    m_vram[m_bg_tilemap_addr[0]+3], m_vram[m_bg_tilemap_addr[0]+2]);
-                fprintf(stderr, "[SNES/PPU]   Chr0[0]: %02X%02X%02X%02X (at $%04X)\n",
-                    m_vram[m_bg_chr_addr[0] & 0xFFFF], m_vram[(m_bg_chr_addr[0]+1) & 0xFFFF],
-                    m_vram[(m_bg_chr_addr[0]+2) & 0xFFFF], m_vram[(m_bg_chr_addr[0]+3) & 0xFFFF],
-                    m_bg_chr_addr[0]);
-                // Check VRAM at $9000 where DMA goes
-                fprintf(stderr, "[SNES/PPU]   VRAM[$9000]: %02X%02X%02X%02X (typical DMA dest)\n",
-                    m_vram[0x9000], m_vram[0x9001], m_vram[0x9002], m_vram[0x9003]);
-            }
-        }
     }
 }
 
@@ -2816,8 +2738,14 @@ void PPU::evaluate_sprites() {
     int large_width = SPRITE_SIZES[size_index][1][0];
     int large_height = SPRITE_SIZES[size_index][1][1];
 
-    // Scan all 128 sprites
-    for (int i = 0; i < 128; i++) {
+    // Scan all 128 sprites. Normally evaluation starts at sprite 0, but
+    // with OAM priority rotation ($2103 bit 7) it starts at the sprite
+    // indexed by the OAM address (sampled at the start of the scan) and
+    // wraps around; this lets a game rotate which 32 sprites survive the
+    // per-line sprite limit. Reference: fullsnes 2103h, bsnes OAM firstSprite.
+    int first = m_oam_priority_rotate ? ((m_oam_addr >> 2) & 0x7F) : 0;
+    for (int n = 0; n < 128; n++) {
+        int i = (first + n) & 0x7F;
         // Read OAM entry
         int oam_addr = i * 4;
         int x = m_oam[oam_addr];
@@ -3344,6 +3272,12 @@ void PPU::write(uint16_t address, uint8_t value) {
             m_oam_addr_reload = (m_oam_addr_reload & 0xFF) | ((value & 0x01) << 8);
             m_oam_addr = m_oam_addr_reload << 1;
             m_oam_high_byte = false;
+            // Bit 7: OAM priority rotation. When set, sprite evaluation for
+            // each scanline starts at the sprite indexed by the current OAM
+            // address instead of always starting at sprite 0, so a game can
+            // rotate which sprites get dropped when >32 are on one line.
+            // Reference: fullsnes 2103h, bsnes OAM firstSprite.
+            m_oam_priority_rotate = (value & 0x80) != 0;
             break;
 
         case 0x2104: {  // OAMDATA
