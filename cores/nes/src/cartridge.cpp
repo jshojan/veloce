@@ -88,6 +88,17 @@ bool Cartridge::load(const uint8_t* data, size_t size) {
     size_t prg_size = header.prg_rom_size * 16384;  // 16KB units
     size_t chr_size = header.chr_rom_size * 8192;   // 8KB units
 
+    // Reject PRG=0 headers outright: every mapper assumes at least one bank
+    // is present (NROM mirrors/indexes m_prg_rom directly, MMC1/others take
+    // `offset % prg_size`), so a zero-length PRG ROM turns into an
+    // out-of-bounds vector access or a divide-by-zero the moment the CPU
+    // reads $8000+. A real cartridge always has PRG ROM; treat this as a
+    // malformed file rather than silently constructing an unusable mapper.
+    if (header.prg_rom_size == 0) {
+        std::cerr << "Invalid ROM: PRG ROM size is 0" << std::endl;
+        return false;
+    }
+
     // Verify we have enough data
     if (offset + prg_size + chr_size > size) {
         std::cerr << "ROM file truncated" << std::endl;

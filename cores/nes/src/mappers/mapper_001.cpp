@@ -165,9 +165,18 @@ void Mapper001::update_banks() {
             break;
     }
 
-    // Ensure offsets are within bounds
-    m_prg_bank_0_offset %= prg_size;
-    m_prg_bank_1_offset %= prg_size;
+    // Ensure offsets are within bounds. Defense in depth: Cartridge::load
+    // rejects PRG=0 ROMs before any mapper is constructed, but guard the
+    // modulo anyway (integer modulo by zero is undefined behaviour /
+    // SIGFPE) in case this mapper is ever built directly with an empty
+    // PRG vector.
+    if (prg_size > 0) {
+        m_prg_bank_0_offset %= prg_size;
+        m_prg_bank_1_offset %= prg_size;
+    } else {
+        m_prg_bank_0_offset = 0;
+        m_prg_bank_1_offset = 0;
+    }
 
     // CHR bank mode (bit 4 of control)
     if (chr_size > 0) {
