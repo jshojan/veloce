@@ -240,9 +240,10 @@ For the testing methodology and the platform-wide picture see the top-level
 
 **Verified accuracy: partial.** CPU, memory, BIOS, and saves are verified through
 the R12 spin-loop `serial` protocol (`cpu_arm`, `cpu_thumb`, `memory`, `bios`,
-SRAM/Flash all PASS; `cpu_psr` is a measured FAIL for CPSR/SPSR banking). The
-large cycle-accurate timing block is largely verified via the NanoBoyAdvance
-DMA/IRQ/timer/HALTCNT/bus tests, while the sub-scanline PPU tests are
+SRAM/Flash64 PASS; `cpu_psr` and `flash128` are measured FAILs). The large
+cycle-accurate timing block is **not** verified: only 10/80 timing tests pass and
+every NanoBoyAdvance DMA/IRQ/timer/HALTCNT/bus test fails (see
+[COMPLETENESS.md](../../COMPLETENESS.md#gba)); the sub-scanline PPU tests are
 `known_fail` pending references. The earlier "90.9% pass rate" figure predated the
 weighted, unverified-aware methodology and is superseded; full per-subsystem
 justification is in [COMPLETENESS.md](../../COMPLETENESS.md#gba).
@@ -336,22 +337,26 @@ pre-marked `known_fail` and excluded from the headline score until verified.
 |------|--------|-------|
 | sram.gba | **PASS** | 32KB SRAM read/write |
 | flash64.gba | **PASS** | 64KB Flash commands |
-| flash128.gba | **PASS** | 128KB Flash with bank switching |
+| flash128.gba | **FAIL** | 128KB Flash with bank switching (fails test #9) |
 | none.gba | **PASS** | No save type behavior |
 
 ### NanoBoyAdvance Hardware Tests
 
+These ROMs print results to the screen only (no R12 protocol); earlier PASS
+entries here were not measured and have been corrected to the observed
+on-screen FAILs (DMA/IRQ/timer scheduler gaps, tracked separately).
+
 | Category | Test | Status | Notes |
 |----------|------|--------|-------|
-| DMA | latch.gba | **PASS** | DMA SAD/DAD latch timing |
-| DMA | start-delay.gba | **PASS** | DMA enable to first transfer delay |
-| DMA | force-nseq-access.gba | **PASS** | DMA non-sequential access |
-| DMA | burst-into-tears.gba | **PASS** | DMA burst behavior |
-| IRQ | irq-delay.gba | **PASS** | IRQ trigger to handler entry cycles |
-| Timer | start-stop.gba | **PASS** | Timer enable/disable behavior |
-| Timer | reload.gba | **PASS** | Timer reload on overflow |
-| HALTCNT | haltcnt.gba | **PASS** | Halt/stop mode behavior |
-| Bus | 128kb-boundary.gba | **PASS** | Memory access across 128KB boundaries |
+| DMA | latch.gba | **FAIL** | DMA SAD/DAD latch timing |
+| DMA | start-delay.gba | **FAIL** | DMA enable to first transfer delay |
+| DMA | force-nseq-access.gba | **FAIL** | DMA non-sequential access |
+| DMA | burst-into-tears.gba | **FAIL** | DMA burst behavior |
+| IRQ | irq-delay.gba | **FAIL** | IRQ trigger to handler entry cycles |
+| Timer | start-stop.gba | **FAIL** | Timer enable/disable behavior |
+| Timer | reload.gba | **FAIL** | Timer reload on overflow |
+| HALTCNT | haltcnt.gba | **FAIL** | Halt/stop mode behavior |
+| Bus | 128kb-boundary.gba | **FAIL** | Memory access across 128KB boundaries |
 | PPU | status-irq-dma.gba | KNOWN | Requires sub-scanline cycle accuracy |
 | PPU | bgpd.gba | VISUAL | HBlank DMA to BG2PD (screenshot captured) |
 | PPU | bgx.gba | VISUAL | HBlank DMA to BG2X (screenshot captured) |
