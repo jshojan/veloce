@@ -493,8 +493,27 @@ void Bus::write8(uint32_t address, uint8_t value) {
         }
 
         case MemoryRegion::IO: {
-            // Byte writes to I/O need special handling
-            uint32_t io_addr = address & ~1;
+            // Byte writes to I/O need special handling. The generic path
+            // below reconstructs a full 16-bit value by merging the new
+            // byte with whatever the *other* byte currently reads back as,
+            // then hands that merged halfword to write_io() as if it were an
+            // ordinary 16-bit store. That is correct for plain storage
+            // registers, but wrong for IF: write_io()'s IF case treats the
+            // whole value as "bits to acknowledge" (`m_if &= ~value`), so
+            // merging in the untouched byte's *current* (already-pending) 1
+            // bits acks interrupts in that byte too, even though the game
+            // only meant to touch the byte it actually wrote. Route IF
+            // through a dedicated lane-masked ack instead: only the byte
+            // lane actually written may clear IF/IF-serviced bits.
+            uint32_t io_addr = address & ~1u;
+            if ((io_addr & 0xFFF) == 0x202) {
+                uint16_t lane_value = (address & 1)
+                    ? static_cast<uint16_t>(static_cast<uint16_t>(value) << 8)
+                    : static_cast<uint16_t>(value);
+                write_io(io_addr, lane_value);
+                break;
+            }
+
             uint16_t old_val = read_io(io_addr);
             if (address & 1) {
                 write_io(io_addr, (old_val & 0x00FF) | (value << 8));
