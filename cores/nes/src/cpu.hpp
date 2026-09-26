@@ -162,8 +162,10 @@ private:
     // Track if we're currently in an interrupt sequence
     bool m_in_interrupt_sequence = false;
 
-    // Cycle counter (for statistics)
-    int m_cycles = 0;
+    // Cycle counter (for statistics). 64-bit: it is incremented on every CPU
+    // cycle and only cleared at power-on/reset, so a signed int would overflow
+    // (UB) after ~2^31 cycles, about 20 minutes of NTSC emulation.
+    uint64_t m_cycles = 0;
 
     // Status register flags
     static constexpr uint8_t FLAG_C = 0x01;  // Carry
