@@ -1087,12 +1087,6 @@ void PPU::render_pixel() {
 
     if (x < 0 || x >= 256 || y < 0 || y >= 240) return;
 
-    // Overscan cropping: render black for top/bottom 8 rows
-    if (m_crop_overscan && (y < 8 || y >= 232)) {
-        m_framebuffer[y * 256 + x] = 0xFF000000;  // Black with full alpha
-        return;
-    }
-
     uint8_t bg_pixel = 0;
     uint8_t bg_palette = 0;
 
@@ -1172,7 +1166,13 @@ void PPU::render_pixel() {
 
     // Get color from palette (use current palette for region/Vs. System support)
     uint8_t color_index = ppu_read(0x3F00 + (palette << 2) + pixel) & 0x3F;
-    m_framebuffer[y * 256 + x] = m_current_palette[color_index];
+    // Overscan cropping is purely a display preference: the full pixel pipeline
+    // above (including the sprite-0 hit test) must run for every row regardless,
+    // so hardware-observable state (like $2002 bit 6) doesn't depend on it. Only
+    // the framebuffer write itself is cropped to black for the top/bottom 8 rows.
+    m_framebuffer[y * 256 + x] = (m_crop_overscan && (y < 8 || y >= 232))
+        ? 0xFF000000  // Black with full alpha
+        : m_current_palette[color_index];
 
     // Update sprite shifters
     for (int i = 0; i < m_sprite_count; i++) {
