@@ -2672,20 +2672,27 @@ void PPU::render_mode7_pixel(int x, uint8_t& pixel, uint8_t& priority) {
                   (static_cast<int16_t>(m_m7d) * py) + (cy << 8)) >> 8;
 
     // Handle wrapping/clamping
+    // M7SEL bits 6-7 ("Screen Over"), per fullsnes 211Ah / ares mode7.cpp:
+    //   0 = wrap (repeat)
+    //   1 = wrap (repeat) - same behavior as 0
+    //   2 = transparent (pixel not drawn)
+    //   3 = fill with tile 0's character data, sampled at (x & 7, y & 7)
+    //       of the *unwrapped* coordinates (the tile number is forced to 0,
+    //       but the fine offset within that tile still follows tx/ty).
     bool out_of_bounds = (tx < 0 || tx >= 1024 || ty < 0 || ty >= 1024);
+    bool force_tile0 = false;
 
     if (out_of_bounds) {
         switch (m_m7_wrap) {
             case 0:  // Wrap
+            case 1:  // Wrap (same as 0 on real hardware)
                 tx &= 0x3FF;
                 ty &= 0x3FF;
                 break;
-            case 1:  // Transparent
+            case 2:  // Transparent
                 return;
-            case 2:  // Tile 0
-            case 3:
-                tx = 0;
-                ty = 0;
+            case 3:  // Fill with tile 0
+                force_tile0 = true;
                 break;
         }
     }
@@ -2702,7 +2709,7 @@ void PPU::render_mode7_pixel(int x, uint8_t& pixel, uint8_t& priority) {
 
     // Tile address: tileY * 128 + tileX (word address), *2 for byte address
     uint16_t tile_addr = (tile_y * 128 + tile_x) * 2;
-    uint8_t tile_num = m_vram[tile_addr & 0xFFFF];
+    uint8_t tile_num = force_tile0 ? 0 : m_vram[tile_addr & 0xFFFF];
 
     // Palette address: tile * 64 + fine_y * 8 + fine_x (word address)
     // Each tile is 64 words (8x8 pixels), fine_y * 8 + fine_x gives offset within tile

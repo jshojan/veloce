@@ -375,7 +375,7 @@ private:
     uint8_t m_m7sel = 0;
     bool m_m7_hflip = false;
     bool m_m7_vflip = false;
-    int m_m7_wrap = 0;  // 0=wrap, 1=transparent, 2=tile 0, 3=transparent
+    int m_m7_wrap = 0;  // 0=wrap, 1=wrap, 2=transparent, 3=tile 0
 
     int16_t m_m7a = 0;
     int16_t m_m7b = 0;
