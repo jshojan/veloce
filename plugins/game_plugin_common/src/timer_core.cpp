@@ -274,6 +274,12 @@ uint64_t TimerCore::get_personal_best_time() const {
 void TimerCore::save_personal_best() {
     if (m_data.splits.empty()) return;
 
+    // Preserve existing gold (best-segment) times: they were already kept
+    // up to date live by split()'s min-comparison, so this function must
+    // only ever tighten them, never wipe them out with the current run's
+    // (possibly slower) segment times.
+    std::vector<uint64_t> previous_golds = m_data.personal_best.gold_times;
+
     m_data.personal_best.category = m_data.category;
     m_data.personal_best.total_time_ms = m_data.splits.back().split_time_ms;
     m_data.personal_best.split_times.clear();
@@ -282,11 +288,11 @@ void TimerCore::save_personal_best() {
     for (size_t i = 0; i < m_data.splits.size(); i++) {
         m_data.personal_best.split_times.push_back(m_data.splits[i].split_time_ms);
 
-        // Update gold if better
-        if (m_data.has_pb && i < m_data.personal_best.gold_times.size()) {
-            uint64_t existing_gold = m_data.personal_best.gold_times[i];
+        // Update gold if better; fall back to this run's segment time when
+        // there is no prior gold for this split index (new split, or first PB).
+        if (m_data.has_pb && i < previous_golds.size()) {
             m_data.personal_best.gold_times.push_back(
-                std::min(existing_gold, m_data.splits[i].segment_time_ms));
+                std::min(previous_golds[i], m_data.splits[i].segment_time_ms));
         } else {
             m_data.personal_best.gold_times.push_back(m_data.splits[i].segment_time_ms);
         }
