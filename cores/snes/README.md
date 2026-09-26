@@ -480,8 +480,10 @@ methodology and the platform-wide picture see the top-level
 > documentation. The *verified* accuracy headline is currently **low** because
 > almost every SNES test is a community ROM that draws its result on screen and so
 > needs a `screenshot-crc` reference hash that has not yet been measured; those
-> tests ship `known_fail` and contribute zero. Only the Blargg SPC `memory`-detected
-> subset is verifiable today. This is a coverage-versus-verification gap, not an
+> tests ship `known_fail` and contribute zero. The Blargg SPC `memory`-detected
+> subset does not currently verify either: none of the blargg-spc-6 ROMs in the
+> mirror write the `$6000` status byte, so they report RUNS / "no result signal"
+> and zero SNES tests are verified today. This is a coverage-versus-verification gap, not an
 > implementation gap. Full per-subsystem justification and the path to a real
 > headline are in [COMPLETENESS.md](../../COMPLETENESS.md#snes).
 
@@ -530,9 +532,10 @@ have visually verified renders the test's all-pass screen, then paste the printe
 hashes into `test_config.json`. Reference hashes are tied to the fixed headless
 output resolution and PNG encoder; regenerate if either changes.
 
-The currently-open core gaps surfaced by the suite (the unimplemented SPC700
-opcode `$79` that traps `apu.spc_smp`, and the `apu.spc_dsp6` hardware quirk) are
-documented in [COMPLETENESS.md](../../COMPLETENESS.md#snes).
+The gaps surfaced by the suite (the SPC700 `(X),(Y)` opcodes `$19`/`$39`/`$59`/`$79`
+that trapped `apu.spc_smp` at `$19`, now fixed; the missing `$6000` signal from the
+blargg-spc-6 ROMs; and the `apu.spc_dsp6` hardware quirk) are documented in
+[COMPLETENESS.md](../../COMPLETENESS.md#snes).
 
 ## References
 
