@@ -311,41 +311,74 @@ void GBAPlugin::run_gba_frame(const emu::InputState& input) {
                 m_test_result_reported = true;
 
                 // jsmolka/alyosha gba-tests' shared m_test_eval macro
-                // (lib/macros.inc) does `stmfd sp!,{r0-r12} / movs r12,reg
-                // / ... / ldmfd sp!,{r0-r12}` before the idle spin loop --
-                // the ldmfd restores r12 to whatever it held *before* the
-                // eval call, regardless of the actual result, so r12 at
-                // the idle loop is not the test outcome at all (gba-01).
-                // The same macro's failure path, taken exactly once and
-                // only on a real failure, writes the failing test number
-                // as three decimal digits (hundreds/tens/ones, each 0-9)
-                // to fixed IWRAM words at 0x03000000/+4/+8 -- the same
-                // digits it renders on screen as "Failed test NNN" --
-                // and a pass never touches them. Cross-check r12 against
-                // those words: only when all three are plausible decimal
-                // digits (never true for the huge address-like values
-                // other suites such as nba-hw-test leave in r12, so this
-                // never changes their result) do we trust this signal
-                // over r12, since it is authoritative where r12 is not.
-                uint32_t d_hundreds = m_bus->read32(0x03000000);
-                uint32_t d_tens     = m_bus->read32(0x03000004);
-                uint32_t d_ones     = m_bus->read32(0x03000008);
-                bool iwram_digits_plausible = d_hundreds <= 9 && d_tens <= 9 && d_ones <= 9;
-                uint32_t iwram_test_num = d_hundreds * 100 + d_tens * 10 + d_ones;
+                // (lib/macros.inc) is `stmfd sp!,{r0-r12} / movs r12,rX /
+                // ... / ldmfd sp!,{r0-r12}` followed by `idle: b idle`.
+                // The ldmfd restores r12 to whatever it held *before* the
+                // eval, so r12 at the idle loop is the verdict only when
+                // the ROM evaluates r12 itself (`m_test_eval r12`); ROMs
+                // that evaluate another register (thumb.gba: r7, the LDM
+                // suite: r0 after a mode switch, start_up_vbl_irq*: r7)
+                // leave an unrelated r12 behind, which was reported as a
+                // false PASS (gba-01). The same ldmfd restores rX to its
+                // pre-eval value -- which *is* the evaluated result, since
+                // `movs r12,rX` does not modify rX -- so rX at the idle
+                // loop is exactly what the macro tested.
+                //
+                // Recognise the epilogue near the stable PC (get_pc() may
+                // be the pipeline PC, idle..idle+8), walk back to the
+                // macro's stmfd/movs pair to learn X, and read rX. If the
+                // pattern is absent (nba-hw-test, FuzzARM, non-macro
+                // ROMs) the old R12 convention is kept unchanged.
+                //
+                // Review follow-up: the first version of this fix instead
+                // trusted the .failed path's decimal digits at IWRAM
+                // 0x03000000/4/8 whenever they looked like digits. A
+                // passing run never writes them, so they hold whatever the
+                // test left there -- memory.gba's IWRAM-mirror test stores
+                // 1 at 0x03000000 ("Failed at test #100" on a pass), and
+                // the prefetcher_boundary ROMs put the stack at IWRAM+16 so
+                // the stmfd itself lands r9-r11 there.
+                int eval_reg = -1;
+                if (!(m_cpu->get_cpsr() & 0x20)) {  // macro epilogue is ARM code
+                    uint32_t base = current_pc & ~3u;
+                    uint32_t idle = 0;
+                    for (int off = -8; off <= 8 && !idle; off += 4) {
+                        uint32_t a = base + static_cast<uint32_t>(off);
+                        if (a >= 0x100 &&
+                            m_bus->read32(a) == 0xEAFFFFFEu &&        // b .
+                            m_bus->read32(a - 4) == 0xE8BD1FFFu) {    // ldmfd sp!,{r0-r12}
+                            idle = a;
+                        }
+                    }
+                    if (idle) {
+                        // The macro body (two text paths) is ~100 ARM
+                        // instructions; 2 KiB is ample and cannot reach
+                        // another m_test_eval (each ROM has exactly one).
+                        for (uint32_t p = idle - 8; p + 0x800 >= idle && p >= 0x100; p -= 4) {
+                            uint32_t w0 = m_bus->read32(p);
+                            uint32_t w1 = m_bus->read32(p + 4);
+                            if (w0 == 0xE92D1FFFu &&                   // stmfd sp!,{r0-r12}
+                                (w1 & 0xFFFFFFF0u) == 0xE1B0C000u) {   // movs r12, rX
+                                eval_reg = static_cast<int>(w1 & 0xF);
+                                break;
+                            }
+                        }
+                    }
+                }
 
                 uint32_t verdict = r12;
-                const char* verdict_source = "R12";
-                if (iwram_digits_plausible) {
-                    verdict = iwram_test_num;
-                    verdict_source = "IWRAM digits (m_test_eval failure buffer)";
+                if (eval_reg >= 0) {
+                    verdict = m_cpu->get_register(eval_reg);
                 }
 
                 fprintf(stderr, "\n=== GBA TEST ROM RESULT ===\n");
                 fprintf(stderr, "Detected stable PC at 0x%08X for %d frames\n", current_pc, same_pc_frames);
                 fprintf(stderr, "R12 (test result): %u\n", r12);
-                fprintf(stderr, "IWRAM digits @0x03000000/4/8: %u %u %u (plausible=%d)\n",
-                       d_hundreds, d_tens, d_ones, iwram_digits_plausible ? 1 : 0);
-                fprintf(stderr, "Verdict source: %s\n", verdict_source);
+                if (eval_reg >= 0) {
+                    fprintf(stderr, "m_test_eval register: r%d = %u (verdict source)\n", eval_reg, verdict);
+                } else {
+                    fprintf(stderr, "m_test_eval epilogue not found; verdict source: R12\n");
+                }
                 fprintf(stderr, "Cycles: %llu, Frame: %llu\n",
                        static_cast<unsigned long long>(m_total_cycles),
                        static_cast<unsigned long long>(m_frame_count + 1));
