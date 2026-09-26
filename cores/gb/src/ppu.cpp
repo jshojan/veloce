@@ -1,5 +1,6 @@
 #include "ppu.hpp"
 #include "bus.hpp"
+#include <algorithm>
 #include <cstring>
 
 namespace gb {
@@ -362,18 +363,16 @@ void PPU::render_sprites() {
         }
     }
 
-    // Sort by X coordinate (lower X = higher priority)
-    // On CGB, OAM order takes priority
+    // Sort by X coordinate (lower X = higher priority).
+    // On DMG, sprites with equal X must keep OAM-index order (lower index wins);
+    // a plain exchange sort is not stable and can swap same-X entries. Use a
+    // stable sort so ties fall back to the original (OAM-index) order.
+    // On CGB, OAM order takes priority and no X-sort happens at all.
     if (!m_cgb_mode) {
-        for (int i = 0; i < sprite_count - 1; i++) {
-            for (int j = i + 1; j < sprite_count; j++) {
-                if (sprites[j].x < sprites[i].x) {
-                    SpriteEntry temp = sprites[i];
-                    sprites[i] = sprites[j];
-                    sprites[j] = temp;
-                }
-            }
-        }
+        std::stable_sort(sprites, sprites + sprite_count,
+                          [](const SpriteEntry& a, const SpriteEntry& b) {
+                              return a.x < b.x;
+                          });
     }
 
     // Render sprites (back to front for correct priority)
