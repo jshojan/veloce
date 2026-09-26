@@ -565,6 +565,7 @@ void Application::process_events() {
                                     if (m_audio_manager) {
                                         m_audio_manager->clear_buffer();
                                     }
+                                    m_plugin_manager->notify_game_plugins_state_loaded();
                                 } else {
                                     msg << "Failed to load state from slot " << (slot + 1);
                                     notifications.error(msg.str());
@@ -767,7 +768,12 @@ void Application::reset() {
     auto* plugin = m_plugin_manager->get_active_plugin();
     if (plugin && plugin->is_rom_loaded()) {
         plugin->reset();
-        m_audio_manager->clear_buffer();
+        // m_audio_manager is only constructed in GUI mode (see initialize());
+        // headless test/tooling callers of reset() must not crash on it.
+        if (m_audio_manager) {
+            m_audio_manager->clear_buffer();
+        }
+        m_plugin_manager->notify_game_plugins_reset();
     }
 }
 
@@ -907,12 +913,17 @@ bool Application::load_state_from_buffer(const std::vector<uint8_t>& buffer) {
     auto* netplay_capable = get_netplay_capable_emulator();
     if (netplay_capable) {
         if (netplay_capable->load_state_fast(buffer.data(), buffer.size())) {
+            m_plugin_manager->notify_game_plugins_state_loaded();
             return true;
         }
     }
 
     // Fall back to standard load state
-    return emulator->load_state(buffer);
+    if (emulator->load_state(buffer)) {
+        m_plugin_manager->notify_game_plugins_state_loaded();
+        return true;
+    }
+    return false;
 }
 
 void Application::set_controller_input(int controller, uint32_t buttons) {

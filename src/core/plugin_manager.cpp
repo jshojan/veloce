@@ -722,6 +722,26 @@ void PluginManager::notify_game_plugins_rom_unloaded() {
     }
 }
 
+void PluginManager::notify_game_plugins_reset() {
+    // Notify all game plugins that the console was reset, so anything
+    // tracking emulated state (e.g. a speedrun timer's splits) can react.
+    for (auto& inst : m_active.game_plugins) {
+        if (inst.plugin) {
+            inst.plugin->on_reset();
+        }
+    }
+}
+
+void PluginManager::notify_game_plugins_state_loaded() {
+    // Notify all game plugins that a savestate was loaded into the active
+    // emulator instance.
+    for (auto& inst : m_active.game_plugins) {
+        if (inst.plugin) {
+            inst.plugin->on_state_loaded();
+        }
+    }
+}
+
 bool PluginManager::activate_netplay_plugin(const std::string& name) {
     const PluginMetadata* metadata = m_registry.find_plugin(PluginType::Netplay, name);
     if (!metadata) {

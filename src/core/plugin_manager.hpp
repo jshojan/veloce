@@ -197,6 +197,13 @@ public:
     void notify_game_plugins_rom_loaded();
     void notify_game_plugins_rom_unloaded();
 
+    // Notify game plugins that the console was reset, or that a savestate
+    // was loaded into the active emulator instance (both change emulated
+    // memory out from under a game plugin's own tracked state, e.g. a
+    // speedrun timer's splits).
+    void notify_game_plugins_reset();
+    void notify_game_plugins_state_loaded();
+
     // Get the game plugin host interface
     IGameHost* get_game_host() { return m_game_host.get(); }
 

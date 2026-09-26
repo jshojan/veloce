@@ -245,6 +245,9 @@ public:
     virtual void on_rom_loaded() {}
     virtual void on_rom_unloaded() {}
     virtual void on_reset() {}
+    // Called after a savestate has been loaded into the active emulator
+    // instance (hotkey, menu, file-browser, or TAS/netplay load paths).
+    virtual void on_state_loaded() {}
     virtual void on_run_complete(uint64_t final_time_ms) {}
 
     // ============================================================
