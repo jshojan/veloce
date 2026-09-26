@@ -432,19 +432,33 @@ void Bus::write(uint32_t address, uint8_t value) {
 
 uint8_t Bus::read_cpu_io(uint16_t address) {
     switch (address) {
-        case 0x4016:  // JOYSER0 - Joypad 1 data
+        case 0x4016:  // JOYSER0 - Joypad 1 serial data
             {
-                uint8_t result = m_controller_latch[0] & 1;
-                m_controller_latch[0] >>= 1;
-                m_controller_latch[0] |= 0x8000;  // Return 1s after all bits read
+                // Reference: fullsnes/anomie controller docs. The report
+                // word is B Y Select Start Up Down Left Right A X L R 0 0 0 0
+                // (bit15=B .. bit4=R), shifted out MSB-first. While strobe
+                // is held high the line continuously reflects the live B
+                // bit; only after the 1->0 edge does it shift the latched
+                // report out one bit per read.
+                uint8_t result;
+                if (m_strobe) {
+                    result = (m_controller_state[0] >> 15) & 1;
+                } else {
+                    result = (m_serial_shift[0] >> 15) & 1;
+                    m_serial_shift[0] = (m_serial_shift[0] << 1) | 1;
+                }
                 return result;
             }
 
-        case 0x4017:  // JOYSER1 - Joypad 2 data
+        case 0x4017:  // JOYSER1 - Joypad 2 serial data
             {
-                uint8_t result = m_controller_latch[1] & 1;
-                m_controller_latch[1] >>= 1;
-                m_controller_latch[1] |= 0x8000;
+                uint8_t result;
+                if (m_strobe) {
+                    result = (m_controller_state[1] >> 15) & 1;
+                } else {
+                    result = (m_serial_shift[1] >> 15) & 1;
+                    m_serial_shift[1] = (m_serial_shift[1] << 1) | 1;
+                }
                 return result;
             }
 
@@ -554,9 +568,17 @@ uint8_t Bus::read_cpu_io(uint16_t address) {
 void Bus::write_cpu_io(uint16_t address, uint8_t value) {
     switch (address) {
         case 0x4016:  // JOYSER0 - Joypad strobe
-            if (value & 1) {
-                m_controller_latch[0] = m_controller_state[0] & 0xFFFF;
-                m_controller_latch[1] = m_controller_state[1] & 0xFFFF;
+            {
+                bool new_strobe = (value & 1) != 0;
+                if (m_strobe && !new_strobe) {
+                    // Falling edge: latch the current report into the
+                    // manual-read shift registers (see snes-12). This is
+                    // independent of m_controller_latch, which holds only
+                    // the auto-joypad-read result exposed at $4218-$421B.
+                    m_serial_shift[0] = m_controller_state[0] & 0xFFFF;
+                    m_serial_shift[1] = m_controller_state[1] & 0xFFFF;
+                }
+                m_strobe = new_strobe;
             }
             break;
 
@@ -865,6 +887,11 @@ void Bus::start_vblank() {
         // Latch controllers
         m_controller_latch[0] = m_controller_state[0];
         m_controller_latch[1] = m_controller_state[1];
+        // Hardware also clocks the manual-read shift registers 16 times
+        // during auto-read, leaving them exhausted (all 1s) just like a
+        // completed manual read sequence would.
+        m_serial_shift[0] = 0xFFFF;
+        m_serial_shift[1] = 0xFFFF;
     }
 
     // Note: V-IRQ is checked in start_scanline(), not here
@@ -1098,6 +1125,12 @@ void Bus::save_state(std::vector<uint8_t>& data) {
         data.push_back((m_controller_state[i] >> 16) & 0xFF);
         data.push_back((m_controller_state[i] >> 24) & 0xFF);
     }
+    // Save manual serial-read shift registers + strobe (snes-12)
+    for (int i = 0; i < 2; i++) {
+        data.push_back(m_serial_shift[i] & 0xFF);
+        data.push_back((m_serial_shift[i] >> 8) & 0xFF);
+    }
+    data.push_back(m_strobe ? 1 : 0);
 
     // Save WRAM port address
     data.push_back(m_wram_addr & 0xFF);
@@ -1146,6 +1179,13 @@ void Bus::load_state(const uint8_t*& data, size_t& remaining) {
         m_controller_state[i] = data[0] | (data[1] << 8) | (data[2] << 16) | (data[3] << 24);
         data += 4; remaining -= 4;
     }
+
+    // Load manual serial-read shift registers + strobe (snes-12)
+    for (int i = 0; i < 2; i++) {
+        m_serial_shift[i] = data[0] | (data[1] << 8);
+        data += 2; remaining -= 2;
+    }
+    m_strobe = (*data++ != 0); remaining--;
 
     // Load WRAM port address
     m_wram_addr = data[0] | (data[1] << 8) | ((data[2] & 0x01) << 16);
