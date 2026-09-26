@@ -172,7 +172,7 @@ void PPU::render_scanline() {
         }
     }
 
-    if ((m_lcdc & 0x20) && m_wy <= m_ly) {  // Window enable
+    if (((m_lcdc & 0x01) || m_cgb_mode) && (m_lcdc & 0x20) && m_wy <= m_ly) {  // Window enable (DMG: gated on BG/window master enable too)
         render_window();
     }
 
