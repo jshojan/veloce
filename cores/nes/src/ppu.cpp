@@ -1147,7 +1147,10 @@ void PPU::render_pixel() {
         palette = bg_palette;
     } else {
         // Sprite 0 hit detection
-        if (m_sprite_zero_hit_possible && m_sprite_zero_rendering) {
+        // Hardware quirk: the hit flag is never set for x == 255, even though
+        // the pixel is otherwise a valid opaque bg/sprite overlap (the PPU's
+        // internal sprite-0-hit latch is gated off on the last dot of the line).
+        if (m_sprite_zero_hit_possible && m_sprite_zero_rendering && x != 255) {
             if ((m_mask & 0x18) == 0x18) {
                 if (!((m_mask & 0x06) != 0x06 && x < 8)) {
                     m_status |= 0x40;
