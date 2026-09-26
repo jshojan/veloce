@@ -267,7 +267,18 @@ void Cartridge::write_rom(uint32_t address, uint8_t value) {
                 bool old_sck = (old_data & GPIO_SCK) != 0;
                 bool new_sck = (value & GPIO_SCK) != 0;
 
-                if (!old_sck && new_sck) {
+                if (!(m_gpio_data & GPIO_CS)) {
+                    // CS low terminates any transfer in progress (GBATEK
+                    // S-3511A; mGBA resets its command state on the same
+                    // condition). Games drop CS with SCK held high, so no
+                    // rising SCK edge ever reaches rtc_clock_edge()'s own
+                    // CS check -- without this the "ignore further bits
+                    // until CS drops" bound in ReceiveData (gba-20) never
+                    // actually saw CS drop.
+                    m_rtc_state = RTCState::Idle;
+                    m_rtc_bit_count = 0;
+                    m_rtc_byte_count = 0;
+                } else if (!old_sck && new_sck) {
                     rtc_clock_edge();
                 }
                 break;
