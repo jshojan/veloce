@@ -60,6 +60,13 @@ private:
     void clock_dmc();
     void dmc_fetch_sample();
 
+    // Sweep unit target-period arithmetic (nesdev "APU Sweep"): computed on
+    // demand from the *current* period/shift/negate, not cached, so both
+    // clock_sweeps() and mix_output()'s mute check see the same value.
+    // Pulse 1 (index 0) subtracts one extra on negate (one's-complement).
+    int sweep_target_period(int p) const;
+    bool sweep_mute(int p) const;
+
     float mix_output();
 
     Bus& m_bus;

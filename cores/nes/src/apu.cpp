@@ -458,16 +458,34 @@ void APU::clock_envelopes() {
     }
 }
 
+// Target period the sweep unit is currently steering toward, per nesdev's
+// "APU Sweep": computed continuously from the live period/shift/negate,
+// independent of whether the divider has fired. Pulse 1 (p==0) uses one's
+// complement (subtracts one extra) on negate; pulse 2 uses two's complement.
+int APU::sweep_target_period(int p) const {
+    int period = m_pulse[p].timer_period;
+    int change = period >> m_pulse[p].sweep_shift;
+    if (m_pulse[p].sweep_negate) {
+        int target = period - change;
+        if (p == 0) target -= 1;
+        return target;
+    }
+    return period + change;
+}
+
+// A pulse channel is silenced (forced to 0 regardless of duty/volume)
+// whenever its current period is below 8 or its swept target would exceed
+// $7FF - this holds even if the sweep unit is disabled or shift is 0,
+// per nesdev; it is not limited to the instant the divider clocks.
+bool APU::sweep_mute(int p) const {
+    return m_pulse[p].timer_period < 8 || sweep_target_period(p) > 0x7FF;
+}
+
 void APU::clock_sweeps() {
     for (int p = 0; p < 2; p++) {
-        if (m_pulse[p].sweep_divider == 0 && m_pulse[p].sweep_enabled) {
-            uint16_t change = m_pulse[p].timer_period >> m_pulse[p].sweep_shift;
-            if (m_pulse[p].sweep_negate) {
-                m_pulse[p].timer_period -= change;
-                if (p == 0) m_pulse[p].timer_period--;
-            } else {
-                m_pulse[p].timer_period += change;
-            }
+        if (m_pulse[p].sweep_divider == 0 && m_pulse[p].sweep_enabled &&
+            m_pulse[p].sweep_shift != 0 && !sweep_mute(p)) {
+            m_pulse[p].timer_period = static_cast<uint16_t>(sweep_target_period(p));
         }
 
         if (m_pulse[p].sweep_divider == 0 || m_pulse[p].sweep_reload) {
@@ -590,10 +608,12 @@ float APU::mix_output() {
     float pulse_out = 0;
     float tnd_out = 0;
 
-    // Pulse channels
+    // Pulse channels. The sweep unit's mute condition (current period < 8,
+    // or the continuously-computed sweep target > $7FF) silences the DAC
+    // regardless of whether the sweep is enabled - it is not limited to
+    // the instant the sweep divider clocks (nesdev "APU Sweep").
     for (int p = 0; p < 2; p++) {
-        if (m_pulse[p].length_counter > 0 && m_pulse[p].timer_period >= 8 &&
-            m_pulse[p].timer_period <= 0x7FF) {
+        if (m_pulse[p].length_counter > 0 && !sweep_mute(p)) {
             uint8_t volume = m_pulse[p].constant_volume ?
                 m_pulse[p].volume : m_pulse[p].envelope_counter;
             if (s_duty_table[m_pulse[p].duty][m_pulse[p].sequence_pos]) {
