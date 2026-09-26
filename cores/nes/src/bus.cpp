@@ -175,12 +175,21 @@ void Bus::cpu_write(uint16_t address, uint8_t value) {
             start_oam_dma(value);
         }
         else if (address == 0x4016) {
-            // Controller strobe
-            m_controller_strobe = (value & 1) != 0;
-            if (m_controller_strobe) {
+            // Controller strobe. Real hardware (a 74HC165-style shift
+            // register) continuously parallel-loads from the button
+            // lines while OUT0 (bit 0) is held high, and only stops
+            // loading - latching whatever the buttons are at that
+            // instant - on the high-to-low (falling) edge; serial reads
+            // then shift that latched snapshot out starting from A.
+            // Latching on the write that sets strobe high (as before)
+            // instead of the write that clears it misses any button
+            // state that changes while the strobe is held high.
+            bool new_strobe = (value & 1) != 0;
+            if (m_controller_strobe && !new_strobe) {
                 m_controller_shift[0] = static_cast<uint8_t>(m_controller_state[0]);
                 m_controller_shift[1] = static_cast<uint8_t>(m_controller_state[1]);
             }
+            m_controller_strobe = new_strobe;
         }
         else if (m_apu) {
             // Set the CPU cycle counter for accurate APU timing
@@ -250,6 +259,13 @@ void Bus::set_controller_state(int controller, uint32_t buttons) {
 
 uint8_t Bus::read_controller(int controller) {
     if (controller < 0 || controller >= 2) return 0;
+
+    if (m_controller_strobe) {
+        // Strobe held high: the shift register is continuously reloading
+        // from the live buttons rather than shifting, so every read
+        // reports the current A-button state and never advances.
+        return static_cast<uint8_t>(m_controller_state[controller] & 1) | 0x40;
+    }
 
     uint8_t data = m_controller_shift[controller] & 1;
     m_controller_shift[controller] >>= 1;
