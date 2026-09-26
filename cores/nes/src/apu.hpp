@@ -186,8 +186,12 @@ private:
     // Region configuration
     Region m_region = Region::NTSC;
 
-    // Timing (varies by region)
-    int m_cycles = 0;
+    // Timing (varies by region). Unsigned so the running CPU-cycle count
+    // wraps modulo 2^32 (defined behaviour) instead of hitting signed
+    // overflow (UB) after roughly 20 minutes of NTSC playtime; only the
+    // low bit is ever consulted (pulse/noise clock parity), so the wrap
+    // itself is harmless.
+    uint32_t m_cycles = 0;
     int m_sample_counter = 0;
     static constexpr int SAMPLE_RATE = 44100;
     int m_cpu_freq = 1789773;  // NTSC: 1789773, PAL: 1662607, Dendy: 1773448
