@@ -1,0 +1,5 @@
+#VELOCE 1 core=GB rom_crc32=3f7f2a61 channels=serial,mooneye,a000,hram
+#VELOCE adapter=mooneye
+REG b=03 c=05 d=08 e=0d h=15 l=22
+END 1/1
+#VELOCE end reason=terminator frames=58 cycles=4073000 status=0

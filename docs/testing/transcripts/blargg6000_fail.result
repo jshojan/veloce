@@ -1,0 +1,9 @@
+#VELOCE 1 core=NES rom_crc32=2e6b1a04 channels=port,blargg6000
+#VELOCE adapter=blargg6000
+LOG 03-dummy_reads
+LOG
+LOG Dummy read occurred when it shouldn't
+LOG
+LOG Failed #3
+END 0/1 code=3
+#VELOCE end reason=terminator frames=112 cycles=3331520 status=3

@@ -1,0 +1,5 @@
+#VELOCE 1 core=GBA rom_crc32=d41a9e07 channels=mgba,r12
+#VELOCE adapter=r12
+REG r12=7 pc=08000f2c cpsr=6000001f
+END 0/1 code=7
+#VELOCE end reason=terminator frames=24 cycles=6741504 status=7

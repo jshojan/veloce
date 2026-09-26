@@ -1,0 +1,7 @@
+#VELOCE 1 core=NES rom_crc32=53f85876 channels=port,blargg6000
+#VELOCE adapter=blargg6000
+LOG 01-basics
+LOG
+LOG Passed
+END 1/1
+#VELOCE end reason=terminator frames=46 cycles=1368310 status=0

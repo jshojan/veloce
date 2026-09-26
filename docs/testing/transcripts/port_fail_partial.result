@@ -1,0 +1,10 @@
+#VELOCE 1 core=SNES rom_crc32=9b1c02aa channels=port,blargg6000
+VELOCE 1 snes cpu.adc
+TEST 1 adc_bin8_imm
+REG a=1f p=30
+CHECK 1 PASS adc_bin8_imm
+TEST 2 adc_bin16_imm
+CHECK 2 FAIL adc_bin16_imm exp=01a0 got=00a0
+CHECK 3 FAIL adc_bin16_psr exp=30 got=31 mask=c3
+END 1/3
+#VELOCE end reason=terminator frames=7 cycles=2497314 status=1

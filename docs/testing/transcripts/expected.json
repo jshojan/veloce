@@ -1,0 +1,31 @@
+{
+  "_comment": "Detector fixtures for tests/veloce_testkit (selftest). Each case runs detect_result_file(<file>, **options) and must produce the listed fields. 'pass'/'total' are the CHECK-line tally (or the END tally when a transcript has no CHECK lines). See docs/testing/VELOCE-RESULT.md section 6.",
+  "cases": [
+    {"file": "port_pass.result",          "options": {},                                "status": "pass", "pass": 3, "total": 3, "progress": 1.0, "end_reason": "terminator", "frames_used": 41, "adapter": ""},
+    {"file": "port_pass.result",          "options": {"expected_checks": 5},           "status": "fail", "pass": 3, "total": 3, "progress": 0.6},
+    {"file": "port_pass.result",          "options": {"require_channel": "port"},      "status": "pass"},
+    {"file": "port_fail_partial.result",  "options": {},                                "status": "fail", "pass": 1, "total": 3, "progress": 0.3333, "status_code": 2},
+    {"file": "tally_mismatch.result",     "options": {},                                "status": "error", "pass": 2, "total": 2},
+    {"file": "no_end_frames.result",      "options": {},                                "status": "runs", "pass": 2, "total": 2, "progress": 1.0, "end_reason": "frames", "frames_used": 300},
+    {"file": "no_end_fail.result",        "options": {},                                "status": "fail", "pass": 1, "total": 2, "progress": 0.5},
+    {"file": "killed_timeout.result",     "options": {"timed_out": true},              "status": "timeout", "pass": 2, "total": 2, "progress": 1.0, "end_reason": "missing"},
+    {"file": "killed_timeout.result",     "options": {},                                "status": "timeout", "end_reason": "missing"},
+    {"file": "empty_smoke.result",        "options": {},                                "status": "error", "pass": 0, "total": 0},
+    {"file": "empty_smoke.result",        "options": {"allow_empty": true},            "status": "pass", "pass": 0, "total": 0, "progress": 1.0},
+    {"file": "blargg6000_pass.result",    "options": {},                                "status": "pass", "pass": 1, "total": 1, "adapter": "blargg6000"},
+    {"file": "blargg6000_pass.result",    "options": {"require_channel": "port"},      "status": "skip", "adapter": "blargg6000"},
+    {"file": "blargg6000_pass.result",    "options": {"require_channel": "blargg6000"},"status": "pass"},
+    {"file": "blargg6000_fail.result",    "options": {},                                "status": "fail", "pass": 0, "total": 1, "progress": 0.0, "status_code": 3},
+    {"file": "blargg6000_reset.result",   "options": {},                                "status": "pass", "resets": 1},
+    {"file": "reset_limit.result",        "options": {},                                "status": "fail", "end_reason": "reset_limit", "resets": 3},
+    {"file": "mooneye_pass.result",       "options": {},                                "status": "pass", "adapter": "mooneye"},
+    {"file": "r12_fail.result",           "options": {},                                "status": "fail", "status_code": 7, "adapter": "r12"},
+    {"file": "stp_blob_pass.result",      "options": {},                                "status": "pass", "adapter": "stp", "blobs": 2},
+    {"file": "no_channel.result",         "options": {},                                "status": "runs", "pass": 0, "total": 0, "end_reason": "frames", "frames_used": 1800, "has_verdict": false},
+    {"file": "no_channel.result",         "options": {"require_channel": "port"},      "status": "skip"},
+    {"file": "mgba_levels.result",        "options": {},                                "status": "pass", "pass": 2, "total": 2, "end_reason": "terminator"},
+    {"file": "missing_header.result",     "options": {},                                "status": "error"},
+    {"file": "does_not_exist.result",     "options": {},                                "status": "error"},
+    {"file": "does_not_exist.result",     "options": {"timed_out": true},              "status": "timeout"}
+  ]
+}

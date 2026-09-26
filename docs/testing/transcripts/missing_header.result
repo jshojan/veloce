@@ -1,0 +1,3 @@
+VELOCE 1 nes cpu.instr_basics
+CHECK 1 PASS lda_imm
+END 1/1

@@ -1,0 +1,6 @@
+#VELOCE 1 core=GB rom_crc32=0c1ae311 channels=serial,mooneye,a000,hram
+VELOCE 1 gb timer.div_write
+CHECK 1 PASS div_reset
+CHECK 2 PASS div_tick
+END 3/3
+#VELOCE end reason=terminator frames=12 cycles=842688 status=0
