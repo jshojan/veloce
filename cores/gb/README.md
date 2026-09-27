@@ -204,6 +204,34 @@ cat /tmp/t.result
 The measured per-suite results are tabulated with their justification in
 [COMPLETENESS.md](../../COMPLETENESS.md#game-boy).
 
+### Rebuilding test ROMs from source
+
+`tests/roms-src/include/gb/veloce-test.inc` (wla-gb dialect) and
+`veloce-test-rgbds.inc` (RGBDS dialect) are the `VT_BEGIN`/`VT_TEST`/
+`VT_PASS`/`VT_FAIL`/`VT_REG`/`VT_LOG`/`VT_END` emitters future patches use
+to make a suite emit `VELOCE-RESULT/1` directly (Tier A) instead of relying
+on an adapter. Both are exercised end to end by
+`tests/roms-src/gb/veloce_smoke/` (one fixture ROM per dialect, built via
+`tests/roms-src/build.py`'s toolchain image; running it twice under
+`VELOCE_TEST_OUT` is byte-for-byte deterministic, including the trailer).
+
+Rebuilding the three GB suites that are pure source (Mooneye, SameSuite,
+GBMicrotest) against the pinned toolchain and comparing the result to the
+c-sp v7.0 bundle this core actually runs against today (`tests/roms-src/gb/
+<suite>/PROVENANCE.md` has the full detail per suite):
+
+| Suite | Rebuilds against pinned toolchain | Matches the c-sp v7.0 bundle |
+|-------|-----------------------------------|------------------------------|
+| GBMicrotest | yes (wla-gb) | 513/513 byte-identical |
+| Mooneye | yes (wla-gb) | 104/115 byte-identical; 11 differ by a handful of bytes each, traced to a WLA-DX *version* difference (Mooneye's own CI pin vs. c-sp's release pin), not a source or macro problem |
+| SameSuite | **no** | blocked: its vendored `include/hardware.inc` uses pre-RGBDS-0.5 `SET` syntax that neither of Veloce's two pinned RGBDS builds (0.6.1, 0.7.0) accepts; c-sp's own release builds it with RGBDS v0.5.2, which Veloce does not carry |
+| Blargg (`cpu_instrs`/`instr_timing`/`mem_timing(-2)`/sound/etc.) | not attempted | ships prebuilt upstream; already scored via the `blarggtext`/`a000` adapters above, no rebuild needed yet |
+
+None of this changes today's scored numbers — GB-1's adapters already read
+every suite's verdict from the vendored, unmodified c-sp bundle. It is the
+groundwork for GB-4 through GB-7 (source patches that make each suite emit
+`CHECK`/`END` directly, promoting it to Tier A).
+
 ### Populating visual reference hashes
 
 `screenshot-crc` tests ship with empty `reference_hash` (so they SKIP / are

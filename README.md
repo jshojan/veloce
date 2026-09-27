@@ -276,7 +276,7 @@ console. Start here:
 |---------|-------------------|--------|
 | NES | ~90-94% (strongest verified coverage) | [scorecard](COMPLETENESS.md#nes) / [notes](cores/nes/README.md#testing) |
 | SNES | low until reference hashes land | [scorecard](COMPLETENESS.md#snes) / [notes](cores/snes/README.md#testing) |
-| Game Boy | 63.9% (Blargg + Mooneye scored from the result file) | [scorecard](COMPLETENESS.md#game-boy) / [notes](cores/gb/README.md#testing) |
+| Game Boy | 63.9% (Blargg + Mooneye scored from the result file; test ROMs now reproducibly rebuilt from source) | [scorecard](COMPLETENESS.md#game-boy) / [notes](cores/gb/README.md#testing) |
 | GBA | partial (CPU/memory/BIOS/saves verified) | [scorecard](COMPLETENESS.md#gba) / [notes](cores/gba/README.md#test-status) |
 
 Run everything with `python tests/run_all.py`; see [TESTING.md](TESTING.md) for
