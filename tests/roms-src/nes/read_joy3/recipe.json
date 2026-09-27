@@ -1,23 +1,35 @@
 {
   "console": "nes",
   "suite": "read_joy3",
-  "description": "Blargg read_joy3: only test_buttons.nes writes the $6000 block on the modern shell (text_out.s); thorough_test/count_errors/count_errors_fast use an older serial-only shell and are NES-3's job, not golden-gated here.",
-  "license": "public domain / freely redistributable (Shay Green (blargg)'s test framework); see upstream read_joy3/source/readme.txt",
+  "description": "Blargg read_joy3 (4 ROMs), rebuilt on blargg's modern shell (instr_test-v5/source/common) with the suite's own DMC-sync code (common/sync_dmc.s); patches/ make each ROM report its result over the $401E VELOCE-RESULT/1 port (tests/roms-src/include/veloce-blargg.inc). None of upstream's four shipped binaries (test_buttons included) writes the $6000 block: all four use the suite's older console+serial shell (NES-3).",
+  "license": "blargg (Shay Green) test code; upstream read_joy3/source/readme.txt carries no licence statement (plan section 8 treats blargg's NES test ROMs as freely usable). Only Veloce's patch is committed; sources are fetched at the pinned SHA.",
   "repo": {
     "url": "https://github.com/christopherpow/nes-test-roms.git",
     "sha": "95d8f621ae55cee0d09b91519a8989ae0e64753b"
   },
   "toolchain_stage": "cc65",
   "golden_gate": false,
-  "golden_gate_reason": "Same issue tests/roms-src/nes/cpu_dummy_reads/PROVENANCE.md documents: the shared common/delay.s countdown idiom ('adc #-1' / 'sbc #-1') needs ca65's '--feature force_range' to assemble at all (no ca65 in cc65's git history accepts a bare out-of-range immediate byte). With that feature on, the rebuilt ROM is the same size (40976 bytes) as upstream's shipped copy but differs at 99 byte(s), first divergence at file offset 0x6085 (24709) (inside the CHARS-adjacent PRG bank, same region cpu_dummy_reads diverges in) -- consistent with cpu_dummy_reads's unconfirmed theory that '--feature force_range' changes which of shell.inc's jeq/jne/jpl/jmi longbranch.mac macros resolve short vs. long somewhere upstream in the same object file. Verified behaviourally instead (this suite's own NES-2 report has the double-build determinism check): two independent rebuilds of the unmodified source are byte-identical to each other, so the pipeline is reproducible even though it doesn't reproduce this specific pre-existing binary. See cpu_dummy_reads/PROVENANCE.md for the full investigation; not repeated per suite.",
-  "rom_variant": "upstream",
+  "golden_gate_reason": "Rebuilt on purpose against a different shell than the one upstream's binary was built with (instr_test-v5/source/common, blargg's modern shell with text_out.s, instead of this suite's own older console+serial common/), so the result cannot be byte-identical by construction. For the record, the unmodified source built against its OWN common/ with the same toolchain is the same size as upstream's shipped ROM but not byte-identical either (72-99 bytes differ per ROM, first divergence at file offset 0x6084-0x6370) -- the same '--feature force_range' situation tests/roms-src/nes/cpu_dummy_reads/PROVENANCE.md documents. Verified behaviourally instead; see PROVENANCE.md.",
+  "rom_variant": "veloce",
   "build": {
     "workdir": "read_joy3/source",
     "commands": [
-      "ca65 --feature force_range --smart -t nes -I common -I /opt/rom-toolchain/cc65-asminc -o test_buttons.o test_buttons.s",
-      "ld65 -C nes.cfg test_buttons.o -o ../test_buttons.nes"
+      "rm -rf vcommon && mkdir vcommon",
+      "cp ../../instr_test-v5/source/common/* vcommon/",
+      "cp common/sync_dmc.s vcommon/",
+      "ca65 --feature force_range --smart -t nes -I vcommon -I /veloce-include -I /opt/rom-toolchain/cc65-asminc -o count_errors.o count_errors.s",
+      "ld65 -C ../../instr_test-v5/source/nes.cfg count_errors.o -o ../count_errors.nes",
+      "ca65 --feature force_range --smart -t nes -I vcommon -I /veloce-include -I /opt/rom-toolchain/cc65-asminc -o count_errors_fast.o count_errors_fast.s",
+      "ld65 -C ../../instr_test-v5/source/nes.cfg count_errors_fast.o -o ../count_errors_fast.nes",
+      "ca65 --feature force_range --smart -t nes -I vcommon -I /veloce-include -I /opt/rom-toolchain/cc65-asminc -o thorough_test.o thorough_test.s",
+      "ld65 -C ../../instr_test-v5/source/nes.cfg thorough_test.o -o ../thorough_test.nes",
+      "ca65 --feature force_range --smart -t nes -I vcommon -I /veloce-include -I /opt/rom-toolchain/cc65-asminc -o test_buttons.o test_buttons.s",
+      "ld65 -C ../../instr_test-v5/source/nes.cfg test_buttons.o -o ../test_buttons.nes"
     ],
     "artifacts": {
+      "read_joy3/count_errors.nes": "count_errors.nes",
+      "read_joy3/count_errors_fast.nes": "count_errors_fast.nes",
+      "read_joy3/thorough_test.nes": "thorough_test.nes",
       "read_joy3/test_buttons.nes": "test_buttons.nes"
     }
   }

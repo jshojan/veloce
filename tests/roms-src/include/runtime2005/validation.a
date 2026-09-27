@@ -1,0 +1,146 @@
+; runtime2005/validation.a (asm6f) -- Veloce replacement for blargg's
+; 2005-era validation.a (pal_apu_tests, blargg_apu_2005, sprite_hit_tests,
+; ...), reporting the $F8 result code over the $401E VELOCE-RESULT/1 port
+; instead of the on-screen console and beeps.
+;
+; Same entry points and the same result protocol as upstream:
+;   result ($F8)       0 = internal error, 1 = passed, n >= 2 = failure code n
+;                      (a test stores the sub-test number before each
+;                      section: "lda #3;) Problem with ... / sta result")
+;   error_if_ne/eq/mi/pl/cc/cs/vc/vs
+;                      report the current result if the branch would be taken
+;   tests_passed       result = 1, then report
+;   report_final_result / report_final_result_
+;                      report `result` and stop
+; plus the upstream defaults default_nmi/default_irq (as nmi/irq) and the
+; `forever` loop. It needs `test_name` (a zero-terminated .db string, which
+; every 2005 test defines) and is included by the test's own prefix file
+; (e.g. pal_apu_tests' prefix_apu.a: `.include "validation.a"`), so a build
+; stages this file under that name next to the translated upstream sources.
+;
+; Report (docs/testing/VELOCE-RESULT.md): one check named after test_name,
+;   result 1:   CHECK 1 PASS <test_name>            / END 1/1
+;   otherwise:  CHECK 1 FAIL <test_name> exp=01 got=<result> code=<result>
+;                                                    / END 0/1
+; The VELOCE header line is written at power-on by veloce_rom2005.a.
+;
+; Determinism: no clocks, no uninitialised reads (veloce_rom2005.a clears
+; zero page before the test runs).
+
+result = $f8
+
+error_if_ne:
+    BNE report_final_result_
+    RTS
+error_if_eq:
+    BEQ report_final_result_
+    RTS
+error_if_mi:
+    BMI report_final_result_
+    RTS
+error_if_pl:
+    BPL report_final_result_
+    RTS
+error_if_cc:
+    BCC report_final_result_
+    RTS
+error_if_cs:
+    BCS report_final_result_
+    RTS
+error_if_vc:
+    BVC report_final_result_
+    RTS
+error_if_vs:
+    BVS report_final_result_
+    RTS
+
+tests_passed:
+    LDA #1
+    STA result
+report_final_result:
+report_final_result_:
+    SEI
+    LDA #0
+    STA $2000
+    LDA result
+    CMP #1
+    BEQ vr_passed
+    vt_str "CHECK 1 FAIL "
+    JSR vr_test_name
+    vt_str " exp=01 got="
+    LDA result
+    JSR vt_hex8
+    vt_str " code="
+    LDA result
+    JSR vr_dec_u8
+    JSR vt_newline
+    vt_line "END 0/1"
+    JMP forever
+vr_passed:
+    vt_str "CHECK 1 PASS "
+    JSR vr_test_name
+    JSR vt_newline
+    vt_line "END 1/1"
+forever:
+    SEI
+    LDA #0
+    STA $2000
+vr_forever_loop:
+    JMP vr_forever_loop
+
+; Prints the test's zero-terminated test_name string (max 255 chars).
+vr_test_name:
+    LDX #0
+vr_test_name_loop:
+    LDA test_name,x
+    BEQ vr_test_name_done
+    JSR vt_putc
+    INX
+    BNE vr_test_name_loop
+vr_test_name_done:
+    RTS
+
+; A = 0..255 -> 1-3 decimal digits, no leading zeros.
+vr_dec_u8:
+    CMP #100
+    BCC vr_dec_below_100
+    LDX #0
+vr_dec_hundreds:
+    CMP #100
+    BCC vr_dec_have_hundreds
+    SBC #100
+    INX
+    JMP vr_dec_hundreds
+vr_dec_have_hundreds:
+    PHA
+    TXA
+    CLC
+    ADC #'0'
+    JSR vt_putc
+    PLA
+    LDX #0
+vr_dec_tens:
+    CMP #10
+    BCC vr_dec_have_tens
+    SBC #10
+    INX
+    JMP vr_dec_tens
+vr_dec_have_tens:
+    PHA
+    TXA
+    CLC
+    ADC #'0'
+    JSR vt_putc
+    PLA
+    CLC
+    ADC #'0'
+    JMP vt_putc
+vr_dec_below_100:
+    JMP vt_dec8
+
+default_irq:
+    BIT $4015
+default_nmi:
+    RTI
+nmi = default_nmi
+irq = default_irq

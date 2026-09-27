@@ -136,6 +136,18 @@ VT_END    pass, total                    -> "END p/t\n", then the console's nati
 
 The primitive is `vt_putc`: `sta $401E` (NES), `sta.w $21FE` (SNES), an `SB`/`SC` write-and-wait (GB), or a line buffer at `0x4FFF600` plus a flush write (GBA). Timing-sensitive ROMs buffer results in RAM and emit after the measured section.
 
+Adapters for existing test frameworks sit on top of these includes (NES, `tests/roms-src/include/`):
+
+- `veloce-blargg.inc` (ca65) is for sources on blargg's modern NES shell.
+  - The source sets `CUSTOM_EXIT = 1`, includes the file after `shell.inc`, and calls `VB_BEGIN` first in `main`.
+  - `VB_CRC id, name, crc...` checks the shell's running CRC-32 against one or more documented results. `VB_FLAG` and `VB_REG` are also available.
+  - The file supplies the shell's `exit`. It writes `END` once, and it can turn the blargg exit code itself into a `CHECK` (`VB_RESULT_ID`/`VB_RESULT_NAME`), so that failure paths through `test_failed` and `internal_error` are never lost.
+  - All of its code lives in the shell's `CODE2` segment, so the test's cycle-timed `CODE` keeps its in-page addresses.
+- `runtime2005/` (asm6f) is for blargg's 2005-era sources.
+  - `to_asm6f.sed` translates that dialect to asm6f.
+  - `validation.a` keeps upstream's entry points (`result` at `$F8`, `error_if_*`, `tests_passed`, `report_final_result`) and reports the result code as one `CHECK`.
+  - `veloce_rom2005.a` and `veloce_rom2005_end.a` form the NROM wrapper; its reset shim writes the `VELOCE` header.
+
 ## 7. Core side: adopting the channel (plugin ABI v2)
 
 `include/emu/emulator_plugin.hpp`, `EMU_PLUGIN_API_VERSION 2`:

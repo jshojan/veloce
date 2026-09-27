@@ -317,6 +317,26 @@ for existing unmodified test ROMs; the full wire format, the plugin ABI
 hook cores implement it through, and the per-console port table are in
 [docs/testing/VELOCE-RESULT.md](docs/testing/VELOCE-RESULT.md).
 
+Test ROMs whose upstream binary cannot report a verdict are rebuilt from source
+so that they write to the port. Each is recorded as `rom_variant: veloce` in a
+core's `test_config.json`. `tests/roms-src/build.py` does the rebuild:
+
+- it fetches each upstream at a pinned commit;
+- it applies the committed patches in `tests/roms-src/<console>/<suite>/`;
+- it builds inside the `tools/rom-toolchain` Docker image;
+- it records every ROM's sha256 and tool versions in `tests/roms-src/rom_manifest.json`.
+
+The ROMs are written to `build/roms/<console>/`. ROM binaries are never
+committed. The harness refuses to score a `veloce` ROM whose hash is not in the
+manifest, and until the ROM has been built the test reports SKIP.
+
+```bash
+python3 tests/roms-src/build.py nes/read_joy3          # one suite
+python3 tests/roms-src/build.py --check nes/read_joy3  # verify against the manifest
+```
+
+Each suite's `PROVENANCE.md` records where every expected value comes from.
+
 ## Project Structure
 
 ```

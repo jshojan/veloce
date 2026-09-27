@@ -30,6 +30,9 @@ Thumbs.db
 *.dylib
 *.a
 *.lib
+# ...except 6502 assembler sources (blargg's 2005-era dialect uses .a):
+# tests/roms-src/include/runtime2005/ is source, not a static library.
+!tests/roms-src/**/*.a
 
 # CMake generated files
 CMakeCache.txt
@@ -77,6 +80,9 @@ artifacts/
 *.gbc
 *.gba
 *-test-roms/
+# NES runner.py's merged ROM view (symlinks into nes-test-roms/ plus veloce/ ->
+# build/roms/nes/, for rom_variant veloce rebuilds)
+cores/nes/tests/_roms/
 mgba-suite/
 nba-hw-test/
 alyosha-gba-tests/

@@ -222,7 +222,13 @@ zero until reference hashes or a `TRACE=1` emitter exist.
 
 `run_tests.sh` is a thin shim over `runner.py`, which calls
 `veloce_testkit.runner.run_console_main("nes", ...)`. The ROM provider clones
-`christopherpow/nes-test-roms` on first run into `tests/nes-test-roms/`.
+`christopherpow/nes-test-roms` on first run into `tests/nes-test-roms/` and
+resolves test paths through `tests/_roms/` (gitignored). That directory holds one
+symlink per top-level entry of the checkout, plus `veloce/` -> `build/roms/nes/`
+for the `rom_variant: veloce` ROMs that `tests/roms-src/build.py` builds (see
+below). The link lives there, not inside `nes-test-roms/`, because worktrees
+often share that one clone. A veloce test whose ROM is not built yet reports
+SKIP ("ROM not found").
 
 ### Coverage (172 tests across 32 suites)
 
@@ -287,8 +293,7 @@ own shipped binary) 16 of the "modern" ca65 shell suites plus Bisqwit's
 `instr_timing`, `instr_misc`, `cpu_reset`, `cpu_interrupts_v2`,
 `ppu_vbl_nmi`, `oam_read`, `oam_stress`, `ppu_open_bus`, `apu_test`,
 `apu_mixer`, `apu_reset`, `mmc3_test`, `mmc3_test_2`, `read_joy3` (only
-`test_buttons.nes`, the one real `$6000` writer in that suite),
-`cpu_dummy_reads`). All 85 rebuild byte-for-byte the same size as upstream
+`test_buttons.nes`; see the correction below), `cpu_dummy_reads`). All 85 rebuild byte-for-byte the same size as upstream
 but a few hundred to ~2000 bytes different (`golden_gate: false`, reason
 recorded per suite; same unconfirmed `--feature force_range`/`longbranch`
 root cause `cpu_dummy_reads/PROVENANCE.md` first wrote up), verified
@@ -304,7 +309,53 @@ image doesn't have; `sprdma_and_dmc_dma` ships no source whatsoever in
 ROMs this covers were patched -- the `channel`/`rom_variant: veloce` config
 flip and the shell patch that emits `VELOCE-RESULT/1` `TEST`/`CHECK` lines
 directly are NES-5's job; this only proves the rebuild pipeline honest
-before that patching starts.
+before that patching starts. (Correction, NES-3: `read_joy3/test_buttons.nes`
+is not a `$6000` writer either. Like the rest of its suite, it uses an older
+console+serial shell, so the count of unpatched real writers is 87. It is now
+built as a patched ROM with the other three `read_joy3` ROMs, as described below.)
+
+#### ROMs rebuilt to report over the port (NES-3)
+
+Eleven config entries were labelled `memory`, but their shipped binaries never
+write `$6000`, so they always ended as `RUNS`. Together with
+`read_joy3/test_buttons`, they are now built as `rom_variant: veloce` ROMs that
+write `VELOCE-RESULT/1` over `$401E`. The config addresses them as
+`veloce/<suite>/<rom>.nes` with `channel`/`require_channel: port`. Each suite's
+`PROVENANCE.md` says where every expected value comes from.
+
+- `dmc_dma_during_read4` (5) and `read_joy3` (4): the ca65 sources are rebuilt on
+  blargg's modern shell (`instr_test-v5/source/common`). Each suite keeps its own
+  DMC-sync code, because its timing constants are calibrated against it. A small
+  patch per suite reports through
+  `tests/roms-src/include/veloce-blargg.inc`, which provides:
+  - `VB_BEGIN`;
+  - `VB_CRC`: the shell's CRC-32 against one or more documented hardware results;
+  - `VB_FLAG` and `VB_REG`;
+  - the shell's `exit`, which writes `END`.
+
+  The patch keeps every cycle-timed routine at its original in-page address.
+- `pal_apu_tests` 01-03: the 2005-era sources are translated to asm6f
+  (`include/runtime2005/to_asm6f.sed`) and linked against `runtime2005`, a
+  replacement for blargg's `validation.a` and ROM wrapper that reports the `$F8`
+  result code as one `CHECK`. Tests 01-03 exercise behaviour the NTSC and PAL APUs
+  share, so they are scored. 04-11 stay unwired until a PAL mode exists.
+
+Results on this core (2026-09-27):
+
+| ROM | Result | Why |
+|---|---|---|
+| pal_apu_tests 01/02/03 | PASS | |
+| dma_2007_write, read_write_2007 | PASS | |
+| read_joy3 test_buttons | PASS | uses a deterministic `INPUT` schedule |
+| dma_2007_read | FAIL (known_fail) | got `498c5c5f`, no extra `$2007` reads |
+| dma_4016_read | FAIL (known_fail) | got `fbf7c7b1` = `08 08 08 08 08`, no extra `$4016` clock |
+| double_2007_read | FAIL (known_fail) | a fifth pattern, `d84f6815` |
+| count_errors | 1/2 (known_fail) | `read_joy` stays correct, but 0 DMC conflicts are seen |
+| count_errors_fast | FAIL (known_fail) | 0 corrupted reads |
+| thorough_test | RUNS | the suite's `sync_dmc` never returns at about iteration 330 of 1000; the unmodified build behaves the same |
+
+All of these failures point at one gap: the core's DMC DMA does not repeat the
+CPU read that was in flight.
 
 ### Known measurement gaps
 

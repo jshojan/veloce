@@ -1,9 +1,10 @@
 {
   "schema_version": 2,
   "console": "nes",
-  "description": "Veloce NES authoritative accuracy test suite. Subsystem-organized coverage of CPU (official + illegal opcodes, timing, dummy reads/writes, exec-space, reset, interrupts), PPU (VBlank/NMI, sprite-0 hit, sprite overflow, OAM, open-bus, read-buffer, palette/VRAM, sub-scanline timing), APU (length/envelope/sweep, frame counter IRQ, DMC, mixer, reset, PAL), DMA (sprite + DMC DMA collisions), mappers (NROM..MMC5, VRC, FME-7, scanline IRQ), and input. Detection is the Blargg $6000 memory protocol surfaced by the headless veloce binary as 'Status code: N (PASSED|FAILED)'; visual tests use screenshot-CRC; nestest uses cpu-trace against the golden log.",
+  "description": "Veloce NES authoritative accuracy test suite. Subsystem-organized coverage of CPU (official + illegal opcodes, timing, dummy reads/writes, exec-space, reset, interrupts), PPU (VBlank/NMI, sprite-0 hit, sprite overflow, OAM, open-bus, read-buffer, palette/VRAM, sub-scanline timing), APU (length/envelope/sweep, frame counter IRQ, DMC, mixer, reset, PAL), DMA (sprite + DMC DMA collisions), mappers (NROM..MMC5, VRC, FME-7, scanline IRQ), and input. Detection is the Blargg $6000 memory protocol surfaced by the headless veloce binary as 'Status code: N (PASSED|FAILED)'; visual tests use screenshot-CRC; nestest uses cpu-trace against the golden log. Paths are relative to the nes-test-roms checkout, plus veloce/<suite>/ (a link to build/roms/nes/, written by tests/roms-src/build.py) for rom_variant veloce rebuilds that report through the VELOCE-RESULT/1 file (result_detection file).",
   "timeout_seconds": 60,
   "frame_limit": 2200,
+  "rom_build": {"dockerfile": "tools/rom-toolchain/Dockerfile", "recipes": "tests/roms-src/nes"},
 
   "repositories": {
     "nes-test-roms": {
@@ -458,16 +459,16 @@
 
     "apu_pal": {
       "name": "APU PAL Timing (pal_apu_tests)",
-      "description": "PAL-clocked variants of the APU framing suite. Only meaningful if the emulator can run in PAL mode; otherwise expected to fail on an NTSC-only core.",
+      "description": "PAL-clocked variants of the APU framing suite. 04-11 time the PAL frame sequencer and are only meaningful with a PAL mode (not wired). 01-03 (length counter, length table, frame IRQ flag basics) test behaviour the NTSC and PAL APUs share, with delays long enough for either frame period, so an NTSC core can pass them.",
       "subsystem": "apu",
       "priority": "low",
       "repo": "nes-test-roms",
       "source_url": "https://github.com/christopherpow/nes-test-roms/tree/master/pal_apu_tests",
       "license": "blargg, freely redistributable",
       "tests": [
-        {"file": "pal_apu_tests/01.len_ctr.nes", "accuracy_type": "functional", "expected": "known_fail", "notes": "PAL timing; NTSC-only core cannot pass. Documents PAL gap."},
-        {"file": "pal_apu_tests/02.len_table.nes", "accuracy_type": "functional", "expected": "known_fail"},
-        {"file": "pal_apu_tests/03.irq_flag.nes", "accuracy_type": "timing", "expected": "known_fail"}
+        {"file": "veloce/pal_apu_tests/01.len_ctr.nes", "accuracy_type": "functional", "result_detection": "file", "channel": "port", "require_channel": "port", "rom_variant": "veloce", "expected_checks": 1, "expected": "pass", "notes": "rom_variant veloce: upstream test source translated to asm6f and linked against Veloce runtime2005, reporting blargg's $F8 result code as one CHECK over $401E (tests/roms-src/nes/pal_apu_tests). Build with tests/roms-src/build.py nes/pal_apu_tests; without the build this test SKIPs. Region-neutral: length=2 must be silent after 250 ms either way."},
+        {"file": "veloce/pal_apu_tests/02.len_table.nes", "accuracy_type": "functional", "result_detection": "file", "channel": "port", "require_channel": "port", "rom_variant": "veloce", "expected_checks": 1, "expected": "pass", "notes": "rom_variant veloce: upstream test source translated to asm6f and linked against Veloce runtime2005, reporting blargg's $F8 result code as one CHECK over $401E (tests/roms-src/nes/pal_apu_tests). Build with tests/roms-src/build.py nes/pal_apu_tests; without the build this test SKIPs. The 32-entry length table is the same on NTSC and PAL."},
+        {"file": "veloce/pal_apu_tests/03.irq_flag.nes", "accuracy_type": "timing", "result_detection": "file", "channel": "port", "require_channel": "port", "rom_variant": "veloce", "expected_checks": 1, "expected": "pass", "notes": "rom_variant veloce: upstream test source translated to asm6f and linked against Veloce runtime2005, reporting blargg's $F8 result code as one CHECK over $401E (tests/roms-src/nes/pal_apu_tests). Build with tests/roms-src/build.py nes/pal_apu_tests; without the build this test SKIPs. 20 ms delays exceed both the NTSC and the PAL mode-0 frame period."}
       ]
     },
 
@@ -482,11 +483,11 @@
       "tests": [
         {"file": "sprdma_and_dmc_dma/sprdma_and_dmc_dma.nes", "accuracy_type": "cycle-accurate", "expected": "known_fail", "notes": "Sprite+DMC DMA collision cycle alignment; depends on cycle-accurate DMA halt."},
         {"file": "sprdma_and_dmc_dma/sprdma_and_dmc_dma_512.nes", "accuracy_type": "cycle-accurate", "expected": "known_fail"},
-        {"file": "dmc_dma_during_read4/dma_2007_read.nes", "accuracy_type": "cycle-accurate", "expected": "known_fail", "notes": "DMC DMA stealing a $2007 read cycle."},
-        {"file": "dmc_dma_during_read4/dma_2007_write.nes", "accuracy_type": "cycle-accurate", "expected": "known_fail"},
-        {"file": "dmc_dma_during_read4/dma_4016_read.nes", "accuracy_type": "cycle-accurate", "expected": "known_fail", "notes": "DMC DMA double-clocking the controller read at $4016."},
-        {"file": "dmc_dma_during_read4/double_2007_read.nes", "accuracy_type": "cycle-accurate", "expected": "known_fail"},
-        {"file": "dmc_dma_during_read4/read_write_2007.nes", "accuracy_type": "cycle-accurate", "expected": "known_fail"}
+        {"file": "veloce/dmc_dma_during_read4/dma_2007_read.nes", "accuracy_type": "cycle-accurate", "result_detection": "file", "channel": "port", "require_channel": "port", "rom_variant": "veloce", "expected_checks": 1, "expected": "known_fail", "notes": "DMC DMA stealing a $2007 read cycle: output CRC must be one of the two hardware results in the source header (159a7a8f / 5e3df9c4). Core currently shows no extra $2007 reads (got 498c5c5f). rom_variant veloce: rebuilt on blargg's modern shell with the suite's own DMC sync and reporting over $401E (tests/roms-src/nes/dmc_dma_during_read4). Upstream's binary never writes $6000. Build with tests/roms-src/build.py nes/dmc_dma_during_read4; without the build this test SKIPs."},
+        {"file": "veloce/dmc_dma_during_read4/dma_2007_write.nes", "accuracy_type": "cycle-accurate", "result_detection": "file", "channel": "port", "require_channel": "port", "rom_variant": "veloce", "expected_checks": 1, "expected": "pass", "notes": "DMC DMA during a $2007 write has no effect; upstream's own check_crc value. rom_variant veloce: rebuilt on blargg's modern shell with the suite's own DMC sync and reporting over $401E (tests/roms-src/nes/dmc_dma_during_read4). Upstream's binary never writes $6000. Build with tests/roms-src/build.py nes/dmc_dma_during_read4; without the build this test SKIPs."},
+        {"file": "veloce/dmc_dma_during_read4/dma_4016_read.nes", "accuracy_type": "cycle-accurate", "result_detection": "file", "channel": "port", "require_channel": "port", "rom_variant": "veloce", "expected_checks": 1, "expected": "known_fail", "notes": "DMC DMA double-clocking the controller read at $4016; upstream's own check_crc value (hardware: 08 08 07 08 08). Core currently shows no extra read (got fbf7c7b1). rom_variant veloce: rebuilt on blargg's modern shell with the suite's own DMC sync and reporting over $401E (tests/roms-src/nes/dmc_dma_during_read4). Upstream's binary never writes $6000. Build with tests/roms-src/build.py nes/dmc_dma_during_read4; without the build this test SKIPs."},
+        {"file": "veloce/dmc_dma_during_read4/double_2007_read.nes", "accuracy_type": "cycle-accurate", "result_detection": "file", "channel": "port", "require_channel": "port", "rom_variant": "veloce", "expected_checks": 1, "expected": "known_fail", "notes": "Back-to-back $2007 reads: output CRC must be one of the four hardware results in the source header. Core currently gives a fifth pattern (got d84f6815). rom_variant veloce: rebuilt on blargg's modern shell with the suite's own DMC sync and reporting over $401E (tests/roms-src/nes/dmc_dma_during_read4). Upstream's binary never writes $6000. Build with tests/roms-src/build.py nes/dmc_dma_during_read4; without the build this test SKIPs."},
+        {"file": "veloce/dmc_dma_during_read4/read_write_2007.nes", "accuracy_type": "cycle-accurate", "result_detection": "file", "channel": "port", "require_channel": "port", "rom_variant": "veloce", "expected_checks": 1, "expected": "pass", "notes": "$2007 read just before a write; upstream's own check_crc value. rom_variant veloce: rebuilt on blargg's modern shell with the suite's own DMC sync and reporting over $401E (tests/roms-src/nes/dmc_dma_during_read4). Upstream's binary never writes $6000. Build with tests/roms-src/build.py nes/dmc_dma_during_read4; without the build this test SKIPs."}
       ]
     },
 
@@ -581,10 +582,10 @@
       "source_url": "https://github.com/christopherpow/nes-test-roms/tree/master/read_joy3",
       "license": "blargg, freely redistributable",
       "tests": [
-        {"file": "read_joy3/test_buttons.nes", "accuracy_type": "functional", "result_detection": "screenshot-crc", "screenshot_frame": 120, "expected": "known_fail", "reference_hash": "", "notes": "Interactive/visual; needs scripted input or reference hash. Documents input coverage."},
-        {"file": "read_joy3/thorough_test.nes", "accuracy_type": "functional", "expected": "known_fail", "notes": "May require controller input injection; verify detection."},
-        {"file": "read_joy3/count_errors.nes", "accuracy_type": "timing", "expected": "known_fail", "notes": "Counts controller-read corruption from DMC DMA; depends on cycle-accurate DMA."},
-        {"file": "read_joy3/count_errors_fast.nes", "accuracy_type": "timing", "expected": "known_fail"}
+        {"file": "veloce/read_joy3/test_buttons.nes", "accuracy_type": "functional", "result_detection": "file", "channel": "port", "require_channel": "port", "rom_variant": "veloce", "expected_checks": 1, "input": "30:1,40:0,60:2,70:0,90:80,100:0,120:40,130:0,150:100,160:0,180:200,190:0,210:400,220:0,240:800,250:0", "expected": "pass", "notes": "Presses A, B, Select, Start, Up, Down, Left, Right one at a time (INPUT schedule, 30 frames apart) while DMC plays; upstream's own tests_passed/test_failed verdict. rom_variant veloce: rebuilt on blargg's modern shell with the suite's own DMC sync and reporting over $401E (tests/roms-src/nes/read_joy3). Upstream's binary never writes $6000. Build with tests/roms-src/build.py nes/read_joy3; without the build this test SKIPs."},
+        {"file": "veloce/read_joy3/thorough_test.nes", "accuracy_type": "functional", "result_detection": "file", "channel": "port", "require_channel": "port", "rom_variant": "veloce", "expected_checks": 1, "frames": 2400, "expected": "known_fail", "notes": "read_joy with DMC DMA at every timing (1000 iterations, no buttons held); upstream's own verdict. Needs no input. Core currently never finishes: the suite's sync_dmc spins forever at about iteration 330 (same with the unmodified old-shell build), so the run ends RUNS. rom_variant veloce: rebuilt on blargg's modern shell with the suite's own DMC sync and reporting over $401E (tests/roms-src/nes/read_joy3). Upstream's binary never writes $6000. Build with tests/roms-src/build.py nes/read_joy3; without the build this test SKIPs."},
+        {"file": "veloce/read_joy3/count_errors.nes", "accuracy_type": "timing", "result_detection": "file", "channel": "port", "require_channel": "port", "rom_variant": "veloce", "expected_checks": 2, "expected": "known_fail", "notes": "Check 1: read_joy's result stays correct with DMC playing (upstream's verdict). Check 2: at least one DMC/controller-read conflict is seen in 1000 reads (the NTSC 2A03 behaviour the ROM demonstrates; REG lines carry the count). Core currently shows 0 conflicts. rom_variant veloce: rebuilt on blargg's modern shell with the suite's own DMC sync and reporting over $401E (tests/roms-src/nes/read_joy3). Upstream's binary never writes $6000. Build with tests/roms-src/build.py nes/read_joy3; without the build this test SKIPs."},
+        {"file": "veloce/read_joy3/count_errors_fast.nes", "accuracy_type": "timing", "result_detection": "file", "channel": "port", "require_channel": "port", "rom_variant": "veloce", "expected_checks": 1, "expected": "known_fail", "notes": "At least one DMC-corrupted read_joy_fast in 1000 reads (upstream only counts; see PROVENANCE.md). Core currently shows 0 errors. rom_variant veloce: rebuilt on blargg's modern shell with the suite's own DMC sync and reporting over $401E (tests/roms-src/nes/read_joy3). Upstream's binary never writes $6000. Build with tests/roms-src/build.py nes/read_joy3; without the build this test SKIPs."}
       ]
     }
   },
@@ -594,11 +595,11 @@
     "reset_tests": "cpu_reset/*, apu_reset/*, blargg_apu_2005/09.reset_timing require a reset button to be injected mid-run. The headless harness has no reset hook, so these are unverified.",
     "cpu_interrupts": "2-nmi_and_brk, 3-nmi_and_irq, 4-irq_and_dma remain off by 1 cycle/iteration; depend on cycle-accurate DMA and APU-frame-IRQ vs NMI edge ordering.",
     "apu_frame_timing": "blargg_apu_2005 04-11 and apu_test 4-6 frame-counter/length cycle-edge tests fail on sub-cycle jitter alignment.",
-    "dma_collisions": "sprdma_and_dmc_dma and dmc_dma_during_read4 require exact DMC-DMA halt/steal cycles; currently unverified-fail.",
+    "dma_collisions": "sprdma_and_dmc_dma requires exact DMC-DMA halt/steal cycles; currently unverified-fail. dmc_dma_during_read4 (rebuilt, NES-3) reports over the result file: dma_2007_write and read_write_2007 pass; dma_2007_read, dma_4016_read and double_2007_read fail because the core's DMC DMA does not repeat the in-flight $2007/$4016 read. read_joy3 count_errors/count_errors_fast see zero conflicts for the same reason, and thorough_test hangs in the suite's sync_dmc.",
     "mmc3_scanline_timing": "mmc3_test(_2)/4-scanline_timing expects A12 to rise ~104 cycles earlier than the current render schedule does; mmc3_irq_tests/4 passes with tolerance.",
     "unstable_opcodes": "instr_test-v5/03-immediate, all_instrs, cpu.nes, nes_instr_test 02-immediate include ANE/LAX#/SHA/SHX/SHY/TAS whose results are analog/chip-dependent and cannot deterministically pass.",
-    "pal": "pal_apu_tests and any PAL-timed test fail on the NTSC-only core; included to document the PAL gap.",
-    "visual_refs": "screenshot-crc suites (timing charts, full_palette, scanline, mmc5test, read_joy3 test_buttons) need reference_hash values generated via `run_tests.sh --generate-refs` on a trusted build before they count toward the score."
+    "pal": "pal_apu_tests 04-11 and any other PAL-timed test cannot pass on the NTSC-only core (not wired). 01-03 test region-neutral behaviour and are scored.",
+    "visual_refs": "screenshot-crc suites (timing charts, full_palette, scanline, mmc5test) need reference_hash values generated via `run_tests.sh --generate-refs` on a trusted build before they count toward the score."
   },
 
   "references": {
