@@ -190,8 +190,8 @@ methodology and the platform-wide picture see the top-level
 
 Headline accuracy is **approximately 90-94%**, dominated by CPU and PPU. This is
 the most thoroughly verified Veloce core because most critical tests use the
-Blargg `$6000` `memory` protocol, which the binary reads directly under
-`DEBUG=1` (no reference hashes needed). Measured 2026-06-02 against
+Blargg `$6000` `memory` protocol, which the core's `blargg6000` adapter
+streams into the `VELOCE_TEST_OUT` result file (no reference hashes needed). Measured 2026-06-02 against
 `build/bin/veloce`.
 
 | Subsystem | Verified score | Notes |
@@ -237,9 +237,20 @@ zero until reference hashes or a `TRACE=1` emitter exist.
 
 ### Result detection
 
-- **memory** (Blargg `$6000` protocol): the headless binary prints
-  `Status code: N (PASSED|FAILED)`; `0` is a pass. Used by the newer
-  `rom_singles` / v5 suites.
+- **result file** (`VELOCE_TEST_OUT`, format in
+  [docs/testing/VELOCE-RESULT.md](../../docs/testing/VELOCE-RESULT.md)): the
+  core's `nes::TestChannel` (`src/test_channel.hpp`) feeds two drivers into the
+  file. The **port** takes `$401E` data bytes, `$401F` control writes and
+  answers a `$401F` probe read with `$56`, for ROMs rebuilt with the Veloce
+  emitter. The **`blargg6000` adapter** serves unmodified Blargg ROMs: it
+  follows the ROM's writes to the `$6000` status byte, the `DE B0 61`
+  signature and the `$6004` text, streams the text as `LOG` lines, and turns a
+  final status into `END 1/1` (status `0`) or `END 0/1 code=N`. Status `$81`
+  ("press reset") makes the application reset the console, which runs the
+  `apu_reset`/`cpu_reset` ROMs. The deprecated `memory` detection alias reads
+  the same file. Nothing is printed to stdout/stderr, and `DEBUG` plays no
+  part. While a sink is attached, CPU RAM and PRG-RAM start from fixed
+  contents (`$00`), so a stale battery save cannot change a run.
 - **screenshot-crc** (visual): older 2005-era Blargg suites
   (`sprite_hit_tests_2005`, `sprite_overflow_tests`, `vbl_nmi_timing`,
   `blargg_ppu_tests_2005`, `mmc3_irq_tests`, `blargg_nes_cpu_test5`,
@@ -252,10 +263,11 @@ zero until reference hashes or a `TRACE=1` emitter exist.
 ### Known measurement gaps
 
 The nestest golden trace (needs a `TRACE=1` emitter plus the golden
-`nestest.log`), reset-injection tests, screenshot-crc reference hashes, PAL
-framing, unstable illegal immediates, and narrow mapper breadth are all
-documented with their impact in
-[COMPLETENESS.md](../../COMPLETENESS.md#nes). Optional mapper PCB stress ROMs
+`nestest.log`), screenshot-crc reference hashes, PAL framing, unstable
+illegal immediates, and narrow mapper breadth are all documented with their
+impact in [COMPLETENESS.md](../../COMPLETENESS.md#nes). Reset-injection tests
+(`apu_reset`, `cpu_reset`) now run through the `blargg6000` adapter's `$81`
+handshake. Optional mapper PCB stress ROMs
 from `pinobatch/holy-mapperel` are referenced in the config but not auto-fetched;
 build them from that GPL repo and drop the per-mapper `.nes` files in to extend
 mapper coverage.

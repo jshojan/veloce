@@ -133,7 +133,7 @@ bool Cartridge::load(const uint8_t* data, size_t size) {
     if (m_mapper_number == 1 && prg_size > 256 * 1024) {
         prg_ram_size = 32768;
     }
-    m_prg_ram.resize(prg_ram_size, 0);
+    m_prg_ram.resize(prg_ram_size, kPowerOnPrgRamFill);
 
     // Calculate CRC32 of PRG+CHR ROM (excluding header)
     m_crc32 = calculate_crc32(data + sizeof(iNESHeader) + (m_has_trainer ? 512 : 0),

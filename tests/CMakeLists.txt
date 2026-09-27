@@ -6,6 +6,7 @@
 # Targets registered:
 #   testkit_selftest    - fast pure-logic unit test (no ROMs, no emulator)
 #   test_file_sink      - C++ unit test of the VELOCE_TEST_OUT sink (stub plugin)
+#   nes_test_channel    - C++ unit test of the NES $401E port + blargg6000 adapter
 #   validate_configs    - schema validation of every test_config.json
 #   accuracy_<console>  - full per-console accuracy run (needs network for ROMs)
 #   accuracy_all        - cross-console aggregate scorecard
@@ -41,6 +42,18 @@ target_include_directories(test_file_sink PRIVATE
 )
 add_test(NAME test_file_sink COMMAND test_file_sink)
 set_tests_properties(test_file_sink PROPERTIES LABELS "unit;fast")
+
+# NES test channel: $401E/$401F port + blargg6000 adapter against a recording sink.
+add_executable(nes_test_channel_test
+    ${VELOCE_TESTS_DIR}/cpp/nes_test_channel_test.cpp
+    ${CMAKE_SOURCE_DIR}/cores/nes/src/test_channel.cpp
+)
+target_include_directories(nes_test_channel_test PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/cores/nes/src
+)
+add_test(NAME nes_test_channel COMMAND nes_test_channel_test)
+set_tests_properties(nes_test_channel PROPERTIES LABELS "unit;fast")
 
 # --- per-console accuracy suites (slow: download ROMs, run emulator) ------
 foreach(console nes snes gb gba)

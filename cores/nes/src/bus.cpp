@@ -4,15 +4,12 @@
 #include "apu.hpp"
 #include "cartridge.hpp"
 #include "mappers/mapper.hpp"
-#include "debug.hpp"
-
-#include <cstdio>
 #include <cstring>
 
 namespace nes {
 
 Bus::Bus() {
-    m_ram.fill(0);
+    power_on_ram();
 }
 
 Bus::~Bus() = default;
@@ -143,7 +140,11 @@ uint8_t Bus::cpu_peek(uint16_t address) const {
         else if (address == 0x4017) {
             return const_cast<Bus*>(this)->read_controller(1);
         }
-        else if (m_apu) {
+        uint8_t probe = 0;
+        if (m_test_channel.port_read(address, probe)) {
+            return probe;
+        }
+        if (m_apu) {
             return const_cast<APU*>(m_apu)->cpu_read(address);
         }
         return 0;
@@ -169,6 +170,11 @@ void Bus::cpu_write(uint16_t address, uint8_t value) {
         }
     }
     else if (address < 0x4020) {
+        // Test-result port ($401E/$401F), only while a sink is attached;
+        // otherwise these fall through to the APU exactly as before.
+        if (m_test_channel.port_write(address, value)) {
+            return;
+        }
         // APU and I/O registers
         if (address == 0x4014) {
             // OAM DMA - start cycle-accurate DMA
@@ -203,6 +209,10 @@ void Bus::cpu_write(uint16_t address, uint8_t value) {
         // Cartridge space
         if (m_cartridge) {
             m_cartridge->cpu_write(address, value);
+        }
+        // blargg $6000 result block (test runs only)
+        if (address >= 0x6000 && address < 0x8000 && m_test_channel.attached()) {
+            m_test_channel.cart_write(address, value);
         }
     }
 }
@@ -392,51 +402,6 @@ int Bus::get_mirror_mode() const {
         return static_cast<int>(m_cartridge->get_mirror_mode());
     }
     return 0;  // Default to horizontal
-}
-
-void Bus::check_test_output() {
-    // Only check in debug mode
-    if (!is_debug_mode()) return;
-
-    // Check for test ROM signature: 0xDE 0xB0 0x61 at $6001-$6003
-    uint8_t sig1 = cpu_peek(0x6001);
-    uint8_t sig2 = cpu_peek(0x6002);
-    uint8_t sig3 = cpu_peek(0x6003);
-
-    // Debug: show what's at $6000 (every time, until signature found)
-    static int check_count = 0;
-    if (check_count < 10 && !(sig1 == 0xDE && sig2 == 0xB0 && sig3 == 0x61)) {
-        fprintf(stderr, "Test check #%d: $6000=%02X sig=%02X %02X %02X\n",
-                check_count++, cpu_peek(0x6000), sig1, sig2, sig3);
-    }
-
-    if (sig1 == 0xDE && sig2 == 0xB0 && sig3 == 0x61) {
-        uint8_t status = cpu_peek(0x6000);
-
-        // Status: 0x80 = running, 0x81 = needs reset, 0x00-0x7F = finished with result
-        static bool result_printed = false;
-        static uint8_t last_status = 0x80;
-        if (status < 0x80 && !result_printed) {
-            result_printed = true;
-            last_status = status;
-            fprintf(stderr, "\n=== TEST ROM RESULT ===\n");
-            fprintf(stderr, "Status code: %d (%s)\n", status,
-                    status == 0 ? "PASSED" : "FAILED");
-
-            // Read text output from $6004
-            fprintf(stderr, "Output: ");
-            for (int i = 0; i < 200; i++) {
-                uint8_t c = cpu_peek(0x6004 + i);
-                if (c == 0) break;
-                if (c >= 32 && c < 127) {
-                    fputc(c, stderr);
-                } else if (c == '\n') {
-                    fputc('\n', stderr);
-                }
-            }
-            fprintf(stderr, "\n=======================\n");
-        }
-    }
 }
 
 // Save state serialization

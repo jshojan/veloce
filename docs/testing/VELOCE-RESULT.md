@@ -116,6 +116,8 @@ Partial credit is `progress = pass/total`, which feeds the existing `score_test(
 | GB | `SB`/`$FF01` + `SC=$81` (every byte, raw) | none | real serial output | `mooneye` (`LD B,B` + Fibonacci fingerprint), `a000` (blargg `$A000` block), `hram` (`$FF80-82` GBMicrotest) |
 | GBA | mGBA `0x4FFF600` string + `0x4FFF700` flush (`level \| 0x100`) | `0x4FFF780`: write `0xC0DE`, read `0x1DEA` | inert | `r12` (stable one-instruction loop, R12 = failing test) |
 
+Port and adapter on one ROM (NES): the first write to `$401E` or `$401F` silences the `blargg6000` adapter's `LOG` and `END` output for the rest of the run, so a patched blargg shell that keeps its `$6000` block does not produce a second `END`. The `0x81` reset request still works. A patched ROM should write to the port (`VT_BEGIN`, or `$401F` = `$00`) before its first `$6004` text; otherwise the adapter has already written `#VELOCE adapter=blargg6000` and `require_channel: port` scores the run as `SKIP`. The adapter follows the bytes the ROM writes to `$6000-$7FFF`, never a read of cart RAM. A battery save loaded by the host therefore cannot produce a verdict.
+
 Channel names used in `channels=`, `#VELOCE adapter=` and the config `channel` field: `port`, `serial`, `mgba`, `blargg6000`, `a000`, `hram`, `sram`, `stp`, `spcport`, `mooneye`, `r12`. Per console: NES `port, blargg6000`; SNES `port, blargg6000, stp, sram, spcport`; GB `serial, mooneye, a000, hram`; GBA `mgba, r12`.
 
 ## 6. Emitter vocabulary (ROM side)
