@@ -71,6 +71,9 @@ screenshots/
 *-test-roms/
 mgba-suite/
 nba-hw-test/
+alyosha-gba-tests/
+armwrestler/
+fuzzarm/
 
 # Logs
 *.log
