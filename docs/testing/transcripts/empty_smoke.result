@@ -1,0 +1,6 @@
+#VELOCE 1 core=GB rom_crc32=e4d3c2b1 channels=serial,mooneye,a000,hram
+VELOCE 1 gb veloce_smoke
+LOG hello from veloce_smoke
+REG a=01 f=b0 b=00 c=13
+END 0/0
+#VELOCE end reason=terminator frames=3 cycles=210672 status=0

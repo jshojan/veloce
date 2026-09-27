@@ -1,0 +1,8 @@
+#VELOCE 1 core=NES rom_crc32=c6d0a7e1 channels=port,blargg6000
+#VELOCE adapter=blargg6000
+LOG Press reset AFTER this text disappears
+#VELOCE reset n=1 frame=64
+#VELOCE reset n=2 frame=128
+#VELOCE reset n=3 frame=192
+#VELOCE reset_limit=3
+#VELOCE end reason=reset_limit frames=253 cycles=7523170 resets=3

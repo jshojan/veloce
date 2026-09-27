@@ -1,0 +1,7 @@
+#VELOCE 1 core=SNES rom_crc32=8e5c77d0 channels=port,blargg6000,stp,sram
+#VELOCE adapter=stp
+#VELOCE stp=00:8123 cgram0=03e0
+#VELOCE blob name=sram bytes=8192 sha256=9f0a6a1d4b6f2c8e3d5a7b9c1e0f2a4b6c8d0e1f3a5b7c9d1e2f4a6b8c0d2e4f
+#VELOCE blob name=cgram bytes=512 sha256=0b3c5d7e9f1a2b4c6d8e0f1a3b5c7d9e1f2a4b6c8d0e1f3a5b7c9d0e2f4a6b8c
+END 1/1
+#VELOCE end reason=terminator frames=18 cycles=6446556 status=0

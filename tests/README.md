@@ -41,11 +41,12 @@ Per-test fields (`TestSpec`):
 | `file` (alias `path`) | string | ROM path under the suite's repo dir |
 | `subsystem` | `cpu` `ppu` `apu` `timing` `memory` `mapper` `misc` | scoring bucket |
 | `accuracy_type` | `functional` `timing` `cycle-accurate` `visual` | rigor of the test |
-| `result_detection` | `memory` `serial` `screenshot-crc` `cpu-trace` | how pass/fail is read |
+| `result_detection` | `file` `cpu-trace` `screenshot-crc` (`memory` `serial`: deprecated aliases of `file`) | how pass/fail is read |
 | `expected` | `pass` `known_fail` `<int>` `<crc hex>` | expected verdict |
 | `priority` | `critical` `high` `medium` `low` | importance multiplier |
 | `source_url`, `license` | string | provenance + license of the ROM |
 | extras | `frames`, `screenshot_frame`, `reference_hash`, `trace_log`, `trace_limit` | detection-specific |
+| `file` extras | `channel`, `require_channel`, `rom_variant`, `expected_checks`, `allow_empty`, `resets`, `input` | see [VELOCE-RESULT.md](../docs/testing/VELOCE-RESULT.md#8-testkit-and-config) |
 
 Suites carry defaults (`subsystem`, `priority`, `repo`) that tests inherit.
 Validate any config with `python tests/validate_configs.py <console>`.
@@ -55,7 +56,16 @@ Validate any config with `python tests/validate_configs.py <console>`.
 ## 2. Result-detection conventions
 
 Implemented in `detect.py`; all return a `DetectionResult(status, detail,
-status_code, progress)`.
+status_code, progress)` (plus `checks`, `end_reason`, `frames_used`, `adapter`
+for the file method).
+
+* **`file` (all consoles).** The harness always sets `VELOCE_TEST_OUT`; the
+  application writes the ROM's VELOCE-RESULT/1 stream (`CHECK`/`END` lines) to
+  that file and `detect_result_file()` scores it with per-check detail. Spec:
+  [docs/testing/VELOCE-RESULT.md](../docs/testing/VELOCE-RESULT.md). `memory` and
+  `serial` below are deprecated aliases: the file wins once the core emits to it;
+  until then the stdout parsers are the fallback (the only case where the
+  harness still sets `DEBUG=1`).
 
 * **`memory` (Blargg, NES/SNES).** ROM writes status to `$6000` (`0x00`=pass,
   `0x01-0x7F`=fail code, `0x80`=running, `0x81`=needs reset), signature

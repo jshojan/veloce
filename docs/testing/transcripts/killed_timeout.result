@@ -1,0 +1,5 @@
+#VELOCE 1 core=SNES rom_crc32=31b5a0e2 channels=port,blargg6000
+VELOCE 1 snes spc.timer
+CHECK 1 PASS t0_rate
+CHECK 2 PASS t1_rate
+TEST 3 t2_rate

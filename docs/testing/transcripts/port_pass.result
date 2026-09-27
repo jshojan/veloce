@@ -1,0 +1,12 @@
+#VELOCE 1 core=NES rom_crc32=5e3c0d91 channels=port,blargg6000
+VELOCE 1 nes cpu.instr_basics
+INFO region=ntsc revision=veloce-1
+TEST 1 lda_imm
+CHECK 1 PASS lda_imm
+TEST 2 sta_zp
+REG a=42 x=00 y=00 p=24 s=fd
+CHECK 2 PASS sta_zp
+TEST 3 branch_page_cross
+CHECK 3 PASS branch_page_cross
+END 3/3
+#VELOCE end reason=terminator frames=41 cycles=1219408 status=0

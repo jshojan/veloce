@@ -1,0 +1,10 @@
+#VELOCE 1 core=NES rom_crc32=c6d0a7e1 channels=port,blargg6000
+#VELOCE adapter=blargg6000
+LOG 4015_cleared
+LOG
+LOG Press reset AFTER this text disappears
+#VELOCE reset n=1 frame=64
+LOG
+LOG Passed
+END 1/1
+#VELOCE end reason=terminator frames=131 cycles=3896612 status=0 resets=1

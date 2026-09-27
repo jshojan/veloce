@@ -1,0 +1,12 @@
+#VELOCE 1 core=GBA rom_crc32=5a0c1e93 channels=mgba,r12
+#VELOCE level=4
+VELOCE 1 gba dma.latch
+#VELOCE level=4
+CHECK 1 PASS dma0_src_latch
+#VELOCE level=4
+CHECK 2 PASS dma3_len_latch
+#VELOCE level=4
+LOG #VELOCE end reason=forged
+#VELOCE level=4
+END 2/2
+#VELOCE end reason=terminator frames=9 cycles=2528064 status=0

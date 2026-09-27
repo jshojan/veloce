@@ -80,5 +80,331 @@ card = score_console("nes", [cyc, fail_apu])
 check("console rollup weights importance", 0.60 < card.overall < 0.69)
 check("uncovered subsystems flagged", "ppu" in card.uncovered_subsystems)
 
+
+# ===========================================================================
+# VELOCE-RESULT/1 file detector: reference transcripts (docs/testing/transcripts)
+# ===========================================================================
+import json  # noqa: E402
+import shutil  # noqa: E402
+import subprocess  # noqa: E402
+
+from veloce_testkit.detect import (  # noqa: E402
+    detect_result_file, parse_result_file,
+)
+
+REPO = Path(__file__).resolve().parents[2]
+TRANSCRIPTS = REPO / "docs" / "testing" / "transcripts"
+manifest = json.loads((TRANSCRIPTS / "expected.json").read_text())
+check("transcript manifest has cases", len(manifest["cases"]) >= 20)
+for case in manifest["cases"]:
+    fpath = TRANSCRIPTS / case["file"]
+    opts = case.get("options", {})
+    det = detect_result_file(fpath, **opts)
+    rf = parse_result_file(fpath)
+    label = f"{case['file']} {opts or ''}".strip()
+    ok = det.status.value == case["status"]
+    if rf.checks:
+        tally = (sum(c.passed for c in rf.checks), len(rf.checks))
+    elif rf.end is not None:
+        tally = rf.end
+    else:
+        tally = (0, 0)
+    if "pass" in case:
+        ok &= tally == (case["pass"], case["total"])
+    if "progress" in case:
+        ok &= abs(det.progress - case["progress"]) < 1e-3
+    for key in ("end_reason", "frames_used", "adapter"):
+        if key in case:
+            ok &= getattr(det, key) == case[key]
+    if "status_code" in case:
+        ok &= det.status_code == case["status_code"]
+    if "resets" in case:
+        ok &= rf.resets == case["resets"]
+    if "blobs" in case:
+        ok &= len(rf.blobs) == case["blobs"]
+    if "has_verdict" in case:
+        ok &= rf.has_verdict == case["has_verdict"]
+    if not ok:
+        print(f"    got status={det.status.value} tally={tally} progress={det.progress:.4f} "
+              f"code={det.status_code} reason={det.end_reason} adapter={det.adapter!r} "
+              f"detail={det.detail!r}")
+    check(f"transcript {label} -> {case['status']}", ok)
+
+# per-check detail survives parsing
+_pf = detect_result_file(TRANSCRIPTS / "port_fail_partial.result")
+check("check detail exp/got/mask",
+      [(c.id, c.passed, c.exp, c.got, c.mask) for c in _pf.checks] ==
+      [("1", True, "", "", ""), ("2", False, "01a0", "00a0", ""), ("3", False, "30", "31", "c3")])
+check("check detail in verdict text", "exp=01a0 got=00a0" in _pf.detail)
+_ml = parse_result_file(TRANSCRIPTS / "mgba_levels.result")
+check("forged #VELOCE in LOG does not become the trailer",
+      _ml.trailer.get("reason") == "terminator" and _ml.notes.get("level") == "4")
+_nf = parse_result_file(TRANSCRIPTS / "no_end_fail.result")
+check("check 'at=' parsed", _nf.checks[1].at == "2002")
+
+# ===========================================================================
+# schema v2 fields + validator rules
+# ===========================================================================
+from veloce_testkit.schema import (  # noqa: E402
+    load_config, validate_config, DetectionMethod,
+)
+
+_tmp = Path(tempfile.mkdtemp(prefix="veloce_selftest_"))
+
+
+def _write_cfg(console: str, doc: dict) -> Path:
+    root = _tmp / f"repo_{console}_{len(list(_tmp.iterdir()))}"
+    (root / "tests").mkdir(parents=True)
+    d = root / "cores" / console / "tests"
+    d.mkdir(parents=True)
+    doc = {"schema_version": 2, "console": console, **doc}
+    p = d / "test_config.json"
+    p.write_text(json.dumps(doc))
+    return p
+
+
+def _suite(*tests, **kw):
+    return {"name": "s", "subsystem": "cpu", "tests": list(tests), **kw}
+
+
+def _validate(console, doc):
+    w: list[str] = []
+    e = validate_config(_write_cfg(console, doc), console, w)
+    return e, w
+
+
+_shot = {"file": "a.nes", "result_detection": "screenshot-crc", "expected": "known_fail"}
+e, w = _validate("nes", {"test_suites": {"v": _suite(_shot)}})
+check("legacy: bare screenshot-crc is a warning", not e and any("screenshot-crc" in x for x in w))
+e, w = _validate("nes", {"result_policy": "strict", "test_suites": {"v": _suite(_shot)}})
+check("strict: bare screenshot-crc is an error", any("visual_test_suites" in x for x in e))
+e, w = _validate("nes", {"result_policy": "strict", "visual_test_suites": {"v": _suite(_shot)}})
+check("strict: screenshot-crc under visual_test_suites ok", not e)
+e, _ = _validate("gba", {"result_policy": "strict", "test_suites": {"s": _suite(
+    {"file": "a.gba", "result_detection": "file", "channel": "r12"})}})
+check("strict: Tier C channel rejected", any("Tier C" in x for x in e))
+e, _ = _validate("gba", {"test_suites": {"s": _suite(
+    {"file": "a.gba", "result_detection": "file", "channel": "r12"})}})
+check("legacy: Tier C channel allowed", not e)
+e, _ = _validate("nes", {"result_policy": "strict", "test_suites": {"s": _suite(
+    {"file": "a.nes", "result_detection": "memory"})}})
+check("strict: memory alias rejected", any("deprecated" in x for x in e))
+e, _ = _validate("gb", {"test_suites": {"s": _suite(
+    {"file": "a.gb", "result_detection": "file", "channel": "port"})}})
+check("channel must belong to the console", any("not a gb channel" in x for x in e))
+e, _ = _validate("nes", {"test_suites": {"s": _suite(
+    {"file": "a.nes", "result_detection": "cpu-trace", "trace_log": "x.log", "channel": "port"})}})
+check("channel only on file-family tests", any("sets channel" in x for x in e))
+e, _ = _validate("nes", {"test_suites": {"s": _suite(
+    {"file": "a.nes", "result_detection": "file", "rom_variant": "veloce"})}})
+check("rom_variant veloce needs rom_build.recipes", any("rom_build.recipes" in x for x in e))
+_p = _write_cfg("nes", {"rom_build": {"recipes": "tests/roms-src/nes/build.py"},
+                        "test_suites": {"s": _suite(
+                            {"file": "a.nes", "result_detection": "file", "rom_variant": "veloce",
+                             "channel": "port", "require_channel": "port", "expected_checks": 4,
+                             "allow_empty": False, "resets": 1, "input": "200:40,201:0"})}})
+(_p.parents[3] / "tests" / "roms-src" / "nes").mkdir(parents=True)
+(_p.parents[3] / "tests" / "roms-src" / "nes" / "build.py").write_text("")
+check("rom_variant veloce with existing recipe ok", validate_config(_p, "nes") == [])
+_t = load_config(_p, "nes").suites[0].tests[0]
+check("v2 fields parsed",
+      (_t.result_detection, _t.channel, _t.require_channel, _t.rom_variant, _t.expected_checks,
+       _t.allow_empty, _t.resets, _t.input) ==
+      (DetectionMethod.FILE, "port", "port", "veloce", 4, False, 1, "200:40,201:0"))
+e, _ = _validate("nes", {"test_suites": {"s": _suite(
+    {"file": "a.nes", "result_detection": "file", "expected_checks": -1, "input": "abc"})}})
+check("expected_checks / input validated",
+      any("expected_checks" in x for x in e) and any("input" in x for x in e))
+e, _ = _validate("nes", {"test_suites": {"s": _suite({"file": "a.nes", "result_detection": "bogus"})}})
+check("unknown result_detection rejected", any("unknown result_detection" in x for x in e))
+
+# ===========================================================================
+# harness: env contract + end-to-end with a fake emulator
+# ===========================================================================
+from veloce_testkit.harness import Harness, RunSettings  # noqa: E402
+from veloce_testkit.runner import result_to_dict  # noqa: E402
+
+_fake = _tmp / "fake_veloce"
+_fake.write_text(f"""#!{sys.executable}
+# Fake veloce: the "ROM" is JSON telling it what to do.
+import json, os, shutil, sys, time
+spec = json.load(open(sys.argv[1]))
+out = os.environ.get("VELOCE_TEST_OUT")
+if spec.get("copy") and out:
+    shutil.copyfile(spec["copy"], out)
+if spec.get("stderr"):
+    sys.stderr.write(spec["stderr"] + "\\n")
+if spec.get("dump_env"):
+    json.dump(dict(os.environ), open(spec["dump_env"], "w"))
+time.sleep(spec.get("sleep", 0))
+sys.exit(spec.get("exit", 0))
+""")
+_fake.chmod(0o755)
+
+_roms = _tmp / "roms"
+_roms.mkdir()
+
+
+def _rom(name: str, **spec) -> str:
+    (_roms / name).write_text(json.dumps(spec))
+    return name
+
+
+_hcfg_path = _write_cfg("nes", {"timeout_seconds": 2, "frame_limit": 900, "test_suites": {"s": _suite(
+    {"id": "t.file_fail", "file": _rom("file_fail.nes", copy=str(TRANSCRIPTS / "port_fail_partial.result")),
+     "result_detection": "file"},
+    {"id": "t.alias_stdout", "file": _rom("alias_stdout.nes", copy=str(TRANSCRIPTS / "no_channel.result"),
+                                          stderr="BLARGG_STATUS: 0x00"),
+     "result_detection": "memory"},
+    {"id": "t.alias_file_wins", "file": _rom("alias_file.nes", copy=str(TRANSCRIPTS / "blargg6000_fail.result"),
+                                             stderr="BLARGG_STATUS: 0x00"),
+     "result_detection": "memory"},
+    {"id": "t.no_file", "file": _rom("no_file.nes"), "result_detection": "file"},
+    {"id": "t.hang", "file": _rom("hang.nes", copy=str(TRANSCRIPTS / "killed_timeout.result"), sleep=10),
+     "result_detection": "file"},
+    {"id": "t.crash", "file": _rom("crash.nes", copy=str(TRANSCRIPTS / "killed_timeout.result"), exit=139),
+     "result_detection": "file"},
+    {"id": "t.env", "file": _rom("env.nes", dump_env=str(_tmp / "env.json")),
+     "result_detection": "file", "resets": 1, "input": "10:1", "frames": 77},
+)}})
+_hcfg = load_config(_hcfg_path, "nes")
+_h = Harness(_hcfg, RunSettings(project_root=_tmp, roms_dir=_roms, artifacts_dir=_tmp / "artifacts",
+                                emulator=_fake, console="nes"))
+_tests = {t.id: t for t in _hcfg.suites[0].tests}
+
+_env, _paths = _h.build_env(_tests["t.file_fail"], base={"DEBUG": "1", "PATH": "/bin"})
+check("file test: VELOCE_TEST_OUT set, DEBUG not set",
+      _env.get("VELOCE_TEST_OUT", "").endswith("file_fail.nes.result") and "DEBUG" not in _env
+      and _env["VELOCE_TEST_EXIT"] == "1" and _env["HEADLESS"] == "1")
+_env, _ = _h.build_env(_tests["t.alias_stdout"], base={})
+check("memory alias: DEBUG=1 kept for the stdout fallback", _env.get("DEBUG") == "1"
+      and "VELOCE_TEST_OUT" in _env)
+_shot_t = load_config(_write_cfg("nes", {"test_suites": {"v": _suite(
+    {"file": "x.nes", "result_detection": "screenshot-crc", "expected": "known_fail",
+     "screenshot_frame": 50})}}), "nes").suites[0].tests[0]
+_env, _paths = _h.build_env(_shot_t, base={})
+check("screenshot test: full budget (EXIT=0), no DEBUG",
+      _env["VELOCE_TEST_EXIT"] == "0" and _env["FRAMES"] == "60" and "DEBUG" not in _env
+      and "screenshot" in _paths)
+
+if os.name == "posix":
+    _r = _h.run_test(_tests["t.file_fail"])
+    check("e2e file: FAIL with per-check detail",
+          _r.status == TestStatus.FAIL and len(_r.checks) == 3 and _r.frames_used == 7
+          and _r.source == "file" and abs(_r.point.credit - 1 / 3) < 1e-6)
+    _d = result_to_dict(_r)
+    check("--json entry carries checks/frames_used/result_path",
+          _d["checks"][1] == {"id": "2", "name": "adc_bin16_imm", "status": "fail",
+                              "exp": "01a0", "got": "00a0"}
+          and _d["frames_used"] == 7 and _d["result_path"].endswith(".result")
+          and list(_d)[:5] == ["id", "subsystem", "status", "detail", "actual_hash"])
+    _r = _h.run_test(_tests["t.alias_stdout"])
+    check("e2e memory alias, core without channel: stdout fallback",
+          _r.status == TestStatus.PASS and _r.source == "stdout")
+    _r = _h.run_test(_tests["t.alias_file_wins"])
+    check("e2e memory alias, core with channel: file verdict wins",
+          _r.status == TestStatus.FAIL and _r.point is not None and _r.source == "file"
+          and _r.adapter == "blargg6000")
+    # stale file from an earlier run must not be read
+    _stale = _h.artifact_path(_tests["t.no_file"], ".result")
+    shutil.copyfile(TRANSCRIPTS / "port_pass.result", _stale)
+    _r = _h.run_test(_tests["t.no_file"])
+    check("e2e stale result file cleared -> ERROR", _r.status == TestStatus.ERROR)
+    _r = _h.run_test(_tests["t.hang"])
+    check("e2e timeout keeps partial checks",
+          _r.status == TestStatus.TIMEOUT and len(_r.checks) == 2 and "timeout 2s" in _r.detail)
+    _r = _h.run_test(_tests["t.crash"])
+    check("e2e crash (no trailer, exit!=0) -> ERROR, not TIMEOUT",
+          _r.status == TestStatus.ERROR and "exited with code 139" in _r.detail)
+    _h.run_test(_tests["t.env"])
+    _seen = json.loads((_tmp / "env.json").read_text())
+    check("e2e env: resets/input/frames forwarded",
+          (_seen.get("VELOCE_TEST_RESETS"), _seen.get("INPUT"), _seen.get("FRAMES")) == ("1", "10:1", "77"))
+
+# ===========================================================================
+# baseline per-check diff + frames_used drift
+# ===========================================================================
+from veloce_testkit.baseline import diff_documents  # noqa: E402
+
+_base = {"console": "nes", "results": [
+    {"id": "a", "status": "pass", "frames_used": 40, "checks": []},
+    {"id": "b", "status": "pass", "checks": [{"id": "1", "name": "x", "status": "pass"}]},
+    {"id": "c", "status": "fail", "checks": [{"id": "2", "name": "y", "status": "fail", "got": "04"}]},
+]}
+_cur = {"consoles": {"nes": {"console": "nes", "results": [
+    {"id": "a", "status": "pass", "frames_used": 43, "checks": []},
+    {"id": "b", "status": "fail", "checks": [{"id": "1", "name": "x", "status": "fail", "got": "01"}]},
+    {"id": "c", "status": "fail", "checks": [{"id": "2", "name": "y", "status": "fail", "got": "05"}]},
+]}}}
+_dd = diff_documents(_base, _cur)[0]
+check("baseline: pass->fail is a regression", len(_dd.regressions) == 1 and _dd.regressions[0].startswith("b:"))
+check("baseline: per-check changes", len(_dd.check_changes) == 2)
+check("baseline: frames_used drift", _dd.frame_drift == ["a: frames_used 40 -> 43"])
+check("baseline: identical docs -> empty", diff_documents(_base, _base)[0].is_empty())
+
+_base2 = {"console": "nes", "results": [{"id": "r", "status": "pass", "checks": []}]}
+_cur2 = {"console": "nes", "results": [{"id": "r", "status": "runs", "checks": []}]}
+check("baseline: pass->runs (verdict lost) is a regression",
+      len(diff_documents(_base2, _cur2)[0].regressions) == 1)
+
+# ===========================================================================
+# adversarial parser edge cases (review follow-ups)
+# ===========================================================================
+_hdr = "#VELOCE 1 core=NES rom_crc32=00000000 channels=port\n"
+_trl = "#VELOCE end reason=terminator frames=3 cycles=9 status=0\n"
+
+
+def _det(body: str, trailer: str = _trl, **kw):
+    fp = _tmp / f"edge_{abs(hash(body + trailer))}.result"
+    fp.write_text(_hdr + body + trailer)
+    return detect_result_file(fp, **kw)
+
+
+check("malformed CHECK cannot be dropped from the tally",
+      _det("CHECK 1 PASS a\nCHECK 2 fail b\nEND 1/1\n").status == TestStatus.ERROR)
+check("CHECK with no verdict word -> ERROR",
+      _det("CHECK 1\nEND 0/0\n", allow_empty=True).status == TestStatus.ERROR)
+check("END with spaces around '/' is malformed (sink would not terminate on it)",
+      _det("END 1 / 1\n").status == TestStatus.ERROR)
+check("END code= is decimal, never octal",
+      _det("CHECK 1 FAIL a\nEND 0/1 code=010\n").status_code == 10)
+check("END code= 0x hex",
+      _det("CHECK 1 FAIL a\nEND 0/1 code=0x1f\n").status_code == 31)
+check("END tab-separated accepted",
+      _det("CHECK 1 PASS a\nEND\t1/1\n").status == TestStatus.PASS)
+check("no trailer + non-zero exit -> ERROR (crash)",
+      _det("CHECK 1 PASS a\n", trailer="", exit_code=-11).status == TestStatus.ERROR)
+check("no trailer + exit 0/unknown -> TIMEOUT",
+      _det("CHECK 1 PASS a\n", trailer="").status == TestStatus.TIMEOUT)
+
+sys.path.insert(0, str(REPO / "tests"))
+from run_all import _last_json_object  # noqa: E402
+check("run_all JSON extraction survives braces in strings and logs",
+      _last_json_object('log {oops\n{"results": [{"detail": "exp={01} }}"}]}\n')
+      == {"results": [{"detail": "exp={01} }}"}]})
+
+e, _ = _validate("nes", {"test_suites": {"s": _suite(
+    {"file": "a.nes", "result_detection": "file", "input": ["10:1"]})}})
+check("non-string input is a validation error (not a crash)", any("input must be" in x for x in e))
+_lt = load_config(_write_cfg("nes", {"test_suites": {"s": _suite(
+    {"file": "a.nes", "result_detection": "file", "input": ["10:1"]})}}), "nes").suites[0].tests[0]
+check("non-string input never reaches INPUT=", _lt.input == "")
+
+from veloce_testkit.rom_manifest import check_rom_variant  # noqa: E402
+_mroot = _tmp / "mroot"
+(_mroot / "tests" / "roms-src").mkdir(parents=True)
+(_mroot / "r").mkdir()
+(_mroot / "r" / "x.nes").write_bytes(b"veloce-rom")
+import hashlib  # noqa: E402
+(_mroot / "tests" / "roms-src" / "rom_manifest.json").write_text(json.dumps({"roms": {
+    "nes/suite/x.nes": {"sha256": hashlib.sha256(b"veloce-rom").hexdigest()}}}))
+check("manifest: hash on record accepted under another path",
+      check_rom_variant(_mroot, "suite/x.nes", _mroot / "r" / "x.nes", "veloce") is None)
+(_mroot / "r" / "y.nes").write_bytes(b"other")
+check("manifest: unknown hash refused",
+      "not in rom_manifest.json" in (check_rom_variant(_mroot, "y.nes", _mroot / "r" / "y.nes", "veloce") or ""))
+
+shutil.rmtree(_tmp, ignore_errors=True)
+
 print(f"\n{'ALL PASS' if failures == 0 else str(failures) + ' FAILURES'}")
 sys.exit(1 if failures else 0)

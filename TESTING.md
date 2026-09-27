@@ -61,7 +61,8 @@ cores/<console>/tests/
 ```
 
 The harness drives the prebuilt headless `veloce` binary using environment
-variables (`HEADLESS=1`, `DEBUG=1`, `FRAMES`, `SAVE_SCREENSHOT`, `TRACE`),
+variables (`VELOCE_TEST_OUT`, `HEADLESS=1`, `FRAMES`, `SAVE_SCREENSHOT`, `TRACE`;
+`DEBUG=1` only for the deprecated `memory`/`serial` stdout fallback),
 applies the correct detector per test, and emits scored data points. The same
 JSON scorecard shape comes out of every console, which is what lets
 `tests/run_all.py` aggregate a platform roll-up and gate CI.
@@ -81,6 +82,7 @@ returning a uniform `DetectionResult(status, detail, status_code, progress)`.
 
 | Method | Used by | How the verdict is read |
 |--------|---------|-------------------------|
+| `file` | every console (target for all scored tests) | The app writes the ROM's result channel to `VELOCE_TEST_OUT` in the VELOCE-RESULT/1 format (`CHECK id PASS\|FAIL name exp= got=`, `END pass/total`). Per-check detail, partial credit from the CHECK tally, early exit at `END`. Spec: [docs/testing/VELOCE-RESULT.md](docs/testing/VELOCE-RESULT.md). `memory`/`serial` are deprecated aliases that fall back to the stdout parsers below until the core emits to the file. |
 | `memory` | Blargg NES / SNES ROMs | ROM writes a status byte to `$6000` (`0x00` pass, `0x01-0x7F` fail code, `0x80` running, `0x81` needs-reset) with signature `0xDE 0xB0 0x61`. Under `DEBUG=1` the binary prints `BLARGG_STATUS: 0xNN` / `Status code: N (PASSED\|FAILED)`. |
 | `serial` (GB) | Blargg GB (ASCII), Mooneye / SameSuite / Wilbertpol | Blargg GB ROMs echo `Passed`/`Failed` over the link-port serial to stdout. Mooneye-family ROMs use the Fibonacci register fingerprint (`B=3 C=5 D=8 E=13 H=21 L=34`) at an `LD B,B` breakpoint, surfaced as `MOONEYE: PASS\|FAIL`. |
 | `serial` (GBA) | jsmolka / alyosha / nba ROMs | The ROM spins with `R12` holding the failing test number (`0` = all pass). The plugin detects the stable-PC spin and prints `[GBA] PASSED` / `[GBA] FAILED - Failed at test #N`. Auto-selected when `console == gba`. |
@@ -135,9 +137,11 @@ Testing is wired in two tiers:
   runs, labelled `accuracy;slow`, with timeouts and a `REQUIRED_FILES`
   dependency on the `veloce` binary.
 
-The GitHub Actions workflow (`.github/workflows/accuracy.yml`) mirrors this: a
+The GitHub Actions workflow (`.github/workflows/accuracy.yml`, self-hosted runner
+only; the project does not use GitHub-hosted runners) mirrors this: a
 `fast-gates` job on every change, a per-console `accuracy` matrix that builds the
-binary and uploads each scorecard JSON plus screenshots as artifacts, and an
+binary and uploads each scorecard JSON plus its `artifacts/` (result files,
+screenshots, traces), and an
 `aggregate` job wired for `run_all.py --baseline --no-regressions` once a
 baseline scorecard is committed.
 

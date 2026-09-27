@@ -25,7 +25,8 @@ def main() -> int:
         if not cfg.exists():
             print(f"[skip] {con}: no test_config.json")
             continue
-        errors = validate_config(cfg, con)
+        warnings: list[str] = []
+        errors = validate_config(cfg, con, warnings)
         if errors:
             rc = 1
             print(f"[FAIL] {con}: {len(errors)} error(s)")
@@ -33,6 +34,8 @@ def main() -> int:
                 print(f"    - {e}")
         else:
             print(f"[ok]   {con}: valid")
+        for w in warnings:
+            print(f"    warning: {w}")
     return rc
 
 

@@ -1,0 +1,63 @@
+name: ROM toolchain image
+
+# Builds tools/rom-toolchain/Dockerfile (SH-3a): the pinned assembler image
+# tests/roms-src/build.py (SH-3b) uses to rebuild upstream test ROMs from
+# source. Separate from accuracy.yml because this is slow (source builds of
+# cc65/wla-dx/asar/spcasm plus a devkitARM layer copy) and only needs to run
+# when the toolchain definition itself, or a build recipe pinning it, changes.
+#
+# Runs only on a self-hosted runner (the project does not use GitHub-hosted
+# runners). The image stays local to the runner; nothing is published.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "tools/rom-toolchain/**"
+      - "tests/roms-src/**"
+      - ".github/workflows/rom-toolchain.yml"
+  pull_request:
+    paths:
+      - "tools/rom-toolchain/**"
+      - "tests/roms-src/**"
+      - ".github/workflows/rom-toolchain.yml"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: [self-hosted, linux]
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image + collect tool versions
+        run: tools/rom-toolchain/build-image.sh veloce/rom-toolchain:${{ github.sha }}
+
+      - name: Prove every pinned tool runs
+        run: |
+          set -x
+          img="veloce/rom-toolchain:${{ github.sha }}"
+          docker run --rm "$img" cat /opt/rom-toolchain/versions/cc65.txt
+          docker run --rm "$img" cat /opt/rom-toolchain/versions/asm6f.txt
+          docker run --rm "$img" cat /opt/rom-toolchain/versions/nesasm.txt
+          docker run --rm "$img" cat /opt/rom-toolchain/versions/wla-dx.txt
+          docker run --rm "$img" cat /opt/rom-toolchain/versions/rgbds-0.6.1.txt
+          docker run --rm "$img" cat /opt/rom-toolchain/versions/rgbds-0.7.0.txt
+          docker run --rm "$img" cat /opt/rom-toolchain/versions/fasmarm.txt
+          docker run --rm "$img" cat /opt/rom-toolchain/versions/devkitarm.txt
+          docker run --rm "$img" cat /opt/rom-toolchain/versions/bass.txt
+          docker run --rm "$img" cat /opt/rom-toolchain/versions/bass-untech.txt
+          docker run --rm "$img" cat /opt/rom-toolchain/versions/asar.txt
+          docker run --rm "$img" cat /opt/rom-toolchain/versions/spcasm.txt
+
+      - name: Rebuild recipes and verify rom_manifest.json
+        # Reproducibility gate: every recipe must rebuild inside this image to
+        # exactly the sha256 already recorded in the committed manifest.
+        run: python3 tests/roms-src/build.py --check --image veloce/rom-toolchain:${{ github.sha }}
+
+      - name: Upload versions.json
+        uses: actions/upload-artifact@v4
+        with:
+          name: rom-toolchain-versions
+          path: tools/rom-toolchain/versions.json

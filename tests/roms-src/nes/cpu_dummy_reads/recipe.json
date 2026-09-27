@@ -1,0 +1,24 @@
+{
+  "console": "nes",
+  "suite": "cpu_dummy_reads",
+  "description": "Blargg-framework NES test: dummy-read side effects of $2000-$3FFF-mirrored PPU register reads during indexed/absolute addressing. No source patch: proves build.py's clone-at-SHA + build + manifest path end-to-end on a suite that needs none.",
+  "license": "public domain / freely redistributable (Shay Green's test framework + Joel Yliluoma's test); see upstream cpu_dummy_reads/source/readme.txt",
+  "repo": {
+    "url": "https://github.com/christopherpow/nes-test-roms.git",
+    "sha": "95d8f621ae55cee0d09b91519a8989ae0e64753b"
+  },
+  "toolchain_stage": "cc65",
+  "golden_gate": false,
+  "golden_gate_reason": "The unmodified source needs ca65 '--feature force_range' to assemble at all (the shared common/delay.s idiom 'adc #-1' is rejected by every available ca65, including HEAD -- see PROVENANCE.md); once it assembles, the rebuilt ROM is the same length as upstream's shipped binary but ~184 bytes differ (offsets from 0x6027 into the CHARS-adjacent PRG bank onward), most consistent with cc65's longbranch macro (jeq/jne/jpl/jmi in common/shell.inc's use of asminc/longbranch.mac) picking a different short/long branch encoding than whatever built the shipped ROM. Verified behaviourally instead, same exception the plan already grants the NES 2005-era asm6f sources (section 1, decision #9's note; section 5's build.py description).",
+  "rom_variant": "upstream",
+  "build": {
+    "workdir": "cpu_dummy_reads/source",
+    "commands": [
+      "ca65 --feature force_range --smart -t nes -I common -I /opt/rom-toolchain/cc65-asminc -o cpu_dummy_reads.o cpu_dummy_reads.s",
+      "ld65 -C nes.cfg cpu_dummy_reads.o -o ../cpu_dummy_reads.nes"
+    ],
+    "artifacts": {
+      "cpu_dummy_reads/cpu_dummy_reads.nes": "cpu_dummy_reads.nes"
+    }
+  }
+}

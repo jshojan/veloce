@@ -3,6 +3,7 @@
 #include "controller_layout.hpp"
 #include <cstdint>
 #include <cstddef>
+#include <cstring>
 #include <vector>
 #include <functional>
 
@@ -46,6 +47,52 @@ struct AudioBuffer {
 // Button bitmask uses VirtualButton ordering from input_types.hpp
 struct InputState {
     uint32_t buttons;   // Bitmask of pressed buttons
+};
+
+// ============================================================
+// Test-result channel (plugin ABI v2)
+// ============================================================
+//
+// When the application runs with VELOCE_TEST_OUT=<path> it hands the core an
+// ITestSink right after load_rom(). The core forwards whatever its ROM-facing
+// result channel produces (NES $401E, SNES $21FE, GB serial, GBA mGBA debug
+// registers, or a legacy adapter such as the blargg $6000 block) into the
+// sink. The application owns the file: cores never open, buffer or flush
+// anything themselves. See docs/testing/VELOCE-RESULT.md for the line format.
+//
+// All calls happen on the emulation thread, from inside run_frame() (or
+// reset()). Pointers passed in are only read for the duration of the call.
+struct ITestSink {
+    virtual ~ITestSink() = default;
+
+    // Raw channel bytes, exactly as the ROM emitted them. The sink splits on
+    // '\n', strips '\r' and other control bytes, caps a line at 255 bytes and
+    // flushes every completed line. A completed "END p/t" line ends the run
+    // (see finish()) without the core having to parse anything.
+    virtual void write(const char* bytes, size_t n) = 0;
+
+    // A terminator was seen by a legacy adapter (blargg status byte, Mooneye
+    // fingerprint, GBA R12 idle loop). status: 0 pass, >0 fail code,
+    // -1 unknown. Only the first call counts. With VELOCE_TEST_EXIT=1 (the
+    // default) the frame loop stops after the current frame.
+    virtual void finish(int32_t status_code) = 0;
+
+    // Metadata line "#VELOCE <key>=<value>". Used e.g. for
+    // note("adapter", "blargg6000") or note("level", "4").
+    virtual void note(const char* key, const char* value) = 0;
+
+    // Binary dump (legacy adapters only: SRAM/CGRAM/PRG-RAM blocks). The
+    // application writes <out>.<name>.bin and logs
+    // "#VELOCE blob name=<name> bytes=<n> sha256=<hex>".
+    virtual void blob(const char* name, const uint8_t* bytes, size_t n) = 0;
+
+    // The ROM asked for the reset button (blargg status 0x81). The
+    // application performs reset() a few frames later, then calls
+    // IEmulatorPlugin::on_test_reset(). Capped by VELOCE_TEST_RESETS.
+    virtual void request_reset() = 0;
+
+    // Convenience for NUL-terminated text.
+    void print(const char* text) { if (text) write(text, std::strlen(text)); }
 };
 
 // Main emulator plugin interface
@@ -174,6 +221,26 @@ public:
     // Returns true on success (or if file doesn't exist - uses defaults)
     virtual bool load_config(const char* path) { (void)path; return true; }
 
+    // ============================================================
+    // Test-result channel (ABI v2, optional)
+    // ============================================================
+
+    // Called once after load_rom() when VELOCE_TEST_OUT is set, and with
+    // nullptr before the sink goes away. Return true if this core forwards a
+    // result channel into the sink. The default (no channel) returns false;
+    // the application then only enforces the FRAMES budget.
+    virtual bool set_test_sink(ITestSink* sink) { (void)sink; return false; }
+
+    // Comma-separated channel drivers this core implements, recorded in the
+    // result file header ("#VELOCE 1 ... channels=port,blargg6000").
+    // Names: port, serial, mgba, blargg6000, a000, hram, sram, stp, spcport,
+    // mooneye, r12.
+    virtual const char* test_channels() const { return ""; }
+
+    // Called right after the application performed a reset() requested via
+    // ITestSink::request_reset(), so the core can re-arm its adapters.
+    virtual void on_test_reset() {}
+
 protected:
     // Audio streaming callback (set by application for low-latency audio)
     AudioStreamCallback m_audio_callback;
@@ -194,4 +261,10 @@ extern "C" {
 }
 
 // Current API version
-#define EMU_PLUGIN_API_VERSION 1
+//   1: initial interface
+//   2: test-result channel (ITestSink, set_test_sink, test_channels, on_test_reset)
+#define EMU_PLUGIN_API_VERSION 2
+
+// First API version whose vtable has the test-result channel methods. The
+// application never calls them on a plugin that reports an older version.
+#define EMU_PLUGIN_API_VERSION_TEST_SINK 2

@@ -1,0 +1,8 @@
+#VELOCE 1 core=GBA rom_crc32=7d11a0c4 channels=mgba,r12
+VELOCE 1 gba ppu.dispstat
+TEST 1 vblank_flag
+CHECK 1 PASS vblank_flag
+TEST 2 vcount_match
+CHECK 2 PASS vcount_match
+TEST 3 hblank_irq
+#VELOCE end reason=frames frames=300 cycles=84268800

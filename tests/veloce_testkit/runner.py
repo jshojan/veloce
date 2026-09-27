@@ -21,7 +21,9 @@ each console agent; it should be ~10 lines:
 CLI (identical for every console):
     run_tests.sh                 # run all, human scorecard
     run_tests.sh cpu ppu         # subset by subsystem or suite id
-    run_tests.sh --json          # emit scorecard JSON (consumed by tests/run_all.py)
+    run_tests.sh --json          # emit scorecard JSON (consumed by tests/run_all.py);
+                                 # results[] carry per-check detail, frames_used,
+                                 # result_path, end_reason, adapter
     run_tests.sh --generate-refs # screenshot-crc: print measured hashes
     run_tests.sh -v              # per-test verdict lines
 """
@@ -45,6 +47,23 @@ from .scoring import score_console, render_scorecard, scorecard_to_dict
 # download logic because each console pulls from different upstreams.
 RomProvider = Callable[[Path, bool, bool], Path]
 #                       script_dir, keep, verbose -> roms_dir
+
+
+def result_to_dict(r) -> dict:
+    """One results[] entry of the --json document. The first five keys are the
+    v1 shape; the rest carry the VELOCE-RESULT/1 detail used by
+    run_all.py --baseline for per-check diffs and frames_used drift."""
+    return {
+        "id": r.test.id, "subsystem": r.test.subsystem,
+        "status": r.status.value, "detail": r.detail,
+        "actual_hash": r.actual_hash,
+        "source": r.source,
+        "checks": [c.to_dict() for c in r.checks],
+        "frames_used": r.frames_used,
+        "end_reason": r.end_reason,
+        "adapter": r.adapter,
+        "result_path": r.result_path,
+    }
 
 
 def run_console_main(
@@ -74,7 +93,7 @@ def run_console_main(
     settings = RunSettings(
         project_root=project_root,
         roms_dir=roms_dir,
-        screenshots_dir=script_dir / "screenshots",
+        artifacts_dir=script_dir / "artifacts",
         default_frames=cfg.frame_limit,
         default_timeout=cfg.timeout_seconds,
         generate_refs=args.generate_refs,
@@ -97,15 +116,14 @@ def run_console_main(
                 TestStatus.ERROR: "ERROR",
             }.get(r.status, "?")
             print(f"  [{sym:7}] {r.test.id}  {r.detail}")
+            for c in r.checks:
+                if not c.passed:
+                    extra = f" exp={c.exp} got={c.got}" if (c.exp or c.got) else ""
+                    print(f"             CHECK {c.id} FAIL {c.name}{extra}")
 
     if args.json:
         doc = scorecard_to_dict(card)
-        doc["results"] = [
-            {"id": r.test.id, "subsystem": r.test.subsystem,
-             "status": r.status.value, "detail": r.detail,
-             "actual_hash": r.actual_hash}
-            for r in results
-        ]
+        doc["results"] = [result_to_dict(r) for r in results]
         print(json.dumps(doc, indent=2))
     else:
         print(render_scorecard(card))

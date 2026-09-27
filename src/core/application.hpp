@@ -17,6 +17,7 @@ class GuiManager;
 class SavestateManager;
 class PathsConfiguration;
 class INetplayCapable;
+class TestFileSink;
 
 // Main application class - orchestrates all subsystems
 // Also implements INetplayHost to provide callbacks to the netplay plugin
@@ -128,6 +129,12 @@ private:
     // Get INetplayCapable interface from current emulator if available
     INetplayCapable* get_netplay_capable_emulator() const;
 
+    // Test-result channel (VELOCE_TEST_OUT). Returns true when the frame loop
+    // should stop (terminator seen with VELOCE_TEST_EXIT=1, or reset limit).
+    bool test_session_after_frame();
+    // Write the trailer and close the result file (idempotent).
+    void end_test_session(bool budget_exhausted);
+
     // Subsystems
     std::unique_ptr<WindowManager> m_window_manager;
     std::unique_ptr<Renderer> m_renderer;
@@ -147,6 +154,10 @@ private:
     bool m_headless_mode = false;  // Run without GUI for testing
     int m_headless_frames = 0;     // Number of frames to run in headless mode (0 = unlimited)
     float m_speed_multiplier = 1.0f;
+
+    // Test-result file (VELOCE_TEST_OUT); null when not running a test session
+    std::unique_ptr<TestFileSink> m_test_sink;
+    uint64_t m_test_frames = 0;
 
     // Screenshot
     bool m_screenshot_requested = false;
