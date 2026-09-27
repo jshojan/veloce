@@ -6,8 +6,8 @@ name: ROM toolchain image
 # cc65/wla-dx/asar/spcasm plus a devkitARM layer copy) and only needs to run
 # when the toolchain definition itself, or a build recipe pinning it, changes.
 #
-# On push to main this also publishes the image to GHCR so `build.py` in the
-# accuracy workflow (and locally) can `docker pull` it instead of rebuilding.
+# Runs only on a self-hosted runner (the project does not use GitHub-hosted
+# runners). The image stays local to the runner; nothing is published.
 
 on:
   push:
@@ -25,10 +25,9 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux]
     permissions:
       contents: read
-      packages: write
     steps:
       - uses: actions/checkout@v4
 
@@ -62,19 +61,3 @@ jobs:
         with:
           name: rom-toolchain-versions
           path: tools/rom-toolchain/versions.json
-
-      - name: Log in to GHCR
-        if: github.event_name == 'push'
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Publish
-        if: github.event_name == 'push'
-        run: |
-          docker tag veloce/rom-toolchain:${{ github.sha }} ghcr.io/${{ github.repository }}/rom-toolchain:${{ github.sha }}
-          docker tag veloce/rom-toolchain:${{ github.sha }} ghcr.io/${{ github.repository }}/rom-toolchain:latest
-          docker push ghcr.io/${{ github.repository }}/rom-toolchain:${{ github.sha }}
-          docker push ghcr.io/${{ github.repository }}/rom-toolchain:latest

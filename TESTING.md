@@ -137,7 +137,8 @@ Testing is wired in two tiers:
   runs, labelled `accuracy;slow`, with timeouts and a `REQUIRED_FILES`
   dependency on the `veloce` binary.
 
-The GitHub Actions workflow (`.github/workflows/accuracy.yml`) mirrors this: a
+The GitHub Actions workflow (`.github/workflows/accuracy.yml`, self-hosted runner
+only; the project does not use GitHub-hosted runners) mirrors this: a
 `fast-gates` job on every change, a per-console `accuracy` matrix that builds the
 binary and uploads each scorecard JSON plus its `artifacts/` (result files,
 screenshots, traces), and an

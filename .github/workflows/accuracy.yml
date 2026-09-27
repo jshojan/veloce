@@ -1,6 +1,8 @@
 name: Accuracy
 
 # Cross-console test + accuracy-measurement CI for the Veloce emulator platform.
+# Jobs run only on a self-hosted runner ([self-hosted, linux]); the project does
+# not use GitHub-hosted runners. With no runner registered, jobs just queue.
 # Two tiers:
 #   * fast-gates : pure-logic unit test + config schema validation (every push/PR)
 #   * accuracy   : full per-console ROM suites + aggregate scorecard (needs build
@@ -16,12 +18,9 @@ on:
 
 jobs:
   fast-gates:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux]
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
       - name: Testkit self-test (pure logic)
         run: python3 tests/veloce_testkit/selftest.py
       - name: Validate all test_config.json
@@ -35,7 +34,7 @@ jobs:
   accuracy:
     needs: fast-gates
     if: github.event_name != 'push'
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux]
     strategy:
       fail-fast: false
       matrix:
@@ -44,16 +43,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - name: Install build deps
+      # Self-hosted runner: build tools must already be installed on the
+      # runner machine (cmake >= 3.20, a C++20 compiler, python3). Nothing is
+      # installed here, so a job never needs sudo.
+      - name: Check build prerequisites
         run: |
-          sudo apt-get update
-          sudo apt-get install -y cmake ninja-build libsdl2-dev
+          command -v cmake && command -v python3 && command -v c++
       - name: Build veloce (headless)
         run: |
-          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake -B build -DCMAKE_BUILD_TYPE=Release
           cmake --build build --target veloce -j
       - name: Run ${{ matrix.console }} accuracy suite
         run: |
@@ -74,12 +72,9 @@ jobs:
   aggregate:
     needs: accuracy
     if: always() && github.event_name != 'push'
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux]
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
       - uses: actions/download-artifact@v4
         with:
           path: scorecards

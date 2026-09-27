@@ -54,6 +54,15 @@ When an agent (or a multi-agent workflow) makes changes:
 
 ## CI
 
-PRs run the test/accuracy suites (`.github/workflows/accuracy.yml`) and the fast
-gates (`ctest --test-dir build -L fast`). See [TESTING.md](TESTING.md) for how the
-suites and the accuracy scorecard work.
+The workflows in `.github/workflows/` (`accuracy.yml`, `rom-toolchain.yml`) run only
+on a **self-hosted** runner (`runs-on: [self-hosted, linux]`). The project does not
+use GitHub-hosted runners, so that no paid runner minutes are ever used. Until a local
+runner is registered, the workflows stay disabled or their jobs just queue.
+
+Before merging a PR, run the gates locally:
+
+- the fast gates: `ctest --test-dir build -L fast`
+- the accuracy suite for every console the PR touches:
+  `cores/<c>/tests/run_tests.sh --json`, compared against the previous scorecard
+
+See [TESTING.md](TESTING.md) for how the suites and the accuracy scorecard work.
