@@ -43,33 +43,45 @@ GBA test ROMs are assembled with [FASMARM](https://arm.flatassembler.net/) and a
 # Run all GBA tests
 ./run_tests.sh
 
-# Run specific test categories
-./run_tests.sh arm          # ARM instruction tests
-./run_tests.sh thumb        # Thumb instruction tests
-./run_tests.sh memory       # Memory tests
-./run_tests.sh ppu          # PPU tests
-./run_tests.sh bios         # BIOS function tests
-./run_tests.sh save         # Save type tests
+# Run by subsystem (cpu, memory, timing, ppu, misc, mapper) or suite id
+./run_tests.sh cpu          # all CPU suites
+./run_tests.sh cpu_arm      # jsmolka arm.gba only
+./run_tests.sh bios save    # BIOS and save-type suites
 
 # Options
-./run_tests.sh --verbose    # Show detailed output
+./run_tests.sh --json       # scorecard JSON (includes result-file checks)
+./run_tests.sh -v           # per-test verdict lines
 ./run_tests.sh --keep       # Keep test ROMs after completion
 ```
 
 ## Test Result Detection
 
-The GBA emulator outputs test results in debug mode:
-- `[GBA] PASSED` - All tests in the ROM passed
-- `[GBA] FAILED` - One or more tests failed
+Verdicts come only from the result file named by `VELOCE_TEST_OUT`
+([VELOCE-RESULT/1](../../../docs/testing/VELOCE-RESULT.md)); the emulator prints
+no verdict to stdout/stderr. The GBA plugin writes two kinds of lines into it:
 
-Tests use Mode 4 background to display visual pass/fail results and store a result code in register R12.
+- `mgba` channel: whatever the ROM flushes through the mGBA debug registers
+  (`0x4FFF600`/`0x4FFF700`), one line per flush, plus a `#VELOCE level=<n>` note
+  when the log level changes.
+- `r12` adapter: unmodified jsmolka/alyosha ROMs park in a `b .` loop with the
+  failing test number in a register (0 = all pass). After 10 stable frames the
+  plugin writes `#VELOCE adapter=r12`, `REG pc=.. r12=..` and `END 1/1` or
+  `END 0/1 code=<n>`.
+
+Run one ROM by hand:
+
+```bash
+VELOCE_TEST_OUT=/tmp/arm.result FRAMES=600 ../../../build/bin/veloce gba-test-roms/arm/arm.gba
+cat /tmp/arm.result
+```
 
 ## Directory Structure
 
 ```
 tests/
-  run_tests.sh          # Main test runner script
-  test_runner.py        # Python test runner (detailed output)
+  run_tests.sh          # Wrapper around runner.py (shared testkit)
+  runner.py             # Scorecard runner (shared testkit)
+  test_runner.py        # Legacy flat-summary runner (per-repo ROM resolution)
   test_config.json      # Test configuration
   gba-test-roms/        # Cloned test ROMs (gitignored)
 ```

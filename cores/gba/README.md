@@ -288,11 +288,24 @@ python3 runner.py --json     # scorecard JSON consumed by tests/run_all.py
 python3 test_runner.py -v
 ```
 
-Result detection: jsmolka/alyosha/nba ROMs spin with **R12 = failing test #**
-(0 = pass); the Veloce GBA plugin detects the stable-PC spin loop and prints
-`[GBA] PASSED` / `[GBA] FAILED - Failed at test #N`, parsed by the shared
-`detect.detect_gba_register`. Visual affine tests use `SAVE_SCREENSHOT` +
-CRC32 against a pinned `reference_hash`.
+Result detection: the harness runs every ROM with `VELOCE_TEST_OUT=<file>` and
+reads the verdict from that file ([VELOCE-RESULT/1](../../docs/testing/VELOCE-RESULT.md)).
+The GBA plugin (`src/test_channel.cpp`) feeds it from two drivers:
+
+- **`mgba`**: every line a ROM flushes through the mGBA debug registers
+  (`0x4FFF600` string, `0x4FFF700` flags with `level | 0x100`, probe
+  `0x4FFF780`: write `0xC0DE`, read `0x1DEA`) is written to the file verbatim,
+  with the log level recorded as a `#VELOCE level=<n>` note. ROMs built with
+  the Veloce emitter report `CHECK`/`END` lines this way.
+- **`r12`** (legacy adapter for unmodified jsmolka/alyosha ROMs): once the PC
+  has sat on a one-instruction `b .` loop for 10 frames, the plugin emits
+  `#VELOCE adapter=r12`, a `REG` line and `END 1/1` (register = 0) or
+  `END 0/1 code=<n>`. The register is the one the ROM's `m_test_eval` macro
+  tested (found from the macro's epilogue), else R12. It is skipped once the
+  ROM has sent an `END` line over `mgba`.
+
+Nothing is printed to stdout/stderr and nothing depends on `DEBUG=1`. Visual
+affine tests use `SAVE_SCREENSHOT` + CRC32 against a pinned `reference_hash`.
 
 ### Measured results (representative subset, this build)
 
@@ -407,8 +420,9 @@ Output: `build/bin/cores/gba.so` (Linux), `.dll` (Windows), `.dylib` (macOS)
 # Run with debug output
 DEBUG=1 ./build/bin/veloce path/to/rom.gba
 
-# Run in headless mode for automated testing
-DEBUG=1 HEADLESS=1 FRAMES=300 timeout 10 ./build/bin/veloce path/to/test.gba
+# Run a test ROM; the verdict is written to the result file (VELOCE-RESULT/1)
+VELOCE_TEST_OUT=/tmp/test.result FRAMES=300 timeout 10 ./build/bin/veloce path/to/test.gba
+cat /tmp/test.result
 
 # Run test suite
 cd cores/gba/tests
@@ -424,6 +438,7 @@ cd cores/gba/tests
 | ppu.cpp/hpp | PPU/LCD emulation | 1200 |
 | apu.cpp/hpp | Audio emulation | 800 |
 | bus.cpp/hpp | Memory bus, DMA, timers, I/O | 1100 |
+| test_channel.cpp/hpp | VELOCE-RESULT/1 channel (`mgba` debug registers, `r12` adapter) | 200 |
 | cartridge.cpp/hpp | ROM loading, save handling | 800 |
 | types.hpp | Common types and enums | 200 |
 

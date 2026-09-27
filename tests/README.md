@@ -74,9 +74,11 @@ for the file method).
 * **`serial` (Game Boy).** Blargg GB ROMs echo `Passed`/`Failed` over link-port
   serial -> stdout. Mooneye ROMs use the Fibonacci register fingerprint + `LD B,B`
   breakpoint; binary prints `MOONEYE: PASS|FAIL`.
-* **`serial` (GBA sub-variant).** jsmolka/alyosha ROMs hold the failing test # in
-  R12 (0 = all pass); binary prints `[GBA] PASSED` / `[GBA] FAILED - Failed at
-  test #N`. Selected automatically when `console == gba`.
+* **`serial` (GBA sub-variant).** Deprecated alias of `file`: the GBA plugin
+  writes the result file itself. jsmolka/alyosha ROMs hold the failing test # in
+  R12 (0 = all pass) in a `b .` loop; the plugin's `r12` adapter turns that into
+  `END 1/1` / `END 0/1 code=<n>`. mGBA debug-register output is the `mgba`
+  channel.
 * **`screenshot-crc` (visual).** Run with `SAVE_SCREENSHOT=<frame>`; CRC32 the PNG
   and compare to `reference_hash`. Exact match required (intentional for
   pixel-perfect tests). `--generate-refs` prints measured hashes to paste back.

@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "console": "gba",
-  "description": "Veloce GBA core authoritative test suite. Subsystem-organized, prioritized, with per-test result-detection. Goal: state with evidence how architecturally correct AND cycle-accurate the GBA core is. Detection: jsmolka/alyosha/FuzzARM ROMs spin with R12 = failing test # (0 = pass); the Veloce GBA plugin detects the stable-PC spin loop and prints '[GBA] PASSED' / '[GBA] FAILED - Failed at test #N' (parsed by the 'serial' family detector, GBA sub-variant). Visual ROMs are captured via SAVE_SCREENSHOT and CRC32-compared. Interactive ROMs (mGBA suite, armwrestler) have no headless auto-verdict and are marked known_fail/RUNS until a screenshot reference is pinned.",
+  "description": "Veloce GBA core authoritative test suite. Subsystem-organized, prioritized, with per-test result-detection. Goal: state with evidence how architecturally correct AND cycle-accurate the GBA core is. Detection: every verdict comes from the VELOCE-RESULT/1 file the app writes to VELOCE_TEST_OUT. jsmolka/alyosha/FuzzARM ROMs park in a 'b .' loop with R12 = failing test # (0 = pass); the Veloce GBA plugin's r12 adapter turns that into 'END 1/1' / 'END 0/1 code=<n>' in the file ('serial' is a deprecated alias of 'file'). ROMs that print through the mGBA debug registers write their own lines (mgba channel). Visual ROMs are captured via SAVE_SCREENSHOT and CRC32-compared. Interactive ROMs (mGBA suite, armwrestler) have no headless auto-verdict and are marked known_fail/RUNS until a screenshot reference is pinned.",
   "timeout_seconds": 60,
   "frame_limit": 1200,
 

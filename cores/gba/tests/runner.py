@@ -3,12 +3,13 @@
 Veloce GBA test runner shim built on the shared `veloce_testkit`.
 
 This is the schema-v2 / scorecard entrypoint. It reuses the platform-wide
-detection (`detect.detect_gba_register` -> '[GBA] PASSED/FAILED') and the
-weighted completeness scoring, so the GBA accuracy number is computed the
-exact same way as every other console.
+detection (the VELOCE-RESULT/1 file the app writes to `VELOCE_TEST_OUT`, fed
+by the plugin's `mgba` channel and `r12` adapter) and the weighted
+completeness scoring, so the GBA accuracy number is computed the exact same
+way as every other console. `run_tests.sh` forwards here.
 
-The legacy `test_runner.py` remains for the older flat-summary output and is
-still wired into `run_tests.sh`; both read the same `test_config.json`.
+The legacy `test_runner.py` remains for the older flat-summary output; it
+reads the same result file and the same `test_config.json`.
 
 Usage:
     python3 runner.py                 # run all, render scorecard

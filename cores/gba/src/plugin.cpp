@@ -6,6 +6,7 @@
 #include "apu.hpp"
 #include "cartridge.hpp"
 #include "debug.hpp"
+#include "test_channel.hpp"
 
 #include <cstring>
 #include <cstdio>
@@ -87,6 +88,11 @@ public:
     std::vector<uint8_t> get_battery_save_data() const override;
     bool set_battery_save_data(const std::vector<uint8_t>& data) override;
 
+    // Test-result channel (ABI v2, docs/testing/VELOCE-RESULT.md)
+    bool set_test_sink(emu::ITestSink* sink) override;
+    const char* test_channels() const override { return TestChannel::kChannels; }
+    void on_test_reset() override { m_test_channel.reset(); }
+
 private:
     void run_gba_frame(const emu::InputState& input);
 
@@ -112,8 +118,8 @@ private:
     float m_audio_buffer[AUDIO_BUFFER_SIZE * 2];  // Stereo
     size_t m_audio_samples = 0;
 
-    // Test ROM result tracking (for DEBUG mode)
-    bool m_test_result_reported = false;
+    // VELOCE-RESULT/1 channel: mGBA debug registers + r12 adapter
+    TestChannel m_test_channel;
 
     // File extensions
     static const char* s_extensions[];
@@ -187,6 +193,7 @@ bool GBAPlugin::load_rom(const uint8_t* data, size_t size) {
     m_bus->connect_ppu(m_ppu.get());
     m_bus->connect_apu(m_apu.get());
     m_bus->connect_cartridge(m_cartridge.get());
+    m_bus->connect_test_channel(&m_test_channel);
 
     m_apu->set_system_type(SystemType::GameBoyAdvance);
 
@@ -213,7 +220,7 @@ void GBAPlugin::unload_rom() {
     m_rom_crc32 = 0;
     m_total_cycles = 0;
     m_frame_count = 0;
-    m_test_result_reported = false;
+    m_test_channel.reset();
 
     m_cpu.reset();
     m_bus.reset();
@@ -232,7 +239,7 @@ void GBAPlugin::reset() {
     m_total_cycles = 0;
     m_frame_count = 0;
     m_audio_samples = 0;
-    m_test_result_reported = false;
+    m_test_channel.reset();
 
     if (m_cpu) m_cpu->reset();
     if (m_ppu) m_ppu->reset();
@@ -296,106 +303,9 @@ void GBAPlugin::run_gba_frame(const emu::InputState& input) {
     // Get audio samples
     m_audio_samples = m_apu->get_samples(m_audio_buffer, AUDIO_BUFFER_SIZE);
 
-    // Test ROM result detection (frame-based)
-    if (is_debug_mode() && !m_test_result_reported) {
-        static uint32_t last_frame_pc = 0;
-        static int same_pc_frames = 0;
-
-        uint32_t current_pc = m_cpu->get_pc();
-
-        if (current_pc == last_frame_pc) {
-            same_pc_frames++;
-            // If PC has been the same for 10 frames (~170ms), consider test complete
-            if (same_pc_frames >= 10) {
-                uint32_t r12 = m_cpu->get_register(12);
-                m_test_result_reported = true;
-
-                // jsmolka/alyosha gba-tests' shared m_test_eval macro
-                // (lib/macros.inc) is `stmfd sp!,{r0-r12} / movs r12,rX /
-                // ... / ldmfd sp!,{r0-r12}` followed by `idle: b idle`.
-                // The ldmfd restores r12 to whatever it held *before* the
-                // eval, so r12 at the idle loop is the verdict only when
-                // the ROM evaluates r12 itself (`m_test_eval r12`); ROMs
-                // that evaluate another register (thumb.gba: r7, the LDM
-                // suite: r0 after a mode switch, start_up_vbl_irq*: r7)
-                // leave an unrelated r12 behind, which was reported as a
-                // false PASS (gba-01). The same ldmfd restores rX to its
-                // pre-eval value -- which *is* the evaluated result, since
-                // `movs r12,rX` does not modify rX -- so rX at the idle
-                // loop is exactly what the macro tested.
-                //
-                // Recognise the epilogue near the stable PC (get_pc() may
-                // be the pipeline PC, idle..idle+8), walk back to the
-                // macro's stmfd/movs pair to learn X, and read rX. If the
-                // pattern is absent (nba-hw-test, FuzzARM, non-macro
-                // ROMs) the old R12 convention is kept unchanged.
-                //
-                // Review follow-up: the first version of this fix instead
-                // trusted the .failed path's decimal digits at IWRAM
-                // 0x03000000/4/8 whenever they looked like digits. A
-                // passing run never writes them, so they hold whatever the
-                // test left there -- memory.gba's IWRAM-mirror test stores
-                // 1 at 0x03000000 ("Failed at test #100" on a pass), and
-                // the prefetcher_boundary ROMs put the stack at IWRAM+16 so
-                // the stmfd itself lands r9-r11 there.
-                int eval_reg = -1;
-                if (!(m_cpu->get_cpsr() & 0x20)) {  // macro epilogue is ARM code
-                    uint32_t base = current_pc & ~3u;
-                    uint32_t idle = 0;
-                    for (int off = -8; off <= 8 && !idle; off += 4) {
-                        uint32_t a = base + static_cast<uint32_t>(off);
-                        if (a >= 0x100 &&
-                            m_bus->read32(a) == 0xEAFFFFFEu &&        // b .
-                            m_bus->read32(a - 4) == 0xE8BD1FFFu) {    // ldmfd sp!,{r0-r12}
-                            idle = a;
-                        }
-                    }
-                    if (idle) {
-                        // The macro body (two text paths) is ~100 ARM
-                        // instructions; 2 KiB is ample and cannot reach
-                        // another m_test_eval (each ROM has exactly one).
-                        for (uint32_t p = idle - 8; p + 0x800 >= idle && p >= 0x100; p -= 4) {
-                            uint32_t w0 = m_bus->read32(p);
-                            uint32_t w1 = m_bus->read32(p + 4);
-                            if (w0 == 0xE92D1FFFu &&                   // stmfd sp!,{r0-r12}
-                                (w1 & 0xFFFFFFF0u) == 0xE1B0C000u) {   // movs r12, rX
-                                eval_reg = static_cast<int>(w1 & 0xF);
-                                break;
-                            }
-                        }
-                    }
-                }
-
-                uint32_t verdict = r12;
-                if (eval_reg >= 0) {
-                    verdict = m_cpu->get_register(eval_reg);
-                }
-
-                fprintf(stderr, "\n=== GBA TEST ROM RESULT ===\n");
-                fprintf(stderr, "Detected stable PC at 0x%08X for %d frames\n", current_pc, same_pc_frames);
-                fprintf(stderr, "R12 (test result): %u\n", r12);
-                if (eval_reg >= 0) {
-                    fprintf(stderr, "m_test_eval register: r%d = %u (verdict source)\n", eval_reg, verdict);
-                } else {
-                    fprintf(stderr, "m_test_eval epilogue not found; verdict source: R12\n");
-                }
-                fprintf(stderr, "Cycles: %llu, Frame: %llu\n",
-                       static_cast<unsigned long long>(m_total_cycles),
-                       static_cast<unsigned long long>(m_frame_count + 1));
-
-                if (verdict == 0) {
-                    fprintf(stderr, "[GBA] PASSED - All tests completed successfully\n");
-                } else {
-                    fprintf(stderr, "[GBA] FAILED - Failed at test #%u\n", verdict);
-                }
-                fprintf(stderr, "===========================\n");
-                fflush(stderr);  // Ensure output is flushed immediately for test detection
-            }
-        } else {
-            same_pc_frames = 0;
-            last_frame_pc = current_pc;
-        }
-    }
+    // VELOCE-RESULT/1 r12 adapter (no-op without a sink or once the ROM
+    // has reported over the mGBA debug registers)
+    m_test_channel.end_of_frame(*m_cpu, *m_bus);
 
     // Debug logging: frame count
     if (is_debug_mode()) {
@@ -418,6 +328,11 @@ void GBAPlugin::run_gba_frame(const emu::InputState& input) {
             last_cycles = m_total_cycles;
         }
     }
+}
+
+bool GBAPlugin::set_test_sink(emu::ITestSink* sink) {
+    m_test_channel.set_sink(sink);
+    return true;
 }
 
 uint64_t GBAPlugin::get_cycle_count() const {
