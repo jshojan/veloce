@@ -1,0 +1,45 @@
+{
+  "console": "nes",
+  "suite": "apu_test",
+  "description": "Blargg apu_test: APU length counter/IRQ/DMC behaviour. apu_test.nes combined ROM out of scope, same reason as instr_test-v5.",
+  "license": "public domain / freely redistributable (Shay Green (blargg)'s test framework); see upstream apu_test/source/readme.txt",
+  "repo": {
+    "url": "https://github.com/christopherpow/nes-test-roms.git",
+    "sha": "95d8f621ae55cee0d09b91519a8989ae0e64753b"
+  },
+  "toolchain_stage": "cc65",
+  "golden_gate": false,
+  "golden_gate_reason": "Same issue tests/roms-src/nes/cpu_dummy_reads/PROVENANCE.md documents: the shared common/delay.s countdown idiom ('adc #-1' / 'sbc #-1') needs ca65's '--feature force_range' to assemble at all (no ca65 in cc65's git history accepts a bare out-of-range immediate byte). With that feature on, the rebuilt ROM is the same size (40976 bytes) as upstream's shipped copy but differs at 1835 byte(s), first divergence at file offset 0x6259 (25201) (inside the CHARS-adjacent PRG bank, same region cpu_dummy_reads diverges in) -- consistent with cpu_dummy_reads's unconfirmed theory that '--feature force_range' changes which of shell.inc's jeq/jne/jpl/jmi longbranch.mac macros resolve short vs. long somewhere upstream in the same object file. Verified behaviourally instead (this suite's own NES-2 report has the double-build determinism check): two independent rebuilds of the unmodified source are byte-identical to each other, so the pipeline is reproducible even though it doesn't reproduce this specific pre-existing binary. See cpu_dummy_reads/PROVENANCE.md for the full investigation; not repeated per suite.",
+  "rom_variant": "upstream",
+  "build": {
+    "workdir": "apu_test/source",
+    "commands": [
+      "ca65 --feature force_range --smart -t nes -I common -I /opt/rom-toolchain/cc65-asminc -o 1_len_ctr.o 1-len_ctr.s",
+      "ld65 -C nes.cfg 1_len_ctr.o -o ../rom_singles/1-len_ctr.nes",
+      "ca65 --feature force_range --smart -t nes -I common -I /opt/rom-toolchain/cc65-asminc -o 2_len_table.o 2-len_table.s",
+      "ld65 -C nes.cfg 2_len_table.o -o ../rom_singles/2-len_table.nes",
+      "ca65 --feature force_range --smart -t nes -I common -I /opt/rom-toolchain/cc65-asminc -o 3_irq_flag.o 3-irq_flag.s",
+      "ld65 -C nes.cfg 3_irq_flag.o -o ../rom_singles/3-irq_flag.nes",
+      "ca65 --feature force_range --smart -t nes -I common -I /opt/rom-toolchain/cc65-asminc -o 4_jitter.o 4-jitter.s",
+      "ld65 -C nes.cfg 4_jitter.o -o ../rom_singles/4-jitter.nes",
+      "ca65 --feature force_range --smart -t nes -I common -I /opt/rom-toolchain/cc65-asminc -o 5_len_timing.o 5-len_timing.s",
+      "ld65 -C nes.cfg 5_len_timing.o -o ../rom_singles/5-len_timing.nes",
+      "ca65 --feature force_range --smart -t nes -I common -I /opt/rom-toolchain/cc65-asminc -o 6_irq_flag_timing.o 6-irq_flag_timing.s",
+      "ld65 -C nes.cfg 6_irq_flag_timing.o -o ../rom_singles/6-irq_flag_timing.nes",
+      "ca65 --feature force_range --smart -t nes -I common -I /opt/rom-toolchain/cc65-asminc -o 7_dmc_basics.o 7-dmc_basics.s",
+      "ld65 -C nes.cfg 7_dmc_basics.o -o ../rom_singles/7-dmc_basics.nes",
+      "ca65 --feature force_range --smart -t nes -I common -I /opt/rom-toolchain/cc65-asminc -o 8_dmc_rates.o 8-dmc_rates.s",
+      "ld65 -C nes.cfg 8_dmc_rates.o -o ../rom_singles/8-dmc_rates.nes"
+    ],
+    "artifacts": {
+      "apu_test/rom_singles/1-len_ctr.nes": "1-len_ctr.nes",
+      "apu_test/rom_singles/2-len_table.nes": "2-len_table.nes",
+      "apu_test/rom_singles/3-irq_flag.nes": "3-irq_flag.nes",
+      "apu_test/rom_singles/4-jitter.nes": "4-jitter.nes",
+      "apu_test/rom_singles/5-len_timing.nes": "5-len_timing.nes",
+      "apu_test/rom_singles/6-irq_flag_timing.nes": "6-irq_flag_timing.nes",
+      "apu_test/rom_singles/7-dmc_basics.nes": "7-dmc_basics.nes",
+      "apu_test/rom_singles/8-dmc_rates.nes": "8-dmc_rates.nes"
+    }
+  }
+}

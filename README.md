@@ -229,6 +229,15 @@ Environment Variables:
   DEBUG=1          Enable debug output
   HEADLESS=1       Run without GUI (for automated testing)
   FRAMES=N         Run for N frames then exit (requires HEADLESS=1)
+  VELOCE_TEST_OUT=<path>    Write the machine-readable VELOCE-RESULT/1 test
+                            verdict to <path> (implies HEADLESS=1). See
+                            docs/testing/VELOCE-RESULT.md.
+  VELOCE_TEST_EXIT=0|1     Stop the frame loop once a verdict is seen
+                            (default 1); FRAMES stays a hard budget either way.
+  VELOCE_TEST_RESETS=N     Cap on ROM-requested resets during a test run
+                            (default 3).
+  INPUT=frame:hexmask,...  Deterministic button-press schedule for tests
+                            that need scripted input.
 ```
 
 ### Hotkeys
@@ -290,6 +299,23 @@ For CI/CD integration:
 HEADLESS=1 FRAMES=600 veloce test.nes
 DEBUG=1 HEADLESS=1 FRAMES=600 veloce test.nes  # With debug output
 ```
+
+A verdict never comes from stdout/stderr or a screenshot/framebuffer CRC.
+For a machine-readable pass/fail, set `VELOCE_TEST_OUT` and read back the
+`VELOCE-RESULT/1` file it writes (implies `HEADLESS=1`; `DEBUG` plays no
+part in the verdict):
+
+```bash
+VELOCE_TEST_OUT=out.result FRAMES=600 veloce test.nes
+cat out.result
+```
+
+Each core that has adopted the channel exposes it over a small,
+hardware-inert ROM-facing port (e.g. the NES core's `$401E`/`$401F`, see
+[cores/nes/README.md](cores/nes/README.md#result-detection)) plus adapters
+for existing unmodified test ROMs; the full wire format, the plugin ABI
+hook cores implement it through, and the per-console port table are in
+[docs/testing/VELOCE-RESULT.md](docs/testing/VELOCE-RESULT.md).
 
 ## Project Structure
 

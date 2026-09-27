@@ -260,6 +260,52 @@ zero until reference hashes or a `TRACE=1` emitter exist.
   against the golden `nestest.log`. Requires a `TRACE=1` emitter in the binary and
   the golden log (not shipped); currently reported as unverified.
 
+### Rebuilding test ROMs from source (`tests/roms-src/`)
+
+`tests/roms-src/build.py` rebuilds ROMs from pinned upstream commits inside
+the shared `tools/rom-toolchain` Docker image and records each ROM's
+`sha256` (plus every tool's version) in `tests/roms-src/rom_manifest.json`.
+`tests/roms-src/include/veloce-test.inc` (ca65), `veloce-test-asm6f.inc`
+(asm6f) and `veloce-test-nesasm.inc` (NESASM3) are the "one include per
+assembler" `VT_*` emitter (`VT_BEGIN`/`VT_TEST`/`VT_PASS`/`VT_FAIL`/`VT_REG`/
+`VT_LOG`/`VT_END`, all `STA $401E` underneath) a patched suite's shell calls
+into to speak `VELOCE-RESULT/1` directly instead of through the
+`blargg6000` adapter; `tests/roms-src/nes/veloce_smoke/` is a small
+self-authored ROM (`local_source: true`, no upstream to golden-gate
+against) that exercises every macro in the ca65 dialect against a fixed
+transcript and is used as this channel's determinism check (build twice /
+run twice, byte-diff). The asm6f and NESASM3 dialects are hand-verified
+against the pinned toolchain (each has a documented, worked-around
+assembler quirk in its own file's header comment) but do not yet have their
+own smoke ROM; whoever wires the first real asm6f (NES-6/7) or NESASM3
+(NES-4, AccuracyCoin) suite through the channel gets to be that dialect's
+first real-ROM proof instead of a second synthetic one.
+
+`build.py` also golden-gates (rebuilds unmodified, `cmp`s against upstream's
+own shipped binary) 16 of the "modern" ca65 shell suites plus Bisqwit's
+`cpu_dummy_reads` (17 suites, 85 ROMs: `instr_test-v5`, `nes_instr_test`,
+`instr_timing`, `instr_misc`, `cpu_reset`, `cpu_interrupts_v2`,
+`ppu_vbl_nmi`, `oam_read`, `oam_stress`, `ppu_open_bus`, `apu_test`,
+`apu_mixer`, `apu_reset`, `mmc3_test`, `mmc3_test_2`, `read_joy3` (only
+`test_buttons.nes`, the one real `$6000` writer in that suite),
+`cpu_dummy_reads`). All 85 rebuild byte-for-byte the same size as upstream
+but a few hundred to ~2000 bytes different (`golden_gate: false`, reason
+recorded per suite; same unconfirmed `--feature force_range`/`longbranch`
+root cause `cpu_dummy_reads/PROVENANCE.md` first wrote up), verified
+behaviourally instead: two independent rebuilds of each are byte-identical
+to each other. Three suites are documented, not built: the seven "combined"
+ROMs (`official_only.nes`, `all_instrs.nes`, `instr_timing.nes`,
+`instr_misc.nes`, `cpu_interrupts.nes`, `ppu_vbl_nmi.nes`, `apu_test.nes`)
+can't be rebuilt from the shipped source tree at all (the suites' own
+`readme.txt` says the multi-test build tooling "isn't included");
+`ppu_read_buffer` needs a PHP/nasm/ImageMagick asset pipeline the toolchain
+image doesn't have; `sprdma_and_dmc_dma` ships no source whatsoever in
+`nes-test-roms`. None of the 88 real `$6000`-writing "blargg-modern/bisqwit"
+ROMs this covers were patched -- the `channel`/`rom_variant: veloce` config
+flip and the shell patch that emits `VELOCE-RESULT/1` `TEST`/`CHECK` lines
+directly are NES-5's job; this only proves the rebuild pipeline honest
+before that patching starts.
+
 ### Known measurement gaps
 
 The nestest golden trace (needs a `TRACE=1` emitter plus the golden

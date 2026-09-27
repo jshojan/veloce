@@ -5,6 +5,7 @@
 #
 # Targets registered:
 #   testkit_selftest    - fast pure-logic unit test (no ROMs, no emulator)
+#   rom_build_selftest  - fast unit test of build.py's Recipe/local_source logic (no docker)
 #   test_file_sink      - C++ unit test of the VELOCE_TEST_OUT sink (stub plugin)
 #   nes_test_channel    - C++ unit test of the NES $401E port + blargg6000 adapter
 #   validate_configs    - schema validation of every test_config.json
@@ -30,6 +31,12 @@ add_test(
     COMMAND ${Python3_EXECUTABLE} ${VELOCE_TESTS_DIR}/validate_configs.py
 )
 set_tests_properties(validate_configs PROPERTIES LABELS "unit;fast")
+
+add_test(
+    NAME rom_build_selftest
+    COMMAND ${Python3_EXECUTABLE} ${VELOCE_TESTS_DIR}/roms-src/selftest.py
+)
+set_tests_properties(rom_build_selftest PROPERTIES LABELS "unit;fast")
 
 # Test-result sink (plugin ABI v2): TestFileSink driven by a stub plugin.
 add_executable(test_file_sink

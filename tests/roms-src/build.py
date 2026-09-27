@@ -4,7 +4,15 @@ tests/roms-src/build.py — SH-3b
 
 Rebuilds Veloce's test ROMs from source, one suite at a time, driven by a
 `recipe.json` next to each suite (`tests/roms-src/<console>/<suite>/recipe.json`).
-For every suite this:
+
+A recipe is normally an upstream suite: it names a `repo` (url+sha) to clone
+and gets golden-gated against upstream's own shipped binary (see below). A
+recipe with `"local_source": true` instead (NES-2's `veloce_smoke`) is a
+Veloce-authored ROM: it builds straight from source already committed next
+to the recipe, skips the clone, and `golden_gate` must stay false (there is
+no upstream binary to diff against).
+
+For every upstream suite this:
 
   1. **clones the upstream repo at its pinned SHA** into
      `tests/roms-src/<console>/<suite>/upstream/` (never committed — see
@@ -79,30 +87,38 @@ class Recipe:
     golden_gate: bool
     rom_variant: str
     license: str
+    local_source: bool = False      # Veloce-authored ROM: no upstream to clone or golden-gate
     raw: dict = field(default_factory=dict)
 
     @property
     def clone_dir(self) -> Path:
-        return self.dir / "upstream"
+        # A local_source recipe builds straight from its own committed
+        # sources (tests/roms-src/<console>/<suite>/), never a cloned
+        # upstream/ checkout -- there is no upstream.
+        return self.dir if self.local_source else self.dir / "upstream"
 
     @staticmethod
     def load(path: Path) -> "Recipe":
         raw = json.loads(path.read_text())
-        repo = raw["repo"]
+        local_source = bool(raw.get("local_source", False))
+        repo = raw.get("repo") or {}
+        if not local_source and not repo:
+            raise BuildError(f"{path}: recipe needs 'repo' unless 'local_source' is true")
         build = raw.get("golden_gate_build") or raw.get("build") or {}
         return Recipe(
             console=raw["console"],
             suite=raw["suite"],
             dir=path.parent,
-            repo_url=repo["url"],
-            repo_sha=repo["sha"],
+            repo_url=repo.get("url", ""),
+            repo_sha=repo.get("sha", ""),
             toolchain_stage=raw.get("toolchain_stage", ""),
             workdir=build.get("workdir", "."),
             commands=build.get("commands", []),
             artifacts=build.get("artifacts", {}),
-            golden_gate=raw.get("golden_gate", True),
+            golden_gate=raw.get("golden_gate", not local_source),
             rom_variant=raw.get("rom_variant", "upstream"),
             license=raw.get("license", ""),
+            local_source=local_source,
             raw=raw,
         )
 
@@ -184,10 +200,17 @@ def _user_args() -> list[str]:
 def run_in_toolchain(image: str, clone_dir: Path, workdir: str, commands: list[str]) -> None:
     script = " && ".join(commands)
     container_workdir = f"/work/{workdir}" if workdir not in (".", "") else "/work"
+    mounts = ["-v", f"{clone_dir.resolve()}:/work"]
+    # tests/roms-src/include/ (the "one include per assembler" vt_* emitters,
+    # docs/testing/VELOCE-RESULT.md section 6) is shared across every suite's
+    # own clone/source directory, so it gets its own read-only mount; a
+    # recipe's commands reach it with "-I /veloce-include".
+    include_dir = ROMS_SRC / "include"
+    if include_dir.is_dir():
+        mounts += ["-v", f"{include_dir.resolve()}:/veloce-include:ro"]
     proc = subprocess.run(
         [
-            "docker", "run", "--rm", *_user_args(),
-            "-v", f"{clone_dir.resolve()}:/work",
+            "docker", "run", "--rm", *_user_args(), *mounts,
             "-w", container_workdir,
             image,
             "sh", "-c", script,
@@ -240,7 +263,15 @@ def image_info(image: str) -> tuple[str, dict]:
 
 def build_one(recipe: Recipe, *, image: str, skip_clone: bool) -> dict:
     print(f"== {recipe.console}/{recipe.suite} ==", file=sys.stderr)
-    clone_at_sha(recipe.repo_url, recipe.repo_sha, recipe.clone_dir, skip_if_exists=skip_clone)
+    if recipe.local_source:
+        # Veloce-authored ROM: the source is already committed under this
+        # suite's own directory (recipe.clone_dir == recipe.dir). Nothing to
+        # clone, and golden_gate must be false (checked below) since there is
+        # no upstream binary to diff against.
+        if recipe.golden_gate:
+            raise BuildError(f"{recipe.suite}: local_source recipes can't set golden_gate: true")
+    else:
+        clone_at_sha(recipe.repo_url, recipe.repo_sha, recipe.clone_dir, skip_if_exists=skip_clone)
 
     # Golden-gate baseline: hash every artifact as shipped by upstream, BEFORE
     # we run any build command that will overwrite it in place.
@@ -299,9 +330,10 @@ def build_one(recipe: Recipe, *, image: str, skip_clone: bool) -> dict:
             "sha256": sha256_file(dest),
             "console": recipe.console,
             "suite": recipe.suite,
-            "rom_variant": "veloce" if patches_applied else recipe.rom_variant,
-            "source_repo": recipe.repo_url,
+            "rom_variant": "veloce" if (patches_applied or recipe.local_source) else recipe.rom_variant,
+            "source_repo": recipe.repo_url or "local_source",
             "source_sha": recipe.repo_sha,
+            "local_source": recipe.local_source,
             "patches": patches_applied,
             "golden_gate": gate_results.get(built_rel),
             "tool_versions": tool_versions,

@@ -1,0 +1,54 @@
+{
+  "console": "nes",
+  "suite": "nes_instr_test",
+  "description": "Blargg nes_instr_test: unofficial/illegal 6502 opcode result checksums (11 rom_singles).",
+  "license": "public domain / freely redistributable (Shay Green (blargg)'s test framework); see upstream nes_instr_test/source/readme.txt",
+  "repo": {
+    "url": "https://github.com/christopherpow/nes-test-roms.git",
+    "sha": "95d8f621ae55cee0d09b91519a8989ae0e64753b"
+  },
+  "toolchain_stage": "cc65",
+  "golden_gate": false,
+  "golden_gate_reason": "Same issue tests/roms-src/nes/cpu_dummy_reads/PROVENANCE.md documents: the shared common/delay.s countdown idiom ('adc #-1' / 'sbc #-1') needs ca65's '--feature force_range' to assemble at all (no ca65 in cc65's git history accepts a bare out-of-range immediate byte). With that feature on, the rebuilt ROM is the same size (40976 bytes) as upstream's shipped copy but differs at 904 byte(s), first divergence at file offset 0x606d (24687) (inside the CHARS-adjacent PRG bank, same region cpu_dummy_reads diverges in) -- consistent with cpu_dummy_reads's unconfirmed theory that '--feature force_range' changes which of shell.inc's jeq/jne/jpl/jmi longbranch.mac macros resolve short vs. long somewhere upstream in the same object file. Verified behaviourally instead (this suite's own NES-2 report has the double-build determinism check): two independent rebuilds of the unmodified source are byte-identical to each other, so the pipeline is reproducible even though it doesn't reproduce this specific pre-existing binary. See cpu_dummy_reads/PROVENANCE.md for the full investigation; not repeated per suite.",
+  "rom_variant": "upstream",
+  "build": {
+    "workdir": "nes_instr_test/source",
+    "commands": [
+      "ca65 --feature force_range --smart -t nes -I common -I /opt/rom-toolchain/cc65-asminc -o 01_implied.o 01-implied.s",
+      "ld65 -C nes.cfg 01_implied.o -o ../rom_singles/01-implied.nes",
+      "ca65 --feature force_range --smart -t nes -I common -I /opt/rom-toolchain/cc65-asminc -o 02_immediate.o 02-immediate.s",
+      "ld65 -C nes.cfg 02_immediate.o -o ../rom_singles/02-immediate.nes",
+      "ca65 --feature force_range --smart -t nes -I common -I /opt/rom-toolchain/cc65-asminc -o 03_zero_page.o 03-zero_page.s",
+      "ld65 -C nes.cfg 03_zero_page.o -o ../rom_singles/03-zero_page.nes",
+      "ca65 --feature force_range --smart -t nes -I common -I /opt/rom-toolchain/cc65-asminc -o 04_zp_xy.o 04-zp_xy.s",
+      "ld65 -C nes.cfg 04_zp_xy.o -o ../rom_singles/04-zp_xy.nes",
+      "ca65 --feature force_range --smart -t nes -I common -I /opt/rom-toolchain/cc65-asminc -o 05_absolute.o 05-absolute.s",
+      "ld65 -C nes.cfg 05_absolute.o -o ../rom_singles/05-absolute.nes",
+      "ca65 --feature force_range --smart -t nes -I common -I /opt/rom-toolchain/cc65-asminc -o 06_abs_xy.o 06-abs_xy.s",
+      "ld65 -C nes.cfg 06_abs_xy.o -o ../rom_singles/06-abs_xy.nes",
+      "ca65 --feature force_range --smart -t nes -I common -I /opt/rom-toolchain/cc65-asminc -o 07_ind_x.o 07-ind_x.s",
+      "ld65 -C nes.cfg 07_ind_x.o -o ../rom_singles/07-ind_x.nes",
+      "ca65 --feature force_range --smart -t nes -I common -I /opt/rom-toolchain/cc65-asminc -o 08_ind_y.o 08-ind_y.s",
+      "ld65 -C nes.cfg 08_ind_y.o -o ../rom_singles/08-ind_y.nes",
+      "ca65 --feature force_range --smart -t nes -I common -I /opt/rom-toolchain/cc65-asminc -o 09_branches.o 09-branches.s",
+      "ld65 -C nes.cfg 09_branches.o -o ../rom_singles/09-branches.nes",
+      "ca65 --feature force_range --smart -t nes -I common -I /opt/rom-toolchain/cc65-asminc -o 10_stack.o 10-stack.s",
+      "ld65 -C nes.cfg 10_stack.o -o ../rom_singles/10-stack.nes",
+      "ca65 --feature force_range --smart -t nes -I common -I /opt/rom-toolchain/cc65-asminc -o 11_special.o 11-special.s",
+      "ld65 -C nes.cfg 11_special.o -o ../rom_singles/11-special.nes"
+    ],
+    "artifacts": {
+      "nes_instr_test/rom_singles/01-implied.nes": "01-implied.nes",
+      "nes_instr_test/rom_singles/02-immediate.nes": "02-immediate.nes",
+      "nes_instr_test/rom_singles/03-zero_page.nes": "03-zero_page.nes",
+      "nes_instr_test/rom_singles/04-zp_xy.nes": "04-zp_xy.nes",
+      "nes_instr_test/rom_singles/05-absolute.nes": "05-absolute.nes",
+      "nes_instr_test/rom_singles/06-abs_xy.nes": "06-abs_xy.nes",
+      "nes_instr_test/rom_singles/07-ind_x.nes": "07-ind_x.nes",
+      "nes_instr_test/rom_singles/08-ind_y.nes": "08-ind_y.nes",
+      "nes_instr_test/rom_singles/09-branches.nes": "09-branches.nes",
+      "nes_instr_test/rom_singles/10-stack.nes": "10-stack.nes",
+      "nes_instr_test/rom_singles/11-special.nes": "11-special.nes"
+    }
+  }
+}
