@@ -27,6 +27,10 @@ public:
     uint8_t read_port(int port);
     void write_port(int port, uint8_t value);
 
+    // Observe S-SMP writes to its output ports (see SPC700::set_port_write_hook).
+    void set_port_write_hook(void (*hook)(void* ctx, int port, uint8_t value, bool from_ipl),
+                             void* ctx);
+
     // Get audio samples (stereo, interleaved)
     size_t get_samples(float* buffer, size_t max_samples);
 

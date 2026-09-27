@@ -513,17 +513,45 @@ SPC700 + SuperFX/GSU opcode suites, absindx SA-1, and the jonasquinn / KungFuFur
 | Subsystem | Suites | Sample ROMs | Detection |
 |-----------|--------|-------------|-----------|
 | CPU (65816) | arith, logic, inc/dec/cmp, load/store/transfer, branch/jump/misc, full-auto | CPUADC, CPUSBC, CPUMSC, CPUMOV, gilyon cputest | screenshot-crc (visual) |
-| APU (SPC700 + DSP) | blargg, SPC700 ops, gilyon | spc_smp, spc_timer, spc_mem_access_times, spc_dsp6, SPC700ADC | memory ($6000) + screenshot-crc |
+| APU (SPC700 + DSP) | blargg, SPC700 ops, gilyon | spc_smp, spc_timer, spc_mem_access_times, spc_dsp6, SPC700ADC | memory (`$6000` via the result file; blargg-spc-6 never writes it) + screenshot-crc |
 | PPU | smoke, OAM, mode3/color-halve, bus/INIDISP | test_hello, test_oam, demo_mode3, ppubusact | screenshot-crc |
 | Timing | IRQ, DMA, HDMA | test_irq4209, test_dmatiming, test_hdmatiming, dma_irq_test, HblankEmuTest | screenshot-crc (cycle-accurate) |
 | Mapper (enhancement chips) | SuperFX/GSU, SA-1 | GSUADC, GSUFMULT, SA1RamProtectionTest | screenshot-crc |
 | Memory | speed/open-bus | speed_test_v51, op_timing_test_v2 | screenshot-crc (timing) |
 
-**Detection methods.** Blargg SPC ROMs report PASS/FAIL via the `$6000` memory
-protocol (`BLARGG_STATUS` / `Status code: N` under `DEBUG=1`). All krom/PeterLemon
-and community ROMs draw their result on screen and use `screenshot-crc`: the
-binary captures the framebuffer (`SAVE_SCREENSHOT`), the testkit CRC32s the PNG
-and compares to a stored `reference_hash`.
+**Detection methods.** Scored verdicts come from the VELOCE-RESULT/1 result
+file ([docs/testing/VELOCE-RESULT.md](../../docs/testing/VELOCE-RESULT.md)): the
+harness sets `VELOCE_TEST_OUT` and the core forwards its result channel into it
+(see *Test-result channel* below). The core no longer prints a verdict to
+stdout/stderr. Most krom/PeterLemon and community ROMs still draw their result
+on screen and use `screenshot-crc`: the binary captures the framebuffer
+(`SAVE_SCREENSHOT`), the testkit CRC32s the PNG and compares to a stored
+`reference_hash`. Those entries are non-scoring until they are rebuilt to emit
+on the port (plan items SNES-3..8).
+
+### Test-result channel
+
+`snes::TestChannel` (`src/test_channel.{hpp,cpp}`) implements plugin ABI v2
+(`set_test_sink`, `test_channels() = "port,blargg6000,stp,sram,spcport"`,
+`on_test_reset`). Every driver is inert unless the application attached a sink,
+so normal play is unchanged.
+
+| Driver | ROM side | What lands in the result file |
+|---|---|---|
+| `port` | `STA $21FE` (any bank `$00-$3F`/`$80-$BF`, DMA-able B-bus address); `$21FF` write = control (`$00` nop, `$01` terminator hint); `$21FF` read = `$56` probe | the bytes verbatim (`VELOCE 1 ...`, `CHECK ...`, `END p/t`) |
+| `blargg6000` | blargg `$6000` block (status, `DE B0 61` signature, text at `$6004+`) | `#VELOCE adapter=blargg6000`, the text as `LOG` lines as it is written, `END 1/1` or `END 0/1 code=<n>`; status `$81` requests one reset per `$80`->`$81` transition |
+| `stp` / `sram` | ROM halts with `STP` (byuu/jonasquinn convention: backdrop `$7C00` from `pass()`, `$001F` from `fail()`) | `#VELOCE stp=<pbr:pc> cgram0=<hex>`, blobs `sram` (cartridge RAM) and `cgram`, then `END 1/1` / `END 0/1` (any other colour: terminator with unknown status) |
+| `spcport` | gilyon spctest (`SPC-700 TEST` header) S-SMP port protocol | one `CHECK` per uploaded S-SMP test program, `REG` of the failing test's A/X/Y/P, `END` on failure or once the S-CPU stops uploading |
+
+Once a ROM writes the port, the legacy adapters stay silent. WRAM is filled with
+a fixed constant when a sink attaches, so two runs of a ROM produce identical
+result files. Measurement ROMs that always end in `pass()` (e.g. `test_mul`)
+report completion through `stp`, not correctness; their SRAM blob is the
+observable to compare.
+
+```bash
+VELOCE_TEST_OUT=/tmp/spctest.result ./veloce spctest.sfc && cat /tmp/spctest.result
+```
 
 **Reference hashes are "to be measured."** Visual tests carry no golden hash yet,
 so they are marked `expected: known_fail` and contribute **0** to the headline

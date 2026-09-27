@@ -158,6 +158,15 @@ uint8_t Bus::read(uint32_t address) {
             }
         }
         if (offset >= 0x2100 && offset < 0x2200) {
+            // Test-result channel probe ($21FF reads $56 while a sink is
+            // attached; otherwise falls through to the normal B-bus route).
+            if (offset >= TestChannel::PORT_DATA) {
+                uint8_t probe;
+                if (m_test_channel.port_read(offset, probe)) {
+                    m_open_bus = probe;
+                    return m_open_bus;
+                }
+            }
             // WRAM data port ($2180) has priority
             if (offset == 0x2180) {
                 m_open_bus = m_wram[m_wram_addr];
@@ -318,10 +327,20 @@ void Bus::write(uint32_t address, uint8_t value) {
                         (int)(offset - 0x2140), value, apu_write_count);
                 }
                 m_apu->write_port(offset - 0x2140, value);
+                if (m_test_channel.spcport_armed()) {
+                    m_test_channel.cpu_apu_write(offset - 0x2140, value);
+                }
             }
             return;
         }
         if (offset >= 0x2100 && offset < 0x2200) {
+            // Test-result channel port: $21FE data, $21FF control. Unused
+            // B-bus addresses (no-ops on hardware), taken ahead of the PPU
+            // route only while a sink is attached.
+            if (offset >= TestChannel::PORT_DATA && m_test_channel.active()) {
+                m_test_channel.port_write(offset, value);
+                return;
+            }
             // WRAM data port and address registers ($2180-$2183)
             if (offset == 0x2180) {
                 // Debug: Log writes to $1B00-$1BFF range via WRAM port
@@ -372,11 +391,12 @@ void Bus::write(uint32_t address, uint8_t value) {
             }
         }
         // SRAM region ($6000-$7FFF)
-        // Also intercept writes for Blargg test detection
         if (offset >= 0x6000 && offset < 0x8000) {
-            // Intercept writes to $6000-$60FF for Blargg test detection
-            if (offset < 0x6100) {
-                m_blargg_state.on_memory_write(offset - 0x6000, value);
+            // blargg6000 adapter: observe the $6000-$60FF result block
+            // (only while a test sink is attached; the write still goes to
+            // the cartridge as usual).
+            if (offset < 0x6100 && m_test_channel.active()) {
+                m_test_channel.blargg_write(offset - 0x6000, value);
             }
             if (m_cartridge) {
                 m_cartridge->write(address, value);
