@@ -1,326 +1,308 @@
 # Veloce
 
-A cross-platform, plugin-based emulator framework built for speedrunners and TAS creators.
+A plugin-based, cross-platform emulator framework for NES, SNES, Game Boy / Color, and Game Boy Advance, built toward speedrunning and TAS use.
 
-*Veloce* - Italian for "fast"
+![Version](https://img.shields.io/badge/version-0.1.0-blue)
+![Language](https://img.shields.io/badge/C%2B%2B-17-blue)
+![Build](https://img.shields.io/badge/build-CMake%203.16%2B-informational)
+![License](https://img.shields.io/badge/license-MIT-green)
 
-| Platform | Status |
-|----------|--------|
-| Windows  | Supported |
-| Linux    | Supported |
-| macOS    | Supported (x86/ARM) |
+*Veloce* is Italian for "fast".
 
 ## Overview
 
-Veloce is a modular emulator platform that combines cycle-accurate console emulation with advanced features for speedrunning and tool-assisted speedruns (TAS). The architecture follows a Project64-style plugin system where emulator cores, audio backends, input handlers, and TAS tools are all swappable components.
+Veloce is a single frontend (`veloce`, built on SDL2, Dear ImGui, and OpenGL) that loads emulator cores and auxiliary components as shared-library plugins, in the spirit of Project64. Each console lives in its own core under [`cores/`](cores/), and every plugin talks to the application only through the C++ interfaces in [`include/emu/`](include/emu/).
 
-The framework prioritizes accuracy where it matters for speedrunning (timing-sensitive operations, RNG behavior) while maintaining playable performance on modern hardware.
+The project prioritizes accuracy where speedrunners and TAS authors notice it: timing-sensitive behavior, deterministic execution, and a measured, reproducible accuracy number per core rather than a hand estimate. A shared test framework scores accuracy from verdicts that test ROMs write to a file, never from eyeballing screenshots (see [Testing](#testing)).
 
-## Quick Start
+Veloce is at version 0.1.0 and under active development. The four cores run commercial software to varying degrees, and the speedrun timer works. The TAS, netplay, and deterministic-savestate features the architecture is designed around are **not usable yet**. [Project status](#project-status) lists exactly what works today.
+
+## Project status
+
+This table reflects the code on `main`, including the September 2026 cross-platform audit. Items marked planned have interfaces or partial implementations in the tree but do not work end to end.
+
+| Area | Status | Detail |
+|------|--------|--------|
+| Emulator cores | Working, maturity varies | Per-console status in [Supported systems](#supported-systems) |
+| Speedrun timer and splits | Working | Built-in game plugin: live timer, splits, personal best, gold segments, sum of best. See [plugins/speedrun_tools_default](plugins/speedrun_tools_default/README.md) |
+| Save states (10 slots) | Partial | Save/load works for casual play, but no core serializes its complete machine state yet, so a loaded state is not guaranteed to replay identically. The container also carries no core identity or per-core format version |
+| TAS (movie record/playback, greenzone) | Planned | `ITASPlugin` and `plugins/tas_default` exist, but the frame loop never drives the TAS plugin, so no TAS feature is reachable. Also blocked on deterministic save states |
+| Input and audio plugins | Planned | `IInputPlugin`/`IAudioPlugin` and default implementations exist, but the frame loop uses the application's built-in input and audio managers instead |
+| Netplay | Planned (experimental UI only) | The default netplay plugin has a panel (Ctrl+N) but no network transport, no real input exchange, and no rollback |
+| Multiple controllers | Not supported | The per-frame input state carries a single controller |
+| Speed control | Partial | Only 100% speed is paced correctly; other multipliers are not applied |
+| Test-result channel (VELOCE-RESULT/1) | Partial | The application-side sink is implemented and unit-tested; no core emits to it yet, so suites still use the legacy detectors. See [Testing](#testing) |
+
+## Supported systems
+
+Per-core accuracy numbers change as tests and fixes land, so they live in one place: [COMPLETENESS.md](COMPLETENESS.md). The status lines below are qualitative.
+
+| System | Core | Status |
+|--------|------|--------|
+| NES / Famicom | [cores/nes](cores/nes/README.md) | Most mature core, with the strongest verified test coverage and a broad mapper set. Remaining accuracy debt is concentrated in interrupt/DMA cycle timing and APU frame-counter timing. [Scorecard](COMPLETENESS.md#nes) |
+| Super Nintendo | [cores/snes](cores/snes/README.md) | 65C816, PPU (including Mode 7), SPC700, and S-DSP implemented. No enhancement chips (SuperFX, SA-1, DSP-n, and others). Very little is verified end to end yet, because most SNES test ROMs report on screen and have no scorable result signal. [Scorecard](COMPLETENESS.md#snes) |
+| Game Boy / Color | [cores/gb](cores/gb/README.md) | DMG and CGB; no-MBC, MBC1, MBC3, and MBC5 cartridges. The Blargg subset is verified; the large Mooneye-family block stays unverified until the core emits its result signal. [Scorecard](COMPLETENESS.md#game-boy) |
+| Game Boy Advance | [cores/gba](cores/gba/README.md) | ARM7TDMI with HLE BIOS; SRAM, Flash, and EEPROM saves. CPU, memory, BIOS, and most save tests pass; cycle-accurate DMA/IRQ/timer timing mostly fails. [Scorecard](COMPLETENESS.md#gba) |
+
+## Quick start (Linux)
 
 ```bash
-# Build
+sudo apt-get install -y build-essential git python3 libgl-dev libsdl2-dev
 cmake -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build
-
-# Run
-./build/bin/veloce game.nes
+cmake --build build -j"$(nproc)"
+./build/bin/veloce path/to/game.nes       # run from the repository root
 ```
 
-See [Build Instructions](#building) for platform-specific details.
-
-## Supported Systems
-
-| System | Core | Status | Notes |
-|--------|------|--------|-------|
-| NES/Famicom | [cores/nes](cores/nes/README.md) | Playable | 20+ mappers, ~90% library coverage |
-| Game Boy / Color | [cores/gb](cores/gb/README.md) | In Progress | DMG and CGB, MBC1/3/5 |
-| Game Boy Advance | [cores/gba](cores/gba/README.md) | In Progress | ARM7TDMI, all video modes |
-| Super Nintendo | [cores/snes](cores/snes/README.md) | In Progress | 65C816, Mode 7, SPC700 |
-
-## Architecture
-
-Veloce uses a plugin architecture where functionality is divided into distinct, swappable components:
-
-```
-veloce (application)
-    |
-    +-- Plugin Manager
-    |       |
-    |       +-- Emulator Cores (IEmulatorPlugin)
-    |       |       NES, GB, GBA, SNES
-    |       |
-    |       +-- Audio Plugin (IAudioPlugin)
-    |       |       Volume, muting, processing
-    |       |
-    |       +-- Input Plugin (IInputPlugin)
-    |       |       Keyboard, gamepad, recording
-    |       |
-    |       +-- TAS Plugin (ITASPlugin)
-    |       |       Movie editing, greenzone, playback
-    |       |
-    |       +-- Game Plugins (IGamePlugin) [Multiple]
-    |       |       Timer, splits, auto-splitters
-    |       |       Each plugin renders its own GUI panel
-    |       |       Self-contained with IGameHost interface
-    |       |
-    |       +-- Netplay Plugin (INetplayPlugin)
-    |               Rollback netcode, delay-based
-    |
-    +-- Core Services
-            Savestate Manager, GamePluginHost (IGameHost)
-```
-
-### Game Plugin Architecture
-
-Game plugins are self-contained components that can:
-- Render their own ImGui panels via `render_gui()`
-- Access emulator memory for auto-split detection
-- Track timer state, splits, and personal bests
-
-**Multiple game plugins can be active simultaneously**, enabling:
-- Built-in timer + game-specific auto-splitter
-- Different timer layouts for different use cases
-- Community-created auto-splitter plugins
-
-Game plugin selection is configurable in Settings > Plugins.
-
-### Plugin Documentation
-
-**Auxiliary Plugins:**
-- [Audio Plugin](plugins/audio_default/README.md) - Audio passthrough with volume control
-- [Input Plugin](plugins/input_default/README.md) - Keyboard and gamepad input handling
-- [TAS Plugin](plugins/tas_default/README.md) - TAS movie recording and editing
-- [Game Plugin](plugins/speedrun_tools_default/README.md) - Built-in timer, splits, and PB tracking
-
-**Emulator Cores:**
-- [NES Core](cores/nes/README.md) - Nintendo Entertainment System
-- [Game Boy Core](cores/gb/README.md) - Game Boy and Game Boy Color
-- [GBA Core](cores/gba/README.md) - Game Boy Advance
-- [SNES Core](cores/snes/README.md) - Super Nintendo Entertainment System
-
-### Plugin Interfaces
-
-All plugin interfaces are defined in include/emu/:
-
-| Header | Interface | Description |
-|--------|-----------|-------------|
-| emulator_plugin.hpp | IEmulatorPlugin | ROM loading, frame execution, save states |
-| audio_plugin.hpp | IAudioPlugin | Audio processing and output |
-| input_plugin.hpp | IInputPlugin | Input polling and configuration |
-| tas_plugin.hpp | ITASPlugin | Movie recording, playback, editing |
-| game_plugin.hpp | IGamePlugin | Timer, splits, auto-splitters, RAM watch |
-| netplay_plugin.hpp | INetplayPlugin | Network multiplayer support |
-
-## Features
-
-### Core Features
-
-- 10 save state slots with F1-F10 hotkeys
-- Visual input configuration with interactive controller display
-- Per-platform controller bindings
-- USB gamepad support with hot-plugging
-- Debug tools (memory viewer, CPU/PPU state)
-
-### Speedrun Features
-
-- Millisecond-precision live timer with splits
-- Personal best tracking and comparison
-- Gold splits (best segment times)
-- Sum of best calculation
-- Color-coded delta display
-- Per-game auto-splitter support via game plugins
-- LiveSplit integration (planned)
-
-### TAS Features
-
-- Frame-by-frame movie recording and playback
-- Greenzone (automatic savestate snapshots for seeking)
-- Undo/redo with 100 levels of history
-- Frame insertion, deletion, and modification
-- FM2 movie import (FCEUX format)
-- Selection, copy/cut/paste operations
-- Frame markers with descriptions
-
-### Netplay Features
-
-- GGPO-style rollback netcode
-- Delay-based mode for stable connections
-- Session codes for easy joining
-- In-game chat with timestamps
-- Desync detection and recovery
+If `cmake` is not on your `PATH`, see [Getting CMake](#getting-cmake).
 
 ## Building
 
-### Prerequisites
+Veloce is C++17 and needs CMake 3.16 or newer. CMake `FetchContent` downloads Dear ImGui (v1.90.1) and nlohmann/json (v3.11.3) at configure time, so the first configure needs network access and `git`. CMake uses the system SDL2 if it can find one; otherwise it fetches SDL 2.28.5 and builds it statically.
 
-Dependencies (SDL2, Dear ImGui, nlohmann/json) are automatically downloaded via CMake FetchContent.
+### Linux
 
-**Linux (Ubuntu/Debian):**
-```bash
-sudo apt-get install -y build-essential cmake libgl-dev libglu1-mesa-dev
-```
+| Package (Debian/Ubuntu) | Why |
+|-------------------------|-----|
+| `build-essential` | C++17 compiler and linker |
+| `git` | `FetchContent` clones |
+| `libgl-dev` | OpenGL (required) |
+| `libsdl2-dev` | Recommended. Without it, SDL2 is built from source and needs your distribution's X11/Wayland development headers to open a window |
+| `python3` | Required at configure time while the test framework is enabled (the default). Configure with `-DVELOCE_BUILD_TESTS=OFF` to build without it |
 
-**macOS:**
-```bash
-xcode-select --install
-brew install cmake
-```
-
-**Windows:**
-- Visual Studio 2022 or 2026 with the "Desktop development with C++" workload
-- CMake and Ninja are bundled with Visual Studio (no separate install needed)
-- The build targets the MSVC toolchain; MinGW/Clang are not currently tested
-
-### Build Commands
-
-**Linux / macOS:**
 ```bash
 cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j"$(nproc)"
+```
+
+Use `-DCMAKE_BUILD_TYPE=Debug` for development; Release runs much faster.
+
+#### Getting CMake
+
+Any CMake 3.16+ works: the distribution package, the upstream installer, or the PyPI wheel. The PyPI wheel is convenient when you cannot install system packages:
+
+```bash
+python3 -m pip install --user cmake      # or inside a pyenv / virtualenv
+cmake --version
+```
+
+CMake records the absolute path of the `cmake` binary that configured a build tree (for example `/usr/bin/cmake`) in the generated `build/Makefile`. If running `make` inside `build/` fails with `cmake: not found`, that `cmake` has moved or was never at that path. Re-run `cmake -B build` with the `cmake` you have, and prefer `cmake --build build` over calling `make` directly.
+
+### Build output
+
+| Path | Contents |
+|------|----------|
+| `build/bin/veloce` | The application |
+| `build/bin/cores/` | Emulator core plugins: `nes`, `snes`, `gb`, `gba` |
+| `build/bin/plugins/` | Auxiliary plugins: audio, input, TAS, netplay, and the built-in timer |
+| `build/bin/test_file_sink` | C++ unit test for the test-result sink (built when tests are enabled) |
+
+### macOS
+
+```bash
+xcode-select --install
+brew install cmake sdl2
+cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build
-./build/bin/veloce
 ```
 
-**Windows — Visual Studio IDE (recommended):**
+The CMake files contain a macOS configuration, but CI does not build it; reports and fixes are welcome.
 
-The repository ships a `CMakeSettings.json` with an `x64-Debug` (Ninja) configuration, so the project builds out of the box:
+### Windows
 
-1. Launch Visual Studio 2022/2026 and choose **Open a local folder**, then select the repository root.
-2. Visual Studio detects `CMakeLists.txt` and configures automatically (the first run downloads SDL2/ImGui/json via FetchContent — give it a minute).
-3. Pick the `x64-Debug` configuration and build with **Build > Build All** (or `Ctrl+Shift+B`).
-4. The binary and plugins land in `out\build\x64-Debug\bin\`. Run via **Select Startup Item > veloce.exe**.
+Requires Visual Studio 2022 or 2026 with the "Desktop development with C++" workload, which bundles CMake and Ninja. Only the MSVC toolchain is supported, and CI does not build Windows.
 
-**Windows — command line (Developer PowerShell for VS):**
-```powershell
-# Debug — configures into the same Ninja tree the IDE's x64-Debug uses
-cmake -S . -B out\build\x64-Debug -G Ninja -DCMAKE_BUILD_TYPE=Debug
-cmake --build out\build\x64-Debug
-.\out\build\x64-Debug\bin\veloce.exe
+- **IDE:** open the repository root with **Open a local folder**. The committed [`CMakeSettings.json`](CMakeSettings.json) provides `x64-Debug` and `x64-Release` Ninja configurations; binaries land in `out\build\<config>\bin\`.
+- **Command line** (Developer PowerShell for VS, so `cl.exe` and Ninja are on `PATH`):
 
-# Release — optimized (/O2), matches the IDE's x64-Release configuration.
-# Use this build for actual gameplay; Debug is significantly slower.
-cmake -S . -B out\build\x64-Release -G Ninja -DCMAKE_BUILD_TYPE=Release
-cmake --build out\build\x64-Release
-.\out\build\x64-Release\bin\veloce.exe
-```
+  ```powershell
+  cmake -S . -B out\build\x64-Release -G Ninja -DCMAKE_BUILD_TYPE=Release
+  cmake --build out\build\x64-Release
+  ```
 
-> Run the commands from a **Developer PowerShell / Developer Command Prompt for VS** so the MSVC compiler (`cl.exe`) and Ninja are on `PATH`. Both `x64-Debug` and `x64-Release` are also selectable directly from the Visual Studio configuration dropdown (see `CMakeSettings.json`).
-
-**Windows — Visual Studio solution generator (alternative):**
-```cmd
-cmake -B build -G "Visual Studio 17 2022" -A x64
-cmake --build build --config Release
-build\bin\veloce.exe
-```
-
-> The MSVC build sets `_CRT_SECURE_NO_WARNINGS` and `/Zc:__cplusplus /utf-8` automatically (see `CMakeLists.txt`), so the POSIX-style standard-library calls in the cores compile without warning noise.
-
-## Usage
+## Running
 
 ```bash
 veloce [OPTIONS] [ROM_FILE]
-
-Options:
-  -h, --help       Show help and exit
-  -v, --version    Show version and exit
-  -d, --debug      Enable debug panel
-
-Environment Variables:
-  DEBUG=1          Enable debug output
-  HEADLESS=1       Run without GUI (for automated testing)
-  FRAMES=N         Run for N frames then exit (requires HEADLESS=1)
 ```
+
+| Option | Effect |
+|--------|--------|
+| `-d`, `--debug` | Open the debug panel (CPU/PPU state, memory viewer) |
+| `-h`, `--help` | Print usage, including the environment variables below |
+| `-v`, `--version` | Print the version |
+
+ROM formats: `.nes` (NES), `.sfc` / `.smc` (SNES), `.gb` / `.gbc` (Game Boy), `.gba` (GBA). With no ROM argument, the GUI opens and you can load a ROM from the menu.
+
+**Run from the repository root or from `build/`.** The application searches for plugins relative to the current working directory (`./cores`, `./bin/cores`, `./build/bin/cores`, and the matching `plugins/` paths), not relative to the executable. It also creates `config/`, `saves/`, `savestates/`, and `screenshots/` in the current working directory.
+
+Known issue: `--help`, `--version`, and unrecognized options print their output and then crash (exit code 139) instead of exiting cleanly.
 
 ### Hotkeys
 
 | Action | Key |
 |--------|-----|
-| Pause/Resume | Escape |
-| Frame Advance | F (when paused) |
+| Pause / resume | Escape |
+| Frame advance (while paused) | F |
 | Reset | Ctrl+R |
+| Save state to slot 1-10 | F1-F10 |
+| Load state from slot 1-10 | Shift+F1-F10 |
+| Screenshot | Print Screen |
 | Fullscreen | F11 |
-| Debug Panel | F12 |
-| Netplay Panel | Ctrl+N |
-| Quick Save (Slot 1-10) | F1-F10 |
-| Quick Load (Slot 1-10) | Shift+F1-F10 |
+| Debug panel | F12 |
+| Netplay panel (experimental) | Ctrl+N |
 
-### Default Controls
+### Default controls
 
-| Button | Keyboard | Gamepad |
-|--------|----------|---------|
-| D-Pad | Arrow Keys | D-Pad / Left Stick |
-| A | Z | A / Cross |
-| B | X | B / Circle |
+Bindings are per platform and can be changed in the input configuration panel. SDL game controllers are supported with hot-plugging.
+
+| Button | Keyboard | Game controller |
+|--------|----------|-----------------|
+| D-pad | Arrow keys | D-pad |
+| A / B | Z / X | A / B |
+| X / Y | A / S | X / Y |
+| L / R | Q / W | Shoulder buttons |
 | Start | Enter | Start |
-| Select | Right Shift | Back/Select |
+| Select | Right Shift | Back |
 
-## Configuration
+### Headless mode and environment variables
 
-Configuration files are stored in:
-- Linux/macOS: ~/.config/veloce/
-- Windows: %APPDATA%\veloce\
+Headless mode runs a ROM for a fixed number of frames with no window, audio, or GUI. The test harness drives the emulator this way.
+
+```bash
+# Run 600 frames, hold Start (0x40) on frames 200-201, screenshot frame 600
+HEADLESS=1 FRAMES=600 INPUT="200:40,202:0" SAVE_SCREENSHOT=600 ./build/bin/veloce test.nes
+
+# Test session: write the ROM's result channel to a file (implies HEADLESS=1)
+VELOCE_TEST_OUT=out.result FRAMES=900 ./build/bin/veloce test.nes
+```
+
+| Variable | Effect |
+|----------|--------|
+| `HEADLESS=1` | Run without a window. Requires a ROM argument |
+| `FRAMES=N` | Frame budget in headless mode (default 600) |
+| `INPUT=frame:mask,...` | Deterministic player-1 input schedule, headless only. `mask` is hex; each entry holds until the next. Bits: A `1`, B `2`, X `4`, Y `8`, L `10`, R `20`, Start `40`, Select `80`, Up `100`, Down `200`, Left `400`, Right `800` |
+| `SAVE_SCREENSHOT=N` | Save a PNG at frame N. A non-numeric value is an output path, written at exit |
+| `TRACE=1` | NES only: emit a nestest-format CPU trace to stdout, or to `TRACE_FILE=<path>` |
+| `DEBUG=1` | Verbose core diagnostics on stdout/stderr. Meant for humans; the legacy stdout detectors also rely on it |
+| `VELOCE_TEST_OUT=<path>` | Write the VELOCE-RESULT/1 test-result file to `<path>` |
+| `VELOCE_TEST_EXIT=0\|1` | Stop at the result terminator (default 1) |
+| `VELOCE_TEST_RESETS=N` | Maximum ROM-requested resets (default 3) |
+
+[docs/testing/VELOCE-RESULT.md](docs/testing/VELOCE-RESULT.md) specifies the exact semantics of the `VELOCE_TEST_*` variables, the result-file format, and the per-console ROM ports.
 
 ## Testing
 
-Veloce ships a shared, cross-console accuracy framework that produces a
-defensible, reproducible "this core is N% accurate" number per subsystem and per
-console. Start here:
+Veloce measures accuracy instead of asserting it. [TESTING.md](TESTING.md) states the principles in full:
 
-- [TESTING.md](TESTING.md) - testing philosophy, harness architecture, the
-  result-detection protocols, how to run the suites, and exactly how the
-  completeness percentage is computed.
-- [COMPLETENESS.md](COMPLETENESS.md) - the per-console accuracy scorecard, every
-  number justified against what is verified versus unverified.
+- **Verdicts come from files, not pixels.** A test ROM writes what it observed to a result file in the [VELOCE-RESULT/1](docs/testing/VELOCE-RESULT.md) format, and the harness scores that file. Screenshots, framebuffer CRCs, and scraped stdout are never a verdict.
+- **Every number is reproducible.** Each test contributes a weighted credit, and `tests/veloce_testkit` computes the per-core score from data.
+- **Unknowns are reported, not hidden.** A test that runs without a readable verdict counts as unverified and is excluded from the score; it is never counted as a pass.
 
-| Console | Verified headline | Detail |
-|---------|-------------------|--------|
-| NES | ~90-94% (strongest verified coverage) | [scorecard](COMPLETENESS.md#nes) / [notes](cores/nes/README.md#testing) |
-| SNES | low until reference hashes land | [scorecard](COMPLETENESS.md#snes) / [notes](cores/snes/README.md#testing) |
-| Game Boy | Blargg serial subset verified | [scorecard](COMPLETENESS.md#game-boy) / [notes](cores/gb/README.md#testing) |
-| GBA | partial (CPU/memory/BIOS/saves verified) | [scorecard](COMPLETENESS.md#gba) / [notes](cores/gba/README.md#test-status) |
-
-Run everything with `python tests/run_all.py`; see [TESTING.md](TESTING.md) for
-per-console and CI usage.
-
-### Headless Mode
-
-For CI/CD integration:
+**Current state:** the application writes the result file, and a C++ unit test covers it, but no core implements the test-sink ABI yet (the file's header line shows an empty `channels=`). Until each core migrates, suites fall back to the legacy `memory`/`serial` stdout detectors and the pending `screenshot-crc` references described in TESTING.md.
 
 ```bash
-HEADLESS=1 FRAMES=600 veloce test.nes
-DEBUG=1 HEADLESS=1 FRAMES=600 veloce test.nes  # With debug output
+ctest --test-dir build -L fast        # fast gates: testkit selftest, config validation, sink unit test
+python3 tests/run_all.py              # all per-console accuracy suites (clones test ROMs on first run)
 ```
 
-## Project Structure
+- Per-console runners, CI gates, and the scoring formula: [TESTING.md](TESTING.md)
+- Current numbers: [COMPLETENESS.md](COMPLETENESS.md)
+- Framework internals: [tests/README.md](tests/README.md)
+- Reproducible from-source test-ROM builds: [`tests/roms-src/build.py`](tests/roms-src/build.py), using the pinned assembler image in [`tools/rom-toolchain/`](tools/rom-toolchain/)
+
+## Architecture
+
+The application owns a single frame loop. Each frame it reads input from its built-in input manager, calls the active core's `run_frame`, feeds audio to its built-in audio manager, and updates game plugins. Other plugin types load and can be configured but, as noted under [Project status](#project-status), the loop does not drive them yet.
 
 ```
-veloce/
-    include/emu/              Plugin interfaces
-    src/
-        core/                 Application core
-        gui/                  Dear ImGui interface
-    cores/                    Emulator cores
-        nes/                  NES emulator
-        gb/                   Game Boy emulator
-        gba/                  GBA emulator
-        snes/                 SNES emulator
-    plugins/                  Auxiliary plugins
-        audio_default/        Audio backend
-        input_default/        Input backend
-        tas_default/          TAS engine
-        speedrun_tools_default/  Built-in timer (IGamePlugin)
+veloce (src/core, src/gui)
+  |
+  +-- Frame loop ........ InputManager -> IEmulatorPlugin::run_frame -> AudioManager
+  |                       -> game plugins updated each frame
+  +-- SavestateManager .. 10 slots per ROM
+  +-- TestFileSink ...... VELOCE-RESULT/1 writer (headless test sessions)
+  |
+  +-- PluginManager / PluginRegistry (ABI version checked at load)
+        +-- Emulator cores (IEmulatorPlugin)   nes, snes, gb, gba   driven
+        +-- Game plugins   (IGamePlugin)       built-in timer        driven
+        +-- Netplay        (INetplayPlugin)    default               UI only
+        +-- TAS            (ITASPlugin)        default               not driven
+        +-- Input          (IInputPlugin)      default               not driven
+        +-- Audio          (IAudioPlugin)      default               not driven
 ```
 
-## Acknowledgments
+| Header in [`include/emu/`](include/emu/) | Interface | Implemented by |
+|------------------------------------------|-----------|----------------|
+| `emulator_plugin.hpp` | `IEmulatorPlugin`: ROM load, `run_frame`, save states, test sink (ABI v2) | [NES](cores/nes/README.md), [SNES](cores/snes/README.md), [GB](cores/gb/README.md), [GBA](cores/gba/README.md) |
+| `game_plugin.hpp` | `IGamePlugin`, `IGameHost`: timer, splits, auto-splitters, each with its own ImGui panel | [Built-in timer](plugins/speedrun_tools_default/README.md); shared helpers in `plugins/game_plugin_common` |
+| `tas_plugin.hpp` | `ITASPlugin` | [Default TAS plugin](plugins/tas_default/README.md) (not wired in) |
+| `input_plugin.hpp` | `IInputPlugin` | [Default input plugin](plugins/input_default/README.md) (not wired in) |
+| `audio_plugin.hpp` | `IAudioPlugin` | [Default audio plugin](plugins/audio_default/README.md) (not wired in) |
+| `netplay_plugin.hpp` | `INetplayPlugin` | `plugins/netplay_default` (no transport) |
+| `video_plugin.hpp` | `IVideoPlugin` | None |
+| `speedrun_tools_plugin.hpp` | `ISpeedrunToolsPlugin` | None; superseded by `IGamePlugin` |
+| `input_types.hpp`, `controller_layout.hpp`, `plugin_types.hpp` | Shared types | - |
 
-- [Dear ImGui](https://github.com/ocornut/imgui) - Immediate mode GUI
-- [SDL2](https://www.libsdl.org/) - Cross-platform multimedia
-- [nlohmann/json](https://github.com/nlohmann/json) - JSON library
-- [nes-test-roms](https://github.com/christopherpow/nes-test-roms) - NES emulator test ROMs
-- [gba-tests](https://github.com/jsmolka/gba-tests) - GBA emulator test ROMs by jsmolka
-- [snes-tests](https://github.com/gilyon/snes-tests) - SNES emulator test ROMs by gilyon
-- [Project64](https://www.pj64-emu.com/) - Plugin architecture inspiration
+The plugin READMEs describe each plugin's intended feature set. For plugins marked not wired in, those features are not reachable from the application yet.
+
+## Project structure
+
+```
+.
++-- include/emu/            Plugin interfaces (the ABI)
++-- src/
+|   +-- core/               Application, frame loop, plugin manager, savestates, test sink
+|   +-- gui/                Dear ImGui panels (menu, game view, debug, input, plugin and path config)
++-- cores/
+|   +-- nes/ snes/ gb/ gba/
+|       +-- src/            Core implementation
+|       +-- tests/          test_config.json and runner for that console
++-- plugins/
+|   +-- audio_default/ input_default/ tas_default/ netplay_default/
+|   +-- speedrun_tools_default/   Built-in timer (IGamePlugin)
+|   +-- game_plugin_common/       Shared code for game plugins
++-- tests/
+|   +-- veloce_testkit/     Shared detection and scoring framework (Python)
+|   +-- cpp/                C++ unit tests
+|   +-- roms-src/           Reproducible test-ROM build recipes and manifest
+|   +-- run_all.py          Cross-console accuracy roll-up
++-- tools/rom-toolchain/    Pinned assembler Docker image for roms-src
++-- docs/testing/           VELOCE-RESULT/1 specification and reference transcripts
++-- assets/                 Runtime assets, copied next to the binary
++-- external/               Vendored single-header libraries (stb_image_write)
++-- .githooks/              Tracked pre-push hook
++-- .github/workflows/      CI (self-hosted runners only)
+```
+
+## Contributing
+
+All changes go through a branch and a pull request; nothing is committed to `main` directly. After cloning, enable the tracked pre-push hook, which refuses pushes to `main`:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+CI runs only on self-hosted runners, never GitHub-hosted ones, so run the fast gates, plus the accuracy suite of every console you touch, locally before merging. [CONTRIBUTING.md](CONTRIBUTING.md) covers branch naming, commit conventions, the multi-agent workflow, and the exact pre-merge gates.
+
+## Acknowledgements
+
+Veloce builds on the work of many people.
+
+**Libraries and inspiration**
+
+- [Dear ImGui](https://github.com/ocornut/imgui) by Omar Cornut and contributors: immediate-mode GUI
+- [SDL2](https://www.libsdl.org/): windowing, input, and audio
+- [nlohmann/json](https://github.com/nlohmann/json) by Niels Lohmann: JSON
+- [stb_image_write](https://github.com/nothings/stb) by Sean Barrett: screenshot encoding
+- [Project64](https://www.pj64-emu.com/): the plugin architecture that inspired Veloce's
+
+**Test ROMs.** The accuracy framework exists because these authors published hardware-verified tests.
+
+- NES: [nes-test-roms](https://github.com/christopherpow/nes-test-roms) (collection maintained by christopherpow, with tests by Shay Green (blargg), Joel Yliluoma, and others), [nestest](https://www.qmtpro.com/~nes/misc/nestest.txt) by kevtris, [holy-mapperel](https://github.com/pinobatch/holy-mapperel) by Damian Yerrick (pinobatch)
+- SNES: [snes-tests](https://github.com/gilyon/snes-tests) by gilyon, [PeterLemon/SNES](https://github.com/PeterLemon/SNES) by krom (Peter Lemon), blargg's SNES tests via [higan/snes-test-roms](https://gitlab.com/higan/snes-test-roms)
+- Game Boy: [game-boy-test-roms](https://github.com/c-sp/gameboy-test-roms) (bundle by c-sp), blargg's [gb-test-roms](https://github.com/retrio/gb-test-roms), [mooneye-test-suite](https://github.com/Gekkio/mooneye-test-suite) by Gekkio, [SameSuite](https://github.com/LIJI32/SameSuite) by LIJI32, wilbertpol's [mooneye-gb](https://github.com/wilbertpol/mooneye-gb) tests, and [dmg-acid2](https://github.com/mattcurrie/dmg-acid2), [cgb-acid2](https://github.com/mattcurrie/cgb-acid2), and [mealybug-tearoom-tests](https://github.com/mattcurrie/mealybug-tearoom-tests) by Matt Currie
+- GBA: [gba-tests](https://github.com/jsmolka/gba-tests) by jsmolka, [gba-tests](https://github.com/alyosha-tas/gba-tests) by alyosha-tas, [NanoBoyAdvance hw-test](https://github.com/nba-emu/hw-test), [FuzzARM](https://github.com/DenSinH/FuzzARM) by DenSinH, [armwrestler-gba-fixed](https://github.com/destoer/armwrestler-gba-fixed) by destoer, and the [mGBA test suite](https://github.com/mgba-emu/suite)
 
 ## License
 
-MIT License - See [LICENSE](LICENSE) file.
+MIT License. See [LICENSE](LICENSE).
