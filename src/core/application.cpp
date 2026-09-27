@@ -246,6 +246,16 @@ bool Application::initialize(int argc, char* argv[]) {
     // Set this application as the netplay host for the plugin manager
     m_plugin_manager->set_netplay_host(this);
 
+    // Re-resolve the cached INetplayCapable pointer whenever the active
+    // emulator instance changes (e.g. loading a new ROM destroys the old
+    // instance and creates a new one). Without this, m_netplay_capable_plugin
+    // keeps pointing at the destroyed instance while netplay stays connected.
+    m_plugin_manager->on_plugin_changed([this](PluginType type, const std::string&) {
+        if (type == PluginType::Emulator) {
+            update_netplay_cache();
+        }
+    });
+
     // Initialize the netplay plugin with this application as its host
     if (auto* netplay_plugin = m_plugin_manager->get_netplay_plugin()) {
         netplay_plugin->initialize(this);
@@ -575,6 +585,15 @@ void Application::process_events() {
                             std::cout << "Debug mode: " << (m_debug_mode ? "ON" : "OFF") << std::endl;
                             break;
 
+                        case SDLK_n:
+                            if (event.key.keysym.mod & KMOD_CTRL) {
+                                auto* netplay = m_plugin_manager->get_netplay_plugin();
+                                if (netplay) {
+                                    netplay->show_panel(!netplay->is_panel_visible());
+                                }
+                            }
+                            break;
+
                         case SDLK_PRINTSCREEN:
                             if (save_screenshot()) {
                                 m_gui_manager->get_notification_manager().success("Screenshot saved");
@@ -583,7 +602,8 @@ void Application::process_events() {
                             }
                             break;
 
-                        // Savestate hotkeys: Shift+F1-F10 to save, F1-F10 to load
+                        // Savestate hotkeys (matches README / GUI menu labels):
+                        // F1-F10 to save, Shift+F1-F10 to load.
                         case SDLK_F1:
                         case SDLK_F2:
                         case SDLK_F3:
@@ -599,24 +619,28 @@ void Application::process_events() {
                             std::ostringstream msg;
 
                             if (event.key.keysym.mod & KMOD_SHIFT) {
-                                // Save state (Shift+F1-F10)
+                                // Load state (Shift+F1-F10)
+                                if (m_savestate_manager->load_state(slot)) {
+                                    msg << "State loaded from slot " << (slot + 1);
+                                    notifications.success(msg.str());
+                                    std::cout << msg.str() << std::endl;
+                                    if (m_audio_manager) {
+                                        m_audio_manager->clear_buffer();
+                                    }
+                                    m_plugin_manager->notify_game_plugins_state_loaded();
+                                } else {
+                                    msg << "Failed to load state from slot " << (slot + 1);
+                                    notifications.error(msg.str());
+                                    std::cout << msg.str() << std::endl;
+                                }
+                            } else {
+                                // Save state (F1-F10)
                                 if (m_savestate_manager->save_state(slot)) {
                                     msg << "State saved to slot " << (slot + 1);
                                     notifications.success(msg.str());
                                     std::cout << msg.str() << std::endl;
                                 } else {
                                     msg << "Failed to save state to slot " << (slot + 1);
-                                    notifications.error(msg.str());
-                                    std::cout << msg.str() << std::endl;
-                                }
-                            } else {
-                                // Load state (F1-F10)
-                                if (m_savestate_manager->load_state(slot)) {
-                                    msg << "State loaded from slot " << (slot + 1);
-                                    notifications.success(msg.str());
-                                    std::cout << msg.str() << std::endl;
-                                } else {
-                                    msg << "Failed to load state from slot " << (slot + 1);
                                     notifications.error(msg.str());
                                     std::cout << msg.str() << std::endl;
                                 }
@@ -749,6 +773,13 @@ bool Application::load_rom(const std::string& path) {
         return false;
     }
 
+    // Let the savestate manager tag new saves with the actual ROM name
+    // (previously never set, so savestate headers' rom_name field was
+    // always empty).
+    if (m_savestate_manager) {
+        m_savestate_manager->set_current_rom_name(m_plugin_manager->get_current_rom_name());
+    }
+
     // Get controller layout from emulator plugin and pass to input manager (not in headless mode)
     if (!m_headless_mode) {
         auto* plugin = m_plugin_manager->get_active_plugin();
@@ -818,7 +849,12 @@ void Application::reset() {
     auto* plugin = m_plugin_manager->get_active_plugin();
     if (plugin && plugin->is_rom_loaded()) {
         plugin->reset();
-        m_audio_manager->clear_buffer();
+        // m_audio_manager is only constructed in GUI mode (see initialize());
+        // headless test/tooling callers of reset() must not crash on it.
+        if (m_audio_manager) {
+            m_audio_manager->clear_buffer();
+        }
+        m_plugin_manager->notify_game_plugins_reset();
     }
 }
 
@@ -899,12 +935,10 @@ const char* Application::get_rom_name() const {
         m_cached_rom_name = "";
         return m_cached_rom_name.c_str();
     }
-    auto* emulator = m_plugin_manager->get_emulator_plugin();
-    if (emulator) {
-        m_cached_rom_name = emulator->get_info().name;
-    } else {
-        m_cached_rom_name = "";
-    }
+    // The actual ROM/game name (filename stem), not the emulator core name --
+    // see get_platform_name() for the latter. Netplay lobby/game-selection
+    // messages use this to identify what a peer is playing.
+    m_cached_rom_name = m_plugin_manager->get_current_rom_name();
     return m_cached_rom_name.c_str();
 }
 
@@ -958,12 +992,17 @@ bool Application::load_state_from_buffer(const std::vector<uint8_t>& buffer) {
     auto* netplay_capable = get_netplay_capable_emulator();
     if (netplay_capable) {
         if (netplay_capable->load_state_fast(buffer.data(), buffer.size())) {
+            m_plugin_manager->notify_game_plugins_state_loaded();
             return true;
         }
     }
 
     // Fall back to standard load state
-    return emulator->load_state(buffer);
+    if (emulator->load_state(buffer)) {
+        m_plugin_manager->notify_game_plugins_state_loaded();
+        return true;
+    }
+    return false;
 }
 
 void Application::set_controller_input(int controller, uint32_t buttons) {

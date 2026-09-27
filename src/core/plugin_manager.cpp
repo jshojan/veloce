@@ -312,7 +312,10 @@ void PluginManager::shutdown() {
     // Save and destroy all emulator plugin instances (used for configuration)
     for (auto& inst : m_emulator_plugins) {
         if (inst.plugin) {
-            // Save configuration before destroying
+            // Save configuration before destroying. deactivate_plugin(Emulator)
+            // above re-synced the active core's browsing instance from the
+            // live instance's saved config, so every browsing instance holds
+            // the current settings for its core here.
             fs::path config_path = get_core_config_path(inst.name);
             if (inst.plugin->save_config(config_path.string().c_str())) {
                 std::cout << "Saved config for " << inst.name << " to " << config_path << std::endl;
@@ -412,12 +415,45 @@ bool PluginManager::activate_emulator_plugin(const std::string& name) {
         return false;
     }
 
-    // Deactivate old plugin
+    // Flush the outgoing core's battery-backed save RAM before it is
+    // destroyed. Previously the only caller of unload_rom()/save_battery_save()
+    // was shutdown(); opening a new ROM (or reloading the same one) went
+    // straight through activate_emulator_plugin(), which destroyed the old
+    // instance with no save, silently discarding any SRAM written since
+    // launch (shared-04). unload_rom() also notifies game plugins of the
+    // unload and clears m_current_rom_path, so it must run against the OLD
+    // active instance/path before either is replaced below.
+    if (m_active.emulator && m_active.emulator->is_rom_loaded()) {
+        unload_rom();
+    }
+
+    // Deactivate old plugin (persists its config first if it is the
+    // authoritative copy, and re-syncs that core's browsing instance).
     deactivate_plugin(PluginType::Emulator);
+
+    // Load this core's configuration into the instance that will actually
+    // emulate (shared-11). This runs only after the outgoing instance has been
+    // deactivated so that a same-core reload picks up edits made against the
+    // previous instance instead of the pre-edit file on disk. The browsing
+    // instance is the freshest copy at this point (it may hold edits made in
+    // the Core Configuration window while no ROM was loaded), so flush it to
+    // disk first and load the new instance from that.
+    fs::path config_path = get_core_config_path(name);
+    if (IEmulatorPlugin* browsing = get_emulator_plugin_by_name(name)) {
+        browsing->save_config(config_path.string().c_str());
+    }
+    if (instance->load_config(config_path.string().c_str())) {
+        if (fs::exists(config_path)) {
+            std::cout << "Loaded config for " << name << " into active instance from "
+                      << config_path << std::endl;
+        }
+    }
 
     // Set new plugin
     m_active.emulator = instance;
     m_active.emulator_handle = handle;
+    m_active_emulator_name = name;
+    m_active_emulator_config_authoritative = false;
     m_config.set_selected_plugin(PluginType::Emulator, name);
 
     // Update legacy list
@@ -691,12 +727,18 @@ void PluginManager::update_game_plugins() {
     }
 }
 
+std::string PluginManager::get_current_rom_name() const {
+    if (m_current_rom_path.empty()) {
+        return "";
+    }
+    return fs::path(m_current_rom_path).stem().string();
+}
+
 void PluginManager::notify_game_plugins_rom_loaded() {
     // Get ROM info from emulator and update the host
     if (m_active.emulator && m_active.emulator->is_rom_loaded()) {
         // Extract ROM name from path (filename without extension)
-        fs::path rom_path(m_current_rom_path);
-        std::string rom_name = rom_path.stem().string();
+        std::string rom_name = get_current_rom_name();
         uint32_t crc32 = m_active.emulator->get_rom_crc32();
 
         m_game_host->set_rom_info(rom_name, crc32);
@@ -718,6 +760,26 @@ void PluginManager::notify_game_plugins_rom_unloaded() {
     for (auto& inst : m_active.game_plugins) {
         if (inst.plugin) {
             inst.plugin->on_rom_unloaded();
+        }
+    }
+}
+
+void PluginManager::notify_game_plugins_reset() {
+    // Notify all game plugins that the console was reset, so anything
+    // tracking emulated state (e.g. a speedrun timer's splits) can react.
+    for (auto& inst : m_active.game_plugins) {
+        if (inst.plugin) {
+            inst.plugin->on_reset();
+        }
+    }
+}
+
+void PluginManager::notify_game_plugins_state_loaded() {
+    // Notify all game plugins that a savestate was loaded into the active
+    // emulator instance.
+    for (auto& inst : m_active.game_plugins) {
+        if (inst.plugin) {
+            inst.plugin->on_state_loaded();
         }
     }
 }
@@ -763,11 +825,40 @@ void PluginManager::deactivate_plugin(PluginType type) {
     switch (type) {
         case PluginType::Emulator:
             if (m_active.emulator && m_active.emulator_handle) {
+                // Last line of defence: flush battery-backed save RAM if some
+                // future caller destroys the active core without going
+                // through activate_emulator_plugin()'s explicit unload_rom()
+                // (shared-04). No-op if the ROM was already unloaded.
+                if (m_active.emulator->is_rom_loaded()) {
+                    unload_rom();
+                }
+
+                // Persist any live edits made against the running instance
+                // before it is destroyed (shared-11); the config is per-instance
+                // (e.g. sprite-limit/overscan/fast-mode), so this is the last
+                // chance to save them for this core. Only when a ROM was loaded
+                // into it: otherwise the GUI edited the browsing instance, and
+                // saving this untouched copy would discard those edits. Then
+                // re-sync the browsing instance so the shutdown save loop and
+                // the Core Configuration window see the saved values.
+                if (m_active_emulator_config_authoritative && !m_active_emulator_name.empty()) {
+                    fs::path config_path = get_core_config_path(m_active_emulator_name);
+                    if (m_active.emulator->save_config(config_path.string().c_str())) {
+                        std::cout << "Saved config for " << m_active_emulator_name
+                                  << " from active instance to " << config_path << std::endl;
+                        if (IEmulatorPlugin* browsing = get_emulator_plugin_by_name(m_active_emulator_name)) {
+                            browsing->load_config(config_path.string().c_str());
+                        }
+                    }
+                }
+
                 using DestroyFunc = void (*)(IEmulatorPlugin*);
                 auto destroy = reinterpret_cast<DestroyFunc>(m_active.emulator_handle->destroy_func);
                 if (destroy) destroy(m_active.emulator);
                 m_active.emulator = nullptr;
                 m_active.emulator_handle = nullptr;
+                m_active_emulator_name.clear();
+                m_active_emulator_config_authoritative = false;
             }
             break;
         case PluginType::Video:
@@ -937,6 +1028,10 @@ bool PluginManager::load_rom(const uint8_t* data, size_t size) {
 
     // If ROM loaded successfully, try to activate a game plugin for it
     if (result) {
+        // From here on the Core Configuration window edits this instance, so
+        // its config is the one to persist when it is deactivated (shared-11).
+        m_active_emulator_config_authoritative = true;
+
         uint32_t crc32 = m_active.emulator->get_rom_crc32();
         activate_game_plugin_for_rom(crc32);
 

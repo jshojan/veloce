@@ -267,13 +267,15 @@ public:
     }
 
     void disconnect() override {
-        if (m_connection_state != emu::NetplayConnectionState::Disconnected) {
-            add_system_message("Disconnected from session");
-            if (m_host) {
-                m_host->show_notification(emu::NetplayNotificationType::Info, "Disconnected from netplay session");
-                m_host->on_netplay_disconnected("User disconnected");
-            }
-        }
+        bool was_connected = (m_connection_state != emu::NetplayConnectionState::Disconnected);
+
+        // Set the connection state to Disconnected BEFORE notifying the host.
+        // on_netplay_disconnected() runs synchronously and (via
+        // Application::update_netplay_cache()) reads is_connected(), which
+        // derives from m_connection_state; if the state were still
+        // Connected/Playing at that point the host would keep believing
+        // netplay is active and would not clear its cached netplay-capable
+        // emulator pointer.
         m_connection_state = emu::NetplayConnectionState::Disconnected;
         m_role = emu::NetplayRole::None;
         m_lobby_state = LobbyState::WaitingForPlayers;
@@ -283,6 +285,14 @@ public:
         m_is_rolling_back = false;
         m_rollback_depth = 0;
         m_input_manager.clear_assignments();
+
+        if (was_connected) {
+            add_system_message("Disconnected from session");
+            if (m_host) {
+                m_host->show_notification(emu::NetplayNotificationType::Info, "Disconnected from netplay session");
+                m_host->on_netplay_disconnected("User disconnected");
+            }
+        }
     }
 
     emu::NetplayConnectionState get_connection_state() const override {

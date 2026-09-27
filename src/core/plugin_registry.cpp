@@ -60,6 +60,33 @@ void* PluginRegistry::get_symbol(void* handle, const char* symbol_name) {
 #endif
 }
 
+bool PluginRegistry::check_api_version(void* handle, PluginType type, PluginMetadata& metadata,
+                                        const std::filesystem::path& path) {
+    const char* version_symbol = nullptr;
+    uint32_t expected = 0;
+    switch (type) {
+        case PluginType::Emulator: version_symbol = "get_plugin_api_version";         expected = EMU_PLUGIN_API_VERSION;         break;
+        case PluginType::Video:    version_symbol = "get_video_plugin_api_version";   expected = EMU_VIDEO_PLUGIN_API_VERSION;   break;
+        case PluginType::Audio:    version_symbol = "get_audio_plugin_api_version";   expected = EMU_AUDIO_PLUGIN_API_VERSION;   break;
+        case PluginType::Input:    version_symbol = "get_input_plugin_api_version";   expected = EMU_INPUT_PLUGIN_API_VERSION;   break;
+        case PluginType::TAS:      version_symbol = "get_tas_plugin_api_version";     expected = EMU_TAS_PLUGIN_API_VERSION;     break;
+        case PluginType::Game:     version_symbol = "get_game_plugin_api_version";    expected = EMU_GAME_PLUGIN_API_VERSION;    break;
+        case PluginType::Netplay:  version_symbol = "get_netplay_plugin_api_version"; expected = EMU_NETPLAY_PLUGIN_API_VERSION; break;
+    }
+
+    using VersionFunc = uint32_t (*)();
+    auto get_version = reinterpret_cast<VersionFunc>(get_symbol(handle, version_symbol));
+    metadata.api_version = get_version ? get_version() : 0;
+
+    if (!get_version || metadata.api_version != expected) {
+        std::cerr << "Incompatible plugin " << path << ": " << plugin_type_to_string(type)
+                   << " api v" << metadata.api_version << " (host v" << expected << ")"
+                   << std::endl;
+        return false;
+    }
+    return true;
+}
+
 bool PluginRegistry::probe_plugin(const std::filesystem::path& path, PluginMetadata& metadata) {
     // Try to load the library
     void* handle = load_library(path);
@@ -81,6 +108,14 @@ bool PluginRegistry::probe_plugin(const std::filesystem::path& path, PluginMetad
         // Check for emulator plugin
         if (get_symbol(handle, "create_emulator_plugin")) {
             metadata.type = PluginType::Emulator;
+
+            // Check the ABI version before invoking any virtual method on the
+            // plugin (shared-12): a mismatched vtable layout makes create()/
+            // get_info() below undefined behaviour, not just wrong data.
+            if (!check_api_version(handle, metadata.type, metadata, path)) {
+                unload_library(handle);
+                return false;
+            }
 
             // Get emulator-specific info
             using CreateFunc = IEmulatorPlugin* (*)();
@@ -107,15 +142,15 @@ bool PluginRegistry::probe_plugin(const std::filesystem::path& path, PluginMetad
                     destroy(plugin);
                 }
             }
-
-            // Get API version
-            using VersionFunc = uint32_t (*)();
-            auto get_version = reinterpret_cast<VersionFunc>(get_symbol(handle, "get_plugin_api_version"));
-            metadata.api_version = get_version ? get_version() : 0;
         }
         // Check for video plugin
         else if (get_symbol(handle, "create_video_plugin")) {
             metadata.type = PluginType::Video;
+
+            if (!check_api_version(handle, metadata.type, metadata, path)) {
+                unload_library(handle);
+                return false;
+            }
 
             using CreateFunc = IVideoPlugin* (*)();
             using DestroyFunc = void (*)(IVideoPlugin*);
@@ -134,14 +169,15 @@ bool PluginRegistry::probe_plugin(const std::filesystem::path& path, PluginMetad
                     destroy(plugin);
                 }
             }
-
-            using VersionFunc = uint32_t (*)();
-            auto get_version = reinterpret_cast<VersionFunc>(get_symbol(handle, "get_video_plugin_api_version"));
-            metadata.api_version = get_version ? get_version() : 0;
         }
         // Check for audio plugin
         else if (get_symbol(handle, "create_audio_plugin")) {
             metadata.type = PluginType::Audio;
+
+            if (!check_api_version(handle, metadata.type, metadata, path)) {
+                unload_library(handle);
+                return false;
+            }
 
             using CreateFunc = IAudioPlugin* (*)();
             using DestroyFunc = void (*)(IAudioPlugin*);
@@ -162,14 +198,15 @@ bool PluginRegistry::probe_plugin(const std::filesystem::path& path, PluginMetad
                     destroy(plugin);
                 }
             }
-
-            using VersionFunc = uint32_t (*)();
-            auto get_version = reinterpret_cast<VersionFunc>(get_symbol(handle, "get_audio_plugin_api_version"));
-            metadata.api_version = get_version ? get_version() : 0;
         }
         // Check for input plugin
         else if (get_symbol(handle, "create_input_plugin")) {
             metadata.type = PluginType::Input;
+
+            if (!check_api_version(handle, metadata.type, metadata, path)) {
+                unload_library(handle);
+                return false;
+            }
 
             using CreateFunc = IInputPlugin* (*)();
             using DestroyFunc = void (*)(IInputPlugin*);
@@ -191,14 +228,15 @@ bool PluginRegistry::probe_plugin(const std::filesystem::path& path, PluginMetad
                     destroy(plugin);
                 }
             }
-
-            using VersionFunc = uint32_t (*)();
-            auto get_version = reinterpret_cast<VersionFunc>(get_symbol(handle, "get_input_plugin_api_version"));
-            metadata.api_version = get_version ? get_version() : 0;
         }
         // Check for TAS plugin
         else if (get_symbol(handle, "create_tas_plugin")) {
             metadata.type = PluginType::TAS;
+
+            if (!check_api_version(handle, metadata.type, metadata, path)) {
+                unload_library(handle);
+                return false;
+            }
 
             using CreateFunc = ITASPlugin* (*)();
             using DestroyFunc = void (*)(ITASPlugin*);
@@ -216,14 +254,15 @@ bool PluginRegistry::probe_plugin(const std::filesystem::path& path, PluginMetad
                     destroy(plugin);
                 }
             }
-
-            using VersionFunc = uint32_t (*)();
-            auto get_version = reinterpret_cast<VersionFunc>(get_symbol(handle, "get_tas_plugin_api_version"));
-            metadata.api_version = get_version ? get_version() : 0;
         }
         // Check for game plugin (unified interface)
         else if (get_symbol(handle, "create_game_plugin")) {
             metadata.type = PluginType::Game;
+
+            if (!check_api_version(handle, metadata.type, metadata, path)) {
+                unload_library(handle);
+                return false;
+            }
 
             using CreateFunc = IGamePlugin* (*)();
             using DestroyFunc = void (*)(IGamePlugin*);
@@ -253,14 +292,15 @@ bool PluginRegistry::probe_plugin(const std::filesystem::path& path, PluginMetad
                     destroy(plugin);
                 }
             }
-
-            using VersionFunc = uint32_t (*)();
-            auto get_version = reinterpret_cast<VersionFunc>(get_symbol(handle, "get_game_plugin_api_version"));
-            metadata.api_version = get_version ? get_version() : 0;
         }
         // Check for netplay plugin
         else if (get_symbol(handle, "create_netplay_plugin")) {
             metadata.type = PluginType::Netplay;
+
+            if (!check_api_version(handle, metadata.type, metadata, path)) {
+                unload_library(handle);
+                return false;
+            }
 
             using CreateFunc = INetplayPlugin* (*)();
             using DestroyFunc = void (*)(INetplayPlugin*);
@@ -279,10 +319,6 @@ bool PluginRegistry::probe_plugin(const std::filesystem::path& path, PluginMetad
                     destroy(plugin);
                 }
             }
-
-            using VersionFunc = uint32_t (*)();
-            auto get_version = reinterpret_cast<VersionFunc>(get_symbol(handle, "get_netplay_plugin_api_version"));
-            metadata.api_version = get_version ? get_version() : 0;
         }
         else {
             // Unknown plugin type
@@ -293,6 +329,17 @@ bool PluginRegistry::probe_plugin(const std::filesystem::path& path, PluginMetad
     else {
         // Plugin exports get_plugin_type - use the new interface
         metadata.type = get_type();
+
+        // Check the ABI version before invoking any virtual method on the
+        // plugin (shared-12). get_plugin_info() just below is a plain
+        // exported function, but the Game/Emulator branches further down
+        // call create_*_plugin() and then dispatch plugin->get_info()
+        // through the instance's vtable, which is unsafe on a version
+        // mismatch.
+        if (!check_api_version(handle, metadata.type, metadata, path)) {
+            unload_library(handle);
+            return false;
+        }
 
         // Get base plugin info
         using GetInfoFunc = BasePluginInfo (*)();
@@ -488,6 +535,17 @@ PluginHandle* PluginRegistry::load_plugin(const PluginMetadata& metadata) {
 #ifndef _WIN32
         std::cerr << "Failed to load plugin: " << dlerror() << std::endl;
 #endif
+        return nullptr;
+    }
+
+    // Defense-in-depth (shared-12): re-verify the ABI version against the
+    // library actually on disk, in case this metadata did not come from
+    // probe_plugin's own scan (e.g. a stale .so from a previous build that
+    // was registered before the host's version constant changed).
+    PluginMetadata verify;
+    verify.type = metadata.type;
+    if (!check_api_version(lib_handle, metadata.type, verify, metadata.path)) {
+        unload_library(lib_handle);
         return nullptr;
     }
 

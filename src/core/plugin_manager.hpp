@@ -157,6 +157,12 @@ public:
     bool load_config(const std::string& path);
     bool save_config(const std::string& path = "");
 
+    // The current ROM's display name: its filename without directory or
+    // extension (e.g. "/path/MyGame.nes" -> "MyGame"). Empty if no ROM is
+    // loaded. This is the actual game/ROM name, distinct from the emulator
+    // core/platform name returned by get_emulator_plugin()->get_info().name.
+    std::string get_current_rom_name() const;
+
     // Get active plugin instances
     const ActivePlugins& get_active_plugins() const { return m_active; }
     IEmulatorPlugin* get_emulator_plugin() const { return m_active.emulator; }
@@ -196,6 +202,13 @@ public:
     // Notify game plugins about ROM load/unload
     void notify_game_plugins_rom_loaded();
     void notify_game_plugins_rom_unloaded();
+
+    // Notify game plugins that the console was reset, or that a savestate
+    // was loaded into the active emulator instance (both change emulated
+    // memory out from under a game plugin's own tracked state, e.g. a
+    // speedrun timer's splits).
+    void notify_game_plugins_reset();
+    void notify_game_plugins_state_loaded();
 
     // Get the game plugin host interface
     IGameHost* get_game_host() { return m_game_host.get(); }
@@ -296,6 +309,21 @@ private:
 
     std::string m_plugin_directory;
     std::vector<PluginChangedCallback> m_change_callbacks;
+
+    // Registry name of m_active.emulator. Tracked explicitly rather than read
+    // back from m_config.get_selected_plugin(Emulator): Application loads
+    // plugins.json *after* initialize() has already activated a core, so the
+    // configured selection can name a different core than the live instance,
+    // and saving the live instance's config under that name would write one
+    // core's settings into another core's config file.
+    std::string m_active_emulator_name;
+
+    // Which copy of the active core's config is authoritative. The Core
+    // Configuration window edits the active instance only while a ROM is
+    // loaded and the per-core "browsing" instance otherwise, so the active
+    // instance's config is only worth persisting once a ROM has been loaded
+    // into it; before that, the browsing instance holds the current settings.
+    bool m_active_emulator_config_authoritative = false;
 
     // Current ROM path for save file support
     std::string m_current_rom_path;

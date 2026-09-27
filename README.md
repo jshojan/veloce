@@ -240,7 +240,7 @@ Environment Variables:
 | Reset | Ctrl+R |
 | Fullscreen | F11 |
 | Debug Panel | F12 |
-| Netplay Panel | F8 |
+| Netplay Panel | Ctrl+N |
 | Quick Save (Slot 1-10) | F1-F10 |
 | Quick Load (Slot 1-10) | Shift+F1-F10 |
 

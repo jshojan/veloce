@@ -10,7 +10,10 @@
     #define EMU_PLUGIN_EXPORT
 #endif
 
-#define EMU_GAME_PLUGIN_API_VERSION 2
+// v3: added IGamePlugin::on_state_loaded() (between on_reset() and
+// on_run_complete(), which shifts the vtable slots of every later virtual).
+// Game plugins built against v2 headers must be rebuilt.
+#define EMU_GAME_PLUGIN_API_VERSION 3
 
 namespace emu {
 
@@ -245,6 +248,9 @@ public:
     virtual void on_rom_loaded() {}
     virtual void on_rom_unloaded() {}
     virtual void on_reset() {}
+    // Called after a savestate has been loaded into the active emulator
+    // instance (hotkey, menu, file-browser, or TAS/netplay load paths).
+    virtual void on_state_loaded() {}
     virtual void on_run_complete(uint64_t final_time_ms) {}
 
     // ============================================================
