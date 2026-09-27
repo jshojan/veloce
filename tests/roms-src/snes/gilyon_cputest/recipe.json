@@ -1,21 +1,21 @@
 {
   "console": "snes",
   "suite": "gilyon_cputest",
-  "description": "SNES-2 ROM source acquisition: gilyon/snes-tests cputest (S-CPU 65816 opcode test), pinned at tag v1.4 (plan section 6.2, SNES-2). Unmodified rebuild only -- no VELOCE-RESULT/1 patch yet (that is SNES-3: 'make_cpu_tests.py emits expected table; fail: becomes record-and-continue emitting CHECK'). Builds the full ('cputest-full.sfc') variant.",
-  "license": "MIT (gilyon/snes-tests LICENSE).",
+  "description": "gilyon/snes-tests cputest (S-CPU 65816 opcode test, 'full' variant, 1610 tests) at tag v1.4, patched to report over the VELOCE-RESULT/1 $21FE port (SNES-3). make_cpu_tests.py also writes tests-full-veloce.inc, a per-test expected-value table (X/Y/P+E/A, optional S/DBR/D, memory checks, test name) in the unused LoROM banks 5-7. main.asm emits one CHECK line per test: PASS, or FAIL naming the first mismatching field with exp/got (and at= for memory) plus a REG a/x/y/p/e/s/d/dbr line. `fail:` records the failure and continues with the next test instead of waiting for a key press; END <pass>/<total> closes the transcript.",
+  "license": "MIT (gilyon/snes-tests LICENSE, Copyright (c) 2023 gilyon). The patch is Veloce's, under the same terms.",
   "repo": {
     "url": "https://github.com/gilyon/snes-tests.git",
     "sha": "5ecdf555da920f0bd7b157542141965a8120186d"
   },
   "toolchain_stage": "cc65",
   "golden_gate": false,
-  "golden_gate_reason": "cputest-full.sfc is not shipped in the repo: the generated tests-full.inc/tests-full.txt/tests-full.map (from make_cpu_tests.py) and the .sfc itself are all gitignored (cputest/.gitignore: 'tests*.inc tests*.txt tests*.map'), a build-only ROM with nothing to byte-compare against. Verified behaviourally (it assembles, links, and boots -- see PROVENANCE.md) instead.",
-  "rom_variant": "upstream",
+  "golden_gate_reason": "cputest-full.sfc is not shipped in the repo: the generated tests-full.inc/tests-full.txt/tests-full.map (from make_cpu_tests.py) and the .sfc itself are all gitignored (cputest/.gitignore: 'tests*.inc tests*.txt tests*.map'), a build-only ROM with nothing to byte-compare against. The unpatched build is still run first (build.py does that before applying patches), and the patched ROM was verified behaviourally -- see PROVENANCE.md.",
+  "rom_variant": "veloce",
   "build": {
     "workdir": "cputest",
     "commands": [
       "python3 make_cpu_tests.py",
-      "ca65 main.asm -o cputest-full.o",
+      "ca65 -I /veloce-include/snes main.asm -o cputest-full.o",
       "ld65 -C lorom.cfg -o cputest-full.sfc cputest-full.o -m tests-full.map -vm"
     ],
     "artifacts": {

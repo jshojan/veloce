@@ -275,7 +275,7 @@ console. Start here:
 | Console | Verified headline | Detail |
 |---------|-------------------|--------|
 | NES | ~90-94% (strongest verified coverage) | [scorecard](COMPLETENESS.md#nes) / [notes](cores/nes/README.md#testing) |
-| SNES | low until reference hashes land | [scorecard](COMPLETENESS.md#snes) / [notes](cores/snes/README.md#testing) |
+| SNES | 2 tests verified from the result file (gilyon cputest 1600/1610, spctest 1368/1368); the rest await reference hashes or port rebuilds | [scorecard](COMPLETENESS.md#snes) / [notes](cores/snes/README.md#testing) |
 | Game Boy | Blargg serial subset verified | [scorecard](COMPLETENESS.md#game-boy) / [notes](cores/gb/README.md#testing) |
 | GBA | partial (CPU/memory/BIOS/saves verified) | [scorecard](COMPLETENESS.md#gba) / [notes](cores/gba/README.md#test-status) |
 

@@ -73,10 +73,22 @@ reading the assembler's own docs:
    default) -- only visible by diffing the actual transcript against what the
    ROM should have printed. Fixed with `ldy.w #0`, and the same defensive
    `.b` suffix was added to every other immediate in both the `asar` and
-   `bass` includes (`cmp.b #10`, `adc.b #6`, `adc.b #'0'`) even though those
+   `bass` includes (`cmp.b #10`, `adc.b #$26`, `adc.b #'0'`) even though those
    happen to be safe today (executed under 8-bit `A`, and each value already
    fits in a byte) -- relying on a size guess staying right forever is
    exactly what just broke once.
+
+### SNES-3 fix: hex digits are lowercase
+
+VELOCE-RESULT/1 says hex is lowercase, but all three includes' `vt_hex8`
+printed `A`-`F`. The smoke transcript never showed it because its values
+(`56`, `1234`, `1`, `2`) contain no letters. gilyon cputest was the first
+suite to print real 16-bit values. The nibble adjust is now `adc #$26`
+(with the carry left set by `cmp #10`, that adds `$27` = `'a'-'9'-1`) instead
+of `adc #6` in all three dialects. ca65 was re-verified by running gilyon
+cputest/spctest and `veloce_smoke` (rebuilt; new sha256 in
+`rom_manifest.json`). The asar and bass versions got the same one-constant
+change: asar was not re-run, and bass cannot build anything yet (see below).
 
 ## Toolchain defect found: `bass` and `bass-untech` cannot build anything
 

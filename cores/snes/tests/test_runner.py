@@ -44,6 +44,13 @@ from veloce_testkit.runner import run_console_main  # noqa: E402
 CONSOLE = "snes"
 ROM_EXTS = (".sfc", ".smc", ".bin")
 
+# ROMs rebuilt by tests/roms-src/build.py land in <repo>/build/roms/snes/<suite>/.
+# Config entries with rom_variant "veloce" address them as
+# "veloce/<suite>/<rom>" through this symlink; the harness still refuses any
+# such ROM whose sha256 is not in tests/roms-src/rom_manifest.json. Without a
+# build the link dangles and those tests SKIP ("ROM not found").
+VELOCE_LINK = "veloce"
+
 
 def _load_doc(script_dir: Path) -> dict:
     try:
@@ -84,6 +91,21 @@ def _clone(url: str, dest: Path, verbose: bool) -> bool:
         return False
 
 
+def _link_veloce_builds(script_dir: Path, roms_dir: Path) -> None:
+    link = roms_dir / VELOCE_LINK
+    target = Path(os.path.relpath(script_dir.parents[2] / "build" / "roms" / "snes", roms_dir))
+    try:
+        if link.is_symlink():
+            if Path(os.readlink(link)) == target:
+                return
+            link.unlink()
+        elif link.exists():
+            return  # a real directory someone put there; leave it alone
+        link.symlink_to(target, target_is_directory=True)
+    except OSError as e:
+        print(f"  warning: cannot link {link} -> {target}: {e}", file=sys.stderr)
+
+
 def rom_provider(script_dir: Path, keep: bool, verbose: bool) -> Path:
     """Clone the configured repos under tests/roms/ and heal config paths.
 
@@ -91,6 +113,7 @@ def rom_provider(script_dir: Path, keep: bool, verbose: bool) -> Path:
     """
     roms_dir = script_dir / "roms"
     roms_dir.mkdir(parents=True, exist_ok=True)
+    _link_veloce_builds(script_dir, roms_dir)
 
     doc = _load_doc(script_dir)
     repos = doc.get("repositories", {})
@@ -109,7 +132,10 @@ def rom_provider(script_dir: Path, keep: bool, verbose: bool) -> Path:
     # followlinks=True so a pre-existing clone symlinked under roms/ is indexed
     # too (Path.rglob does not descend into symlinked directories).
     index: dict[str, Path] = {}
-    for dirpath, _dirs, files in os.walk(roms_dir, followlinks=True):
+    for dirpath, dirs, files in os.walk(roms_dir, followlinks=True):
+        if Path(dirpath) == roms_dir and VELOCE_LINK in dirs:
+            # Never heal an upstream path with a patched Veloce build.
+            dirs.remove(VELOCE_LINK)
         for fn in files:
             ext = os.path.splitext(fn)[1].lower()
             if ext in ROM_EXTS:
@@ -122,6 +148,9 @@ def rom_provider(script_dir: Path, keep: bool, verbose: bool) -> Path:
     for rel in _config_file_paths(doc):
         target = roms_dir / rel
         if target.exists():
+            continue
+        if Path(rel).parts[:1] == (VELOCE_LINK,):
+            missing.append(rel)  # build.py output only; never healed from upstream
             continue
         src = index.get(Path(rel).name.lower())
         if src is not None:

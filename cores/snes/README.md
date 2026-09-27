@@ -28,7 +28,7 @@ The SNES core provides emulation of the Super Nintendo with support for LoROM an
 | All 256 opcodes | **Complete** | Full 65816 instruction set |
 | 8/16-bit modes | **Complete** | M and X flag switching |
 | 24-bit addressing | **Complete** | All addressing modes |
-| Emulation mode | **Complete** | 6502 compatibility |
+| Emulation mode | **Partial** | 6502 compatibility; the native-only stack instructions wrongly wrap S to page 1 (see Known Issues) |
 | Native mode | **Complete** | 16-bit operations |
 | Direct page | **Complete** | Relocatable zero page |
 | Stack relocation | **Complete** | 16-bit stack pointer |
@@ -359,6 +359,9 @@ int Bus::get_access_cycles(uint32_t address) const {
 | Issue | Description | Affected Games |
 |-------|-------------|----------------|
 | Cycle accuracy | Instruction-level, not per-cycle timing | Very timing-sensitive code |
+| E-mode stack wrap | In emulation mode, JSL, JSR (a,x), PEA, PEI, PER, PHD, PLD, PLB and RTL wrap S within page 1; hardware lets them reach `$00FF`/`$0200` (gilyon cputest 0274, 0277, 03c2, 03c4, 03c7, 03d9, 03dc, 03ed, 0446) | Code running these with E=1 near the stack page edge |
+| 16-bit decimal SBC | `sbc #$f1e2` with A=`$ab1d`, C=1, D=1, M=0 gives `$58db`; hardware gives `$59db` (gilyon cputest 061a) | Games using 16-bit BCD arithmetic |
+| SPC700 SLEEP/STOP | `$EF`/`$FF` run as 2-cycle no-ops instead of halting the S-SMP | Only code that relies on the halt |
 | Interlace rendering | Field detection only, not true interlace | Interlaced games |
 
 ### Low Priority
@@ -477,14 +480,15 @@ methodology and the platform-wide picture see the top-level
 
 > **Verified accuracy versus implementation status.** The "% Complete" figures in
 > the Completion Status tables above are implementation estimates against hardware
-> documentation. The *verified* accuracy headline is currently **low** because
-> almost every SNES test is a community ROM that draws its result on screen and so
-> needs a `screenshot-crc` reference hash that has not yet been measured; those
-> tests ship `known_fail` and contribute zero. The Blargg SPC `memory`-detected
-> subset does not currently verify either: none of the blargg-spc-6 ROMs in the
-> mirror write the `$6000` status byte, so they report RUNS / "no result signal"
-> and zero SNES tests are verified today. This is a coverage-versus-verification gap, not an
-> implementation gap. Full per-subsystem justification and the path to a real
+> documentation. Only two SNES tests are verified today, both through the result
+> file: gilyon **cputest** (FAIL, 1600/1610 checks) and **spctest** (PASS,
+> 1368/1368). Both are rebuilt from source to emit on the `$21FE` port. Almost every
+> other SNES test is a community ROM that draws its result on screen and so needs a
+> `screenshot-crc` reference hash that has not yet been measured. Those tests ship
+> `known_fail` and contribute zero. The Blargg SPC `memory`-detected subset does not
+> verify either: none of the blargg-spc-6 ROMs in the mirror write the `$6000`
+> status byte, so they report RUNS / "no result signal". This is a
+> coverage-versus-verification gap, not an implementation gap. Full per-subsystem justification and the path to a real
 > headline are in [COMPLETENESS.md](../../COMPLETENESS.md#snes).
 
 ```bash
@@ -512,8 +516,8 @@ SPC700 + SuperFX/GSU opcode suites, absindx SA-1, and the jonasquinn / KungFuFur
 
 | Subsystem | Suites | Sample ROMs | Detection |
 |-----------|--------|-------------|-----------|
-| CPU (65816) | arith, logic, inc/dec/cmp, load/store/transfer, branch/jump/misc, full-auto | CPUADC, CPUSBC, CPUMSC, CPUMOV, gilyon cputest | screenshot-crc (visual) |
-| APU (SPC700 + DSP) | blargg, SPC700 ops, gilyon | spc_smp, spc_timer, spc_mem_access_times, spc_dsp6, SPC700ADC | memory (`$6000` via the result file; blargg-spc-6 never writes it) + screenshot-crc |
+| CPU (65816) | arith, logic, inc/dec/cmp, load/store/transfer, branch/jump/misc, full-auto | CPUADC, CPUSBC, CPUMSC, CPUMOV, gilyon cputest | gilyon cputest: file (`port`, 1610 checks); the rest screenshot-crc (visual) |
+| APU (SPC700 + DSP) | blargg, SPC700 ops, gilyon | spc_smp, spc_timer, spc_mem_access_times, spc_dsp6, SPC700ADC, gilyon spctest | gilyon spctest: file (`port`, 1368 checks); blargg: memory (`$6000` via the result file; blargg-spc-6 never writes it); PeterLemon: screenshot-crc |
 | PPU | smoke, OAM, mode3/color-halve, bus/INIDISP | test_hello, test_oam, demo_mode3, ppubusact | screenshot-crc |
 | Timing | IRQ, DMA, HDMA | test_irq4209, test_dmatiming, test_hdmatiming, dma_irq_test, HblankEmuTest | screenshot-crc (cycle-accurate) |
 | Mapper (enhancement chips) | SuperFX/GSU, SA-1 | GSUADC, GSUFMULT, SA1RamProtectionTest | screenshot-crc |
@@ -527,7 +531,34 @@ stdout/stderr. Most krom/PeterLemon and community ROMs still draw their result
 on screen and use `screenshot-crc`: the binary captures the framebuffer
 (`SAVE_SCREENSHOT`), the testkit CRC32s the PNG and compares to a stored
 `reference_hash`. Those entries are non-scoring until they are rebuilt to emit
-on the port (plan items SNES-3..8).
+on the port (plan items SNES-4..8). gilyon cputest and spctest are already
+rebuilt this way (SNES-3; see *Patched ROMs* below).
+
+**Patched ROMs.** A config entry with `rom_variant: "veloce"` names a ROM that
+`tests/roms-src/build.py` builds from upstream source at a pinned SHA plus a
+committed patch, into `build/roms/snes/<suite>/`. The runner links
+`tests/roms/veloce` to that directory, and the entry's `file` is
+`veloce/<suite>/<rom>`. The harness refuses a ROM whose sha256 is not in
+`tests/roms-src/rom_manifest.json`. Without a build these entries SKIP. The
+basename healer never links an upstream ROM into `veloce/`.
+
+```bash
+python3 tests/roms-src/build.py snes/gilyon_cputest   # needs the tools/rom-toolchain image
+python3 tests/roms-src/build.py snes/gilyon_spctest
+```
+
+- `cpu.gilyon_cputest` (gilyon/snes-tests v1.4, MIT): one `CHECK` per test,
+  ids matching `tests-full.txt`. A failure is recorded and the run continues;
+  the line carries `field=` (the first mismatching register or memory byte) and
+  `exp=`/`got=` from `make_cpu_tests.py`, followed by a `REG` line. Today:
+  `END 1600/1610`. The ten failures are the E-mode stack wrap and
+  decimal SBC issues listed under Known Issues.
+- `apu.gilyon_spctest` (same pin): the S-SMP programs are unmodified; the S-CPU
+  converts gilyon's APU-port protocol into one `CHECK` per test and adds a
+  120-frame watchdog for a hung S-SMP. Today: `END 1368/1368`.
+
+Details and the expected-value sources are in each suite's
+`tests/roms-src/snes/<suite>/PROVENANCE.md`.
 
 ### Test-result channel
 
@@ -577,11 +608,13 @@ architecture-selection command alone, before any source is read -- see
 `"local"` (a Veloce-authored ROM with no upstream), `"submodules"` and
 `"allow_exit_codes"` recipe fields, and mounts this `include/` directory
 read-only into every toolchain container at `/veloce-include/<console>`.
-`tests/roms-src/snes/{sour_dma_irq_test,sour_op_timing_test,gilyon_cputest,
+`tests/roms-src/snes/{sour_dma_irq_test,sour_op_timing_test,
 undisbeliever_auto_joy_timing}` are acquisition-only recipes (golden-gate
-rebuilds, no emitter patch yet) proving the higan-mirror-pin, gilyon-tag and
-undisbeliever-with-submodule acquisition paths the plan's SNES-3/6/7/8 items
-build on.
+rebuilds, no emitter patch yet) proving the higan-mirror-pin and
+undisbeliever-with-submodule acquisition paths the plan's SNES-5/6/7/8 items
+build on. `gilyon_cputest` and `gilyon_spctest` carry the SNES-3 emitter
+patches (see *Patched ROMs* above). All three includes print hex in lowercase,
+as the protocol requires; before SNES-3 they printed `A`-`F`.
 
 ## References
 

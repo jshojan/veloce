@@ -101,8 +101,9 @@ vt_hex8:
 vt_hex8_nibble:
     cmp #10
     bcc :+
-    adc #6              ; carry is set here (cmp #10 with a nibble >= 10), so
-                        ; this adds 7 total -- 'A'-'9'-1, landing on 'A'..'F'
+    adc #$26            ; carry is set here (cmp #10 with a nibble >= 10), so
+                        ; this adds $27 total -- 'a'-'9'-1, landing on 'a'..'f'
+                        ; (VELOCE-RESULT/1 hex is lowercase; SNES-3 fix)
 :   adc #'0'
     sta VT_PORT_DATA
     rts

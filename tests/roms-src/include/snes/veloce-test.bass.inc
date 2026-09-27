@@ -110,7 +110,8 @@ vt_hex8:
 vt_hex8_nibble:
     cmp.b #10
     bcc vt_hex8_nibble_digit
-    adc.b #6            // carry is set (cmp #10 with a nibble >= 10)
+    adc.b #$26          // carry is set (cmp #10 with a nibble >= 10): adds $27,
+                        // 'a'-'9'-1, so digits 10-15 print as lowercase 'a'..'f'
 vt_hex8_nibble_digit:
     adc.b #'0'
     sta VT_PORT_DATA

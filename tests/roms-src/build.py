@@ -323,6 +323,13 @@ def build_one(recipe: Recipe, *, image: str, skip_clone: bool) -> dict:
     golden_hashes: dict[str, str] = {}
     for built_rel in recipe.artifacts:
         shipped = recipe.clone_dir / built_rel
+        if recipe.local:
+            # A local recipe has no upstream binary: whatever sits in src/ is
+            # a previous local build, and hashing it as "golden" would make
+            # the manifest depend on leftovers (SNES-3).
+            if shipped.exists():
+                shipped.unlink()
+            continue
         if not shipped.exists():
             if recipe.golden_gate:
                 raise BuildError(f"golden gate: upstream doesn't ship {built_rel} at pinned SHA")

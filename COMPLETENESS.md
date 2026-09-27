@@ -35,7 +35,7 @@ Regenerate any console's authoritative scorecard with
 | Console | Suite size | Verified headline | Verification state |
 |---------|-----------|-------------------|--------------------|
 | [NES](#nes) | 172 tests / 32 suites | ~90-94% | Strongest verified coverage; memory-detected CPU/PPU/APU/mapper subset is real |
-| [SNES](#snes) | 67 tests / 19 suites | Low until refs land | Almost entirely `screenshot-crc`; a small Blargg SPC `memory` subset is the only currently-verifiable part |
+| [SNES](#snes) | 67 tests / 19 suites | 2 tests verified | gilyon cputest (FAIL, 1600/1610 checks) and spctest (PASS, 1368/1368) score from the result file; almost everything else is `screenshot-crc`, and the Blargg SPC `memory` subset gets no signal |
 | [Game Boy](#game-boy) | 225 tests / 31 suites | Verified subset only | Blargg serial subset verified; the large Mooneye half is unverified pending a breakpoint emitter |
 | [GBA](#gba) | 132 tests / 29 suites | Partial | CPU/memory/BIOS/saves verified via R12 protocol; cycle-accurate timing/PPU largely pending |
 
@@ -111,17 +111,26 @@ pass under the `memory` protocol. These are the strongest evidence (rigor weight
 
 ## SNES
 
-Verified headline: **low until reference hashes are populated**, despite a broad
-67-test / 19-suite catalog. This is a coverage-versus-verification gap, not an
-implementation gap: almost every SNES test is a community ROM that draws its
-result on screen, so it requires a `screenshot-crc` reference hash that has not
-yet been measured on a trusted build. Those tests ship `known_fail` with an empty
-hash and contribute zero, which is the honest treatment.
+Verified headline: **two tests, both from the result file**, out of a 67-test /
+19-suite catalog. gilyon cputest (1610 65816 opcode checks) and spctest (1368
+SPC700 opcode checks) are rebuilt from source by `tests/roms-src/build.py`, with a
+patch that makes them report one `CHECK` per test on the `$21FE` port (SNES-3).
+cputest scores FAIL at 1600/1610 and spctest scores PASS at 1368/1368. The runner's
+`overall_accuracy_pct` (99.6 on 2026-09-27) is computed over these two tests only:
+61 tests skip, 4 are unverified, and the PPU, timing, memory and mapper
+subsystems have no scored test at all. It is not a whole-console figure.
+
+This is a coverage-versus-verification gap, not an implementation gap. Almost
+every other SNES test is a community ROM that draws its result on screen, so it
+requires a `screenshot-crc` reference hash that has not yet been measured on a
+trusted build. Those tests ship `known_fail` with an empty hash and contribute
+zero, which is the honest treatment. The remaining SNES plan items rebuild them to
+emit on the port the same way.
 
 | Subsystem | Importance | Verifiable today | Basis |
 |-----------|-----------|------------------|-------|
-| APU (SPC700 + DSP) | 0.55 | **0 verified** (`memory`-detected, but no signal) | Blargg SPC ROMs (`spc_smp`, `spc_timer`, `spc_mem_access_times`, `spc_dsp*`) use `result_detection: memory` ($6000), but MEASURED: none of the four blargg-spc-6 ROMs in this mirror ever write $6000, so all four report RUNS / "no result signal" rather than pass or fail (snes-24). No SNES score is currently verified end-to-end; the headline is 0% across every subsystem. |
-| CPU (65816) | 1.00 | unverified (visual) | krom/PeterLemon CPU opcode suites (ADC/SBC/MSC/MOV, gilyon cputest) draw to screen; `screenshot-crc`, refs pending. |
+| APU (SPC700 + DSP) | 0.55 | **gilyon spctest: 1368/1368 PASS** (file); Blargg: 0 (no signal) | `apu.gilyon_spctest` covers every SPC700 opcode except SLEEP/STOP. It does not cover timers, the DSP or cycle timing. The Blargg SPC ROMs (`spc_smp`, `spc_timer`, `spc_mem_access_times`, `spc_dsp*`) use `result_detection: memory` ($6000), but MEASURED: none of the four blargg-spc-6 ROMs in this mirror ever write $6000, so all four report RUNS / "no result signal" rather than pass or fail (snes-24). |
+| CPU (65816) | 1.00 | **gilyon cputest: 1600/1610** (file) | `cpu.gilyon_cputest` fails 10 checks: nine are native-only stack instructions wrapping S to page 1 in emulation mode, and one is a 16-bit decimal SBC (see below). The krom/PeterLemon CPU opcode suites (ADC/SBC/MSC/MOV) still draw to screen: `screenshot-crc`, refs pending. |
 | PPU | 0.90 | unverified (visual) | smoke, OAM, mode3/color-halve, bus/INIDISP tests; `screenshot-crc`. |
 | Timing | 0.85 | unverified (visual) | IRQ/DMA/HDMA timing tests (`test_irq4209`, `test_dmatiming`, `test_hdmatiming`, `HblankEmuTest`); cycle-accurate class, refs pending. |
 | Mapper (enhancement chips) | 0.65 | unverified (visual) | SuperFX/GSU, SA-1 opcode tests; `screenshot-crc`. |
@@ -139,9 +148,17 @@ hash and contribute zero, which is the honest treatment.
 - `apu.spc_smp`/`spc_timer`/`spc_mem_access_times`/`spc_dsp6`: none of the
   blargg-spc-6 ROMs in this mirror write the `$6000` Blargg status byte, so
   `result_detection: memory` never gets a signal from them regardless of core
-  correctness (snes-24). Zero SNES tests are actually verified today; treat
-  the "Verifiable today" column above as aspirational config, not a measured
-  result, until this is reclassified.
+  correctness (snes-24). Treat those four rows as config, not a measured
+  result, until they are reclassified.
+- `cpu.gilyon_cputest` (SNES-3) measures ten open 65816 bugs. In emulation
+  mode, JSL, JSR (a,x), PEA, PEI, PER, PHD, PLD, PLB and RTL wrap S within page
+  1, where hardware lets them reach `$00FF`/`$0200` (tests 0274, 0277, 03c2,
+  03c4, 03c7, 03d9, 03dc, 03ed, 0446). A 16-bit decimal `sbc #$f1e2` with
+  A=`$ab1d` returns `$58db` instead of `$59db` (test 061a). Each `CHECK` line
+  names the field and gives exp/got.
+- Found while testing the spctest patch: the SPC700 SLEEP/STOP opcodes
+  (`$EF`/`$FF`) run as no-ops instead of halting the S-SMP. No scored test
+  covers them.
 - `apu.spc_dsp6` fails on real 3-chip SNES consoles (passes only on
   higan/bsnes); it is a documented hardware quirk, marked `known_fail`.
 
@@ -155,8 +172,8 @@ PNG encoder; regenerate if either changes.
 
 > The SNES core implements all 256 65816 opcodes, all 8 PPU background modes,
 > full DMA/HDMA, and the SPC700 + S-DSP audio path (see
-> [cores/snes/README.md](cores/snes/README.md)). The low *verified* headline
-> reflects missing test references, not missing features.
+> [cores/snes/README.md](cores/snes/README.md)). The narrow *verified*
+> coverage reflects missing test references, not missing features.
 
 ---
 

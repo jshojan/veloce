@@ -1,0 +1,28 @@
+{
+  "console": "snes",
+  "suite": "gilyon_spctest",
+  "description": "gilyon/snes-tests spctest (S-SMP SPC700 opcode test, 1368 tests) at tag v1.4, patched on the S-CPU side only to report over the VELOCE-RESULT/1 $21FE port (SNES-3). The S-SMP programs are built unmodified. make_tests.py also writes spc_expected.inc, a per-test table of expected P/A/X/Y and the test name, in the unused LoROM bank 3. The S-CPU reads gilyon's port protocol: a program that reports success at test L passed every test up to L (one CHECK PASS each); a failure at test N gives CHECK N FAIL with the first mismatching P/A/X/Y byte as exp/got plus a REG line, then END. A test number that stops changing for 120 frames is reported as a hung S-SMP (CHECK FAIL + END).",
+  "license": "MIT (gilyon/snes-tests LICENSE, Copyright (c) 2023 gilyon). The patch is Veloce's, under the same terms.",
+  "repo": {
+    "url": "https://github.com/gilyon/snes-tests.git",
+    "sha": "5ecdf555da920f0bd7b157542141965a8120186d"
+  },
+  "toolchain_stage": "cc65 + spcasm",
+  "golden_gate": false,
+  "golden_gate_reason": "spctest.sfc, spc_tests*.asm, *.spc and tests.txt are gitignored upstream (spctest/.gitignore); v1.4 ships no binary. The spctest.sfc in the higan/snes-test-roms mirror is an older 1320-test build (before v1.4's 'Add missing or tests' commit), so it is not a byte reference for this source either. Verified behaviourally -- see PROVENANCE.md.",
+  "rom_variant": "veloce",
+  "build": {
+    "workdir": "spctest",
+    "commands": [
+      "python3 make_tests.py",
+      "spcasm -f plain spc_tests0.asm spc_tests0.spc",
+      "spcasm -f plain spc_tests1.asm spc_tests1.spc",
+      "spcasm -f plain spc_tests2.asm spc_tests2.spc",
+      "ca65 -I /veloce-include/snes spctest.asm -o spctest.o",
+      "ld65 -C lorom128.cfg -o spctest.sfc spctest.o -m spctest.map"
+    ],
+    "artifacts": {
+      "spctest/spctest.sfc": "spctest.sfc"
+    }
+  }
+}
