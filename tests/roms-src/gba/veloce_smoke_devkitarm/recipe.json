@@ -1,0 +1,20 @@
+{
+  "console": "gba",
+  "suite": "veloce_smoke_devkitarm",
+  "description": "Veloce's own smoke ROM for the devkitARM C VELOCE-RESULT/1 emitter (tests/roms-src/include/devkitarm/veloce_test.h, built on the vendored mgba.c). Exercises every vt_* call with fixed values and emits a deterministic transcript; the shared determinism selftest runs it twice and byte-diffs the result files. Not an upstream test -- Veloce's own source, so there is no golden gate.",
+  "license": "MIT (Veloce, this repository); links the vendored mgba.c/mgba.h (MIT, tests/roms-src/include/devkitarm/vendor/PROVENANCE.md) and devkitPro's libgba",
+  "golden_gate": false,
+  "golden_gate_reason": "No upstream: this is Veloce's own new ROM source (docs/testing/VELOCE-RESULT.md's determinism-selftest fixture), not a rebuild of an existing binary. See PROVENANCE.md.",
+  "rom_variant": "veloce",
+  "toolchain_stage": "devkitarm",
+  "source_dir": ".",
+  "build": {
+    "workdir": ".",
+    "commands": [
+      "export LIBGBA=$DEVKITPRO/libgba && make"
+    ],
+    "artifacts": {
+      "veloce_smoke.gba": "veloce_smoke.gba"
+    }
+  }
+}

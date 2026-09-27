@@ -75,6 +75,37 @@ VELOCE_TEST_OUT=/tmp/arm.result FRAMES=600 ../../../build/bin/veloce gba-test-ro
 cat /tmp/arm.result
 ```
 
+## Building VELOCE-RESULT/1 ROMs from source
+
+Modified/new GBA test ROMs speak the channel above directly rather than
+relying on the `r12` adapter. Two emitter libraries live under
+[`tests/roms-src/include/`](../../../tests/roms-src/include/) (repo root),
+one per assembler/toolchain the GBA suites use:
+
+- **FASMARM** (jsmolka/alyosha, FuzzARM): `fasmarm/veloce.inc` (macros:
+  `m_vt_begin`/`m_vt_test`/`m_vt_pass`/`m_vt_fail`/`m_vt_reg`/`m_vt_log`/
+  `m_vt_end`, plus an optional `m_vt_open` handshake probe) +
+  `fasmarm/veloce_code.inc` (the actual subroutine code -- `include` it once,
+  after the ROM's header, never before, or it will overwrite the boot logo).
+- **devkitARM C** (nba-hw-test, new C ROMs): `devkitarm/veloce_test.h`
+  (`vt_begin`/`vt_test`/`vt_pass`/`vt_fail`/`vt_reg`/`vt_log`/`vt_end`), built
+  on a vendored `mgba_printf()` (`devkitarm/vendor/mgba.c`, MIT, from
+  [mgba-emu/suite](https://github.com/mgba-emu/suite); see
+  `devkitarm/vendor/PROVENANCE.md`).
+
+`tests/roms-src/gba/veloce_smoke_fasmarm/` and `.../veloce_smoke_devkitarm/`
+are Veloce's own smoke ROMs exercising every macro/function above with fixed
+values; each has a `recipe.json` built through
+[`tests/roms-src/build.py`](../../../tests/roms-src/build.py) against the
+pinned `veloce/rom-toolchain` image, and both produce a byte-identical
+transcript across repeated runs (the determinism a scored ROM channel
+depends on). `tests/roms-src/gba/jsmolka_golden_arm/` and
+`.../nba_golden_dma_latch/` golden-gate one representative upstream ROM per
+toolchain (FASMARM, devkitARM) -- rebuilt unmodified from its pinned source
+and checked byte-for-byte against the shipped binary -- proving the
+toolchain reproduces these suites before any of them are patched to speak
+this channel (see each suite's `PROVENANCE.md`).
+
 ## Directory Structure
 
 ```

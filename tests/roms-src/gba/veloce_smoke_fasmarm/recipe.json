@@ -1,0 +1,20 @@
+{
+  "console": "gba",
+  "suite": "veloce_smoke_fasmarm",
+  "description": "Veloce's own smoke ROM for the FASMARM VELOCE-RESULT/1 emitter (tests/roms-src/include/fasmarm/veloce.inc, veloce_code.inc). Exercises every m_vt_* macro with fixed values and emits a deterministic transcript; the shared determinism selftest runs it twice and byte-diffs the result files. Not an upstream test -- Veloce's own source, so there is no golden gate.",
+  "license": "MIT (Veloce, this repository)",
+  "golden_gate": false,
+  "golden_gate_reason": "No upstream: this is Veloce's own new ROM source (docs/testing/VELOCE-RESULT.md's determinism-selftest fixture), not a rebuild of an existing binary. See PROVENANCE.md.",
+  "rom_variant": "veloce",
+  "toolchain_stage": "fasmarm",
+  "source_dir": "src",
+  "build": {
+    "workdir": ".",
+    "commands": [
+      "$FASMARM veloce_smoke.asm veloce_smoke.gba"
+    ],
+    "artifacts": {
+      "veloce_smoke.gba": "veloce_smoke.gba"
+    }
+  }
+}

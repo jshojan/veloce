@@ -37,6 +37,10 @@ CMakeFiles/
 cmake_install.cmake
 Makefile
 compile_commands.json
+# ...except a devkitARM ROM recipe's own committed build Makefile
+# (tests/roms-src/gba/veloce_smoke_devkitarm/, future nba-hw-test patches):
+# that's source, not a CMake-generated artifact.
+!tests/roms-src/**/Makefile
 
 # Visual Studio
 *.sln
@@ -82,6 +86,12 @@ nba-hw-test/
 alyosha-gba-tests/
 armwrestler/
 fuzzarm/
+
+# devkitARM/toolchain build artifacts under tests/roms-src (never commit
+# built ROMs or their intermediates -- sources/patches/manifests only).
+*.elf
+*.map
+tests/roms-src/*/*/upstream/
 
 # Logs
 *.log

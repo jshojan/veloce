@@ -1,0 +1,22 @@
+{
+  "console": "gba",
+  "suite": "nba_golden_dma_latch",
+  "description": "GBA-2's devkitARM golden-gate proof: rebuilds nba-emu/hw-test's dma/latch/latch.gba unmodified from its pinned source and checks it against the binary nba shipped at that commit. Proves tools/rom-toolchain's devkitARM stage + devkitPro libgba reproduce this suite's toolchain byte-for-byte before GBA-3 patches it from source. Not the suite's real recipe (GBA-3 adds rom_variant: veloce patches across all 12 nba-hw-test ROMs); this one ROM exists to gate the toolchain, per docs/testing/testrom-plan.md GBA-2.",
+  "license": "BSD-3-Clause (Copyright 2021, fleroviux), see PROVENANCE.md",
+  "repo": {
+    "url": "https://github.com/nba-emu/hw-test.git",
+    "sha": "3932a0e54dbb5d94b84798d2d5e462e080b95599"
+  },
+  "toolchain_stage": "devkitarm",
+  "golden_gate": true,
+  "rom_variant": "upstream",
+  "build": {
+    "workdir": "dma/latch",
+    "commands": [
+      "export LIBGBA=$DEVKITPRO/libgba && make"
+    ],
+    "artifacts": {
+      "dma/latch/latch.gba": "latch.gba"
+    }
+  }
+}

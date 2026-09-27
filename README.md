@@ -226,9 +226,11 @@ Options:
   -d, --debug      Enable debug panel
 
 Environment Variables:
-  DEBUG=1          Enable debug output
-  HEADLESS=1       Run without GUI (for automated testing)
-  FRAMES=N         Run for N frames then exit (requires HEADLESS=1)
+  DEBUG=1                Enable debug output
+  HEADLESS=1              Run without GUI (for automated testing)
+  FRAMES=N                Run for N frames then exit (requires HEADLESS=1)
+  VELOCE_TEST_OUT=path    Write the ROM's test-result channel to path
+                          (VELOCE-RESULT/1; implies HEADLESS=1)
 ```
 
 ### Hotkeys
@@ -271,6 +273,9 @@ console. Start here:
   completeness percentage is computed.
 - [COMPLETENESS.md](COMPLETENESS.md) - the per-console accuracy scorecard, every
   number justified against what is verified versus unverified.
+- [docs/testing/VELOCE-RESULT.md](docs/testing/VELOCE-RESULT.md) - the
+  `VELOCE_TEST_OUT` result-file protocol every scored verdict is built on:
+  the ROM-facing port per console, the plugin ABI, and how a core adopts it.
 
 | Console | Verified headline | Detail |
 |---------|-------------------|--------|
@@ -290,6 +295,23 @@ For CI/CD integration:
 HEADLESS=1 FRAMES=600 veloce test.nes
 DEBUG=1 HEADLESS=1 FRAMES=600 veloce test.nes  # With debug output
 ```
+
+Every test ROM's verdict comes from a result file, not from stdout/stderr or a
+screenshot: point `VELOCE_TEST_OUT` at a path and the app writes the ROM's
+`VELOCE-RESULT/1` channel there (implies `HEADLESS=1`).
+
+```bash
+VELOCE_TEST_OUT=out.result FRAMES=600 veloce test.gba
+cat out.result
+# #VELOCE 1 core=GBA rom_crc32=... channels=mgba,r12
+# CHECK 1 PASS smoke_pass
+# END 1/2
+# #VELOCE end reason=terminator frames=... cycles=... status=1
+```
+
+See [docs/testing/VELOCE-RESULT.md](docs/testing/VELOCE-RESULT.md) for the
+full protocol (line grammar, per-console ROM-facing port, plugin ABI, and how
+a core adopts the channel).
 
 ## Project Structure
 

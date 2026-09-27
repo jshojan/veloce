@@ -81,21 +81,31 @@ class Recipe:
     license: str
     raw: dict = field(default_factory=dict)
 
+    source_dir: str = "src"         # only used when repo_url is empty (see below)
+
     @property
     def clone_dir(self) -> Path:
-        return self.dir / "upstream"
+        # A suite with a pinned upstream repo builds from a clone-at-SHA
+        # checkout under <suite>/upstream/ (gitignored, never committed).
+        # A suite with no "repo" (Veloce's own new ROM source, e.g. the
+        # veloce_smoke_* suites -- GBA-2) builds directly from its own
+        # committed <suite>/<source_dir>/ instead: there is no upstream to
+        # clone, and no golden gate to run against one.
+        if self.repo_url:
+            return self.dir / "upstream"
+        return self.dir / self.source_dir
 
     @staticmethod
     def load(path: Path) -> "Recipe":
         raw = json.loads(path.read_text())
-        repo = raw["repo"]
+        repo = raw.get("repo")
         build = raw.get("golden_gate_build") or raw.get("build") or {}
         return Recipe(
             console=raw["console"],
             suite=raw["suite"],
             dir=path.parent,
-            repo_url=repo["url"],
-            repo_sha=repo["sha"],
+            repo_url=(repo or {}).get("url", ""),
+            repo_sha=(repo or {}).get("sha", ""),
             toolchain_stage=raw.get("toolchain_stage", ""),
             workdir=build.get("workdir", "."),
             commands=build.get("commands", []),
@@ -103,6 +113,7 @@ class Recipe:
             golden_gate=raw.get("golden_gate", True),
             rom_variant=raw.get("rom_variant", "upstream"),
             license=raw.get("license", ""),
+            source_dir=raw.get("source_dir", "src"),
             raw=raw,
         )
 
@@ -182,12 +193,22 @@ def _user_args() -> list[str]:
 
 
 def run_in_toolchain(image: str, clone_dir: Path, workdir: str, commands: list[str]) -> None:
+    # Mount the whole repo (read-write, as the invoking user -- see
+    # _user_args()), not just clone_dir: the shared per-assembler emitter
+    # includes (docs/testing/VELOCE-RESULT.md section 6,
+    # tests/roms-src/include/<assembler>/) live outside any one suite's
+    # clone_dir, and every suite that `include`s one needs it visible at the
+    # same relative path it has on disk (GBA-2's veloce_smoke_* recipes are
+    # the first to need this; every future patched suite's veloce-test.inc
+    # `include` will too). Mounting only clone_dir would put those
+    # `../../../include/...` paths outside the container entirely.
     script = " && ".join(commands)
-    container_workdir = f"/work/{workdir}" if workdir not in (".", "") else "/work"
+    workdir_abs = (clone_dir / workdir).resolve() if workdir not in (".", "") else clone_dir.resolve()
+    container_workdir = "/repo/" + workdir_abs.relative_to(REPO_ROOT).as_posix()
     proc = subprocess.run(
         [
             "docker", "run", "--rm", *_user_args(),
-            "-v", f"{clone_dir.resolve()}:/work",
+            "-v", f"{REPO_ROOT.resolve()}:/repo",
             "-w", container_workdir,
             image,
             "sh", "-c", script,
@@ -240,7 +261,14 @@ def image_info(image: str) -> tuple[str, dict]:
 
 def build_one(recipe: Recipe, *, image: str, skip_clone: bool) -> dict:
     print(f"== {recipe.console}/{recipe.suite} ==", file=sys.stderr)
-    clone_at_sha(recipe.repo_url, recipe.repo_sha, recipe.clone_dir, skip_if_exists=skip_clone)
+    if recipe.repo_url:
+        clone_at_sha(recipe.repo_url, recipe.repo_sha, recipe.clone_dir, skip_if_exists=skip_clone)
+    elif not recipe.clone_dir.is_dir():
+        # No "repo": this is Veloce's own new ROM source (e.g. veloce_smoke_*,
+        # GBA-2), committed directly under the suite dir, not cloned.
+        raise BuildError(
+            f"{recipe.suite}: no repo pinned and {recipe.clone_dir} doesn't "
+            f"exist (commit the source under recipe.json's \"source_dir\")")
 
     # Golden-gate baseline: hash every artifact as shipped by upstream, BEFORE
     # we run any build command that will overwrite it in place.
