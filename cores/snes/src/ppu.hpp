@@ -18,9 +18,6 @@ public:
 
     void reset();
 
-    // Step one dot (pixel clock)
-    void step();
-
     // Register access ($2100-$213F)
     uint8_t read(uint16_t address);
     void write(uint16_t address, uint8_t value);
@@ -33,6 +30,21 @@ public:
 
     // NMI enable control (from NMITIMEN $4200 bit 7)
     void set_nmi_enabled(bool enabled) { m_nmi_enabled = enabled; }
+
+    // WRIO ($4201) mirror, used for the H/V-counter software latch ($2137):
+    // a falling edge (1->0) of bit 7 latches the counters (external-latch
+    // pin emulation), and $2137 reads only latch while bit 7 is high.
+    // Reference: fullsnes 2137h/4201h, bsnes cpu.pio().
+    void set_wrio(uint8_t value);
+
+    // Restore the WRIO mirror after a savestate load (no edge detection,
+    // so it never produces a spurious counter latch).
+    void restore_wrio(uint8_t value) { m_wrio = value; }
+
+    // Latch the current H/V dot/scanline into $213C/$213D (OPHCT/OPVCT) and
+    // set the STAT78 latch flag. The byte-read toggles are NOT reset here;
+    // only a $213F (STAT78) read resets them (bsnes latchCounters()).
+    void latch_counters();
 
     // Get framebuffer (256x224 or 512x448 in hi-res)
     const uint32_t* get_framebuffer() const { return m_framebuffer.data(); }
@@ -109,6 +121,14 @@ public:
     // Non-hi-res scanlines duplicate pixels; hi-res scanlines use full resolution
     int get_screen_width() const { return 512; }
     int get_screen_height() const { return m_overscan ? 239 : 224; }
+
+    // First scanline of V-blank (SETINI bit 2 "overscan" extends the visible
+    // area from 224 to 239 lines, pushing V-blank/NMI from V=225 to V=240).
+    // Callers outside the PPU (HDMA line-range gating, the HVBJOY V-blank
+    // flag, the NMI edge) must use this instead of a hardcoded 225 so they
+    // agree with the PPU's own visible-line count.
+    // Reference: fullsnes SETINI (2133h), anomie's timing docs.
+    int vdisp() const { return m_overscan ? 240 : 225; }
 
     // OAM access for DMA
     void oam_write(uint16_t address, uint8_t value);
@@ -255,6 +275,7 @@ private:
     uint16_t m_oam_addr_reload = 0;
     uint8_t m_oam_latch = 0;
     bool m_oam_high_byte = false;
+    bool m_oam_priority_rotate = false;  // $2103 bit 7 - OAM priority rotation
 
     // $2105 - BGMODE - BG mode and tile size
     uint8_t m_bgmode = 0;
@@ -375,7 +396,7 @@ private:
     uint8_t m_m7sel = 0;
     bool m_m7_hflip = false;
     bool m_m7_vflip = false;
-    int m_m7_wrap = 0;  // 0=wrap, 1=transparent, 2=tile 0, 3=transparent
+    int m_m7_wrap = 0;  // 0=wrap, 1=wrap, 2=transparent, 3=tile 0
 
     int16_t m_m7a = 0;
     int16_t m_m7b = 0;
@@ -407,6 +428,7 @@ private:
     bool m_hv_latch = false;
     bool m_hcount_second = false;
     bool m_vcount_second = false;
+    uint8_t m_wrio = 0xFF;  // Mirror of Bus $4201, for the $2137 software latch
 
     // Multiplication result ($2134-$2136)
     int32_t m_mpy_result = 0;

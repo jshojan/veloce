@@ -22,7 +22,7 @@ void APU::reset() {
     m_spc->reset();
     m_dsp->reset();
 
-    m_cycle_counter = 0;
+    m_spc_accumulator = 0;
     m_sample_counter = 0;  // SPC cycles until next DSP sample
     m_audio_buffer.fill(0);
     m_audio_write_pos = 0;
@@ -32,27 +32,31 @@ void APU::reset() {
 }
 
 void APU::step(int master_cycles) {
-    // SPC700 runs at 1.024 MHz from its own 24.576 MHz crystal
-    // Master clock is 21.477272 MHz
-    // Ratio = 21477272 / 1024000 = 20.9739...
-    // Using integer 21 is close enough (0.13% error)
+    // Fixed-point clock ratio (see apu.hpp): m_spc_accumulator tracks
+    // elapsed SPC cycles in Q32.32 so the long-run average is exactly
+    // MASTER_CLOCK_HZ / SPC_CLOCK_HZ (~20.948) master cycles per SPC cycle,
+    // instead of a fixed integer divisor that drifts the APU's clock away
+    // from the CPU/PPU's.
     //
     // The SPC700's step() executes one full instruction and returns
     // the number of SPC cycles it consumed.
     //
     // DSP generates one sample every 32 SPC cycles.
 
-    m_cycle_counter += master_cycles;
+    m_spc_accumulator += static_cast<int64_t>(master_cycles) * SPC_CYCLE_RATIO_Q32;
 
-    while (m_cycle_counter >= MASTER_CYCLES_PER_SPC) {
+    while (m_spc_accumulator >= (int64_t(1) << 32)) {
         // Step SPC700 - this executes one instruction and returns cycles consumed
         int spc_cycles = m_spc->step();
 
-        // Deduct the equivalent master cycles for the instruction that was executed
-        m_cycle_counter -= spc_cycles * MASTER_CYCLES_PER_SPC;
+        // Deduct the equivalent fixed-point SPC cycles for the instruction
+        // that was executed (may leave the accumulator transiently negative
+        // when an instruction takes more than one SPC cycle - that's fine,
+        // it is a signed 64-bit accumulator and recovers on the next call).
+        m_spc_accumulator -= static_cast<int64_t>(spc_cycles) << 32;
 
         // Accumulate SPC cycles for DSP timing
-        // DSP generates one sample every 32 SPC cycles (1.024 MHz / 32 = 32 kHz)
+        // DSP generates one sample every 32 SPC cycles (1,025,280 Hz / 32 = 32,040 Hz)
         m_sample_counter += spc_cycles;
 
         while (m_sample_counter >= 32) {
@@ -128,22 +132,40 @@ void APU::save_state(std::vector<uint8_t>& data) {
     m_spc->save_state(data);
     m_dsp->save_state(data);
 
-    // Save timing state
-    data.push_back(m_cycle_counter & 0xFF);
-    data.push_back((m_cycle_counter >> 8) & 0xFF);
-    data.push_back(m_sample_counter & 0xFF);
-    data.push_back((m_sample_counter >> 8) & 0xFF);
+    // Save timing state as explicit signed two's complement.
+    // m_spc_accumulator is transiently negative right after step() deducts
+    // an SPC instruction's cycles (the budget is only refilled on the next
+    // call), so it must round-trip as a full signed 64-bit value.
+    uint64_t accumulator_bits = static_cast<uint64_t>(m_spc_accumulator);
+    for (int i = 0; i < 8; i++) {
+        data.push_back((accumulator_bits >> (i * 8)) & 0xFF);
+    }
+
+    uint32_t sample_counter_bits = static_cast<uint32_t>(m_sample_counter);
+    data.push_back(sample_counter_bits & 0xFF);
+    data.push_back((sample_counter_bits >> 8) & 0xFF);
+    data.push_back((sample_counter_bits >> 16) & 0xFF);
+    data.push_back((sample_counter_bits >> 24) & 0xFF);
 }
 
 void APU::load_state(const uint8_t*& data, size_t& remaining) {
     m_spc->load_state(data, remaining);
     m_dsp->load_state(data, remaining);
 
-    // Load timing state
-    m_cycle_counter = data[0] | (data[1] << 8);
-    data += 2; remaining -= 2;
-    m_sample_counter = data[0] | (data[1] << 8);
-    data += 2; remaining -= 2;
+    // Load timing state (see save_state for why this must be signed).
+    uint64_t accumulator_bits = 0;
+    for (int i = 0; i < 8; i++) {
+        accumulator_bits |= static_cast<uint64_t>(data[i]) << (i * 8);
+    }
+    m_spc_accumulator = static_cast<int64_t>(accumulator_bits);
+    data += 8; remaining -= 8;
+
+    uint32_t sample_counter_bits = static_cast<uint32_t>(data[0]) |
+        (static_cast<uint32_t>(data[1]) << 8) |
+        (static_cast<uint32_t>(data[2]) << 16) |
+        (static_cast<uint32_t>(data[3]) << 24);
+    m_sample_counter = static_cast<int32_t>(sample_counter_bits);
+    data += 4; remaining -= 4;
 }
 
 } // namespace snes

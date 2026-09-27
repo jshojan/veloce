@@ -53,6 +53,32 @@ static const uint32_t s_crc32_table[256] = {
     0xB40BBE37, 0xC30C8EA1, 0x5A05DF1B, 0x2D02EF8D
 };
 
+namespace {
+
+// Address mirroring for a ROM whose size is not a power of two (e.g. a
+// 3MB or 6MB cartridge). A plain "% size" wrap is wrong here: real
+// cartridge address decoding only ever ANDs/ORs address lines, so a
+// non-power-of-two ROM behaves as the largest power-of-two block it fully
+// occupies (addressed directly, no aliasing) plus the remaining tail,
+// which itself recursively mirrors to fill out the rest of the periodic
+// window (bsnes/higan Bus::mirror; see also snesdev "ROM mirroring").
+//
+// e.g. a 6MB (0x600000) ROM: addresses [0, 0x400000) hit real data
+// directly; [0x400000, 0x800000) is the periodic window's remainder, and
+// within it the tail [0x400000, 0x600000) (the actual leftover 2MB of
+// data) repeats to fill the last 2MB, so 0x600000 folds back to 0x400000.
+size_t mirror_rom_address(size_t addr, size_t size) {
+    if (size == 0) return 0;
+    size_t pow2 = 1;
+    while (pow2 < size) pow2 <<= 1;
+    addr &= (pow2 - 1);          // wrap to the periodic window
+    if (addr < size) return addr;  // direct hit (size may or may not be po2)
+    size_t block = pow2 >> 1;      // largest power-of-two block < size
+    return block + mirror_rom_address(addr - block, size - block);
+}
+
+} // namespace
+
 Cartridge::Cartridge() = default;
 
 Cartridge::~Cartridge() = default;
@@ -642,18 +668,20 @@ uint8_t Cartridge::read_lorom(uint32_t address) {
         return 0;
     }
 
-    // Mirror ROM within its actual size
+    // Mirror ROM within its actual size (power-of-two folding, so e.g. a
+    // 3MB LoROM's $60-$7D banks mirror its last 1MB rather than wrapping
+    // to the start of ROM - see mirror_rom_address()).
     if (!m_rom.empty()) {
+        size_t actual_addr = mirror_rom_address(rom_addr, m_rom.size());
         // Debug: trace reads from high ROM banks
         static int rom_trace_count = 0;
         if (is_debug_mode() && effective_bank >= 0x38 && rom_trace_count < 10) {
-            size_t actual_addr = rom_addr % m_rom.size();
             uint8_t data = m_rom[actual_addr];
             fprintf(stderr, "[ROM] Read $%02X:%04X -> rom_addr=$%06lX (actual=$%06lX) = $%02X\n",
                 bank, offset, (unsigned long)rom_addr, (unsigned long)actual_addr, data);
             rom_trace_count++;
         }
-        return m_rom[rom_addr % m_rom.size()];
+        return m_rom[actual_addr];
     }
 
     return 0;
@@ -711,28 +739,43 @@ uint8_t Cartridge::read_hirom(uint32_t address) {
         return 0;
     }
 
-    // ROM access
+    // ROM access. Banks $40-$7D and $C0-$FF are both full 64KB ROM banks
+    // that decode through the bank's low 6 bits (bank & 0x3F) into the same
+    // <=4MB ROM window (fullsnes: "$C0-$FF are all 64 ROM banks; only
+    // $7E/$7F are WRAM"). The old code folded $C0-$FF down via
+    // effective_bank = bank - 0x80 (giving $40-$7F) and then only matched
+    // the $40-$7D range, so $FE/$FF (effective_bank $7E/$7F) fell through
+    // to the "WRAM bank" case below and returned 0 - zeroing the last
+    // 128KB of every HiROM/ExHiROM cartridge.
     size_t rom_addr;
-    if (effective_bank >= 0x40 && effective_bank <= 0x7D) {
-        // Banks $40-$7D: full 64KB
-        rom_addr = ((effective_bank - 0x40) * 0x10000) + offset;
+    if (bank >= 0x40 && bank <= 0x7D) {
+        // Banks $40-$7D: full 64KB, direct low mirror.
+        rom_addr = (static_cast<size_t>(bank & 0x3F) * 0x10000) + offset;
     } else if (effective_bank <= 0x3F) {
-        // Banks $00-$3F: only $8000-$FFFF
+        // Banks $00-$3F, $80-$BF: only $8000-$FFFF is ROM.
         if (offset < 0x8000) return 0;
-        rom_addr = (effective_bank * 0x10000) + offset;
+        rom_addr = (static_cast<size_t>(effective_bank) * 0x10000) + offset;
+    } else if (bank >= 0xC0) {
+        // Banks $C0-$FF: full 64KB, including $FE/$FF.
+        rom_addr = (static_cast<size_t>(bank & 0x3F) * 0x10000) + offset;
     } else {
-        // Banks $7E-$7F are WRAM (not handled here)
+        // Banks $7E-$7F are WRAM (not reached; Bus intercepts them first).
         return 0;
     }
 
-    // Handle ExHiROM (banks $C0-$FF map to upper 4MB)
-    if (m_mapper_type == MapperType::ExHiROM && bank >= 0xC0) {
-        rom_addr = ((bank - 0xC0) * 0x10000) + offset + 0x400000;
+    // ExHiROM (mode $25, ROM > 4MB): the A22 line is inverted versus plain
+    // HiROM, so banks with bit 7 SET ($80-$BF/$C0-$FF) select the FIRST
+    // 4MB and banks with bit 7 CLEAR ($00-$3F/$40-$7D) select the SECOND
+    // 4MB (bsnes/snesdev: base = (bank & 0x80) ? 0 : 0x400000). The old
+    // code did the opposite (added +0x400000 only for bank>=0xC0, i.e.
+    // exactly backwards) and only for $C0-$FF, leaving $80-$BF/$00-$3F/
+    // $40-$7D all aliased onto the first 4MB regardless of bank.
+    if (m_mapper_type == MapperType::ExHiROM) {
+        rom_addr += (bank & 0x80) ? 0 : 0x400000;
     }
 
     if (!m_rom.empty()) {
-        rom_addr %= m_rom.size();
-        return m_rom[rom_addr];
+        return m_rom[mirror_rom_address(rom_addr, m_rom.size())];
     }
 
     return 0;

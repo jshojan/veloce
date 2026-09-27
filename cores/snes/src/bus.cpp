@@ -31,15 +31,19 @@ Bus::~Bus() = default;
 // - WRAM:       8 master cycles
 // - I/O:        6-12 master cycles depending on register
 //
-// FastROM only affects ROM in banks $80-$FF when:
-// 1. The cartridge supports FastROM (header bit)
-// 2. MEMSEL ($420D) bit 0 is set
+// FastROM (MEMSEL $420D bit 0 = 1) only affects Memory-2: banks
+// $80-$BF:8000-FFFF and $C0-$FF:0000-FFFF. It never affects banks $00-$7F,
+// and the cartridge header's FastROM bit plays no part in bus timing.
 // ============================================================================
 
 bool Bus::is_fast_rom_enabled() const {
-    // FastROM requires both MEMSEL bit 0 set AND cartridge FastROM support
-    if (!m_cartridge) return false;
-    return (m_memsel & 0x01) && m_cartridge->is_fast_rom();
+    // Reference: fullsnes 420Dh (MEMSEL). The bus access-speed decoder is a
+    // pure address/MEMSEL-bit lookup; real hardware does not consult the
+    // cartridge header at all here (the header's FastROM bit is only a
+    // convention software uses to decide what to write to MEMSEL). Gating
+    // this on Cartridge::is_fast_rom() as well double-counted the header and
+    // is not how the timing decoder behaves.
+    return (m_memsel & 0x01) != 0;
 }
 
 int Bus::get_access_cycles(uint32_t address) const {
@@ -51,9 +55,13 @@ int Bus::get_access_cycles(uint32_t address) const {
         return 8;
     }
 
-    // Banks $40-$7D: Cartridge space - 8 cycles (6 if FastROM and HiROM)
+    // Banks $40-$7D: Cartridge space - always 8 cycles.
+    // Reference: fullsnes 420Dh - MEMSEL bit 0 only speeds up Memory-2
+    // ($80-$BF:8000-FFFF and $C0-$FF); banks $40-$7D are never affected by
+    // FastROM regardless of MEMSEL, so this must not consult
+    // is_fast_rom_enabled().
     if (bank >= 0x40 && bank <= 0x7D) {
-        return is_fast_rom_enabled() ? 6 : 8;
+        return 8;
     }
 
     // Banks $C0-$FF: ROM (HiROM upper banks or LoROM mirrors)
@@ -424,19 +432,33 @@ void Bus::write(uint32_t address, uint8_t value) {
 
 uint8_t Bus::read_cpu_io(uint16_t address) {
     switch (address) {
-        case 0x4016:  // JOYSER0 - Joypad 1 data
+        case 0x4016:  // JOYSER0 - Joypad 1 serial data
             {
-                uint8_t result = m_controller_latch[0] & 1;
-                m_controller_latch[0] >>= 1;
-                m_controller_latch[0] |= 0x8000;  // Return 1s after all bits read
+                // Reference: fullsnes/anomie controller docs. The report
+                // word is B Y Select Start Up Down Left Right A X L R 0 0 0 0
+                // (bit15=B .. bit4=R), shifted out MSB-first. While strobe
+                // is held high the line continuously reflects the live B
+                // bit; only after the 1->0 edge does it shift the latched
+                // report out one bit per read.
+                uint8_t result;
+                if (m_strobe) {
+                    result = (m_controller_state[0] >> 15) & 1;
+                } else {
+                    result = (m_serial_shift[0] >> 15) & 1;
+                    m_serial_shift[0] = (m_serial_shift[0] << 1) | 1;
+                }
                 return result;
             }
 
-        case 0x4017:  // JOYSER1 - Joypad 2 data
+        case 0x4017:  // JOYSER1 - Joypad 2 serial data
             {
-                uint8_t result = m_controller_latch[1] & 1;
-                m_controller_latch[1] >>= 1;
-                m_controller_latch[1] |= 0x8000;
+                uint8_t result;
+                if (m_strobe) {
+                    result = (m_controller_state[1] >> 15) & 1;
+                } else {
+                    result = (m_serial_shift[1] >> 15) & 1;
+                    m_serial_shift[1] = (m_serial_shift[1] << 1) | 1;
+                }
                 return result;
             }
 
@@ -477,8 +499,10 @@ uint8_t Bus::read_cpu_io(uint16_t address) {
                 if (m_ppu) {
                     int scanline = m_ppu->get_scanline();
                     int dot = m_ppu->get_dot();
-                    // V-blank flag (scanlines 225-261 for NTSC)
-                    if (scanline >= 225) result |= 0x80;
+                    // V-blank flag: scanlines vdisp()-261 for NTSC. vdisp() is
+                    // 225 normally, or 240 with SETINI overscan (bit 2) set,
+                    // since overscan extends the visible area to line 239.
+                    if (scanline >= m_ppu->vdisp()) result |= 0x80;
                     // H-blank flag (dots 274-339)
                     if (dot >= 274) result |= 0x40;
                 }
@@ -546,9 +570,17 @@ uint8_t Bus::read_cpu_io(uint16_t address) {
 void Bus::write_cpu_io(uint16_t address, uint8_t value) {
     switch (address) {
         case 0x4016:  // JOYSER0 - Joypad strobe
-            if (value & 1) {
-                m_controller_latch[0] = m_controller_state[0] & 0xFFFF;
-                m_controller_latch[1] = m_controller_state[1] & 0xFFFF;
+            {
+                bool new_strobe = (value & 1) != 0;
+                if (m_strobe && !new_strobe) {
+                    // Falling edge: latch the current report into the
+                    // manual-read shift registers (see snes-12). This is
+                    // independent of m_controller_latch, which holds only
+                    // the auto-joypad-read result exposed at $4218-$421B.
+                    m_serial_shift[0] = m_controller_state[0] & 0xFFFF;
+                    m_serial_shift[1] = m_controller_state[1] & 0xFFFF;
+                }
+                m_strobe = new_strobe;
             }
             break;
 
@@ -610,10 +642,26 @@ void Bus::write_cpu_io(uint16_t address, uint8_t value) {
             if (m_ppu) {
                 m_ppu->set_nmi_enabled((value & 0x80) != 0);
             }
+
+            // Reference: bsnes irq.cpp nmitimenUpdate() - disabling both H-IRQ
+            // and V-IRQ (bits 4-5 both 0) immediately clears the pending IRQ
+            // flag/line rather than leaving it latched until the next $4211
+            // read. Without this, a game that turns H/V-IRQ off specifically
+            // to stop a pending IRQ (e.g. before re-enabling interrupts with
+            // CLI) still takes one spurious IRQ from state latched earlier.
+            if ((value & 0x30) == 0) {
+                m_irq_flag = false;
+                m_timeup = 0;
+            }
             break;
 
         case 0x4201:  // WRIO - Programmable I/O port (output)
             m_wrio = value;
+            // A falling edge of bit 7 latches the PPU's H/V counters
+            // (external light-gun latch pin emulation). See PPU::set_wrio.
+            if (m_ppu) {
+                m_ppu->set_wrio(value);
+            }
             break;
 
         case 0x4202:  // WRMPYA - Multiplication operand A
@@ -857,6 +905,11 @@ void Bus::start_vblank() {
         // Latch controllers
         m_controller_latch[0] = m_controller_state[0];
         m_controller_latch[1] = m_controller_state[1];
+        // Hardware also clocks the manual-read shift registers 16 times
+        // during auto-read, leaving them exhausted (all 1s) just like a
+        // completed manual read sequence would.
+        m_serial_shift[0] = 0xFFFF;
+        m_serial_shift[1] = 0xFFFF;
     }
 
     // Note: V-IRQ is checked in start_scanline(), not here
@@ -1090,6 +1143,12 @@ void Bus::save_state(std::vector<uint8_t>& data) {
         data.push_back((m_controller_state[i] >> 16) & 0xFF);
         data.push_back((m_controller_state[i] >> 24) & 0xFF);
     }
+    // Save manual serial-read shift registers + strobe (snes-12)
+    for (int i = 0; i < 2; i++) {
+        data.push_back(m_serial_shift[i] & 0xFF);
+        data.push_back((m_serial_shift[i] >> 8) & 0xFF);
+    }
+    data.push_back(m_strobe ? 1 : 0);
 
     // Save WRAM port address
     data.push_back(m_wram_addr & 0xFF);
@@ -1105,6 +1164,11 @@ void Bus::load_state(const uint8_t*& data, size_t& remaining) {
     // Load I/O state
     m_nmitimen = *data++; remaining--;
     m_wrio = *data++; remaining--;
+    // Keep the PPU's WRIO mirror (used to gate the $2137 counter latch) in
+    // sync with the restored port value.
+    if (m_ppu) {
+        m_ppu->restore_wrio(m_wrio);
+    }
     m_htime = data[0] | (data[1] << 8);
     data += 2; remaining -= 2;
     m_vtime = data[0] | (data[1] << 8);
@@ -1138,6 +1202,13 @@ void Bus::load_state(const uint8_t*& data, size_t& remaining) {
         m_controller_state[i] = data[0] | (data[1] << 8) | (data[2] << 16) | (data[3] << 24);
         data += 4; remaining -= 4;
     }
+
+    // Load manual serial-read shift registers + strobe (snes-12)
+    for (int i = 0; i < 2; i++) {
+        m_serial_shift[i] = data[0] | (data[1] << 8);
+        data += 2; remaining -= 2;
+    }
+    m_strobe = (*data++ != 0); remaining--;
 
     // Load WRAM port address
     m_wram_addr = data[0] | (data[1] << 8) | ((data[2] & 0x01) << 16);

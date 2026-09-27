@@ -86,11 +86,11 @@ private:
     uint32_t addr_direct_indirect();
     uint32_t addr_direct_indirect_long();
     uint32_t addr_direct_x_indirect();
-    uint32_t addr_direct_indirect_y();
+    uint32_t addr_direct_indirect_y(bool always_penalty = false);
     uint32_t addr_direct_indirect_long_y();
     uint32_t addr_absolute();
-    uint32_t addr_absolute_x();
-    uint32_t addr_absolute_y();
+    uint32_t addr_absolute_x(bool always_penalty = false);
+    uint32_t addr_absolute_y(bool always_penalty = false);
     uint32_t addr_absolute_long();
     uint32_t addr_absolute_long_x();
     uint32_t addr_absolute_indirect();

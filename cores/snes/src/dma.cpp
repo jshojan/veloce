@@ -108,40 +108,16 @@ void DMA::write_mdmaen(uint8_t value) {
 }
 
 void DMA::write_hdmaen(uint8_t value) {
-    // Detect newly-enabled channels and initialize them immediately.
-    // On real hardware, HDMA channels must be enabled before hdma_init()
-    // (at V=0) to participate in the frame. But games often enable HDMA
-    // during their init code which runs after V=0, so we need to init
-    // newly-enabled channels to work on the current frame.
-    uint8_t newly_enabled = value & ~m_hdmaen;
+    // $420C (HDMAEN) is a plain enable-bit latch on real hardware. Channel
+    // setup (A2A <- A1T, first table-entry read, do_transfer for the first
+    // H-blank) happens exactly once per frame, at hdma_init() (V=0 H~6;
+    // see bsnes/ares hdmaSetup()). A mid-frame write here must NOT re-run
+    // that setup: a channel enabled after V=0 has no effect until the next
+    // frame's hdma_init(), exactly as on hardware - it does not get a
+    // fresh table read/transfer mid-frame. (Previously this function
+    // re-initialized "newly enabled" channels immediately on every write,
+    // which no real SNES does.)
     m_hdmaen = value;
-
-    // Initialize any newly-enabled channels
-    for (int i = 0; i < 8; i++) {
-        if (newly_enabled & (1 << i)) {
-            auto& ch = m_channels[i];
-
-            ch.a2a = ch.a1t;  // Table address = A1T
-            ch.hdma_terminated = false;
-            ch.hdma_do_transfer = false;
-
-            // Read first entry
-            ch.nltr = hdma_read_table(i);
-            ch.hdma_line_counter = ch.nltr;  // Store FULL byte including repeat bit
-
-            if (ch.nltr == 0) {
-                ch.hdma_terminated = true;
-            } else {
-                ch.hdma_do_transfer = true;
-
-                // For indirect mode, read indirect address
-                if (ch.dmap & 0x40) {
-                    ch.das = hdma_read_table(i);
-                    ch.das |= hdma_read_table(i) << 8;
-                }
-            }
-        }
-    }
 }
 
 void DMA::do_dma_transfer(int channel) {
@@ -233,33 +209,7 @@ void DMA::do_dma_transfer(int channel) {
             if (direction) {
                 // B -> A (typically used for memory fill from multiply registers)
                 uint8_t value = m_bus.read(b_full);
-
-                // SMAS FIX: Preserve game-critical variables during WRAM clear DMA.
-                // The game sets $0773 (game selection index) before triggering a
-                // memory clear, but due to timing differences, the code that reads
-                // $0773 runs one frame later. On real hardware, the dispatch runs
-                // earlier so the value is read before being cleared.
-                // Preserve $0770-$077F (game selection variables) during fill operations.
-                uint8_t bank = (a_addr >> 16) & 0xFF;
-                uint16_t offset = a_addr & 0xFFFF;
-                bool is_wram_fill = (bank <= 0x3F || (bank >= 0x80 && bank <= 0xBF)) &&
-                                    offset < 0x2000 && value == 0;
-                bool is_game_critical = offset >= 0x0770 && offset <= 0x077F;
-
-                if (is_wram_fill && is_game_critical) {
-                    // Skip clearing game-critical variables
-                    // The game expects these to survive the memory clear
-                } else {
-                    m_bus.write(a_addr, value);
-                }
-
-                // Debug: Log DMA writes to $1B00-$1BFF range
-                static int dma_write_count = 0;
-                if (offset >= 0x1B00 && offset < 0x1C00 && dma_write_count < 20) {
-                    dma_write_count++;
-                    fprintf(stderr, "[SNES/DMA] B->A write: $%06X = $%02X (from B=$%04X, count=%d)\n",
-                        a_addr, value, b_full, dma_write_count);
-                }
+                m_bus.write(a_addr, value);
             } else {
                 // A -> B
                 uint8_t value = m_bus.read(a_addr);
@@ -364,21 +314,9 @@ void DMA::hdma_do_transfer(int channel) {
 
     int size = transfer_size[transfer_mode];
 
-    // Debug: Log ALL HDMA transfers to understand what SMAS uses
-    static int hdma_debug_count = 0;
-
     for (int i = 0; i < size; i++) {
         uint8_t value = m_bus.read(src_addr);
         uint16_t b_full = 0x2100 + b_addr + b_offset[transfer_mode][i];
-
-        // Log all HDMA transfers for first 200 transfers
-        if (hdma_debug_count < 200) {
-            int ppu_scanline = m_bus.ppu().get_scanline();
-            int ppu_dot = m_bus.ppu().get_dot();
-            fprintf(stderr, "[HDMA] ch%d ppu_line=%d ppu_dot=%d: $%04X <- $%02X (mode=%d)\n",
-                    channel, ppu_scanline, ppu_dot, b_full, value, transfer_mode);
-            hdma_debug_count++;
-        }
 
         m_bus.write(b_full, value);
         src_addr++;

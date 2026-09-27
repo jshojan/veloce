@@ -60,7 +60,7 @@ int SPC700::step() {
 
     // IPL ROM boot loop is at $FFCF-$FFD2
     // When we exit IPL ROM (PC < $FFC0 or PC > $FFD2 and not in early IPL), boot is done
-    if (!ipl_boot_logged && m_pc < 0xFFC0) {
+    if (is_debug_mode() && !ipl_boot_logged && m_pc < 0xFFC0) {
         ipl_boot_logged = true;
         fprintf(stderr, "[SPC700] Exited IPL ROM boot at step %d, PC=$%04X, port_in[0]=$%02X\n",
                 step_count, m_pc, m_port_in[0]);
@@ -218,7 +218,7 @@ void SPC700::write(uint16_t address, uint8_t value) {
             case 0x00F5:
             case 0x00F6:
             case 0x00F7:
-                {
+                if (is_debug_mode()) {
                     static int port_write_count = 0;
                     port_write_count++;
                     if (port_write_count <= 5) {
@@ -1276,6 +1276,39 @@ void SPC700::execute() {
             uint8_t y_val = read_dp(m_y);
             write_dp(m_x, op_sbc(x_val, y_val));
             m_cycles += 1;
+            break;
+        }
+
+        // OR/AND/EOR/CMP (X), (Y)
+        case 0x19: {
+            uint8_t x_val = read_dp(m_x);
+            uint8_t y_val = read_dp(m_y);
+            write_dp(m_x, op_or(x_val, y_val));
+            m_cycles += 1;
+            break;
+        }
+        case 0x39: {
+            uint8_t x_val = read_dp(m_x);
+            uint8_t y_val = read_dp(m_y);
+            write_dp(m_x, op_and(x_val, y_val));
+            m_cycles += 1;
+            break;
+        }
+        case 0x59: {
+            uint8_t x_val = read_dp(m_x);
+            uint8_t y_val = read_dp(m_y);
+            write_dp(m_x, op_eor(x_val, y_val));
+            m_cycles += 1;
+            break;
+        }
+        case 0x79: {
+            uint8_t x_val = read_dp(m_x);
+            uint8_t y_val = read_dp(m_y);
+            op_cmp(x_val, y_val);
+            // CMP does not write the result back to (X); charge the same
+            // total cycle count (5) as OR/AND/EOR (X),(Y) with a dummy
+            // cycle in place of the write-back's read()+m_cycles bump.
+            m_cycles += 2;
             break;
         }
 

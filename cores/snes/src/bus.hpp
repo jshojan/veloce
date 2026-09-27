@@ -107,7 +107,15 @@ private:
 
     // Controller state
     std::array<uint32_t, 2> m_controller_state;
+    // m_controller_latch holds the auto-joypad-read report ($4218-$421B
+    // only); it must not be shared with the manual $4016/$4017 serial path.
     std::array<uint16_t, 2> m_controller_latch;
+    // Manual serial-read shift registers for $4016/$4017 (see snes-12):
+    // while m_strobe is held high they mirror the live report; on the
+    // strobe 1->0 edge the current report is latched in and each read
+    // shifts one bit out MSB-first (B first), returning 1s once exhausted.
+    std::array<uint16_t, 2> m_serial_shift{0xFFFF, 0xFFFF};
+    bool m_strobe = false;
     bool m_auto_joypad_read = false;
     int m_joypad_counter = 0;
 

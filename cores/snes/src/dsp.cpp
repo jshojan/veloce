@@ -405,74 +405,71 @@ void DSP::step() {
         }
     }
 
-    // Process echo
-    if (!(m_regs[REG_FLG] & 0x20)) {  // Echo not disabled
-        process_echo();
+    // Process echo. FLG bit 5 (echo-write disable) only gates the writes
+    // into the echo buffer below - it does NOT stop echo playback or freeze
+    // the echo read/write cursor. Reference: ares dsp/echo.cpp - the FIR
+    // read, filter, feedback mix and offset advance run every sample;
+    // only the four spc_ram stores are skipped when the bit is set.
+    process_echo();
 
-        // Get echo output and apply FIR filter
-        // Reference: fullsnes - "FIR_out = sum>>7" (not >>6)
-        int32_t fir_left = 0;
-        int32_t fir_right = 0;
-        for (int i = 0; i < 8; i++) {
-            int idx = (m_echo_history_index + i) % 8;
-            fir_left += m_echo_history_left[idx] * m_fir_coefficients[i];
-            fir_right += m_echo_history_right[idx] * m_fir_coefficients[i];
-        }
-        fir_left >>= 7;  // Was >>6, which doubled echo amplitude
-        fir_right >>= 7;
-
-        // Clamp FIR output to 16-bit before applying echo volume
-        fir_left = std::clamp(fir_left, -32768, 32767);
-        fir_right = std::clamp(fir_right, -32768, 32767);
-
-        // Apply echo volume - this will be added AFTER master volume is applied to voices
-        int8_t evol_l = static_cast<int8_t>(m_regs[REG_EVOL_L]);
-        int8_t evol_r = static_cast<int8_t>(m_regs[REG_EVOL_R]);
-        int32_t echo_out_mixed_l = (fir_left * evol_l) >> 7;
-        int32_t echo_out_mixed_r = (fir_right * evol_r) >> 7;
-
-        // Write echo feedback (using same address as read)
-        int8_t efb = static_cast<int8_t>(m_regs[REG_EFB]);
-        int32_t echo_fb_l = echo_left_sum + ((fir_left * efb) >> 7);
-        int32_t echo_fb_r = echo_right_sum + ((fir_right * efb) >> 7);
-
-        echo_fb_l = std::clamp(echo_fb_l, -32768, 32767);
-        echo_fb_r = std::clamp(echo_fb_r, -32768, 32767);
-
-        // Write to echo buffer at the same address we read from
-        // Echo writes are disabled when FLG bit 5 is set
-        if (!(m_regs[REG_FLG] & 0x20)) {
-            uint8_t* spc_ram = m_spc->get_ram();
-            spc_ram[m_echo_addr] = echo_fb_l & 0xFF;
-            spc_ram[m_echo_addr + 1] = (echo_fb_l >> 8) & 0xFF;
-            spc_ram[m_echo_addr + 2] = echo_fb_r & 0xFF;
-            spc_ram[m_echo_addr + 3] = (echo_fb_r >> 8) & 0xFF;
-        }
-
-        // Advance echo offset after the read-write cycle is complete
-        m_echo_offset += 4;
-        if (m_echo_offset >= m_echo_length) {
-            m_echo_offset = 0;
-        }
-
-        // Apply master volume to voices ONLY (not echo)
-        // Reference: fullsnes - "Main Output = sum(VxVOL*voice) * MVOL / 128"
-        int8_t mvol_l = static_cast<int8_t>(m_regs[REG_MVOL_L]);
-        int8_t mvol_r = static_cast<int8_t>(m_regs[REG_MVOL_R]);
-        left_sum = (left_sum * mvol_l) >> 7;
-        right_sum = (right_sum * mvol_r) >> 7;
-
-        // Add echo output AFTER master volume
-        // Reference: fullsnes - "Final Output = Main + Echo"
-        left_sum += echo_out_mixed_l;
-        right_sum += echo_out_mixed_r;
-    } else {
-        // Echo disabled - just apply master volume
-        int8_t mvol_l = static_cast<int8_t>(m_regs[REG_MVOL_L]);
-        int8_t mvol_r = static_cast<int8_t>(m_regs[REG_MVOL_R]);
-        left_sum = (left_sum * mvol_l) >> 7;
-        right_sum = (right_sum * mvol_r) >> 7;
+    // Get echo output and apply FIR filter
+    // Reference: fullsnes - "FIR_out = sum>>7" (not >>6)
+    int32_t fir_left = 0;
+    int32_t fir_right = 0;
+    for (int i = 0; i < 8; i++) {
+        int idx = (m_echo_history_index + i) % 8;
+        fir_left += m_echo_history_left[idx] * m_fir_coefficients[i];
+        fir_right += m_echo_history_right[idx] * m_fir_coefficients[i];
     }
+    fir_left >>= 7;  // Was >>6, which doubled echo amplitude
+    fir_right >>= 7;
+
+    // Clamp FIR output to 16-bit before applying echo volume
+    fir_left = std::clamp(fir_left, -32768, 32767);
+    fir_right = std::clamp(fir_right, -32768, 32767);
+
+    // Apply echo volume - this will be added AFTER master volume is applied to voices
+    int8_t evol_l = static_cast<int8_t>(m_regs[REG_EVOL_L]);
+    int8_t evol_r = static_cast<int8_t>(m_regs[REG_EVOL_R]);
+    int32_t echo_out_mixed_l = (fir_left * evol_l) >> 7;
+    int32_t echo_out_mixed_r = (fir_right * evol_r) >> 7;
+
+    // Write echo feedback (using same address as read)
+    int8_t efb = static_cast<int8_t>(m_regs[REG_EFB]);
+    int32_t echo_fb_l = echo_left_sum + ((fir_left * efb) >> 7);
+    int32_t echo_fb_r = echo_right_sum + ((fir_right * efb) >> 7);
+
+    echo_fb_l = std::clamp(echo_fb_l, -32768, 32767);
+    echo_fb_r = std::clamp(echo_fb_r, -32768, 32767);
+
+    // Write to echo buffer at the same address we read from.
+    // Echo writes ONLY are disabled when FLG bit 5 is set; the cursor
+    // below still advances even while writes are suppressed.
+    if (!(m_regs[REG_FLG] & 0x20)) {
+        uint8_t* spc_ram = m_spc->get_ram();
+        spc_ram[m_echo_addr] = echo_fb_l & 0xFF;
+        spc_ram[m_echo_addr + 1] = (echo_fb_l >> 8) & 0xFF;
+        spc_ram[m_echo_addr + 2] = echo_fb_r & 0xFF;
+        spc_ram[m_echo_addr + 3] = (echo_fb_r >> 8) & 0xFF;
+    }
+
+    // Advance echo offset after the read-write cycle is complete
+    m_echo_offset += 4;
+    if (m_echo_offset >= m_echo_length) {
+        m_echo_offset = 0;
+    }
+
+    // Apply master volume to voices ONLY (not echo)
+    // Reference: fullsnes - "Main Output = sum(VxVOL*voice) * MVOL / 128"
+    int8_t mvol_l = static_cast<int8_t>(m_regs[REG_MVOL_L]);
+    int8_t mvol_r = static_cast<int8_t>(m_regs[REG_MVOL_R]);
+    left_sum = (left_sum * mvol_l) >> 7;
+    right_sum = (right_sum * mvol_r) >> 7;
+
+    // Add echo output AFTER master volume
+    // Reference: fullsnes - "Final Output = Main + Echo"
+    left_sum += echo_out_mixed_l;
+    right_sum += echo_out_mixed_r;
 
     // Clamp and check mute
     if (m_regs[REG_FLG] & 0x40) {
@@ -709,8 +706,14 @@ void DSP::process_echo() {
 
     // Calculate echo buffer parameters
     uint16_t esa = m_regs[REG_ESA] << 8;
-    int edl = m_regs[REG_EDL] & 0x0F;
-    m_echo_length = edl ? (edl * 0x800) : 4;  // 0 = 4 bytes
+    // EDL is only latched when the echo cursor is at the start of the
+    // buffer, so a mid-buffer EDL write takes effect after the current
+    // pass wraps. Reference: ares/blargg SPC_DSP echo_22:
+    // "if(!echo.offset) echo.length = EDL << 11".
+    if (m_echo_offset == 0) {
+        int edl = m_regs[REG_EDL] & 0x0F;
+        m_echo_length = edl ? (edl * 0x800) : 4;  // 0 = 4 bytes
+    }
 
     // Read from echo buffer
     // NOTE: m_echo_addr is stored for use by the write phase, which happens
@@ -768,6 +771,12 @@ void DSP::load_state(const uint8_t*& data, size_t& remaining) {
     data += 2; remaining -= 2;
 
     // Recalculate derived values
+    // The latched echo length is not serialized; approximate it from EDL
+    // (it is re-latched exactly when the cursor next wraps to 0).
+    {
+        int edl = m_regs[REG_EDL] & 0x0F;
+        m_echo_length = edl ? (edl * 0x800) : 4;
+    }
     m_noise_rate = m_regs[REG_FLG] & 0x1F;
     for (int i = 0; i < 8; i++) {
         m_fir_coefficients[i] = static_cast<int8_t>(m_regs[0x0F + (i << 4)]);

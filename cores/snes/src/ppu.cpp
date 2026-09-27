@@ -47,6 +47,7 @@ void PPU::reset() {
     m_oam_addr_reload = 0;
     m_oam_latch = 0;
     m_oam_high_byte = false;
+    m_oam_priority_rotate = false;
 
     m_bgmode = 0;
     m_bg_mode = 0;
@@ -159,6 +160,7 @@ void PPU::reset() {
     m_hv_latch = false;
     m_hcount_second = false;
     m_vcount_second = false;
+    m_wrio = 0xFF;
 
     m_mpy_result = 0;
     m_sprite_count = 0;
@@ -316,6 +318,18 @@ void PPU::advance(int master_cycles) {
         // Check for sprite timing events
         int visible_lines = m_overscan ? 239 : 224;
 
+        // OAM address reload at V-blank start: on real hardware, OAMADDR is
+        // reloaded from the OAMADD registers ($2102/$2103) at the start of
+        // V-blank, unless force-blank is active. Without this, a game that
+        // sets OAMADDR mid-frame (e.g. for OAM priority rotation, snes-21)
+        // and expects the next frame's CPU-side OAM upload to start from
+        // the reload value instead sees whatever address rendering left it
+        // at. Reference: fullsnes 2102h/2103h "OAM Address reset".
+        if (m_dot == 0 && m_scanline == visible_lines + 1 && !m_force_blank) {
+            m_oam_addr = m_oam_addr_reload << 1;
+            m_oam_high_byte = false;
+        }
+
         // ====================================================================
         // SPRITE TIMING: TWO SEPARATE FORCE_BLANK LATCH POINTS
         // ====================================================================
@@ -391,9 +405,10 @@ void PPU::advance(int master_cycles) {
         dots_to_advance--;
     }
 
-    // Update H/V counters for register reads
-    m_hcount = m_dot;
-    m_vcount = m_scanline;
+    // Note: $213C/$213D (OPHCT/OPVCT) hold a *latched* copy of the dot/
+    // scanline, not a live view of them - see latch_counters(). They are
+    // updated only by a $2137 (SLHV) read while WRIO bit 7 is high, or by
+    // a falling edge of WRIO bit 7 (see set_wrio()).
 }
 
 void PPU::sync_to_current() {
@@ -700,97 +715,6 @@ void PPU::sync_to_hblank(int scanline) {
     }
 }
 
-void PPU::step() {
-    // Render visible scanlines (1-224 or 1-239 in overscan)
-    int visible_lines = m_overscan ? 239 : 224;
-
-    if (m_scanline >= 1 && m_scanline <= visible_lines && m_dot >= 22 && m_dot < 278) {
-        // Render visible pixels (22-277 = 256 pixels)
-        int x = m_dot - 22;
-        if (!m_force_blank) {
-            render_pixel(x);
-        } else {
-            // Force blank - output black (512-pixel stride with duplicated pixels)
-            int y = m_scanline - 1;
-            m_framebuffer[y * 512 + x * 2] = 0xFF000000;
-            m_framebuffer[y * 512 + x * 2 + 1] = 0xFF000000;
-        }
-    }
-
-    // Sprite evaluation happens during HBlank (around dot 278-285)
-    // This evaluates sprites for the NEXT scanline.
-    // If force_blank is active during HBlank, sprites will not be loaded.
-    // Reference: Mesen-S does sprite evaluation at Hdot 285.
-    if (m_dot == 285 && m_scanline >= 0 && m_scanline < visible_lines) {
-        // Evaluate sprites for scanline (m_scanline + 1)
-        // The evaluate_sprites function checks m_force_blank internally
-        int next_scanline = m_scanline + 1;
-        int saved_scanline = m_scanline;
-        m_scanline = next_scanline;
-        evaluate_sprites();
-        m_scanline = saved_scanline;
-    }
-
-    // Update H/V counters
-    m_hcount = m_dot;
-    m_vcount = m_scanline;
-
-    // Advance dot
-    m_dot++;
-    if (m_dot >= DOTS_PER_SCANLINE) {
-        m_dot = 0;
-        m_scanline++;
-
-        // VBlank start (scanline 225 or 240)
-        if (m_scanline == visible_lines + 1) {
-            m_nmi_flag = true;
-            if (m_nmi_enabled) {
-                m_nmi_pending = true;
-            }
-            m_frame_complete = true;
-
-            // Reset OAM address at VBlank start
-            m_oam_addr = m_oam_addr_reload;
-        }
-
-        // End of frame
-        if (m_scanline >= SCANLINES_PER_FRAME) {
-            m_scanline = 0;
-            m_frame++;
-            m_nmi_flag = false;
-            m_time_over = false;
-            m_range_over = false;
-
-            // Debug: Log full PPU state every 30 frames starting at frame 60
-            if (is_debug_mode() && m_frame >= 60 && (m_frame % 30) == 0) {
-                fprintf(stderr, "[SNES/PPU] === Frame %llu PPU State ===\n", (unsigned long long)m_frame);
-                fprintf(stderr, "[SNES/PPU]   BGMODE=$%02X (mode=%d) TM=$%02X TS=$%02X\n",
-                    m_bgmode, m_bg_mode, m_tm, m_ts);
-                fprintf(stderr, "[SNES/PPU]   BG1: tilemap=$%04X chr=$%04X hofs=%d vofs=%d tile16=%d\n",
-                    m_bg_tilemap_addr[0], m_bg_chr_addr[0], m_bg_hofs[0], m_bg_vofs[0], m_bg_tile_size[0]);
-                fprintf(stderr, "[SNES/PPU]   BG2: tilemap=$%04X chr=$%04X hofs=%d vofs=%d tile16=%d\n",
-                    m_bg_tilemap_addr[1], m_bg_chr_addr[1], m_bg_hofs[1], m_bg_vofs[1], m_bg_tile_size[1]);
-                // Warn if tilemap and chr overlap
-                if (m_bg_chr_addr[0] < m_bg_tilemap_addr[0] + 0x2000 &&
-                    m_bg_chr_addr[0] + 0x8000 > m_bg_tilemap_addr[0]) {
-                    fprintf(stderr, "[SNES/PPU] WARNING: BG1 tilemap/chr may overlap!\n");
-                }
-                // Sample tilemap and character data
-                fprintf(stderr, "[SNES/PPU]   Tilemap0[0]: %02X%02X Tilemap0[2]: %02X%02X\n",
-                    m_vram[m_bg_tilemap_addr[0]+1], m_vram[m_bg_tilemap_addr[0]],
-                    m_vram[m_bg_tilemap_addr[0]+3], m_vram[m_bg_tilemap_addr[0]+2]);
-                fprintf(stderr, "[SNES/PPU]   Chr0[0]: %02X%02X%02X%02X (at $%04X)\n",
-                    m_vram[m_bg_chr_addr[0] & 0xFFFF], m_vram[(m_bg_chr_addr[0]+1) & 0xFFFF],
-                    m_vram[(m_bg_chr_addr[0]+2) & 0xFFFF], m_vram[(m_bg_chr_addr[0]+3) & 0xFFFF],
-                    m_bg_chr_addr[0]);
-                // Check VRAM at $9000 where DMA goes
-                fprintf(stderr, "[SNES/PPU]   VRAM[$9000]: %02X%02X%02X%02X (typical DMA dest)\n",
-                    m_vram[0x9000], m_vram[0x9001], m_vram[0x9002], m_vram[0x9003]);
-            }
-        }
-    }
-}
-
 void PPU::render_scanline(int scanline) {
     // Set the scanline for rendering
     m_scanline = scanline + 1;  // Internal scanline is 1-based
@@ -1043,51 +967,6 @@ void PPU::render_pixel(int x) {
     if (is_hires_bg_mode) {
         for (int bg = 0; bg < num_bgs; bg++) {
             render_background_pixel(bg, x, bg_pixel_sub[bg], bg_priority_sub[bg], true, false);
-        }
-    }
-
-    // Debug: trace Mode 3/5 BG rendering at different y positions
-    static int mode_trace_debug = 0;
-    static int y10x8_render_count = 0;
-    if (mode_trace_debug < 10 && m_frame == 47) {
-        int y = m_scanline - 1;
-        // Check at y=10 (top row where text starts)
-        if (y == 10 && x == 8) {
-            y10x8_render_count++;
-            fprintf(stderr, "[BG-Debug] Render #%d at y=%d x=%d\n", y10x8_render_count, y, x);
-            mode_trace_debug++;
-            fprintf(stderr, "[BG-Debug] frame=%d y=%d x=%d mode=%d TM=$%02X BG1=%d BG2=%d\n",
-                    (int)m_frame, y, x, m_bg_mode, m_tm, bg_pixel[0], bg_pixel[1]);
-            fprintf(stderr, "[BG-Debug] BG1: tilemap=$%04X chr=$%04X hofs=%d vofs=%d tile_size=%d\n",
-                    m_bg_tilemap_addr[0], m_bg_chr_addr[0], m_bg_hofs[0], m_bg_vofs[0], m_bg_tile_size[0] ? 16 : 8);
-            // Calculate expected tile position
-            int scroll_x = m_bg_hofs[0] & 0x3FF;
-            int scroll_y = m_bg_vofs[0] & 0x3FF;
-            int px = (x + scroll_x) & 0x3FF;
-            int py = (y + scroll_y) & 0x3FF;
-            int tile_size = m_bg_tile_size[0] ? 16 : 8;
-            int tile_x = px / tile_size;
-            int tile_y = py / tile_size;
-            uint16_t tilemap_addr = m_bg_tilemap_addr[0] + (tile_y % 32) * 64 + (tile_x % 32) * 2;
-            uint8_t tile_lo = m_vram[tilemap_addr & 0xFFFF];
-            uint8_t tile_hi = m_vram[(tilemap_addr + 1) & 0xFFFF];
-            int tile_num = tile_lo | ((tile_hi & 0x03) << 8);
-            int fine_x = px % tile_size;
-            int fine_y = py % tile_size;
-            fprintf(stderr, "[BG-Debug] px=%d py=%d tile=(%d,%d) fine=(%d,%d) tilemap_addr=$%04X tile=%d\n",
-                    px, py, tile_x, tile_y, fine_x, fine_y, tilemap_addr, tile_num);
-            // For Mode 3, BG1 is 8bpp, so chr size = 64 bytes per tile
-            int bpp = 8;  // Mode 3 BG1
-            uint16_t chr_addr = m_bg_chr_addr[0] + tile_num * (bpp * 8);
-            // Dump all 4 bitplane pairs for this row
-            fprintf(stderr, "[BG-Debug] chr_addr=$%04X fine_y=%d bitplanes:\n", chr_addr, fine_y);
-            for (int pair = 0; pair < 4; pair++) {
-                int offset = pair * 16 + fine_y * 2;
-                fprintf(stderr, "  Planes %d-%d at $%04X: %02X %02X\n",
-                        pair*2, pair*2+1, chr_addr + offset,
-                        m_vram[(chr_addr + offset) & 0xFFFF],
-                        m_vram[(chr_addr + offset + 1) & 0xFFFF]);
-            }
         }
     }
 
@@ -1486,15 +1365,35 @@ void PPU::render_pixel(int x) {
     // Sprite palettes 0-3 reject color math (only palettes 4-7 can be blended)
     // ============================================================================
 
-    uint16_t final_color = main_pixel.color;
+    // ============================================================================
+    // CLIP TO BLACK (CGWSEL bits 6-7)
+    // ============================================================================
+    // Forces the main screen color to black based on the color window.
+    // (1 = NotMathWin: clip outside the window, 2 = MathWindow: clip inside.)
+    // On hardware the clip is applied to the main color BEFORE color math,
+    // so a clipped pixel still receives the sub screen / fixed color when
+    // math is enabled (0 + sub), and the half-result is suppressed for
+    // clipped pixels. Reference: fullsnes CGWSEL/CGADSUB; bsnes ppu-fast
+    // Line::pixel(): "if(!windowAbove[x]) above.color = 0; ...
+    // blend(above, below, io.col.halve && windowAbove[x] ...)".
+    bool clip_to_black = false;
+    switch (m_color_math_clip) {
+        case 0: clip_to_black = false; break;  // Never
+        case 1: clip_to_black = !get_color_window(x); break;  // Outside window
+        case 2: clip_to_black = get_color_window(x); break;   // Inside window
+        case 3: clip_to_black = true; break;   // Always
+    }
+
+    const uint16_t main_color = clip_to_black ? 0 : main_pixel.color;
+    uint16_t final_color = main_color;
 
     // Determine if color math should be applied
     // CGWSEL bits 4-5 control color math enable based on color window
     bool apply_color_math = false;
     switch (m_color_math_prevent) {
-        case 0: apply_color_math = true; break;   // Always
-        case 1: apply_color_math = !get_color_window(x); break;  // Inside window
-        case 2: apply_color_math = get_color_window(x); break;   // Outside window
+        case 0: apply_color_math = true; break;             // Always
+        case 1: apply_color_math = get_color_window(x); break;   // Inside window (MathWindow)
+        case 2: apply_color_math = !get_color_window(x); break;  // Outside window (NotMathWin)
         case 3: apply_color_math = false; break;  // Never
     }
 
@@ -1515,9 +1414,9 @@ void PPU::render_pixel(int x) {
         }
 
         // Extract RGB components (5 bits each)
-        int main_r = main_pixel.color & 0x1F;
-        int main_g = (main_pixel.color >> 5) & 0x1F;
-        int main_b = (main_pixel.color >> 10) & 0x1F;
+        int main_r = main_color & 0x1F;
+        int main_g = (main_color >> 5) & 0x1F;
+        int main_b = (main_color >> 10) & 0x1F;
 
         int blend_r = blend_color & 0x1F;
         int blend_g = (blend_color >> 5) & 0x1F;
@@ -1539,7 +1438,8 @@ void PPU::render_pixel(int x) {
 
         // Apply half-brightness if enabled
         // Note: Half only applies when sub screen has a non-backdrop pixel or using fixed color
-        if (m_color_math_half) {
+        // Half is also suppressed when the main color was clipped to black.
+        if (m_color_math_half && !clip_to_black) {
             // Only halve if sub screen has content or using fixed color
             bool should_halve = !m_sub_screen_bg_obj || (sub_pixel.source != 0);
             if (should_halve) {
@@ -1555,22 +1455,6 @@ void PPU::render_pixel(int x) {
         result_b = std::clamp(result_b, 0, 31);
 
         final_color = result_r | (result_g << 5) | (result_b << 10);
-    }
-
-    // ============================================================================
-    // CLIP TO BLACK (CGWSEL bits 6-7)
-    // ============================================================================
-    // This can force the main screen to black based on color window
-    bool clip_to_black = false;
-    switch (m_color_math_clip) {
-        case 0: clip_to_black = false; break;  // Never
-        case 1: clip_to_black = !get_color_window(x); break;  // Inside window
-        case 2: clip_to_black = get_color_window(x); break;   // Outside window
-        case 3: clip_to_black = true; break;   // Always
-    }
-
-    if (clip_to_black) {
-        final_color = 0;
     }
 
     // ============================================================================
@@ -1594,17 +1478,6 @@ void PPU::render_pixel(int x) {
     // tiles, so main and sub screens naturally get different portions of tiles.
     // ============================================================================
     bool use_hires_output = m_pseudo_hires || (m_bg_mode == 5) || (m_bg_mode == 6);
-
-    // Debug: Log when Mode 5 is active on specific scanlines/pixels
-    static int mode5_debug_count = 0;
-    if (m_bg_mode == 5 && mode5_debug_count < 20 && m_frame > 45 && m_frame < 50) {
-        if (y == 100 && (x == 0 || x == 128 || x == 200)) {
-            mode5_debug_count++;
-            fprintf(stderr, "[Mode5-Debug] frame=%llu y=%d x=%d use_hires=%d TM=$%02X TS=$%02X main_color=$%04X sub_color=$%04X\n",
-                    (unsigned long long)m_frame, y, x, use_hires_output ? 1 : 0, m_tm, m_ts,
-                    main_pixel.color, sub_pixel.color);
-        }
-    }
 
     // Helper to convert 15-bit SNES color to 32-bit ARGB with brightness
     // Reference: bsnes/sfc/ppu/ppu.cpp lightTable generation
@@ -2723,20 +2596,27 @@ void PPU::render_mode7_pixel(int x, uint8_t& pixel, uint8_t& priority) {
                   (static_cast<int16_t>(m_m7d) * py) + (cy << 8)) >> 8;
 
     // Handle wrapping/clamping
+    // M7SEL bits 6-7 ("Screen Over"), per fullsnes 211Ah / ares mode7.cpp:
+    //   0 = wrap (repeat)
+    //   1 = wrap (repeat) - same behavior as 0
+    //   2 = transparent (pixel not drawn)
+    //   3 = fill with tile 0's character data, sampled at (x & 7, y & 7)
+    //       of the *unwrapped* coordinates (the tile number is forced to 0,
+    //       but the fine offset within that tile still follows tx/ty).
     bool out_of_bounds = (tx < 0 || tx >= 1024 || ty < 0 || ty >= 1024);
+    bool force_tile0 = false;
 
     if (out_of_bounds) {
         switch (m_m7_wrap) {
             case 0:  // Wrap
+            case 1:  // Wrap (same as 0 on real hardware)
                 tx &= 0x3FF;
                 ty &= 0x3FF;
                 break;
-            case 1:  // Transparent
+            case 2:  // Transparent
                 return;
-            case 2:  // Tile 0
-            case 3:
-                tx = 0;
-                ty = 0;
+            case 3:  // Fill with tile 0
+                force_tile0 = true;
                 break;
         }
     }
@@ -2753,7 +2633,7 @@ void PPU::render_mode7_pixel(int x, uint8_t& pixel, uint8_t& priority) {
 
     // Tile address: tileY * 128 + tileX (word address), *2 for byte address
     uint16_t tile_addr = (tile_y * 128 + tile_x) * 2;
-    uint8_t tile_num = m_vram[tile_addr & 0xFFFF];
+    uint8_t tile_num = force_tile0 ? 0 : m_vram[tile_addr & 0xFFFF];
 
     // Palette address: tile * 64 + fine_y * 8 + fine_x (word address)
     // Each tile is 64 words (8x8 pixels), fine_y * 8 + fine_x gives offset within tile
@@ -2858,8 +2738,14 @@ void PPU::evaluate_sprites() {
     int large_width = SPRITE_SIZES[size_index][1][0];
     int large_height = SPRITE_SIZES[size_index][1][1];
 
-    // Scan all 128 sprites
-    for (int i = 0; i < 128; i++) {
+    // Scan all 128 sprites. Normally evaluation starts at sprite 0, but
+    // with OAM priority rotation ($2103 bit 7) it starts at the sprite
+    // indexed by the OAM address (sampled at the start of the scan) and
+    // wraps around; this lets a game rotate which 32 sprites survive the
+    // per-line sprite limit. Reference: fullsnes 2103h, bsnes OAM firstSprite.
+    int first = m_oam_priority_rotate ? ((m_oam_addr >> 2) & 0x7F) : 0;
+    for (int n = 0; n < 128; n++) {
+        int i = (first + n) & 0x7F;
         // Read OAM entry
         int oam_addr = i * 4;
         int x = m_oam[oam_addr];
@@ -3098,7 +2984,7 @@ uint16_t PPU::get_direct_color(uint8_t palette, uint8_t color_index) {
     // Palette format: ppp where p2 -> blue, p1 -> green, p0 -> red
     int r = (r_base << 2) | ((palette & 0x01) << 1);  // RRR r 0
     int g = (g_base << 2) | ((palette & 0x02));       // GGG g 0
-    int b = (b_base << 3) | ((palette & 0x04) << 1);  // BB p 0 0
+    int b = (b_base << 3) | (palette & 0x04);         // BB p 0 0
 
     // Combine into 15-bit BGR555 color
     return (b << 10) | (g << 5) | r;
@@ -3157,6 +3043,25 @@ bool PPU::check_nmi() {
     return pending;
 }
 
+void PPU::latch_counters() {
+    m_hcount = m_dot;
+    m_vcount = m_scanline;
+    m_hv_latch = true;
+}
+
+void PPU::set_wrio(uint8_t value) {
+    // A falling edge (1->0) of WRIO bit 7 latches the H/V counters,
+    // emulating the external latch pin ($4201 bit 7 drives pin 6 of the
+    // controller port, used by e.g. the Super Scope light gun).
+    // Reference: fullsnes 4201h, bsnes cpu.pio().
+    bool old_bit7 = (m_wrio & 0x80) != 0;
+    bool new_bit7 = (value & 0x80) != 0;
+    if (old_bit7 && !new_bit7) {
+        latch_counters();
+    }
+    m_wrio = value;
+}
+
 uint8_t PPU::read(uint16_t address) {
     uint8_t value = 0;
 
@@ -3173,9 +3078,13 @@ uint8_t PPU::read(uint16_t address) {
             break;
 
         case 0x2137:  // SLHV - Software latch for H/V counters
-            m_hv_latch = true;
-            m_hcount_second = false;
-            m_vcount_second = false;
+            // Reference: fullsnes 2137h, bsnes cpu.pio(). Reading $2137 only
+            // latches the counters while WRIO ($4201) bit 7 is high; a game
+            // driving that pin low first (e.g. for an external light-gun
+            // latch) suppresses the software latch until it is raised again.
+            if (m_wrio & 0x80) {
+                latch_counters();
+            }
             break;
 
         case 0x2138: {  // OAMDATAREAD
@@ -3262,7 +3171,15 @@ uint8_t PPU::read(uint16_t address) {
                     (m_hv_latch ? 0x40 : 0) |
                     ((m_frame & 1) ? 0x80 : 0) |
                     0x03;  // PPU2 version
-            m_hv_latch = false;
+            // Reading STAT78 resets the OPHCT/OPVCT low/high byte-read
+            // toggles (fullsnes 213Fh), and clears the latch flag - but the
+            // flag is only cleared while WRIO bit 7 is high, matching the
+            // gating on the $2137 software latch itself (bsnes cpu.pio()).
+            m_hcount_second = false;
+            m_vcount_second = false;
+            if (m_wrio & 0x80) {
+                m_hv_latch = false;
+            }
             m_ppu2_open_bus = value;
             break;
 
@@ -3355,6 +3272,12 @@ void PPU::write(uint16_t address, uint8_t value) {
             m_oam_addr_reload = (m_oam_addr_reload & 0xFF) | ((value & 0x01) << 8);
             m_oam_addr = m_oam_addr_reload << 1;
             m_oam_high_byte = false;
+            // Bit 7: OAM priority rotation. When set, sprite evaluation for
+            // each scanline starts at the sprite indexed by the current OAM
+            // address instead of always starting at sprite 0, so a game can
+            // rotate which sprites get dropped when >32 are on one line.
+            // Reference: fullsnes 2103h, bsnes OAM firstSprite.
+            m_oam_priority_rotate = (value & 0x80) != 0;
             break;
 
         case 0x2104: {  // OAMDATA

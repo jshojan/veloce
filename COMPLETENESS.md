@@ -120,7 +120,7 @@ hash and contribute zero, which is the honest treatment.
 
 | Subsystem | Importance | Verifiable today | Basis |
 |-----------|-----------|------------------|-------|
-| APU (SPC700 + DSP) | 0.55 | the only `memory`-detected subset | Blargg SPC ROMs (`spc_smp`, `spc_timer`, `spc_mem_access_times`, `spc_dsp*`) report via `$6000`. This is where any verified SNES score currently comes from. |
+| APU (SPC700 + DSP) | 0.55 | **0 verified** (`memory`-detected, but no signal) | Blargg SPC ROMs (`spc_smp`, `spc_timer`, `spc_mem_access_times`, `spc_dsp*`) use `result_detection: memory` ($6000), but MEASURED: none of the four blargg-spc-6 ROMs in this mirror ever write $6000, so all four report RUNS / "no result signal" rather than pass or fail (snes-24). No SNES score is currently verified end-to-end; the headline is 0% across every subsystem. |
 | CPU (65816) | 1.00 | unverified (visual) | krom/PeterLemon CPU opcode suites (ADC/SBC/MSC/MOV, gilyon cputest) draw to screen; `screenshot-crc`, refs pending. |
 | PPU | 0.90 | unverified (visual) | smoke, OAM, mode3/color-halve, bus/INIDISP tests; `screenshot-crc`. |
 | Timing | 0.85 | unverified (visual) | IRQ/DMA/HDMA timing tests (`test_irq4209`, `test_dmatiming`, `test_hdmatiming`, `HblankEmuTest`); cycle-accurate class, refs pending. |
@@ -129,10 +129,19 @@ hash and contribute zero, which is the honest treatment.
 
 **Verified gaps surfaced by the suite (real, currently-open core issues).**
 
-- `apu.spc_smp` (Blargg SPC700 master test) traps on an **unimplemented SPC700
-  opcode `$79` (`CMP (X),(Y)`)** at SPC `$0A99` and spins, never reaching its
-  `$6000` write (reported RUNS). This is a genuine SPC700 core gap that may also
-  block other SPC700-dependent ROMs.
+- FIXED (snes-08): `apu.spc_smp` (Blargg SPC700 master test) used to trap on
+  the unimplemented SPC700 `(X),(Y)` opcodes -- it hit `$19` (`OR (X),(Y)`)
+  first, at SPC `$0A99` (an earlier note here misidentified the first trap as
+  `$79`). All four -- `$19`/`$39`/`$59`/`$79` (OR/AND/EOR/CMP `(X),(Y)`) --
+  are now implemented. The ROM no longer traps, but it still reports RUNS /
+  "no result signal": see the next bullet, which is unrelated to the opcode
+  gap and remains open.
+- `apu.spc_smp`/`spc_timer`/`spc_mem_access_times`/`spc_dsp6`: none of the
+  blargg-spc-6 ROMs in this mirror write the `$6000` Blargg status byte, so
+  `result_detection: memory` never gets a signal from them regardless of core
+  correctness (snes-24). Zero SNES tests are actually verified today; treat
+  the "Verifiable today" column above as aspirational config, not a measured
+  result, until this is reclassified.
 - `apu.spc_dsp6` fails on real 3-chip SNES consoles (passes only on
   higan/bsnes); it is a documented hardware quirk, marked `known_fail`.
 
