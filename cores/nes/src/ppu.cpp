@@ -78,6 +78,7 @@ const uint32_t PPU::s_palette_rp2c04_0004[64] = {
 };
 
 PPU::PPU(Bus& bus) : m_bus(bus) {
+    build_emphasis_palette();
     reset();
 }
 
@@ -136,6 +137,53 @@ void PPU::set_ppu_variant(PPUVariant variant) {
             m_current_palette = s_palette_rp2c04_0004;
             break;
     }
+    build_emphasis_palette();
+}
+
+// Build the 8 color-emphasis variants of m_current_palette. PPUMASK bits
+// 5-7 (emphasize red/green/blue) attenuate the channels NOT selected: real
+// RP2C02 hardware does this by inserting an extra resistance into the
+// non-emphasized color-decoder outputs, which measures out to roughly a
+// 25% reduction (this uses the commonly cited ~0.75x approximation rather
+// than decoder-accurate NTSC voltages).
+// Reference: https://www.nesdev.org/wiki/PPU_palettes#Color_Emphasis
+//
+// The RGB PPUs used by Vs. System / PlayChoice hardware (2C03, 2C04, 2C05)
+// behave differently: an emphasis bit drives that component to full
+// brightness instead of dimming the others (all three set = white).
+void PPU::build_emphasis_palette() {
+    static constexpr float kAttenuation = 0.75f;
+    const bool rgb_ppu = m_variant != PPUVariant::RP2C02 &&
+                         m_variant != PPUVariant::RP2C07 &&
+                         m_variant != PPUVariant::Dendy;
+    for (int emphasis = 0; emphasis < 8; emphasis++) {
+        bool emph_r = emphasis & 0x1;
+        bool emph_g = emphasis & 0x2;
+        bool emph_b = emphasis & 0x4;
+        for (int i = 0; i < 64; i++) {
+            uint32_t rgb = m_current_palette[i];
+            uint8_t r = rgb & 0xFF;
+            uint8_t g = (rgb >> 8) & 0xFF;
+            uint8_t b = (rgb >> 16) & 0xFF;
+            uint8_t a = (rgb >> 24) & 0xFF;
+            // Any emphasis bit set attenuates every channel *not* covered by
+            // one of the set bits (e.g. emphasize-red alone dims G and B;
+            // emphasize-red+green dims only B).
+            if (rgb_ppu) {
+                if (emph_r) r = 0xFF;
+                if (emph_g) g = 0xFF;
+                if (emph_b) b = 0xFF;
+            } else if (emph_r || emph_g || emph_b) {
+                if (!emph_r) r = static_cast<uint8_t>(r * kAttenuation);
+                if (!emph_g) g = static_cast<uint8_t>(g * kAttenuation);
+                if (!emph_b) b = static_cast<uint8_t>(b * kAttenuation);
+            }
+            m_emphasis_palette[emphasis][i] = (static_cast<uint32_t>(a) << 24) |
+                                               (static_cast<uint32_t>(b) << 16) |
+                                               (static_cast<uint32_t>(g) << 8) |
+                                               static_cast<uint32_t>(r);
+        }
+    }
 }
 
 void PPU::reset() {
@@ -180,48 +228,84 @@ void PPU::step() {
         if (m_cycle >= 1 && m_cycle <= 256) {
             render_pixel();
 
-            // Background fetches
-            update_shifters();
-
-            switch ((m_cycle - 1) % 8) {
-                case 0: {
+            // Background fetches (NT/AT/pattern reads and the A12
+            // address-bus notifications that ride along with them) only
+            // happen on hardware while rendering is enabled (PPUMASK bit
+            // 3 or 4). With rendering disabled (forced blank), the PPU
+            // makes no bus transactions here at all: no
+            // notify_ppu_address_bus() calls (which would incorrectly
+            // keep clocking MMC3-style A12 watchers and, on this
+            // codebase's simplified MMC5 scanline detector, keep the
+            // $5204 in-frame flag/scanline IRQ running) and no pattern-
+            // table ppu_read() calls (which would keep flipping MMC2/
+            // MMC4's $xFD8/$xFE8 CHR latches). $2007 accesses remain the
+            // only real reads in this state. render_pixel() above still
+            // runs unconditionally: it outputs the backdrop colour when
+            // rendering is off.
+            if ((m_mask & 0x18) != 0) {
+                // Shifter reloads at dots 9, 17, ..., 249 (hardware also
+                // reloads at 257, but that tile is shifted out by the
+                // 321-337 prefetch and never displayed). The reload must
+                // land BEFORE this dot's shift: render_pixel() above has
+                // already consumed this dot's pixel, so the shift here
+                // stands for the hardware shift at the start of the next
+                // dot, and the tile loaded at dot 8k+1 must then see
+                // exactly 8 shifts (dots 8k+1..8k+8) before it is
+                // displayed at x = 8k+8. Loading after the shift gave it
+                // only 7, so every tile from column 2 onward appeared one
+                // dot late (with a stale bit at x = 16). This matches the
+                // prefetch, where the tile loaded at 337 sees 8 shifts
+                // (dots 1..8) before x = 8.
+                //
+                // No reload at dot 1: the low byte already holds the
+                // tile loaded at 337 and m_bg_next_tile_* still hold that
+                // same tile, so a dot-1 reload after the shift would
+                // duplicate its first pixel at x = 8/9 (nes-17).
+                if (m_cycle != 1 && ((m_cycle - 1) % 8) == 0) {
                     load_background_shifters();
-                    uint16_t nt_addr = 0x2000 | (m_v & 0x0FFF);
-                    m_bus.notify_ppu_address_bus(nt_addr, frame_cycle);  // A12 tracking for MMC3
-                    m_bg_next_tile_id = m_bus.ppu_read(nt_addr, frame_cycle);
-                    break;
                 }
-                case 2: {
-                    uint16_t at_addr = 0x23C0 | (m_v & 0x0C00) | ((m_v >> 4) & 0x38) | ((m_v >> 2) & 0x07);
-                    m_bus.notify_ppu_address_bus(at_addr, frame_cycle);  // A12 tracking for MMC3
-                    m_bg_next_tile_attrib = m_bus.ppu_read(at_addr, frame_cycle);
-                    if (m_v & 0x40) m_bg_next_tile_attrib >>= 4;
-                    if (m_v & 0x02) m_bg_next_tile_attrib >>= 2;
-                    break;
-                }
-                case 4: {
-                    uint16_t addr = ((m_ctrl & 0x10) << 8) + (m_bg_next_tile_id << 4) + ((m_v >> 12) & 7);
-                    m_bus.notify_ppu_address_bus(addr, frame_cycle);
-                    m_bg_next_tile_lo = m_bus.ppu_read(addr, frame_cycle);
-                    break;
-                }
-                case 6: {
-                    uint16_t addr = ((m_ctrl & 0x10) << 8) + (m_bg_next_tile_id << 4) + ((m_v >> 12) & 7) + 8;
-                    m_bus.notify_ppu_address_bus(addr, frame_cycle);
-                    m_bg_next_tile_hi = m_bus.ppu_read(addr, frame_cycle);
-                    break;
-                }
-                case 7:
-                    // Increment horizontal
-                    if ((m_mask & 0x18) != 0) {
+                update_shifters();
+
+                switch ((m_cycle - 1) % 8) {
+                    case 0: {
+                        // NT fetch. The tile fetched during this 8-dot
+                        // group is loaded at the start of the next group
+                        // (above).
+                        uint16_t nt_addr = 0x2000 | (m_v & 0x0FFF);
+                        m_bus.notify_ppu_address_bus(nt_addr, frame_cycle);  // A12 tracking for MMC3
+                        m_bg_next_tile_id = m_bus.ppu_read(nt_addr, frame_cycle);
+                        break;
+                    }
+                    case 2: {
+                        uint16_t at_addr = 0x23C0 | (m_v & 0x0C00) | ((m_v >> 4) & 0x38) | ((m_v >> 2) & 0x07);
+                        m_bus.notify_ppu_address_bus(at_addr, frame_cycle);  // A12 tracking for MMC3
+                        m_bg_next_tile_attrib = m_bus.ppu_read(at_addr, frame_cycle);
+                        if (m_v & 0x40) m_bg_next_tile_attrib >>= 4;
+                        if (m_v & 0x02) m_bg_next_tile_attrib >>= 2;
+                        break;
+                    }
+                    case 4: {
+                        uint16_t addr = ((m_ctrl & 0x10) << 8) + (m_bg_next_tile_id << 4) + ((m_v >> 12) & 7);
+                        m_bus.notify_ppu_address_bus(addr, frame_cycle);
+                        m_bg_next_tile_lo = m_bus.ppu_read(addr, frame_cycle);
+                        break;
+                    }
+                    case 6: {
+                        uint16_t addr = ((m_ctrl & 0x10) << 8) + (m_bg_next_tile_id << 4) + ((m_v >> 12) & 7) + 8;
+                        m_bus.notify_ppu_address_bus(addr, frame_cycle);
+                        m_bg_next_tile_hi = m_bus.ppu_read(addr, frame_cycle);
+                        break;
+                    }
+                    case 7:
+                        // Increment horizontal
                         if ((m_v & 0x001F) == 31) {
                             m_v &= ~0x001F;
                             m_v ^= 0x0400;
                         } else {
                             m_v++;
                         }
-                    }
-                    break;
+                        break;
+                }
             }
         }
 
@@ -791,13 +875,23 @@ uint8_t PPU::cpu_read(uint16_t address) {
 
         case 7: { // PPUDATA
             data = m_data_buffer;
-            m_data_buffer = ppu_read(m_v);
 
             // Palette reads are not buffered - return directly
             // But the latch behavior is special: palette reads put the palette value
             // in data, but the buffer gets the underlying nametable data at that address
-            if (m_v >= 0x3F00) {
-                data = m_data_buffer;
+            // (the PPU's internal bus mirrors $3000-$3FFF down to $2000-$2FFF, so the
+            // buffer refill for a palette read actually re-reads the nametable, not
+            // the palette, per real hardware).
+            // The PPU address bus is 14 bits: v's bit 14 (the top fine-Y bit,
+            // reachable by incrementing past $3FFF) is not decoded, so $4000+
+            // must be treated as $0000+ (pattern space), not as palette.
+            if ((m_v & 0x3FFF) >= 0x3F00) {
+                data = ppu_read(m_v);
+                // Greyscale (PPUMASK bit 0) is an AND with $30 on the palette
+                // RAM output, so it applies to PPUDATA palette reads as well as
+                // to the display (the stored entry itself is unchanged).
+                if (m_mask & 0x01) data &= 0x30;
+                m_data_buffer = ppu_read(m_v & 0x2FFF);
                 // For palette reads, the lower 6 bits come from the palette,
                 // upper 2 bits come from open bus
                 data = (data & 0x3F) | (m_io_latch & 0xC0);
@@ -809,6 +903,7 @@ uint8_t PPU::cpu_read(uint16_t address) {
                     }
                 }
             } else {
+                m_data_buffer = ppu_read(m_v);
                 // Non-palette reads refresh all 8 bits
                 m_io_latch = data;
                 for (int i = 0; i < 8; i++) {
@@ -820,7 +915,7 @@ uint8_t PPU::cpu_read(uint16_t address) {
 
             // Increment VRAM address and notify mapper (for MMC3 A12 clocking)
             uint16_t old_v = m_v;
-            m_v += (m_ctrl & 0x04) ? 32 : 1;
+            m_v = (m_v + ((m_ctrl & 0x04) ? 32 : 1)) & 0x7FFF;  // v is 15 bits
             uint32_t fc = static_cast<uint32_t>(m_scanline * 341 + m_cycle);
             m_bus.notify_ppu_addr_change(old_v, m_v, fc);
             break;
@@ -913,7 +1008,7 @@ void PPU::cpu_write(uint16_t address, uint8_t value) {
             ppu_write(m_v, value);
             // Increment VRAM address and notify mapper (for MMC3 A12 clocking)
             uint16_t old_v = m_v;
-            m_v += (m_ctrl & 0x04) ? 32 : 1;
+            m_v = (m_v + ((m_ctrl & 0x04) ? 32 : 1)) & 0x7FFF;  // v is 15 bits
             uint32_t fc = static_cast<uint32_t>(m_scanline * 341 + m_cycle);
             m_bus.notify_ppu_addr_change(old_v, m_v, fc);
             break;
@@ -1047,12 +1142,6 @@ void PPU::render_pixel() {
 
     if (x < 0 || x >= 256 || y < 0 || y >= 240) return;
 
-    // Overscan cropping: render black for top/bottom 8 rows
-    if (m_crop_overscan && (y < 8 || y >= 232)) {
-        m_framebuffer[y * 256 + x] = 0xFF000000;  // Black with full alpha
-        return;
-    }
-
     uint8_t bg_pixel = 0;
     uint8_t bg_palette = 0;
 
@@ -1113,7 +1202,10 @@ void PPU::render_pixel() {
         palette = bg_palette;
     } else {
         // Sprite 0 hit detection
-        if (m_sprite_zero_hit_possible && m_sprite_zero_rendering) {
+        // Hardware quirk: the hit flag is never set for x == 255, even though
+        // the pixel is otherwise a valid opaque bg/sprite overlap (the PPU's
+        // internal sprite-0-hit latch is gated off on the last dot of the line).
+        if (m_sprite_zero_hit_possible && m_sprite_zero_rendering && x != 255) {
             if ((m_mask & 0x18) == 0x18) {
                 if (!((m_mask & 0x06) != 0x06 && x < 8)) {
                     m_status |= 0x40;
@@ -1130,9 +1222,39 @@ void PPU::render_pixel() {
         }
     }
 
-    // Get color from palette (use current palette for region/Vs. System support)
-    uint8_t color_index = ppu_read(0x3F00 + (palette << 2) + pixel) & 0x3F;
-    m_framebuffer[y * 256 + x] = m_current_palette[color_index];
+    // Get color from palette (use current palette for region/Vs. System support).
+    // Hardware quirk: with both bg and sprite rendering disabled, the palette
+    // address the PPU outputs is not fixed to the universal background color
+    // ($3F00) - it tracks the current VRAM address (v) whenever v itself
+    // points into palette space, letting a program "paint" the backdrop by
+    // pointing $2006 at a palette entry while rendering is off.
+    uint8_t color_index;
+    if ((m_mask & 0x18) == 0 && (m_v & 0x3FFF) >= 0x3F00) {
+        color_index = ppu_read(m_v) & 0x3F;
+    } else {
+        color_index = ppu_read(0x3F00 + (palette << 2) + pixel) & 0x3F;
+    }
+    // PPUMASK bit 0 (greyscale): force the palette index into its luma tier
+    // (top 2 bits), discarding hue (bottom 4 bits).
+    if (m_mask & 0x01) {
+        color_index &= 0x30;
+    }
+    // PPUMASK bits 5-7 (emphasize red/green/blue) select one of the 8
+    // pre-attenuated palette variants. PAL (2C07) and Dendy PPUs swap the
+    // red and green emphasis bits (bit 5 = green, bit 6 = red).
+    uint8_t emphasis = (m_mask >> 5) & 0x07;
+    if (m_region != Region::NTSC || m_variant == PPUVariant::RP2C07 ||
+        m_variant == PPUVariant::Dendy) {
+        emphasis = (emphasis & 0x04) | ((emphasis & 0x01) << 1) | ((emphasis & 0x02) >> 1);
+    }
+    const uint32_t* palette_table = m_emphasis_palette[emphasis].data();
+    // Overscan cropping is purely a display preference: the full pixel pipeline
+    // above (including the sprite-0 hit test) must run for every row regardless,
+    // so hardware-observable state (like $2002 bit 6) doesn't depend on it. Only
+    // the framebuffer write itself is cropped to black for the top/bottom 8 rows.
+    m_framebuffer[y * 256 + x] = (m_crop_overscan && (y < 8 || y >= 232))
+        ? 0xFF000000  // Black with full alpha
+        : palette_table[color_index];
 
     // Update sprite shifters
     for (int i = 0; i < m_sprite_count; i++) {

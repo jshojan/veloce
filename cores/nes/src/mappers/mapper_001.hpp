@@ -5,8 +5,8 @@
 namespace nes {
 
 // Mapper 1: MMC1 (Nintendo MMC1)
-// - PRG ROM: Up to 256KB (16 x 16KB banks)
-// - PRG RAM: Up to 32KB (battery backed)
+// - PRG ROM: Up to 512KB (SXROM: 32 x 16KB banks via a CHR-bit-4 outer bank)
+// - PRG RAM: 8KB normally, up to 32KB (battery backed) on SXROM boards
 // - CHR ROM/RAM: Up to 128KB (can be RAM)
 // - Switchable mirroring
 // Games: Zelda, Metroid, Final Fantasy, many more (~25% of NES library)
@@ -26,6 +26,10 @@ public:
 
     MirrorMode get_mirror_mode() const override { return m_mirror_mode; }
 
+    // Per-CPU-cycle clock, used only to detect writes issued on
+    // back-to-back cycles (see m_last_write_cycle below).
+    void cpu_cycle() override { m_cycle_count++; }
+
     void reset() override;
     void save_state(std::vector<uint8_t>& data) override;
     void load_state(const uint8_t*& data, size_t& remaining) override;
@@ -33,6 +37,7 @@ public:
 private:
     void write_register(uint16_t address, uint8_t value);
     void update_banks();
+    uint32_t prg_ram_offset(uint16_t address) const;
 
     // Shift register for serial write
     uint8_t m_shift_register = 0x10;
@@ -47,6 +52,15 @@ private:
 
     // PRG bank register ($E000-$FFFF)
     uint8_t m_prg_bank = 0;
+
+    // CPU cycle clock (incremented once per CPU cycle via cpu_cycle()) and
+    // the cycle of the last accepted $8000-$FFFF write. Real MMC1 hardware
+    // is too slow to latch two serial writes issued on consecutive CPU
+    // cycles (as RMW instructions like INC/DEC do: a dummy write of the
+    // old value immediately followed by the real write of the new value),
+    // so the second write of such a pair is ignored entirely.
+    uint64_t m_cycle_count = 0;
+    uint64_t m_last_write_cycle = UINT64_MAX;
 
     // Computed bank offsets
     uint32_t m_prg_bank_0_offset = 0;

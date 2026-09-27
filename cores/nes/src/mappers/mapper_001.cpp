@@ -26,14 +26,33 @@ void Mapper001::reset() {
     m_chr_bank_0 = 0;
     m_chr_bank_1 = 0;
     m_prg_bank = 0;
+    m_cycle_count = 0;
+    m_last_write_cycle = UINT64_MAX;
     update_banks();
+}
+
+uint32_t Mapper001::prg_ram_offset(uint16_t address) const {
+    // Standard MMC1 boards (SNROM/SCROM/SKROM, PRG <= 256KB) have a single
+    // non-banked 8KB PRG RAM chip. The SXROM board used for 512KB MMC1
+    // titles (Final Fantasy I&II, Dragon Warrior III/IV, ...) wires
+    // PRG-RAM A13/A14 to the CHR bank 0 register (bits 2-3), giving 32KB
+    // of banked PRG RAM. Cartridge::load only grows m_prg_ram past 8KB for
+    // that class of ROM, so bank only when there is more than one page.
+    uint32_t bank = 0;
+    if (m_prg_ram->size() > 0x2000) {
+        bank = (m_chr_bank_0 >> 2) & 0x03;
+    }
+    return bank * 0x2000 + (address & 0x1FFF);
 }
 
 uint8_t Mapper001::cpu_read(uint16_t address) {
     // PRG RAM: $6000-$7FFF
     if (address >= 0x6000 && address < 0x8000) {
         if (!m_prg_ram->empty()) {
-            return (*m_prg_ram)[address & 0x1FFF];
+            uint32_t offset = prg_ram_offset(address);
+            if (offset < m_prg_ram->size()) {
+                return (*m_prg_ram)[offset];
+            }
         }
         return 0;
     }
@@ -63,7 +82,10 @@ void Mapper001::cpu_write(uint16_t address, uint8_t value) {
     // PRG RAM: $6000-$7FFF
     if (address >= 0x6000 && address < 0x8000) {
         if (!m_prg_ram->empty()) {
-            (*m_prg_ram)[address & 0x1FFF] = value;
+            uint32_t offset = prg_ram_offset(address);
+            if (offset < m_prg_ram->size()) {
+                (*m_prg_ram)[offset] = value;
+            }
         }
         return;
     }
@@ -75,6 +97,28 @@ void Mapper001::cpu_write(uint16_t address, uint8_t value) {
 }
 
 void Mapper001::write_register(uint16_t address, uint8_t value) {
+    // Real MMC1 hardware is too slow to latch two serial writes issued on
+    // back-to-back CPU cycles: RMW instructions (INC/DEC on an $8000+
+    // address) issue a dummy write of the old value immediately followed
+    // by the real write of the new value, one cycle apart. If that old
+    // value had bit 7 set (e.g. incrementing a ROM byte read back as
+    // $FF), the dummy write would reset the shift register, and the very
+    // next write would then shift a bogus bit into the freshly reset
+    // register. Hardware ignores the second write of such a pair
+    // entirely (nesdev: "MMC1 ignores writes on the CPU cycle immediately
+    // after a write"), so detect and drop it here before doing anything
+    // else, including the bit-7 reset.
+    bool consecutive = (m_last_write_cycle != UINT64_MAX) &&
+                        (m_cycle_count == m_last_write_cycle + 1);
+    m_last_write_cycle = m_cycle_count;
+    if (consecutive) {
+        if (is_debug_mode()) {
+            fprintf(stderr, "MMC1: ignored consecutive-cycle write (addr=%04X val=%02X)\n",
+                    address, value);
+        }
+        return;
+    }
+
     // Reset shift register if bit 7 is set
     if (value & 0x80) {
         m_shift_register = 0x10;
@@ -146,28 +190,48 @@ void Mapper001::update_banks() {
     // PRG ROM bank mode (bits 2-3 of control)
     uint8_t prg_mode = (m_control >> 2) & 0x03;
 
+    // SXROM boards with a 512KB (or larger) PRG ROM wire CHR bank 0 bit 4
+    // to PRG A18, selecting which 256KB outer half the 4-bit m_prg_bank
+    // register indexes into. Smaller ROMs (the vast majority of MMC1
+    // boards) never exceed one 256KB half, so `outer` is always 0 there
+    // and behavior is unchanged.
+    uint32_t outer = 0;
+    if (prg_size > 0x40000) {
+        outer = (m_chr_bank_0 & 0x10) ? 0x40000 : 0;
+    }
+
     switch (prg_mode) {
         case 0:
         case 1:
             // 32KB mode: switch both banks together
-            m_prg_bank_0_offset = (m_prg_bank & 0x0E) * 0x4000;
+            m_prg_bank_0_offset = outer + (m_prg_bank & 0x0E) * 0x4000;
             m_prg_bank_1_offset = m_prg_bank_0_offset + 0x4000;
             break;
         case 2:
             // Fix first bank at $8000, switch $C000
-            m_prg_bank_0_offset = 0;
-            m_prg_bank_1_offset = m_prg_bank * 0x4000;
+            m_prg_bank_0_offset = outer;
+            m_prg_bank_1_offset = outer + m_prg_bank * 0x4000;
             break;
         case 3:
-            // Switch $8000, fix last bank at $C000
-            m_prg_bank_0_offset = m_prg_bank * 0x4000;
-            m_prg_bank_1_offset = prg_size - 0x4000;
+            // Switch $8000, fix last bank at $C000 (last bank of the
+            // selected outer half; equals prg_size - 0x4000 when outer is 0)
+            m_prg_bank_0_offset = outer + m_prg_bank * 0x4000;
+            m_prg_bank_1_offset = outer + 0x3C000;
             break;
     }
 
-    // Ensure offsets are within bounds
-    m_prg_bank_0_offset %= prg_size;
-    m_prg_bank_1_offset %= prg_size;
+    // Ensure offsets are within bounds. Defense in depth: Cartridge::load
+    // rejects PRG=0 ROMs before any mapper is constructed, but guard the
+    // modulo anyway (integer modulo by zero is undefined behaviour /
+    // SIGFPE) in case this mapper is ever built directly with an empty
+    // PRG vector.
+    if (prg_size > 0) {
+        m_prg_bank_0_offset %= prg_size;
+        m_prg_bank_1_offset %= prg_size;
+    } else {
+        m_prg_bank_0_offset = 0;
+        m_prg_bank_1_offset = 0;
+    }
 
     // CHR bank mode (bit 4 of control)
     if (chr_size > 0) {

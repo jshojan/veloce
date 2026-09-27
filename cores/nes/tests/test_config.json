@@ -323,7 +323,7 @@
       "license": "blargg, freely redistributable",
       "tests": [
         {"file": "ppu_open_bus/ppu_open_bus.nes", "accuracy_type": "cycle-accurate", "expected": "pass", "notes": "MEASURED 2026-06-02: PASSED (memory protocol)."},
-        {"file": "ppu_read_buffer/test_ppu_read_buffer.nes", "accuracy_type": "cycle-accurate", "expected": "known_fail", "frames": 3000, "notes": "MEASURED 2026-06-02: $6000 stays 0x80 (running) - never emits a verdict within frame budget under headless; reported as unverified. Investigate whether it needs rendering-visible output or a much larger frame count."}
+        {"file": "ppu_read_buffer/test_ppu_read_buffer.nes", "accuracy_type": "cycle-accurate", "expected": "pass", "frames": 3000, "notes": "MEASURED 2026-09-26: PASSED (memory protocol) after nes-19 (palette reads refill the buffer from $2Fxx; $4000+ decodes as $0000 not palette). Previously looped on test 57 (TEST_PPU_SEQ_READ_WRAP) without emitting a verdict."}
       ]
     },
 
