@@ -565,6 +565,24 @@ that trapped `apu.spc_smp` at `$19`, now fixed; the missing `$6000` signal from 
 blargg-spc-6 ROMs; and the `apu.spc_dsp6` hardware quirk) are documented in
 [COMPLETENESS.md](../../COMPLETENESS.md#snes).
 
+### Emitting VELOCE-RESULT/1 from a patched ROM
+
+Three assembler dialects can emit the channel's vocabulary
+(`tests/roms-src/include/snes/`): `veloce-test.ca65.inc` (ca65 `--cpu 65816`;
+verified end to end via `tests/roms-src/snes/veloce_smoke/`), `.asar.inc`
+(verified against a throwaway ROM), and `.bass.inc` (written but **blocked**:
+the pinned `bass`/`bass-untech` in `tools/rom-toolchain` both segfault on the
+architecture-selection command alone, before any source is read -- see
+`tests/roms-src/include/PROVENANCE.md`). `tests/roms-src/build.py` gained
+`"local"` (a Veloce-authored ROM with no upstream), `"submodules"` and
+`"allow_exit_codes"` recipe fields, and mounts this `include/` directory
+read-only into every toolchain container at `/veloce-include/<console>`.
+`tests/roms-src/snes/{sour_dma_irq_test,sour_op_timing_test,gilyon_cputest,
+undisbeliever_auto_joy_timing}` are acquisition-only recipes (golden-gate
+rebuilds, no emitter patch yet) proving the higan-mirror-pin, gilyon-tag and
+undisbeliever-with-submodule acquisition paths the plan's SNES-3/6/7/8 items
+build on.
+
 ## References
 
 ### Documentation

@@ -1,0 +1,20 @@
+{
+  "console": "snes",
+  "suite": "veloce_smoke",
+  "description": "SNES-2 / SH-5: a Veloce-authored (not upstream) ROM that exercises every macro in tests/roms-src/include/snes/veloce-test.ca65.inc end to end -- port probe read, PASS, a deliberate fixed-value FAIL, a REG line with an 8-bit and a 16-bit live value, a LOG line, and END. Used as the determinism-gate fixture (SH-5: run twice under VELOCE_TEST_OUT, byte-diff the result files including the trailer).",
+  "license": "Veloce project (same license as the rest of this repository); not a vendored/upstream source.",
+  "local": true,
+  "toolchain_stage": "cc65",
+  "rom_variant": "veloce",
+  "build": {
+    "workdir": ".",
+    "commands": [
+      "ca65 --cpu 65816 -I /veloce-include/snes veloce_smoke.s -o veloce_smoke.o",
+      "ca65 --cpu 65816 -I /veloce-include/snes header.s -o header.o",
+      "ld65 -C smoke.cfg veloce_smoke.o header.o -o veloce_smoke.sfc -m veloce_smoke.map"
+    ],
+    "artifacts": {
+      "veloce_smoke.sfc": "veloce_smoke.sfc"
+    }
+  }
+}

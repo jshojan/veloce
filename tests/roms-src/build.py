@@ -39,6 +39,24 @@ The toolchain image defaults to $VELOCE_ROM_TOOLCHAIN_IMAGE, else
 veloce/rom-toolchain:dev (what tools/rom-toolchain/build-image.sh tags by
 default). Containers run as the invoking user so the clone never collects
 root-owned build outputs.
+
+SNES-2 additions (ROM source acquisition, generic to every console):
+  - `"local": true` skips the clone and golden gate entirely and builds
+    straight from the suite's own committed `src/` (for a Veloce-authored ROM
+    that has no upstream at all, e.g. `snes/veloce_smoke`).
+  - `"submodules": true` runs `git submodule update --init --recursive` after
+    checkout, resolving each submodule from the exact commit recorded in the
+    superproject's tree (undisbeliever/snes-test-roms vendors its pinned
+    bass-untech this way).
+  - `"allow_exit_codes": [n, ...]` tolerates a build command that exits
+    nonzero after already writing a correct artifact. NOT what's needed for
+    ARM9/bass v18 or undisbeliever's bass-untech in this image: both
+    segfault immediately on `arch`/`architecture <name>` alone, with no ROM
+    source involved and before any output is written, so this flag can't
+    paper over that — see tests/roms-src/snes/*/PROVENANCE.md.
+  - A GitLab remote (the higan/byuu snes-test-roms mirror) accepts a
+    full 40-character pinned SHA the same way GitHub does, but — unlike
+    GitHub — rejects a short one, so every recipe pins the full SHA.
 """
 
 from __future__ import annotations
@@ -79,28 +97,41 @@ class Recipe:
     golden_gate: bool
     rom_variant: str
     license: str
+    local: bool = False             # SNES-2: no upstream repo; build straight from dir/src
+    submodules: bool = False        # SNES-2: `git submodule update --init --recursive` after checkout
+    allow_exit_codes: tuple = ()    # SNES-2: extra acceptable exit codes for the build command
     raw: dict = field(default_factory=dict)
 
     @property
     def clone_dir(self) -> Path:
-        return self.dir / "upstream"
+        # A "local" recipe (e.g. veloce_smoke) has no upstream to clone: it
+        # builds straight from its own committed src/, so nothing here is
+        # ever fetched, golden-gated or gitignored.
+        return self.dir / "src" if self.local else self.dir / "upstream"
 
     @staticmethod
     def load(path: Path) -> "Recipe":
         raw = json.loads(path.read_text())
-        repo = raw["repo"]
+        local = bool(raw.get("local", False))
+        repo = raw.get("repo") or {}
+        if not local and not repo:
+            raise BuildError(f"{path}: 'repo' is required unless \"local\": true")
         build = raw.get("golden_gate_build") or raw.get("build") or {}
         return Recipe(
             console=raw["console"],
             suite=raw["suite"],
             dir=path.parent,
-            repo_url=repo["url"],
-            repo_sha=repo["sha"],
+            repo_url=repo.get("url", ""),
+            repo_sha=repo.get("sha", ""),
+            local=local,
+            submodules=bool(raw.get("submodules", False)),
+            allow_exit_codes=tuple(raw.get("allow_exit_codes", ())),
             toolchain_stage=raw.get("toolchain_stage", ""),
             workdir=build.get("workdir", "."),
             commands=build.get("commands", []),
             artifacts=build.get("artifacts", {}),
-            golden_gate=raw.get("golden_gate", True),
+            # A local recipe has no upstream shipped binary to gate against.
+            golden_gate=False if local else raw.get("golden_gate", True),
             rom_variant=raw.get("rom_variant", "upstream"),
             license=raw.get("license", ""),
             raw=raw,
@@ -142,17 +173,30 @@ def _restore_pristine(dest: Path, sha: str) -> bool:
     return True
 
 
-def clone_at_sha(url: str, sha: str, dest: Path, *, skip_if_exists: bool = False) -> None:
-    """git-clone-at-SHA: works for any commit GitHub still has reachable, not
-    just a ref it advertises (`git fetch <sha>` against a public GitHub repo
-    is allowed even though the SHA isn't a branch/tag tip).
+def clone_at_sha(url: str, sha: str, dest: Path, *, skip_if_exists: bool = False,
+                 submodules: bool = False) -> None:
+    """git-clone-at-SHA: works for any commit GitHub (and, confirmed for the
+    higan/byuu GitLab mirror, GitLab too) still has reachable, not just a ref
+    it advertises (`git fetch <full 40-char sha>` against a public repo is
+    allowed even though the SHA isn't a branch/tag tip) -- a short SHA is
+    rejected by both hosts, so recipes always pin the full 40 characters.
 
     With skip_if_exists an existing clone is reused only after it is reset to
     the pinned SHA and cleaned: a previous run leaves rebuilt (and possibly
     patched) artifacts in place, and hashing those as "upstream's shipped
-    binary" would make the golden gate compare the rebuild with itself."""
+    binary" would make the golden gate compare the rebuild with itself.
+
+    With submodules, `git submodule update --init --recursive` runs after
+    checkout (SNES-2: undisbeliever/snes-test-roms vendors its pinned
+    bass-untech as a submodule). This resolves each submodule straight from
+    the commit recorded in the superproject's tree, so it works from a
+    depth-1 clone with no extra pinning -- the submodule's own upstream still
+    has to have that exact commit reachable, same constraint as the outer
+    clone."""
     if dest.exists():
         if skip_if_exists and _restore_pristine(dest, sha):
+            if submodules:
+                sh(["git", "submodule", "update", "--init", "--recursive"], cwd=dest)
             return
         _rmtree(dest)
     dest.mkdir(parents=True)
@@ -163,6 +207,8 @@ def clone_at_sha(url: str, sha: str, dest: Path, *, skip_if_exists: bool = False
     got = sh(["git", "rev-parse", "HEAD"], cwd=dest).stdout.strip()
     if got != sha:
         raise BuildError(f"clone landed on {got}, expected pinned {sha}")
+    if submodules:
+        sh(["git", "submodule", "update", "--init", "--recursive"], cwd=dest)
 
 
 def sha256_file(path: Path) -> str:
@@ -181,20 +227,45 @@ def _user_args() -> list[str]:
     return []
 
 
-def run_in_toolchain(image: str, clone_dir: Path, workdir: str, commands: list[str]) -> None:
+INCLUDE_DIR = ROMS_SRC / "include"   # tests/roms-src/include -- the veloce-test.inc
+                                     # emitter includes (SNES-2), shared by every recipe
+
+
+def run_in_toolchain(image: str, clone_dir: Path, workdir: str, commands: list[str],
+                     *, allow_exit_codes: tuple = ()) -> None:
     script = " && ".join(commands)
     container_workdir = f"/work/{workdir}" if workdir not in (".", "") else "/work"
+    mounts = ["-v", f"{clone_dir.resolve()}:/work"]
+    if INCLUDE_DIR.is_dir():
+        # Read-only: a recipe's build command references its console's emitter
+        # include as e.g. `-I /veloce-include/snes`, never copies or patches it.
+        mounts += ["-v", f"{INCLUDE_DIR.resolve()}:/veloce-include:ro"]
     proc = subprocess.run(
         [
             "docker", "run", "--rm", *_user_args(),
-            "-v", f"{clone_dir.resolve()}:/work",
+            *mounts,
             "-w", container_workdir,
             image,
             "sh", "-c", script,
         ],
         capture_output=True, text=True,
     )
-    if proc.returncode != 0:
+    # allow_exit_codes exists for a tool that writes a correct artifact and
+    # then crashes on its own cleanup/exit path -- SNES-2 went looking for
+    # exactly that with the two pinned tools this image builds from source
+    # with a C++17 workaround flag (bass v18, undisbeliever's bass-untech;
+    # see tools/rom-toolchain/Dockerfile's `-fno-operator-names -include
+    # stdexcept -include cstdint` comment). Neither turned out to be that
+    # case: both segfault immediately on `arch`/`architecture <name>` alone,
+    # with no ROM source involved and before any output is written, so nei-
+    # ther can build anything in this image today -- see
+    # tests/roms-src/snes/*/PROVENANCE.md for the suites this blocks
+    # (SNES-7, SNES-8) and the repro. allow_exit_codes is kept as a generic
+    # escape hatch for a *real* write-then-crash tool, which this is not.
+    # (bass: PeterLemon/SNES-CPUTest-CPU ADC, confirmed byte-identical to the
+    # shipped ROM despite the crash) -- a recipe records the exact nonzero
+    # code it saw so a real build failure elsewhere still raises.
+    if proc.returncode != 0 and proc.returncode not in allow_exit_codes:
         raise BuildError(
             f"toolchain build failed in {image} ({workdir}):\n"
             f"$ {script}\n--- stdout ---\n{proc.stdout}\n--- stderr ---\n{proc.stderr}"
@@ -240,7 +311,12 @@ def image_info(image: str) -> tuple[str, dict]:
 
 def build_one(recipe: Recipe, *, image: str, skip_clone: bool) -> dict:
     print(f"== {recipe.console}/{recipe.suite} ==", file=sys.stderr)
-    clone_at_sha(recipe.repo_url, recipe.repo_sha, recipe.clone_dir, skip_if_exists=skip_clone)
+    if recipe.local:
+        if not recipe.clone_dir.is_dir():
+            raise BuildError(f"{recipe.suite}: \"local\": true but {recipe.clone_dir} is missing")
+    else:
+        clone_at_sha(recipe.repo_url, recipe.repo_sha, recipe.clone_dir,
+                    skip_if_exists=skip_clone, submodules=recipe.submodules)
 
     # Golden-gate baseline: hash every artifact as shipped by upstream, BEFORE
     # we run any build command that will overwrite it in place.
@@ -259,7 +335,8 @@ def build_one(recipe: Recipe, *, image: str, skip_clone: bool) -> dict:
 
     if not recipe.commands:
         raise BuildError(f"{recipe.suite}: recipe has no build commands")
-    run_in_toolchain(image, recipe.clone_dir, recipe.workdir, recipe.commands)
+    run_in_toolchain(image, recipe.clone_dir, recipe.workdir, recipe.commands,
+                     allow_exit_codes=recipe.allow_exit_codes)
 
     gate_results = {}
     for built_rel, golden_sha in golden_hashes.items():
@@ -281,7 +358,8 @@ def build_one(recipe: Recipe, *, image: str, skip_clone: bool) -> dict:
     if patches_applied:
         # A patched suite must be rebuilt post-patch; the golden-gate pass
         # above already proved the *unmodified* source reproduces byte-for-byte.
-        run_in_toolchain(image, recipe.clone_dir, recipe.workdir, recipe.commands)
+        run_in_toolchain(image, recipe.clone_dir, recipe.workdir, recipe.commands,
+                         allow_exit_codes=recipe.allow_exit_codes)
 
     out_dir = REPO_ROOT / "build" / "roms" / recipe.console / recipe.suite
     out_dir.mkdir(parents=True, exist_ok=True)
