@@ -202,22 +202,35 @@ tests across 29 suites (23 cpu, 81 timing, 18 ppu, 4 memory, 4 mapper/saves,
 | CPU (ARM7TDMI) | mostly verified | `cpu_arm` (`arm.gba`) PASS, `cpu_thumb` (`thumb.gba`) PASS; `cpu_psr` (`psr.gba`) **FAIL** (CPSR/SPSR banking gap). |
 | Memory | verified | `memory_access` (`memory.gba`) PASS. |
 | Misc / BIOS | verified | `bios` (`bios.gba`) PASS (Div, Sqrt, ArcTan, CpuSet, LZ77, etc.). |
-| Mapper / saves | verified | SRAM, Flash 64KB, Flash 128KB, none all PASS. |
-| Timing (DMA / IRQ / timer / HALTCNT / bus) | largely verified via NBA | NanoBoyAdvance DMA latch/start-delay/force-nseq/burst PASS; IRQ delay PASS; timer start-stop/reload PASS; HALTCNT PASS; 128KB bus boundary PASS. |
+| Mapper / saves | mostly verified | SRAM, Flash 64KB, none PASS; Flash 128KB **FAILs** at test #9 (earlier PASS reports were a detector flake). |
+| Timing (DMA / IRQ / timer / HALTCNT / bus) | **mostly failing, not verified** | Measured this build (`cd cores/gba/tests && python3 runner.py --json timing`): only 10/80 timing tests pass. Every NanoBoyAdvance DMA/IRQ/timer/HALTCNT test **FAILs** (`latch`, `start_delay`, `force_nseq_access`, `burst_into_tears`, `irq_delay`, `start_stop`, `reload`, `haltcnt`), as does the 128KB bus-boundary test (memory subsystem). NBA `start_delay`/`burst_into_tears`/`128kb-boundary` used to be reported PASS only because the ROMs crashed into Undefined mode on the Thumb `bx pc` veneer (gba-15) before printing anything, leaving R12=0; once they run, their on-screen verdicts are timing FAILs (e.g. start-delay "IMM: FAIL 7, expected 20", burst-into-tears 0/3). `timing_irq`, `timing_dma`, `timing_fifo_dma`, `timing_cpu_mem` and `prefetch` fail almost wholesale. Root cause tracked separately (instruction-granular stepping + atomic bulk-DMA catch-up, per-instruction cycle guesswork, timer remainder/cascade loss - opus-class scheduler work). |
 | PPU | partly verified, partly pending | smoke (`hello`, `shades`, `stripes`) PASS; `ppu_status_dma` and the affine visual tests need sub-scanline accuracy and are `known_fail` / visual pending references. |
 
-**Detection method.** jsmolka / alyosha / nba ROMs spin with `R12` holding the
+**Detection method.** jsmolka / alyosha ROMs spin with `R12` holding the
 failing test number (`0` = all pass); the GBA plugin detects the stable-PC spin
 and prints `[GBA] PASSED` / `[GBA] FAILED - Failed at test #N`, parsed by the
-shared GBA register detector. This is a reliable, reference-free protocol, which
-is why the GBA verified subset is broader than the SNES one.
+shared GBA register detector. The nba-hw-test ROMs do **not** use this protocol
+(they only print results to the screen), so for them the detector's R12 value
+is an arbitrary scratch register: non-zero reads as FAIL, and a PASS has only
+ever meant the ROM crashed before touching R12.
+
+**Known limitation of the detector itself.** The stable-PC heuristic can also
+report a ROM that has hung or crashed into an unrelated stable state as
+`PASSED` - it does not confirm the ROM ever reached its own "all tests passed"
+spin. This is tracked as a separate finding; until it is fixed, treat every
+PASS above as measured-but-provisional, not reference-grade, and re-derive
+this table from a fresh `runner.py --json` run rather than trusting hand-copied
+numbers - the previous version of this table (NBA DMA/IRQ/timer/HALTCNT all
+claimed PASS) had drifted from what the suite actually measures.
 
 **Honest caveats.**
 
 - `cpu_psr` is a measured FAIL (CPSR/SPSR banking), the main verified CPU debt.
-- FuzzARM and ARMWrestler report pass/fail by drawing to the framebuffer (no R12
-  spin loop), so they are `known_fail` pending a screenshot reference or a
-  debug-string harness.
+- FuzzARM additionally dumps the first failing test to EWRAM (`0x02000000`,
+  `'AAAA'`/`'TTTT'` record); the ARM data-processing mismatches it used to
+  record were V-flag clears on logical ops (fixed, gba-17) and it now records
+  no failure. ARMWrestler draws to the framebuffer only and remains unverified
+  pending a debug-string harness.
 - Suites needing sub-scanline accuracy (`ppu_status_dma`, `ppu_affine_visual`)
   are pre-marked `known_fail` and excluded from the headline until verified; the
   scanline-based PPU is the core's main accuracy limit for mid-scanline raster

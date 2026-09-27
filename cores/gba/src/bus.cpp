@@ -393,7 +393,7 @@ uint16_t Bus::read16(uint32_t address) {
         case MemoryRegion::ROM_WS1:
             if (m_cartridge) {
                 uint32_t offset = address & 0x1FFFFFF;
-                return m_cartridge->read_rom(offset) | (m_cartridge->read_rom(offset + 1) << 8);
+                return m_cartridge->read_rom16(offset);
             }
             break;
 
@@ -409,7 +409,7 @@ uint16_t Bus::read16(uint32_t address) {
                         return bit;
                     }
                 }
-                return m_cartridge->read_rom(offset) | (m_cartridge->read_rom(offset + 1) << 8);
+                return m_cartridge->read_rom16(offset);
             }
             break;
 
@@ -493,8 +493,27 @@ void Bus::write8(uint32_t address, uint8_t value) {
         }
 
         case MemoryRegion::IO: {
-            // Byte writes to I/O need special handling
-            uint32_t io_addr = address & ~1;
+            // Byte writes to I/O need special handling. The generic path
+            // below reconstructs a full 16-bit value by merging the new
+            // byte with whatever the *other* byte currently reads back as,
+            // then hands that merged halfword to write_io() as if it were an
+            // ordinary 16-bit store. That is correct for plain storage
+            // registers, but wrong for IF: write_io()'s IF case treats the
+            // whole value as "bits to acknowledge" (`m_if &= ~value`), so
+            // merging in the untouched byte's *current* (already-pending) 1
+            // bits acks interrupts in that byte too, even though the game
+            // only meant to touch the byte it actually wrote. Route IF
+            // through a dedicated lane-masked ack instead: only the byte
+            // lane actually written may clear IF/IF-serviced bits.
+            uint32_t io_addr = address & ~1u;
+            if ((io_addr & 0xFFF) == 0x202) {
+                uint16_t lane_value = (address & 1)
+                    ? static_cast<uint16_t>(static_cast<uint16_t>(value) << 8)
+                    : static_cast<uint16_t>(value);
+                write_io(io_addr, lane_value);
+                break;
+            }
+
             uint16_t old_val = read_io(io_addr);
             if (address & 1) {
                 write_io(io_addr, (old_val & 0x00FF) | (value << 8));
@@ -644,6 +663,15 @@ void Bus::write16(uint32_t address, uint16_t value) {
                 SaveType save_type = m_cartridge->get_save_type();
                 if (save_type == SaveType::EEPROM_512 || save_type == SaveType::EEPROM_8K) {
                     if (rom_addr >= 0x1FFFF00 || rom_addr >= m_cartridge->get_rom_size()) {
+                        // This write is the current DMA channel's transfer if
+                        // one is actively stepping through its Write phase
+                        // (see step_dma); real EEPROM commands are only ever
+                        // sent as a fixed-length DMA burst, so the transfer's
+                        // total unit count reveals the address-bit width the
+                        // game expects (gba-28) before we act on this bit.
+                        if (m_active_dma >= 0) {
+                            m_cartridge->latch_eeprom_size_from_dma(m_dma[m_active_dma].internal_count);
+                        }
                         // EEPROM writes only use bit 0
                         m_cartridge->write_sram(address & 0xFFFF, static_cast<uint8_t>(value & 1));
                         break;
@@ -981,10 +1009,7 @@ void Bus::write_io(uint32_t address, uint16_t value) {
         case 0x0B6: m_dma[0].dst = (m_dma[0].dst & 0x0000FFFF) | (value << 16); break;
         case 0x0B8: m_dma[0].count = value; break;
         case 0x0BA:
-            GBA_DEBUG_PRINT("DMA0 control: 0x%04X (src=0x%08X, dst=0x%08X, cnt=%d)\n",
-                           value, m_dma[0].src, m_dma[0].dst, m_dma[0].count);
-            m_dma[0].control = value;
-            if (value & 0x8000) trigger_dma(0);
+            write_dma_control(0, value);
             break;
 
         // DMA 1
@@ -994,10 +1019,7 @@ void Bus::write_io(uint32_t address, uint16_t value) {
         case 0x0C2: m_dma[1].dst = (m_dma[1].dst & 0x0000FFFF) | (value << 16); break;
         case 0x0C4: m_dma[1].count = value; break;
         case 0x0C6:
-            GBA_DEBUG_PRINT("DMA1 control: 0x%04X (src=0x%08X, dst=0x%08X, cnt=%d)\n",
-                           value, m_dma[1].src, m_dma[1].dst, m_dma[1].count);
-            m_dma[1].control = value;
-            if (value & 0x8000) trigger_dma(1);
+            write_dma_control(1, value);
             break;
 
         // DMA 2
@@ -1007,10 +1029,7 @@ void Bus::write_io(uint32_t address, uint16_t value) {
         case 0x0CE: m_dma[2].dst = (m_dma[2].dst & 0x0000FFFF) | (value << 16); break;
         case 0x0D0: m_dma[2].count = value; break;
         case 0x0D2:
-            GBA_DEBUG_PRINT("DMA2 control: 0x%04X (src=0x%08X, dst=0x%08X, cnt=%d)\n",
-                           value, m_dma[2].src, m_dma[2].dst, m_dma[2].count);
-            m_dma[2].control = value;
-            if (value & 0x8000) trigger_dma(2);
+            write_dma_control(2, value);
             break;
 
         // DMA 3
@@ -1020,10 +1039,7 @@ void Bus::write_io(uint32_t address, uint16_t value) {
         case 0x0DA: m_dma[3].dst = (m_dma[3].dst & 0x0000FFFF) | (value << 16); break;
         case 0x0DC: m_dma[3].count = value; break;
         case 0x0DE:
-            GBA_DEBUG_PRINT("DMA3 control: 0x%04X (src=0x%08X, dst=0x%08X, cnt=%d)\n",
-                           value, m_dma[3].src, m_dma[3].dst, m_dma[3].count);
-            m_dma[3].control = value;
-            if (value & 0x8000) trigger_dma(3);
+            write_dma_control(3, value);
             break;
 
         // Timers
@@ -1148,6 +1164,63 @@ void Bus::trigger_dma(int channel) {
     }
     // Other timing modes are triggered by their respective events
     // (VBlank, HBlank, Sound FIFO)
+}
+
+// Handle a write to DMAxCNT_H. GBATEK: the internal source/destination/count
+// latches are reloaded from SAD/DAD/CNT_L whenever the enable bit transitions
+// 0->1 - not just the first time the channel is ever used. `dma.active` used
+// to mean "has been triggered at least once" and was only cleared when a
+// non-repeating transfer finished, so disabling a repeat channel, rewriting
+// SAD/DAD, and re-enabling it reused the stale pre-disable internal
+// addresses instead of relatching (Fable's probe: destination word came from
+// the old source instead of the newly-written one).
+void Bus::write_dma_control(int channel, uint16_t value) {
+    DMAChannel& dma = m_dma[channel];
+
+    bool was_enabled = (dma.control & 0x8000) != 0;
+    bool enabled = (value & 0x8000) != 0;
+
+    GBA_DEBUG_PRINT("DMA%d control: 0x%04X (src=0x%08X, dst=0x%08X, cnt=%d)\n",
+                    channel, value, dma.src, dma.dst, dma.count);
+
+    dma.control = value;
+
+    if (!was_enabled && enabled) {
+        // Rising edge: latch internal_src/internal_dst from SAD/DAD now
+        // (GBATEK/mGBA latch on the 0->1 edge, not at the first start
+        // trigger, so a SAD/DAD write between enabling and the VBlank/
+        // HBlank/FIFO trigger does not leak into this run), and drop any
+        // leftover phase from a previous run.
+        dma.phase = DMAChannel::Phase::Idle;
+        dma.scheduled = false;
+        latch_dma_addresses(channel);
+        trigger_dma(channel);
+    } else if (was_enabled && !enabled) {
+        // Falling edge: disabling aborts any in-flight or pending transfer
+        // and forces a fresh latch on the next enable.
+        dma.active = false;
+        dma.phase = DMAChannel::Phase::Idle;
+        dma.scheduled = false;
+    }
+    // was_enabled && enabled (rewriting the same enabled control value) must
+    // NOT relatch or retrigger a running/repeat-armed transfer.
+}
+
+// Load the internal source/destination latches from SAD/DAD and mark the
+// channel as latched (dma.active) so later start triggers of a repeating
+// channel keep walking the internal addresses instead of relatching.
+void Bus::latch_dma_addresses(int channel) {
+    DMAChannel& dma = m_dma[channel];
+    dma.internal_src = dma.src;
+    dma.internal_dst = dma.dst;
+    if (channel == 0) {
+        dma.internal_src &= 0x07FFFFFF;
+        dma.internal_dst &= 0x07FFFFFF;
+    } else {
+        dma.internal_src &= 0x0FFFFFFF;
+        dma.internal_dst &= 0x0FFFFFFF;
+    }
+    dma.active = true;
 }
 
 int Bus::run_dma() {
@@ -1305,20 +1378,10 @@ void Bus::schedule_dma(int channel) {
         return;
     }
 
-    // Set up internal registers if this is the first trigger
+    // Normally latched on the enable edge (write_dma_control); this only
+    // covers a channel whose latch state was never set up that way.
     if (!dma.active) {
-        dma.internal_src = dma.src;
-        dma.internal_dst = dma.dst;
-        dma.active = true;
-
-        // Mask addresses based on channel
-        if (channel == 0) {
-            dma.internal_src &= 0x07FFFFFF;
-            dma.internal_dst &= 0x07FFFFFF;
-        } else {
-            dma.internal_src &= 0x0FFFFFFF;
-            dma.internal_dst &= 0x0FFFFFFF;
-        }
+        latch_dma_addresses(channel);
     }
 
     dma.internal_count = dma.count;
@@ -1636,9 +1699,43 @@ void Bus::write_timer_control(int timer_idx, uint16_t value) {
     timer.control = value;
 }
 
+// Propagate a timer overflow into timer `idx` when it is running in cascade
+// mode (clocked by the previous timer's overflow rather than the prescaler).
+// Recurses so a chain deeper than one stage fully advances: previously only
+// timer i+1 was ever incremented on an i overflow, so a 3+ deep cascade
+// (e.g. TM0->TM1->TM2) silently stopped propagating after the first hop and
+// TM2/TM3 never advanced (gba-24).
+void Bus::timer_overflow_cascade(int idx) {
+    if (idx > 3) return;
+    Timer& timer = m_timers[idx];
+    if ((timer.control & 0x84) != 0x84) return;  // not enabled+cascade
+
+    timer.counter++;
+    if (timer.counter != 0) return;  // no overflow yet
+
+    timer.counter = timer.reload;
+    timer.initial_reload = timer.reload;
+
+    if (timer.control & 0x40) {
+        // Timer interrupts are at bits 3-6 (0x0008, 0x0010, 0x0020, 0x0040)
+        request_interrupt(static_cast<GBAInterrupt>(0x0008 << idx));
+    }
+    if (m_apu && (idx == 0 || idx == 1)) {
+        m_apu->on_timer_overflow(idx);
+    }
+
+    timer_overflow_cascade(idx + 1);
+}
+
 void Bus::step_timers(int cycles) {
     // Update global cycle counter for accurate timer reads
     m_global_cycles += cycles;
+
+    // Advance the cartridge's emulated RTC clock from the same emulated
+    // cycle count, rather than it reading the host's wall clock (gba-09).
+    if (m_cartridge) {
+        m_cartridge->advance_rtc(static_cast<uint32_t>(cycles));
+    }
 
     static const int prescaler_values[] = {1, 64, 256, 1024};
 
@@ -1654,11 +1751,33 @@ void Bus::step_timers(int cycles) {
         int prescaler = prescaler_values[timer.control & 3];
         timer.prescaler_counter += cycles;
 
+        // Consume whole ticks in batches (cheap for the common no-overflow
+        // case) but stop exactly at each overflow instant so every overflow
+        // is individually accounted for - request_interrupt/APU notify/
+        // cascade must fire once per overflow, not once per batch.
         while (timer.prescaler_counter >= prescaler) {
-            timer.prescaler_counter -= prescaler;
-            timer.counter++;
+            uint32_t ticks_available = static_cast<uint32_t>(timer.prescaler_counter) / prescaler;
+            uint32_t ticks_to_overflow = 0x10000u - timer.counter;
 
-            if (timer.counter == 0) {
+            if (ticks_available < ticks_to_overflow) {
+                // Not enough ticks left in this batch to overflow: consume
+                // them all and stop.
+                timer.counter += static_cast<uint16_t>(ticks_available);
+                timer.prescaler_counter -= static_cast<int>(ticks_available) * prescaler;
+                break;
+            }
+
+            {
+                // Consume exactly the ticks needed to reach the overflow
+                // instant. Previously the remainder of the batch was
+                // discarded here (prescaler_counter = 0), which silently
+                // dropped overflows - and audio/cascade events tied to them
+                // - whenever a single step_timers() batch (e.g. a
+                // 64K-cycle atomic DMA) spanned more than one overflow
+                // period (gba-11). Keeping the remainder lets the while
+                // loop immediately re-evaluate against the new reload.
+                timer.prescaler_counter -= static_cast<int>(ticks_to_overflow) * prescaler;
+
                 // Overflow - reload counter with the current reload value
                 // (not initial_reload - the reload register can be updated mid-cycle
                 // and the new value is used on the NEXT overflow)
@@ -1668,10 +1787,12 @@ void Bus::step_timers(int cycles) {
                 // This is used by get_timer_counter() to track elapsed ticks
                 timer.initial_reload = timer.reload;
 
-                // Reset the reference point for accurate reads
-                // The timer is now counting from reload to 0xFFFF again
-                timer.last_enabled_cycle = m_global_cycles;
-                timer.prescaler_counter = 0;
+                // Back-date the reference point to the actual overflow
+                // instant (global_cycles minus the ticks worth of cycles
+                // left over), not the end of the whole batch, so
+                // get_timer_counter() stays accurate for reads that land
+                // between overflows in this batch.
+                timer.last_enabled_cycle = m_global_cycles - timer.prescaler_counter;
 
                 // Request interrupt if enabled
                 if (timer.control & 0x40) {
@@ -1683,23 +1804,8 @@ void Bus::step_timers(int cycles) {
                     m_apu->on_timer_overflow(i);
                 }
 
-                // Handle cascade to next timer
-                if (i < 3 && (m_timers[i + 1].control & 0x84) == 0x84) {
-                    m_timers[i + 1].counter++;
-                    if (m_timers[i + 1].counter == 0) {
-                        m_timers[i + 1].counter = m_timers[i + 1].reload;
-                        m_timers[i + 1].initial_reload = m_timers[i + 1].reload;
-                        if (m_timers[i + 1].control & 0x40) {
-                            // Timer interrupts are at bits 3-6 (0x0008, 0x0010, 0x0020, 0x0040)
-                            // For timer i+1, the interrupt is 0x0008 << (i+1)
-                            request_interrupt(static_cast<GBAInterrupt>(0x0008 << (i + 1)));
-                        }
-                        // Also notify APU for cascaded timer 1
-                        if (m_apu && (i + 1 == 0 || i + 1 == 1)) {
-                            m_apu->on_timer_overflow(i + 1);
-                        }
-                    }
-                }
+                // Handle cascade to next timer (recurses through the full chain)
+                timer_overflow_cascade(i + 1);
             }
         }
     }
@@ -1735,33 +1841,31 @@ void Bus::save_state(std::vector<uint8_t>& data) {
     // TODO: Save more state as needed
 }
 
-void Bus::load_state(const uint8_t*& data, size_t& remaining) {
+bool Bus::load_state(const uint8_t*& data, size_t& remaining) {
     // Load EWRAM
-    std::memcpy(m_ewram.data(), data, m_ewram.size());
-    data += m_ewram.size();
-    remaining -= m_ewram.size();
+    if (!state_read_bytes(data, remaining, m_ewram.data(), m_ewram.size())) return false;
 
     // Load IWRAM
-    std::memcpy(m_iwram.data(), data, m_iwram.size());
-    data += m_iwram.size();
-    remaining -= m_iwram.size();
+    if (!state_read_bytes(data, remaining, m_iwram.data(), m_iwram.size())) return false;
 
     // Load key I/O registers
-    auto load16 = [&data, &remaining]() {
-        uint16_t val = data[0] | (data[1] << 8);
-        data += 2;
-        remaining -= 2;
-        return val;
+    auto load16 = [&data, &remaining](uint16_t& out) {
+        uint8_t lo, hi;
+        if (!state_read_u8(data, remaining, lo) || !state_read_u8(data, remaining, hi)) return false;
+        out = static_cast<uint16_t>(lo | (hi << 8));
+        return true;
     };
 
-    m_dispcnt = load16();
-    m_dispstat = load16();
-    m_vcount = load16();
-    m_ie = load16();
-    m_if = load16();
-    m_ime = load16();
-    m_keyinput = load16();
-    m_if_serviced = load16();
+    if (!load16(m_dispcnt)) return false;
+    if (!load16(m_dispstat)) return false;
+    if (!load16(m_vcount)) return false;
+    if (!load16(m_ie)) return false;
+    if (!load16(m_if)) return false;
+    if (!load16(m_ime)) return false;
+    if (!load16(m_keyinput)) return false;
+    if (!load16(m_if_serviced)) return false;
+
+    return true;
 }
 
 void Bus::flush_debug_string() {

@@ -25,9 +25,10 @@ public:
     // Signal an IRQ (level-triggered)
     void signal_irq();
 
-    // Save/load state
+    // Save/load state. load_state returns false (without reading past
+    // `remaining`) if the buffer runs out before every field is read.
     void save_state(std::vector<uint8_t>& data);
-    void load_state(const uint8_t*& data, size_t& remaining);
+    bool load_state(const uint8_t*& data, size_t& remaining);
 
     // Debug access
     uint32_t get_register(int reg) const;
@@ -44,6 +45,15 @@ private:
     void write8(uint32_t address, uint8_t value);
     void write16(uint32_t address, uint16_t value);
     void write32(uint32_t address, uint32_t value);
+
+    // Misaligned-access helpers shared by the ARM and Thumb load handlers.
+    // The ARM7TDMI does not fault on a misaligned LDR/LDRH/LDRSH: it reads
+    // the word/halfword at the word/halfword-aligned address containing the
+    // requested one and rotates (LDR/LDRH) or resamples as a byte (LDRSH)
+    // to compensate for the low address bits it ignored.
+    uint32_t load_word_rotated(uint32_t address);
+    uint32_t load_half_rotated(uint32_t address);
+    uint32_t load_signed_half(uint32_t address);
 
     // Instruction fetch with pipeline emulation
     uint32_t fetch_arm();

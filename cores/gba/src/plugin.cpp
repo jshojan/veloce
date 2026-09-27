@@ -310,17 +310,83 @@ void GBAPlugin::run_gba_frame(const emu::InputState& input) {
                 uint32_t r12 = m_cpu->get_register(12);
                 m_test_result_reported = true;
 
+                // jsmolka/alyosha gba-tests' shared m_test_eval macro
+                // (lib/macros.inc) is `stmfd sp!,{r0-r12} / movs r12,rX /
+                // ... / ldmfd sp!,{r0-r12}` followed by `idle: b idle`.
+                // The ldmfd restores r12 to whatever it held *before* the
+                // eval, so r12 at the idle loop is the verdict only when
+                // the ROM evaluates r12 itself (`m_test_eval r12`); ROMs
+                // that evaluate another register (thumb.gba: r7, the LDM
+                // suite: r0 after a mode switch, start_up_vbl_irq*: r7)
+                // leave an unrelated r12 behind, which was reported as a
+                // false PASS (gba-01). The same ldmfd restores rX to its
+                // pre-eval value -- which *is* the evaluated result, since
+                // `movs r12,rX` does not modify rX -- so rX at the idle
+                // loop is exactly what the macro tested.
+                //
+                // Recognise the epilogue near the stable PC (get_pc() may
+                // be the pipeline PC, idle..idle+8), walk back to the
+                // macro's stmfd/movs pair to learn X, and read rX. If the
+                // pattern is absent (nba-hw-test, FuzzARM, non-macro
+                // ROMs) the old R12 convention is kept unchanged.
+                //
+                // Review follow-up: the first version of this fix instead
+                // trusted the .failed path's decimal digits at IWRAM
+                // 0x03000000/4/8 whenever they looked like digits. A
+                // passing run never writes them, so they hold whatever the
+                // test left there -- memory.gba's IWRAM-mirror test stores
+                // 1 at 0x03000000 ("Failed at test #100" on a pass), and
+                // the prefetcher_boundary ROMs put the stack at IWRAM+16 so
+                // the stmfd itself lands r9-r11 there.
+                int eval_reg = -1;
+                if (!(m_cpu->get_cpsr() & 0x20)) {  // macro epilogue is ARM code
+                    uint32_t base = current_pc & ~3u;
+                    uint32_t idle = 0;
+                    for (int off = -8; off <= 8 && !idle; off += 4) {
+                        uint32_t a = base + static_cast<uint32_t>(off);
+                        if (a >= 0x100 &&
+                            m_bus->read32(a) == 0xEAFFFFFEu &&        // b .
+                            m_bus->read32(a - 4) == 0xE8BD1FFFu) {    // ldmfd sp!,{r0-r12}
+                            idle = a;
+                        }
+                    }
+                    if (idle) {
+                        // The macro body (two text paths) is ~100 ARM
+                        // instructions; 2 KiB is ample and cannot reach
+                        // another m_test_eval (each ROM has exactly one).
+                        for (uint32_t p = idle - 8; p + 0x800 >= idle && p >= 0x100; p -= 4) {
+                            uint32_t w0 = m_bus->read32(p);
+                            uint32_t w1 = m_bus->read32(p + 4);
+                            if (w0 == 0xE92D1FFFu &&                   // stmfd sp!,{r0-r12}
+                                (w1 & 0xFFFFFFF0u) == 0xE1B0C000u) {   // movs r12, rX
+                                eval_reg = static_cast<int>(w1 & 0xF);
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                uint32_t verdict = r12;
+                if (eval_reg >= 0) {
+                    verdict = m_cpu->get_register(eval_reg);
+                }
+
                 fprintf(stderr, "\n=== GBA TEST ROM RESULT ===\n");
                 fprintf(stderr, "Detected stable PC at 0x%08X for %d frames\n", current_pc, same_pc_frames);
                 fprintf(stderr, "R12 (test result): %u\n", r12);
+                if (eval_reg >= 0) {
+                    fprintf(stderr, "m_test_eval register: r%d = %u (verdict source)\n", eval_reg, verdict);
+                } else {
+                    fprintf(stderr, "m_test_eval epilogue not found; verdict source: R12\n");
+                }
                 fprintf(stderr, "Cycles: %llu, Frame: %llu\n",
                        static_cast<unsigned long long>(m_total_cycles),
                        static_cast<unsigned long long>(m_frame_count + 1));
 
-                if (r12 == 0) {
+                if (verdict == 0) {
                     fprintf(stderr, "[GBA] PASSED - All tests completed successfully\n");
                 } else {
-                    fprintf(stderr, "[GBA] FAILED - Failed at test #%u\n", r12);
+                    fprintf(stderr, "[GBA] FAILED - Failed at test #%u\n", verdict);
                 }
                 fprintf(stderr, "===========================\n");
                 fflush(stderr);  // Ensure output is flushed immediately for test detection
@@ -436,33 +502,44 @@ bool GBAPlugin::save_state(std::vector<uint8_t>& data) {
 bool GBAPlugin::load_state(const std::vector<uint8_t>& data) {
     if (!m_rom_loaded || data.empty()) return false;
 
+    // Snapshot the current, known-good machine state first. Every
+    // component's load_state() is bounds-checked (state_read/state_read_bytes)
+    // so a truncated or corrupted `data` can no longer read past its own end,
+    // but a failure partway through still leaves whatever fields were read
+    // before the failure applied. Roll back to this snapshot in that case so
+    // a rejected load never leaves the machine half-updated. save_state()
+    // never fails once a ROM is loaded, so `backup` is always well-formed and
+    // its own load_state() replay below cannot itself fail.
+    std::vector<uint8_t> backup;
+    if (!save_state(backup)) return false;
+
+    auto do_load = [&](const std::vector<uint8_t>& src) -> bool {
+        const uint8_t* ptr = src.data();
+        size_t remaining = src.size();
+
+        if (!state_read(ptr, remaining, m_frame_count)) return false;
+        if (!state_read(ptr, remaining, m_total_cycles)) return false;
+
+        return m_cpu->load_state(ptr, remaining) &&
+               m_ppu->load_state(ptr, remaining) &&
+               m_bus->load_state(ptr, remaining) &&
+               m_apu->load_state(ptr, remaining) &&
+               m_cartridge->load_state(ptr, remaining);
+    };
+
+    bool ok;
     try {
-        const uint8_t* ptr = data.data();
-        size_t remaining = data.size();
-
-        // Load frame count and cycles
-        if (remaining < sizeof(m_frame_count) + sizeof(m_total_cycles)) {
-            return false;
-        }
-
-        std::memcpy(&m_frame_count, ptr, sizeof(m_frame_count));
-        ptr += sizeof(m_frame_count);
-        remaining -= sizeof(m_frame_count);
-
-        std::memcpy(&m_total_cycles, ptr, sizeof(m_total_cycles));
-        ptr += sizeof(m_total_cycles);
-        remaining -= sizeof(m_total_cycles);
-
-        m_cpu->load_state(ptr, remaining);
-        m_ppu->load_state(ptr, remaining);
-        m_bus->load_state(ptr, remaining);
-        m_apu->load_state(ptr, remaining);
-        m_cartridge->load_state(ptr, remaining);
-
-        return true;
+        ok = do_load(data);
     } catch (...) {
+        ok = false;
+    }
+
+    if (!ok) {
+        do_load(backup);
         return false;
     }
+
+    return true;
 }
 
 bool GBAPlugin::has_battery_save() const {

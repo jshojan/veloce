@@ -62,9 +62,10 @@ public:
     void step_timers(int cycles);
     void write_timer_control(int timer, uint16_t value);
 
-    // Save state
+    // Save state. load_state returns false (without reading past
+    // `remaining`) if the buffer runs out before every field is read.
     void save_state(std::vector<uint8_t>& data);
-    void load_state(const uint8_t*& data, size_t& remaining);
+    bool load_state(const uint8_t*& data, size_t& remaining);
 
     // PPU register access
     uint16_t get_bgcnt(int layer) const { return m_bgcnt[layer]; }
@@ -211,6 +212,8 @@ private:
     void schedule_dma(int channel);     // Schedule a DMA to start
     void complete_dma(int channel);     // Handle DMA completion
     int find_highest_priority_dma();    // Find highest priority pending DMA
+    void write_dma_control(int channel, uint16_t value); // Handle a DMAxCNT_H write (0->1/1->0 edges)
+    void latch_dma_addresses(int channel); // Load internal src/dst from SAD/DAD
 
     // Timer registers
     struct Timer {
@@ -228,6 +231,11 @@ private:
 
     // Compute timer counter value on-the-fly (for accurate reads during polling)
     uint16_t get_timer_counter(int idx);
+
+    // Propagate a timer overflow into a cascade-mode downstream timer,
+    // recursing so a chain deeper than one stage (TM0->TM1->TM2->TM3) fully
+    // advances instead of stopping after the first cascade hop.
+    void timer_overflow_cascade(int idx);
 
     // Interrupt registers
     uint16_t m_ie = 0;       // Interrupt Enable

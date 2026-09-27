@@ -46,7 +46,10 @@ enum class EEPROMState {
     ReceiveData,       // Receiving data bits for write
     SendDummy,         // Sending 4 dummy bits before read data
     SendData,          // Sending 64 data bits
-    WriteComplete      // Write in progress, polling for completion
+    WriteComplete,     // Write in progress, polling for completion
+    // Appended (not inserted) so the values above -- serialized as a byte
+    // in savestates -- keep their meaning.
+    WaitStop           // 64 data bits received; next bit is the stop bit (gba-18)
 };
 
 // GBA Cartridge loader with Flash/EEPROM and RTC/GPIO support
@@ -66,8 +69,29 @@ public:
     uint8_t read_rom(uint32_t address);
     void write_rom(uint32_t address, uint8_t value);  // For GPIO writes
 
+    // Halfword ROM read. Past the end of the ROM this returns the open-bus
+    // halfword ((address/2) & 0xFFFF per GBATEK) directly (gba-29).
+    uint16_t read_rom16(uint32_t address);
+
     uint8_t read_sram(uint32_t address);
     void write_sram(uint32_t address, uint8_t value);
+
+    // Called by the bus with the total halfword-unit count of the DMA
+    // transfer currently writing an EEPROM command, so the real EEPROM size
+    // (512B vs 8KB) can be detected from the address-bit width the game
+    // actually uses instead of guessed from total ROM size (gba-28). A
+    // no-op once the size has been latched, or if `dma_units` doesn't match
+    // one of the standard EEPROM command lengths.
+    void latch_eeprom_size_from_dma(uint32_t dma_units);
+    bool is_eeprom() const;
+
+    // Advances the emulated RTC clock by `cycles` CPU cycles (16.78 MHz).
+    // Called every step from the same place the bus updates its own global
+    // cycle counter, so the RTC's notion of elapsed time is derived from
+    // emulated cycles rather than the host's wall clock (gba-09): a read
+    // command's date/time is then a pure function of how much the guest
+    // has run, reproducible across hosts, replays and savestate reloads.
+    void advance_rtc(uint32_t cycles);
 
     // Get CRC32
     uint32_t get_crc32() const { return m_crc32; }
@@ -83,9 +107,10 @@ public:
     std::vector<uint8_t> get_save_data() const;
     bool set_save_data(const std::vector<uint8_t>& data);
 
-    // Save state
+    // Save state. load_state returns false (without reading past
+    // `remaining`) if the buffer runs out before every field is read.
     void save_state(std::vector<uint8_t>& data);
-    void load_state(const uint8_t*& data, size_t& remaining);
+    bool load_state(const uint8_t*& data, size_t& remaining);
 
 private:
     uint32_t calculate_crc32(const uint8_t* data, size_t size);
@@ -131,6 +156,9 @@ private:
     int m_eeprom_bits_to_send = 0;        // Bits remaining to send
     uint8_t m_eeprom_command = 0;         // Current command (2 = read, 3 = write)
     bool m_eeprom_ready = true;           // Ready for operations (false during write)
+    int m_eeprom_write_busy_reads = 0;    // Remaining polls before a completed write reports ready (gba-18)
+    void set_eeprom_size(SaveType type);  // 512B <-> 8KB, keeps the data prefix
+    bool m_eeprom_size_locked = false;    // True once latch_eeprom_size_from_dma has committed
 
     // GPIO/RTC support
     bool m_has_rtc = false;
@@ -147,6 +175,14 @@ private:
     uint8_t m_rtc_serial_data = 0;
     bool m_rtc_last_sck = false;
 
+    // Emulated RTC clock (gba-09). Seconds since the Unix epoch, advanced
+    // deterministically from emulated CPU cycles via advance_rtc() instead
+    // of read from the host's wall clock, plus the sub-second remainder
+    // (in cycles) that hasn't rolled over into a whole second yet.
+    uint64_t m_rtc_epoch_seconds = 946684800;  // 2000-01-01 00:00:00 UTC
+    uint32_t m_rtc_cycle_accum = 0;
+    static constexpr uint32_t RTC_CYCLES_PER_SECOND = 16777216;  // 2^24, GBA CPU clock
+
     // GPIO pin definitions for RTC
     static constexpr uint8_t GPIO_SCK = 0x01;  // Bit 0: Clock
     static constexpr uint8_t GPIO_SIO = 0x02;  // Bit 1: Data
@@ -156,6 +192,7 @@ private:
     void rtc_clock_edge();
     uint8_t rtc_get_output();
     void rtc_process_command();
+    void rtc_apply_write();  // Commits a fully-received write command into the emulated clock (gba-09)
     bool detect_rtc(const uint8_t* data, size_t size);
 };
 

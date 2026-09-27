@@ -3,7 +3,6 @@
 #include <cstring>
 #include <iostream>
 #include <algorithm>
-#include <ctime>
 
 namespace gba {
 
@@ -137,6 +136,10 @@ bool Cartridge::load(const uint8_t* data, size_t size, SystemType system_type) {
 
     m_save_data.resize(save_size, 0xFF);
 
+    // The size above is only the ROM-size heuristic's guess for EEPROM
+    // carts; allow the first EEPROM-bound DMA to correct it (gba-28).
+    m_eeprom_size_locked = false;
+
     // Detect RTC
     m_has_rtc = detect_rtc(data, size);
     if (m_has_rtc && is_debug_mode()) {
@@ -152,6 +155,13 @@ bool Cartridge::load(const uint8_t* data, size_t size, SystemType system_type) {
     m_rtc_bit_count = 0;
     m_rtc_byte_count = 0;
     m_rtc_last_sck = false;
+    // Deterministic default power-on time (2000-01-01 00:00:00 UTC), not
+    // the host's wall clock (gba-09). A game that sets the clock via a
+    // write command advances from there via advance_rtc(); nothing reads
+    // host time so two runs of the same ROM/input sequence read back
+    // identical RTC values regardless of host or real-world time.
+    m_rtc_epoch_seconds = 946684800;
+    m_rtc_cycle_accum = 0;
 
     m_crc32 = calculate_crc32(data, size);
     m_loaded = true;
@@ -217,9 +227,26 @@ uint8_t Cartridge::read_rom(uint32_t address) {
     if (address < m_rom.size()) {
         return m_rom[address];
     }
-    // Return open bus value for reads past ROM end
-    // (address / 2) & 0xFF for each byte
-    return (address >> 1) & 0xFF;
+    // Open bus past ROM end: the cart drives the halfword (address/2)&0xFFFF
+    // (GBATEK/mGBA); a byte read returns the addressed byte lane of it, so
+    // odd addresses see the high byte rather than a copy of the low one.
+    return static_cast<uint8_t>(((address >> 1) & 0xFFFF) >> ((address & 1) * 8));
+}
+
+uint16_t Cartridge::read_rom16(uint32_t address) {
+    // GPIO/RTC bytes are byte-special-cased inside read_rom(); leave those
+    // straddling reads exactly as they were (byte composition is correct
+    // there, it's only the past-end open-bus case that isn't).
+    bool gpio_region = m_has_rtc && address >= 0xC4 && address <= 0xC9;
+    if (!gpio_region && address + 1 >= m_rom.size()) {
+        // Past (or straddling) the end of ROM: hardware open bus is
+        // (address/2) & 0xFFFF for the whole halfword (GBATEK), e.g.
+        // 0x8000 at offset 0x10000 (gba-29). read_rom() returns the
+        // matching byte lane of this same halfword for 8-bit reads.
+        return static_cast<uint16_t>((address >> 1) & 0xFFFF);
+    }
+    return static_cast<uint16_t>(read_rom(address)) |
+           (static_cast<uint16_t>(read_rom(address + 1)) << 8);
 }
 
 void Cartridge::write_rom(uint32_t address, uint8_t value) {
@@ -239,7 +266,18 @@ void Cartridge::write_rom(uint32_t address, uint8_t value) {
                 bool old_sck = (old_data & GPIO_SCK) != 0;
                 bool new_sck = (value & GPIO_SCK) != 0;
 
-                if (!old_sck && new_sck) {
+                if (!(m_gpio_data & GPIO_CS)) {
+                    // CS low terminates any transfer in progress (GBATEK
+                    // S-3511A; mGBA resets its command state on the same
+                    // condition). Games drop CS with SCK held high, so no
+                    // rising SCK edge ever reaches rtc_clock_edge()'s own
+                    // CS check -- without this the "ignore further bits
+                    // until CS drops" bound in ReceiveData (gba-20) never
+                    // actually saw CS drop.
+                    m_rtc_state = RTCState::Idle;
+                    m_rtc_bit_count = 0;
+                    m_rtc_byte_count = 0;
+                } else if (!old_sck && new_sck) {
                     rtc_clock_edge();
                 }
                 break;
@@ -413,6 +451,7 @@ void Cartridge::reset_eeprom_state() {
     m_eeprom_bits_to_send = 0;
     m_eeprom_command = 0;
     m_eeprom_ready = true;
+    m_eeprom_write_busy_reads = 0;
 }
 
 uint8_t Cartridge::read_eeprom() {
@@ -440,8 +479,14 @@ uint8_t Cartridge::read_eeprom() {
             }
 
         case EEPROMState::WriteComplete:
-            // Polling for write completion - return 1 when ready
-            // In real hardware this takes ~6.5ms, but we complete instantly
+            // Polling for write completion. Real hardware takes ~6.5ms; a
+            // guest that polls in a tight loop expects to see busy (0) at
+            // least once before ready (gba-18), so require a few polls to
+            // observe busy before reporting ready and returning to Idle.
+            if (m_eeprom_write_busy_reads > 0) {
+                m_eeprom_write_busy_reads--;
+                return 0;  // Busy
+            }
             m_eeprom_ready = true;
             m_eeprom_state = EEPROMState::Idle;
             return 1;  // Ready
@@ -458,6 +503,17 @@ void Cartridge::write_eeprom(uint8_t value) {
 
     // Determine address bit width based on EEPROM size
     int addr_bits = (m_save_type == SaveType::EEPROM_8K) ? 14 : 6;
+
+    // The busy phase is modelled as a number of polls rather than the
+    // ~6.5ms it takes on hardware, so a game that waits out the write with
+    // a delay instead of polling must not have its next command swallowed:
+    // treat the start of a new command as the write having finished
+    // (mGBA's time-based settle likewise never blocks new commands).
+    if (m_eeprom_state == EEPROMState::WriteComplete) {
+        m_eeprom_write_busy_reads = 0;
+        m_eeprom_ready = true;
+        m_eeprom_state = EEPROMState::Idle;
+    }
 
     switch (m_eeprom_state) {
         case EEPROMState::Idle:
@@ -518,29 +574,87 @@ void Cartridge::write_eeprom(uint8_t value) {
             m_eeprom_bits_received++;
 
             if (m_eeprom_bits_received == 64) {
-                // Data complete, wait for stop bit
-                // The next write should be the stop bit (0)
-                m_eeprom_bits_received = 65;  // Mark that we're waiting for stop
-            } else if (m_eeprom_bits_received == 65) {
-                // This is the stop bit - perform the write
+                // Data complete; the next bit is the stop bit. Move to a
+                // dedicated state instead of continuing to count bits here
+                // (gba-18): the old '65'/'66' counter trick shifted the
+                // stop bit into m_eeprom_buffer and then never matched its
+                // own '== 65' check, so the write below was dead code and
+                // every EEPROM save silently failed to persist.
+                m_eeprom_state = EEPROMState::WaitStop;
+            }
+            break;
+
+        case EEPROMState::WaitStop:
+            // This bit is the stop bit -- commit the write regardless of
+            // its value (real hardware does the same) without touching
+            // m_eeprom_buffer, which already holds exactly 64 received
+            // bits.
+            {
                 uint32_t byte_addr = m_eeprom_address * 8;
                 for (int i = 0; i < 8 && (byte_addr + i) < m_save_data.size(); i++) {
                     int shift = (7 - i) * 8;
                     m_save_data[byte_addr + i] = (m_eeprom_buffer >> shift) & 0xFF;
                 }
                 m_eeprom_ready = false;
+                m_eeprom_write_busy_reads = 3;
                 m_eeprom_state = EEPROMState::WriteComplete;
             }
-            break;
-
-        case EEPROMState::WriteComplete:
-            // Ignore writes while write is in progress
             break;
 
         default:
             m_eeprom_state = EEPROMState::Idle;
             break;
     }
+}
+
+void Cartridge::latch_eeprom_size_from_dma(uint32_t dma_units) {
+    if (m_eeprom_size_locked) return;
+    if (m_save_type != SaveType::EEPROM_512 && m_save_type != SaveType::EEPROM_8K) return;
+
+    // GBATEK / mGBA: a game always sends EEPROM commands as a fixed-length
+    // DMA burst whose length reveals the address width it expects --
+    // 2 opcode bits + 6-or-14 address bits + (0 or 64 data bits) + 1 stop
+    // bit. This is the standard autodetect technique (no cart-side size
+    // register exists), and is far more reliable than guessing from total
+    // ROM size: 4-8MB titles with an 8KB EEPROM (e.g. Boktai, several mGBA
+    // save-type overrides) were getting the 512B/6-bit heuristic and
+    // corrupting every save.
+    SaveType detected;
+    switch (dma_units) {
+        case 9:   // READ: 2 + 6 + 1
+        case 73:  // WRITE: 2 + 6 + 64 + 1
+            detected = SaveType::EEPROM_512;
+            break;
+        case 17:  // READ: 2 + 14 + 1
+        case 81:  // WRITE: 2 + 14 + 64 + 1
+            detected = SaveType::EEPROM_8K;
+            break;
+        default:
+            // Not one of the standard command lengths (e.g. a partial or
+            // non-standard transfer) -- keep today's ROM-size guess and try
+            // again on the next EEPROM-bound DMA rather than locking onto
+            // something we're not sure of.
+            return;
+    }
+
+    set_eeprom_size(detected);
+    m_eeprom_size_locked = true;
+}
+
+// Switch an EEPROM cart between the 512B and 8KB variants, keeping the
+// overlapping prefix of the save data and padding any new space with 0xFF.
+void Cartridge::set_eeprom_size(SaveType type) {
+    if (type == m_save_type) return;
+    size_t new_size = (type == SaveType::EEPROM_8K) ? 8 * 1024 : 512;
+    std::vector<uint8_t> resized(new_size, 0xFF);
+    size_t keep = std::min(new_size, m_save_data.size());
+    std::copy(m_save_data.begin(), m_save_data.begin() + keep, resized.begin());
+    m_save_data = std::move(resized);
+    m_save_type = type;
+}
+
+bool Cartridge::is_eeprom() const {
+    return m_save_type == SaveType::EEPROM_512 || m_save_type == SaveType::EEPROM_8K;
 }
 
 uint8_t Cartridge::read_sram(uint32_t address) {
@@ -603,6 +717,16 @@ std::vector<uint8_t> Cartridge::get_save_data() const {
 
 bool Cartridge::set_save_data(const std::vector<uint8_t>& data) {
     if (!m_loaded) return false;
+    // The EEPROM size may have been corrected from the ROM-size guess by
+    // DMA-width detection in the session that wrote this file (gba-28), so
+    // an exactly-512B or exactly-8KB battery file tells us the real size.
+    // Adopt it before copying, otherwise an 8KB save for a <16MB ROM would
+    // be truncated to the 512B guess on every boot. Not locked: the game's
+    // first EEPROM DMA still has the final say.
+    if (is_eeprom() && !m_eeprom_size_locked) {
+        if (data.size() == 8 * 1024) set_eeprom_size(SaveType::EEPROM_8K);
+        else if (data.size() == 512) set_eeprom_size(SaveType::EEPROM_512);
+    }
     size_t copy_size = std::min(data.size(), m_save_data.size());
     std::memcpy(m_save_data.data(), data.data(), copy_size);
     return true;
@@ -682,38 +806,153 @@ void Cartridge::save_state(std::vector<uint8_t>& data) {
     data.push_back(static_cast<uint8_t>(m_eeprom_bits_to_send));
     data.push_back(m_eeprom_command);
     data.push_back(m_eeprom_ready ? 1 : 0);
+
+    // Save RTC/GPIO state (gba-09). Only for carts that actually have RTC
+    // hardware, so a non-RTC cart's state size (and the EEPROM-size
+    // recovery heuristic above, which assumes the cartridge block ends
+    // right after the EEPROM fields) is unchanged. No real cart combines
+    // EEPROM with RTC, so this never overlaps with the EEPROM size guard.
+    if (m_has_rtc) {
+        data.push_back(static_cast<uint8_t>(m_rtc_state));
+        data.push_back(m_rtc_command);
+        for (uint8_t b : m_rtc_data) data.push_back(b);
+        data.push_back(static_cast<uint8_t>(m_rtc_bit_count));
+        data.push_back(static_cast<uint8_t>(m_rtc_byte_count));
+        data.push_back(m_rtc_serial_data);
+        for (int i = 0; i < 8; i++) {
+            data.push_back(static_cast<uint8_t>((m_rtc_epoch_seconds >> (i * 8)) & 0xFF));
+        }
+        for (int i = 0; i < 4; i++) {
+            data.push_back(static_cast<uint8_t>((m_rtc_cycle_accum >> (i * 8)) & 0xFF));
+        }
+        data.push_back(m_gpio_data);
+        data.push_back(m_gpio_direction);
+        data.push_back(m_gpio_control);
+    }
 }
 
-void Cartridge::load_state(const uint8_t*& data, size_t& remaining) {
+bool Cartridge::load_state(const uint8_t*& data, size_t& remaining) {
+    // EEPROM carts can change save size at runtime (gba-28: 512B <-> 8KB
+    // from the DMA command width), and save_state() writes m_save_data at
+    // whatever size it had then, with no length prefix. The cartridge block
+    // is the last one in the state stream and is exactly
+    // save_data + 3 (Flash) [+ 15 (EEPROM)] bytes, so recover the size the
+    // state was saved with from what is left instead of assuming the
+    // current one (which would misalign every following field).
+    if (is_eeprom()) {
+        for (size_t n : {size_t(512), size_t(8 * 1024)}) {
+            if (remaining == n + 3 + 15 || remaining == n + 3) {
+                set_eeprom_size(n == 512 ? SaveType::EEPROM_512 : SaveType::EEPROM_8K);
+                // Let the next EEPROM DMA re-confirm (idempotent if right).
+                m_eeprom_size_locked = false;
+                break;
+            }
+        }
+    }
+
     // Load save_data
-    std::memcpy(m_save_data.data(), data, m_save_data.size());
-    data += m_save_data.size();
-    remaining -= m_save_data.size();
+    if (!state_read_bytes(data, remaining, m_save_data.data(), m_save_data.size())) return false;
 
     // Load Flash state
-    m_flash_state = static_cast<FlashState>(data[0]);
-    m_flash_bank = data[1];
-    m_flash_id_mode = data[2] != 0;
-    data += 3;
-    remaining -= 3;
+    uint8_t flash_state_raw = 0, flash_id_mode_raw = 0;
+    if (!state_read_u8(data, remaining, flash_state_raw)) return false;
+    if (!state_read_u8(data, remaining, m_flash_bank)) return false;
+    if (!state_read_u8(data, remaining, flash_id_mode_raw)) return false;
+    // Range-check: a corrupted/bit-flipped byte here must not become an
+    // enum value with no matching case anywhere the state machine switches
+    // on it.
+    m_flash_state = (flash_state_raw <= static_cast<uint8_t>(FlashState::ChipID))
+        ? static_cast<FlashState>(flash_state_raw)
+        : FlashState::Ready;
+    m_flash_id_mode = flash_id_mode_raw != 0;
 
-    // Load EEPROM state (if present - backwards compatibility)
-    if (remaining >= 14) {
-        m_eeprom_state = static_cast<EEPROMState>(data[0]);
-        m_eeprom_address = data[1] | (data[2] << 8);
+    // Load EEPROM state (if present - backwards compatibility). The stored
+    // block is 15 bytes (1 state + 2 address + 8 buffer + 1 bits_received +
+    // 1 bits_to_send + 1 command + 1 ready), so the guard must require 15,
+    // not 14 -- the original off-by-one let the ready byte (data[14]) be
+    // read one past a buffer that only guaranteed 14 bytes were present.
+    if (remaining >= 15) {
+        uint8_t eeprom_state_raw = 0, addr_lo = 0, addr_hi = 0, ready_raw = 0;
+        uint8_t buf[8];
+        if (!state_read_u8(data, remaining, eeprom_state_raw)) return false;
+        if (!state_read_u8(data, remaining, addr_lo)) return false;
+        if (!state_read_u8(data, remaining, addr_hi)) return false;
+        if (!state_read_bytes(data, remaining, buf, sizeof(buf))) return false;
+        if (!state_read_u8(data, remaining, m_eeprom_bits_received)) return false;
+        if (!state_read_u8(data, remaining, m_eeprom_bits_to_send)) return false;
+        if (!state_read_u8(data, remaining, m_eeprom_command)) return false;
+        if (!state_read_u8(data, remaining, ready_raw)) return false;
+
+        m_eeprom_state = (eeprom_state_raw <= static_cast<uint8_t>(EEPROMState::WaitStop))
+            ? static_cast<EEPROMState>(eeprom_state_raw)
+            : EEPROMState::Idle;
+        // The busy-poll countdown is not part of the (size-sensitive)
+        // serialized block; restoring into WriteComplete reports ready on
+        // the next poll, identically on every load.
+        m_eeprom_write_busy_reads = 0;
+        m_eeprom_address = static_cast<uint16_t>(addr_lo | (addr_hi << 8));
         m_eeprom_buffer = 0;
         for (int i = 0; i < 8; i++) {
-            m_eeprom_buffer |= static_cast<uint64_t>(data[3 + i]) << (i * 8);
+            m_eeprom_buffer |= static_cast<uint64_t>(buf[i]) << (i * 8);
         }
-        m_eeprom_bits_received = data[11];
-        m_eeprom_bits_to_send = data[12];
-        m_eeprom_command = data[13];
-        m_eeprom_ready = data[14] != 0;
-        data += 15;
-        remaining -= 15;
+        m_eeprom_ready = ready_raw != 0;
     } else {
         reset_eeprom_state();
     }
+
+    // Load RTC/GPIO state (gba-09), if this cart has RTC hardware and the
+    // block is actually present (backwards compatibility with states saved
+    // before this fix, or by a build without this fix): 28 bytes (1 state
+    // + 1 command + 8 data + 1 bit_count + 1 byte_count + 1 serial_data +
+    // 8 epoch_seconds + 4 cycle_accum + 3 GPIO).
+    if (m_has_rtc && remaining >= 28) {
+        uint8_t rtc_state_raw = 0;
+        uint8_t data8[8];
+        uint8_t bit_count_raw = 0, byte_count_raw = 0;
+        if (!state_read_u8(data, remaining, rtc_state_raw)) return false;
+        if (!state_read_u8(data, remaining, m_rtc_command)) return false;
+        if (!state_read_bytes(data, remaining, data8, sizeof(data8))) return false;
+        if (!state_read_u8(data, remaining, bit_count_raw)) return false;
+        if (!state_read_u8(data, remaining, byte_count_raw)) return false;
+        if (!state_read_u8(data, remaining, m_rtc_serial_data)) return false;
+        uint8_t epoch_bytes[8];
+        if (!state_read_bytes(data, remaining, epoch_bytes, sizeof(epoch_bytes))) return false;
+        uint8_t accum_bytes[4];
+        if (!state_read_bytes(data, remaining, accum_bytes, sizeof(accum_bytes))) return false;
+        if (!state_read_u8(data, remaining, m_gpio_data)) return false;
+        if (!state_read_u8(data, remaining, m_gpio_direction)) return false;
+        if (!state_read_u8(data, remaining, m_gpio_control)) return false;
+
+        // Range-check the enum the same way FlashState/EEPROMState are above.
+        m_rtc_state = (rtc_state_raw <= static_cast<uint8_t>(RTCState::SendData))
+            ? static_cast<RTCState>(rtc_state_raw)
+            : RTCState::Idle;
+        std::memcpy(m_rtc_data, data8, sizeof(m_rtc_data));
+        m_rtc_bit_count = bit_count_raw;
+        m_rtc_byte_count = byte_count_raw;
+        m_rtc_epoch_seconds = 0;
+        for (int i = 0; i < 8; i++) {
+            m_rtc_epoch_seconds |= static_cast<uint64_t>(epoch_bytes[i]) << (i * 8);
+        }
+        m_rtc_cycle_accum = 0;
+        for (int i = 0; i < 4; i++) {
+            m_rtc_cycle_accum |= static_cast<uint32_t>(accum_bytes[i]) << (i * 8);
+        }
+    } else if (m_has_rtc) {
+        m_rtc_state = RTCState::Idle;
+        m_rtc_command = 0;
+        std::memset(m_rtc_data, 0, sizeof(m_rtc_data));
+        m_rtc_bit_count = 0;
+        m_rtc_byte_count = 0;
+        m_rtc_serial_data = 0;
+        m_rtc_epoch_seconds = 946684800;
+        m_rtc_cycle_accum = 0;
+        m_gpio_data = 0;
+        m_gpio_direction = 0;
+        m_gpio_control = 0;
+    }
+
+    return true;
 }
 
 // RTC helper: convert BCD to binary
@@ -721,7 +960,124 @@ static uint8_t bcd(int value) {
     return static_cast<uint8_t>(((value / 10) << 4) | (value % 10));
 }
 
+// RTC helper: convert BCD to binary (inverse of bcd() above).
+static int unbcd(uint8_t value) {
+    return ((value >> 4) & 0xF) * 10 + (value & 0xF);
+}
+
+// Portable UTC calendar <-> epoch-seconds conversion for the emulated RTC
+// clock. timegm() is a POSIX/BSD extension that MSVC does not provide, and
+// gmtime() returns a shared static (or null) -- neither is needed for a
+// proleptic-Gregorian day count (H. Hinnant's days_from_civil /
+// civil_from_days). Also used to derive the weekday (1970-01-01 = Thursday).
+struct RtcCivil { int year, month, day, wday, hour, min, sec; };
+
+static int64_t rtc_days_from_civil(int64_t y, int m, int d) {
+    y -= m <= 2;
+    const int64_t era = (y >= 0 ? y : y - 399) / 400;
+    const int64_t yoe = y - era * 400;
+    const int64_t doy = (153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + d - 1;
+    const int64_t doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    return era * 146097 + doe - 719468;
+}
+
+static RtcCivil rtc_civil_from_epoch(uint64_t epoch) {
+    int64_t days = static_cast<int64_t>(epoch / 86400);
+    int64_t rem = static_cast<int64_t>(epoch % 86400);
+    RtcCivil c{};
+    c.hour = static_cast<int>(rem / 3600);
+    c.min = static_cast<int>((rem % 3600) / 60);
+    c.sec = static_cast<int>(rem % 60);
+    c.wday = static_cast<int>((days + 4) % 7);  // 0 = Sunday
+    int64_t z = days + 719468;
+    const int64_t era = (z >= 0 ? z : z - 146096) / 146097;
+    const int64_t doe = z - era * 146097;
+    const int64_t yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    const int64_t doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    const int64_t mp = (5 * doy + 2) / 153;
+    c.day = static_cast<int>(doy - (153 * mp + 2) / 5 + 1);
+    c.month = static_cast<int>(mp < 10 ? mp + 3 : mp - 9);
+    c.year = static_cast<int>(yoe + era * 400 + (c.month <= 2));
+    return c;
+}
+
+// Returns false for fields outside the ranges the S-3511A accepts, so a
+// malformed write leaves the clock unchanged instead of normalising into
+// an unrelated date.
+static bool rtc_epoch_from_civil(int year, int month, int day, int hour, int min, int sec,
+                                 uint64_t& out) {
+    if (month < 1 || month > 12 || day < 1 || day > 31 ||
+        hour < 0 || hour > 23 || min < 0 || min > 59 || sec < 0 || sec > 59) {
+        return false;
+    }
+    int64_t days = rtc_days_from_civil(year, month, day);
+    if (days < 0) return false;
+    out = static_cast<uint64_t>(days) * 86400 + static_cast<uint64_t>(hour) * 3600 +
+          static_cast<uint64_t>(min) * 60 + static_cast<uint64_t>(sec);
+    return true;
+}
+
+// S-3511A write-command payload length, keyed the same way the read side
+// already is below (rtc_process_command): date/time = 7 bytes, time-only =
+// 3, either status register = 1, reset = 0. A write command this cartridge
+// emulation doesn't otherwise recognise gets the full 8-byte buffer so nothing
+// is silently truncated, but is still hard-bounded to sizeof(m_rtc_data) by
+// the caller (gba-20).
+static int rtc_write_payload_length(uint8_t command) {
+    switch (command & 0x0F) {
+        case 0x1: return 0;  // Reset
+        case 0x3: return 1;  // Status register 1
+        case 0x9: return 1;  // Status register 2
+        case 0x5: return 7;  // Date/time
+        case 0x7: return 3;  // Time only
+        default:  return 8;  // Unknown: accept up to the buffer, still bounded
+    }
+}
+
 // Get current bit to output from RTC
+// Commits a fully-received RTC write command (m_rtc_data[0..N-1]) into the
+// emulated clock (gba-09). Mirrors rtc_process_command's command table:
+// only the two commands that actually carry clock fields do anything here.
+void Cartridge::rtc_apply_write() {
+    switch (m_rtc_command & 0x0F) {
+        case 0x5: {
+            // Date/time (7 bytes: year, month, day, weekday, hour, min, sec).
+            // The weekday byte is derived from the date on read, as on the
+            // emulated clock there is no separate weekday counter.
+            uint64_t epoch = 0;
+            if (rtc_epoch_from_civil(2000 + unbcd(m_rtc_data[0]), unbcd(m_rtc_data[1]),
+                                     unbcd(m_rtc_data[2]), unbcd(m_rtc_data[4] & 0x3F),
+                                     unbcd(m_rtc_data[5]), unbcd(m_rtc_data[6]), epoch)) {
+                m_rtc_epoch_seconds = epoch;
+                m_rtc_cycle_accum = 0;
+            }
+            break;
+        }
+        case 0x7: {
+            // Time only (3 bytes: hour, min, sec) -- keep the current date.
+            RtcCivil c = rtc_civil_from_epoch(m_rtc_epoch_seconds);
+            uint64_t epoch = 0;
+            if (rtc_epoch_from_civil(c.year, c.month, c.day, unbcd(m_rtc_data[0] & 0x3F),
+                                     unbcd(m_rtc_data[1]), unbcd(m_rtc_data[2]), epoch)) {
+                m_rtc_epoch_seconds = epoch;
+                m_rtc_cycle_accum = 0;
+            }
+            break;
+        }
+        default:
+            // Status register / reset writes don't carry clock fields.
+            break;
+    }
+}
+
+void Cartridge::advance_rtc(uint32_t cycles) {
+    m_rtc_cycle_accum += cycles;
+    while (m_rtc_cycle_accum >= RTC_CYCLES_PER_SECOND) {
+        m_rtc_cycle_accum -= RTC_CYCLES_PER_SECOND;
+        m_rtc_epoch_seconds++;
+    }
+}
+
 uint8_t Cartridge::rtc_get_output() {
     if (m_rtc_state == RTCState::SendData && m_rtc_byte_count < 7) {
         // Return current bit of serial data
@@ -774,6 +1130,20 @@ void Cartridge::rtc_clock_edge() {
                     m_rtc_state = RTCState::ReceiveData;
                     m_rtc_bit_count = 0;
                     m_rtc_byte_count = 0;
+                    // Bits are OR-ed in below, and only bytes 1.. are
+                    // cleared as they start; byte 0 still held the previous
+                    // read's reply, which rtc_apply_write() would then
+                    // commit (e.g. a time-only write after a date read
+                    // turned hour 12 into 0x12|0x24 = 36).
+                    std::memset(m_rtc_data, 0, sizeof(m_rtc_data));
+                    // A command with a 0-byte payload (e.g. reset) has
+                    // nothing left to receive: apply it and go straight
+                    // back to Idle rather than sitting in ReceiveData
+                    // with no bit ever able to complete a byte (gba-09).
+                    if (rtc_write_payload_length(m_rtc_command) <= 0) {
+                        rtc_apply_write();
+                        m_rtc_state = RTCState::Idle;
+                    }
                 } else {
                     // Invalid command
                     m_rtc_state = RTCState::Idle;
@@ -781,8 +1151,20 @@ void Cartridge::rtc_clock_edge() {
             }
             break;
 
-        case RTCState::ReceiveData:
-            // Receive data to write
+        case RTCState::ReceiveData: {
+            // Receive data to write, bounded to this command's S-3511A
+            // payload length (and, as defence in depth, to the fixed
+            // 8-byte m_rtc_data buffer either way). Without this bound a
+            // guest clocking more than 64 bits with CS held walked
+            // m_rtc_byte_count past 7 and indexed off the end of
+            // m_rtc_data on every following clock edge (gba-20).
+            int expected = rtc_write_payload_length(m_rtc_command);
+            if (expected > 8) expected = 8;
+            if (m_rtc_byte_count >= expected) {
+                // Payload already fully received; ignore further bits
+                // until CS drops and resets the state machine.
+                break;
+            }
             if (sio_in) {
                 m_rtc_data[m_rtc_byte_count] |= (1 << m_rtc_bit_count);
             }
@@ -791,11 +1173,25 @@ void Cartridge::rtc_clock_edge() {
             if (m_rtc_bit_count >= 8) {
                 m_rtc_bit_count = 0;
                 m_rtc_byte_count++;
-                if (m_rtc_byte_count < 8) {
+                if (m_rtc_byte_count < expected) {
                     m_rtc_data[m_rtc_byte_count] = 0;
+                } else if (m_rtc_byte_count == expected) {
+                    // Full payload received: apply it to the emulated
+                    // clock (gba-09) now, rather than leaving m_rtc_data
+                    // as a write nothing ever reads, and return to Idle so
+                    // the next command byte is recognised as one. Without
+                    // this the state machine stayed in ReceiveData forever
+                    // once a payload completed -- with gba-20's bound
+                    // above, every following clock edge (including a
+                    // whole new command) was then silently swallowed by
+                    // the "already full" guard, permanently wedging the
+                    // RTC for the rest of the session.
+                    rtc_apply_write();
+                    m_rtc_state = RTCState::Idle;
                 }
             }
             break;
+        }
 
         case RTCState::SendData:
             // Advance to next bit
@@ -827,28 +1223,32 @@ void Cartridge::rtc_process_command() {
 
     switch (m_rtc_command) {
         case 0x65: {
-            // Read date/time - return current system time in BCD format
-            time_t now = time(nullptr);
-            struct tm* t = localtime(&now);
+            // Read date/time - return the emulated RTC clock in BCD format.
+            // Derived from m_rtc_epoch_seconds (advanced from emulated CPU
+            // cycles by advance_rtc(), not the host's wall clock) as a
+            // plain UTC calendar, not localtime: the GBA's RTC has no timezone or DST
+            // concept, and reading the host's local time made every read
+            // both nondeterministic across hosts/replays and dependent on
+            // the host's timezone setting (gba-09).
+            RtcCivil t = rtc_civil_from_epoch(m_rtc_epoch_seconds);
 
-            m_rtc_data[0] = bcd(t->tm_year % 100);  // Year (00-99)
-            m_rtc_data[1] = bcd(t->tm_mon + 1);      // Month (1-12)
-            m_rtc_data[2] = bcd(t->tm_mday);          // Day (1-31)
-            m_rtc_data[3] = bcd(t->tm_wday);          // Day of week (0-6)
-            m_rtc_data[4] = bcd(t->tm_hour);          // Hour (0-23)
-            m_rtc_data[5] = bcd(t->tm_min);           // Minute (0-59)
-            m_rtc_data[6] = bcd(t->tm_sec);           // Second (0-59)
+            m_rtc_data[0] = bcd(t.year % 100);  // Year (00-99)
+            m_rtc_data[1] = bcd(t.month);       // Month (1-12)
+            m_rtc_data[2] = bcd(t.day);         // Day (1-31)
+            m_rtc_data[3] = bcd(t.wday);        // Day of week (0-6)
+            m_rtc_data[4] = bcd(t.hour);        // Hour (0-23)
+            m_rtc_data[5] = bcd(t.min);         // Minute (0-59)
+            m_rtc_data[6] = bcd(t.sec);         // Second (0-59)
             break;
         }
 
         case 0x67: {
-            // Read time only (3 bytes)
-            time_t now = time(nullptr);
-            struct tm* t = localtime(&now);
+            // Read time only (3 bytes) - see 0x65 above.
+            RtcCivil t = rtc_civil_from_epoch(m_rtc_epoch_seconds);
 
-            m_rtc_data[0] = bcd(t->tm_hour);
-            m_rtc_data[1] = bcd(t->tm_min);
-            m_rtc_data[2] = bcd(t->tm_sec);
+            m_rtc_data[0] = bcd(t.hour);
+            m_rtc_data[1] = bcd(t.min);
+            m_rtc_data[2] = bcd(t.sec);
             break;
         }
 

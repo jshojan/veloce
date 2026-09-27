@@ -266,6 +266,31 @@ void ARM7TDMI::write32(uint32_t address, uint32_t value) {
     m_bus.write32_unaligned(address, value);
 }
 
+uint32_t ARM7TDMI::load_word_rotated(uint32_t address) {
+    uint32_t value = read32(address);
+    if (address & 3) {
+        value = ror(value, (address & 3) * 8);
+    }
+    return value;
+}
+
+uint32_t ARM7TDMI::load_half_rotated(uint32_t address) {
+    uint32_t value = read16(address);
+    if (address & 1) {
+        value = ror(value, 8);
+    }
+    return value;
+}
+
+uint32_t ARM7TDMI::load_signed_half(uint32_t address) {
+    // A misaligned LDRSH reads the single byte at the odd address and
+    // sign-extends it from bit 7, rather than the halfword at address-1.
+    if (address & 1) {
+        return static_cast<uint32_t>(sign_extend_8(read8(address)));
+    }
+    return static_cast<uint32_t>(sign_extend_16(read16(address)));
+}
+
 uint32_t ARM7TDMI::fetch_arm() {
     uint32_t pc = m_regs[15];
     uint32_t instruction = read32(pc);
@@ -848,9 +873,20 @@ int ARM7TDMI::arm_data_processing(uint32_t instruction) {
         // Note: no pipeline flush for these cases as PC is not modified
     }
 
-    // Update flags
+    // Update flags. Logical operations (AND/EOR/TST/TEQ/ORR/MOV/BIC/MVN) only
+    // affect N, Z and C (from the shifter carry-out) - the V flag is left
+    // untouched, per ARM7TDMI/GBATEK. Arithmetic ops (SUB/RSB/ADD/ADC/SBC/
+    // RSC/CMP/CMN) do set V from the actual overflow computed above.
     if (set_flags && rd != 15) {
-        set_nzcv_flags(result, carry_out, overflow);
+        switch (opcode) {
+            case 0x0: case 0x1: case 0x8: case 0x9:  // AND/EOR/TST/TEQ
+            case 0xC: case 0xD: case 0xE: case 0xF:  // ORR/MOV/BIC/MVN
+                set_nzc_flags(result, carry_out);
+                break;
+            default:  // SUB/RSB/ADD/ADC/SBC/RSC/CMP/CMN
+                set_nzcv_flags(result, carry_out, overflow);
+                break;
+        }
     }
 
     return (rd == 15 && write_result) ? 3 : 1;
@@ -961,11 +997,7 @@ int ARM7TDMI::arm_single_data_transfer(uint32_t instruction) {
         if (byte) {
             m_regs[rd] = read8(addr);
         } else {
-            m_regs[rd] = read32(addr);
-            // Handle misaligned loads
-            if (addr & 3) {
-                m_regs[rd] = ror(m_regs[rd], (addr & 3) * 8);
-            }
+            m_regs[rd] = load_word_rotated(addr);
         }
         if (rd == 15) {
             flush_pipeline();
@@ -1031,22 +1063,13 @@ int ARM7TDMI::arm_halfword_data_transfer(uint32_t instruction) {
     if (load) {
         switch (op) {
             case 1:  // LDRH - unsigned halfword
-                m_regs[rd] = read16(addr);
-                // Misaligned halfword load rotates the value by 8 bits
-                if (addr & 1) {
-                    m_regs[rd] = ror(m_regs[rd], 8);
-                }
+                m_regs[rd] = load_half_rotated(addr);
                 break;
             case 2:  // LDRSB - signed byte
                 m_regs[rd] = static_cast<uint32_t>(sign_extend_8(read8(addr)));
                 break;
             case 3:  // LDRSH - signed halfword
-                // Misaligned LDRSH reads a byte and sign-extends it
-                if (addr & 1) {
-                    m_regs[rd] = static_cast<uint32_t>(sign_extend_8(read8(addr)));
-                } else {
-                    m_regs[rd] = static_cast<uint32_t>(sign_extend_16(read16(addr)));
-                }
+                m_regs[rd] = load_signed_half(addr);
                 break;
         }
     } else {
@@ -1253,11 +1276,7 @@ int ARM7TDMI::arm_swap(uint32_t instruction) {
         write8(addr, static_cast<uint8_t>(m_regs[rm]));
         m_regs[rd] = temp;
     } else {
-        uint32_t temp = read32(addr);
-        // Handle misaligned word swap - rotate like LDR
-        if (addr & 3) {
-            temp = ror(temp, (addr & 3) * 8);
-        }
+        uint32_t temp = load_word_rotated(addr);
         write32(addr, m_regs[rm]);
         m_regs[rd] = temp;
     }
@@ -1467,7 +1486,9 @@ int ARM7TDMI::thumb_immediate(uint16_t instruction) {
     switch (op) {
         case 0:  // MOV
             result = imm;
-            break;
+            m_regs[rd] = result;
+            set_nz_flags(result);  // C, V unchanged (no shift/add, so no carry-out)
+            return 1;
         case 1:  // CMP
             result = value - imm;
             carry = value >= imm;
@@ -1623,7 +1644,23 @@ int ARM7TDMI::thumb_alu(uint16_t instruction) {
     }
 
     m_regs[rd] = result;
-    set_nzcv_flags(result, carry, overflow);
+    // Logical/shift ops (AND/EOR/LSL/LSR/ASR/ROR/ORR/BIC/MVN) only set N,Z,C
+    // (C from the shift's carry-out where applicable) and leave V unchanged.
+    // MUL's C is architecturally unpredictable on ARMv4; we leave it alone
+    // too and only update N,Z. ADC/SBC/NEG are arithmetic and do set V.
+    switch (op) {
+        case 0x0: case 0x1: case 0x2: case 0x3:  // AND/EOR/LSL/LSR
+        case 0x4: case 0x7:                       // ASR/ROR
+        case 0xC: case 0xE: case 0xF:             // ORR/BIC/MVN
+            set_nzc_flags(result, carry);
+            break;
+        case 0xD:  // MUL
+            set_nz_flags(result);
+            break;
+        default:  // ADC/SBC/NEG
+            set_nzcv_flags(result, carry, overflow);
+            break;
+    }
     // Thumb MUL timing: m cycles based on Rs significant bits
     return (op == 0xD) ? multiply_cycles(b) : 1;
 }
@@ -1635,9 +1672,16 @@ int ARM7TDMI::thumb_hi_reg_bx(uint16_t instruction) {
     uint16_t rs = ((instruction >> 3) & 7) | (h2 ? 8 : 0);
     uint16_t rd = (instruction & 7) | (h1 ? 8 : 0);
 
+    // R15 read as an operand yields the instruction address + 4 (prefetch).
+    // After fetch_thumb() m_regs[15] holds instruction + 2, so compensate
+    // here exactly like thumb_pc_relative_load/thumb_load_address do.
+    auto read_operand = [this](uint16_t r) -> uint32_t {
+        return (r == 15) ? m_regs[15] + 2 : m_regs[r];
+    };
+
     switch (op) {
         case 0:  // ADD
-            m_regs[rd] = m_regs[rd] + m_regs[rs];
+            m_regs[rd] = read_operand(rd) + read_operand(rs);
             if (rd == 15) {
                 m_regs[15] &= ~1u;
                 flush_pipeline();
@@ -1645,8 +1689,8 @@ int ARM7TDMI::thumb_hi_reg_bx(uint16_t instruction) {
             break;
         case 1:  // CMP
             {
-                uint32_t a = m_regs[rd];
-                uint32_t b = m_regs[rs];
+                uint32_t a = read_operand(rd);
+                uint32_t b = read_operand(rs);
                 uint32_t result = a - b;
                 bool carry = a >= b;
                 bool overflow = ((a ^ b) & (a ^ result)) >> 31;
@@ -1654,7 +1698,7 @@ int ARM7TDMI::thumb_hi_reg_bx(uint16_t instruction) {
             }
             break;
         case 2:  // MOV
-            m_regs[rd] = m_regs[rs];
+            m_regs[rd] = read_operand(rs);
             if (rd == 15) {
                 m_regs[15] &= ~1u;
                 flush_pipeline();
@@ -1662,7 +1706,7 @@ int ARM7TDMI::thumb_hi_reg_bx(uint16_t instruction) {
             break;
         case 3:  // BX
             {
-                uint32_t addr = m_regs[rs];
+                uint32_t addr = read_operand(rs);
                 if (addr & 1) {
                     m_cpsr |= FLAG_T;  // Switch to Thumb mode
                     m_regs[15] = addr & ~1u;
@@ -1690,8 +1734,7 @@ int ARM7TDMI::thumb_pc_relative_load(uint16_t instruction) {
     // Calculate memory access timing
     int mem_cycles = data_access_cycles(addr, 32, false);
 
-    uint32_t value = read32(addr);
-    m_regs[rd] = value;
+    m_regs[rd] = load_word_rotated(addr);
 
     return 1 + mem_cycles;
 }
@@ -1713,7 +1756,7 @@ int ARM7TDMI::thumb_load_store_reg(uint16_t instruction) {
         if (byte) {
             m_regs[rd] = read8(addr);
         } else {
-            m_regs[rd] = read32(addr);
+            m_regs[rd] = load_word_rotated(addr);
         }
     } else {
         if (byte) {
@@ -1749,10 +1792,10 @@ int ARM7TDMI::thumb_load_store_sign(uint16_t instruction) {
             m_regs[rd] = static_cast<uint32_t>(sign_extend_8(read8(addr)));
             break;
         case 2:  // LDRH
-            m_regs[rd] = read16(addr);
+            m_regs[rd] = load_half_rotated(addr);
             break;
         case 3:  // LDSH
-            m_regs[rd] = static_cast<uint32_t>(sign_extend_16(read16(addr)));
+            m_regs[rd] = load_signed_half(addr);
             break;
     }
 
@@ -1776,7 +1819,7 @@ int ARM7TDMI::thumb_load_store_imm(uint16_t instruction) {
         if (byte) {
             m_regs[rd] = read8(addr);
         } else {
-            m_regs[rd] = read32(addr);
+            m_regs[rd] = load_word_rotated(addr);
         }
     } else {
         if (byte) {
@@ -1801,7 +1844,7 @@ int ARM7TDMI::thumb_load_store_half(uint16_t instruction) {
     int mem_cycles = data_access_cycles(addr, 16, !load);
 
     if (load) {
-        m_regs[rd] = read16(addr);
+        m_regs[rd] = load_half_rotated(addr);
     } else {
         write16(addr, static_cast<uint16_t>(m_regs[rd]));
     }
@@ -1820,7 +1863,7 @@ int ARM7TDMI::thumb_sp_relative_load_store(uint16_t instruction) {
     int mem_cycles = data_access_cycles(addr, 32, !load);
 
     if (load) {
-        m_regs[rd] = read32(addr);
+        m_regs[rd] = load_word_rotated(addr);
     } else {
         write32(addr, m_regs[rd]);
     }
@@ -1864,6 +1907,30 @@ int ARM7TDMI::thumb_push_pop(uint16_t instruction) {
 
     int reg_count = popcount_u32(reg_list) + (pc_lr ? 1 : 0);
 
+    if (reg_count == 0) {
+        // Undocumented ARM7TDMI hardware quirk (mirrors arm_block_data_transfer's
+        // empty-Rlist case): PUSH/POP with an empty register list and no LR/PC
+        // bit still transfers R15, using the address that would apply if all
+        // 16 words were transferred, and adjusts SP by 0x40 (64 bytes).
+        if (load) {
+            // POP {}: PC = [SP] (word aligned, triggers a pipeline flush), SP += 0x40.
+            uint32_t addr = m_regs[13];
+            m_regs[15] = read32(addr) & ~1u;
+            m_regs[13] = addr + 0x40;
+            flush_pipeline();
+        } else {
+            // PUSH {}: SP -= 0x40, [SP] = PC. The stored value follows the
+            // Thumb STM-of-R15 quirk: instruction_address + 6 (m_regs[15] is
+            // instruction_address + 2 right after fetch, so +4 more).
+            uint32_t addr = m_regs[13] - 0x40;
+            write32(addr, m_regs[15] + 4);
+            m_regs[13] = addr;
+        }
+        // Cycle cost mirrors the existing empty-Rlist convention used by
+        // thumb_multiple_load_store: treated as a single-register transfer.
+        return load ? 3 : 2;
+    }
+
     if (load) {
         // POP
         uint32_t addr = m_regs[13];
@@ -1904,7 +1971,20 @@ int ARM7TDMI::thumb_multiple_load_store(uint16_t instruction) {
     uint8_t reg_list = instruction & 0xFF;
 
     int reg_count = popcount_u32(reg_list);
-    if (reg_count == 0) reg_count = 1;  // Empty list behaves specially
+
+    if (reg_count == 0) {
+        // Same undocumented empty-Rlist quirk as thumb_push_pop / the ARM
+        // block data transfer path: transfer R15 only, base += 0x40.
+        uint32_t base = m_regs[rb];
+        if (load) {
+            m_regs[15] = read32(base) & ~1u;
+            flush_pipeline();
+        } else {
+            write32(base, m_regs[15] + 4);
+        }
+        m_regs[rb] = base + 0x40;
+        return load ? 3 : 2;
+    }
 
     uint32_t addr = m_regs[rb];
 
@@ -2135,6 +2215,10 @@ void ARM7TDMI::bank_registers(ProcessorMode old_mode, ProcessorMode new_mode) {
             break;
         case ProcessorMode::User:
         case ProcessorMode::System:
+        default:
+            // Undefined mode-bit patterns (bit 4 forced set by set_cpsr, but
+            // bits[3:0] not one of the seven architectural modes) alias to
+            // the User/System bank, matching mGBA's fallback behaviour.
             m_usr_sp_lr[0] = m_regs[13];
             m_usr_sp_lr[1] = m_regs[14];
             break;
@@ -2164,6 +2248,8 @@ void ARM7TDMI::bank_registers(ProcessorMode old_mode, ProcessorMode new_mode) {
             break;
         case ProcessorMode::User:
         case ProcessorMode::System:
+        default:
+            // See the matching default: case above.
             m_regs[13] = m_usr_sp_lr[0];
             m_regs[14] = m_usr_sp_lr[1];
             break;
@@ -2171,38 +2257,38 @@ void ARM7TDMI::bank_registers(ProcessorMode old_mode, ProcessorMode new_mode) {
 }
 
 void ARM7TDMI::set_cpsr(uint32_t value) {
-    ProcessorMode new_mode = static_cast<ProcessorMode>(value & 0x1F);
+    // Hardware quirk: the mode field's bit 4 is always forced set, even if
+    // software writes it clear (e.g. MSR CPSR_c, #0x03 behaves as mode
+    // 0x13/Supervisor, not a rejected write). Only the mode bits are
+    // corrected; the rest of the value (flags, I/F/T) is stored verbatim.
+    // Reference: alyosha-tas psr.gba t001 (hardware-validated) writes mode
+    // 0x03 and expects CPSR to read back mode 0x13.
+    uint32_t effective_mode_bits = (value & 0x1F) | 0x10;
+    ProcessorMode new_mode = static_cast<ProcessorMode>(effective_mode_bits);
 
-    // Validate mode - ARM7TDMI only has specific valid modes
-    bool valid_mode = (new_mode == ProcessorMode::User ||
-                       new_mode == ProcessorMode::FIQ ||
-                       new_mode == ProcessorMode::IRQ ||
-                       new_mode == ProcessorMode::Supervisor ||
-                       new_mode == ProcessorMode::Abort ||
-                       new_mode == ProcessorMode::Undefined ||
-                       new_mode == ProcessorMode::System);
-
-    if (!valid_mode) {
-        GBA_DEBUG_PRINT("=== INVALID CPSR MODE ===\n");
-        GBA_DEBUG_PRINT("  Attempting to set CPSR=0x%08X (mode=0x%02X)\n", value, value & 0x1F);
-        GBA_DEBUG_PRINT("  Current PC=0x%08X, CPSR=0x%08X, mode=%s\n",
-                        m_regs[15], m_cpsr,
-                        m_mode == ProcessorMode::System ? "System" :
-                        m_mode == ProcessorMode::User ? "User" :
-                        m_mode == ProcessorMode::IRQ ? "IRQ" :
-                        m_mode == ProcessorMode::FIQ ? "FIQ" :
-                        m_mode == ProcessorMode::Supervisor ? "SVC" :
-                        m_mode == ProcessorMode::Abort ? "ABT" :
-                        m_mode == ProcessorMode::Undefined ? "UND" : "???");
-        GBA_DEBUG_PRINT("  Current SPSR=%08X\n", get_spsr());
-        // Don't apply invalid mode - this would crash
-        return;
+    if (effective_mode_bits != (value & 0x1F)) {
+        GBA_DEBUG_PRINT("CPSR write with mode bit 4 clear (0x%02X), forcing to 0x%02X per hardware quirk\n",
+                        value & 0x1F, effective_mode_bits);
+    }
+    // effective_mode_bits is always one of 0x10-0x1F. Only 7 of those 16
+    // patterns are architectural ARM7TDMI modes; the rest are undefined and
+    // switch_mode()/bank_registers() alias them to the User/System bank.
+    bool recognized_mode = (new_mode == ProcessorMode::User ||
+                            new_mode == ProcessorMode::FIQ ||
+                            new_mode == ProcessorMode::IRQ ||
+                            new_mode == ProcessorMode::Supervisor ||
+                            new_mode == ProcessorMode::Abort ||
+                            new_mode == ProcessorMode::Undefined ||
+                            new_mode == ProcessorMode::System);
+    if (!recognized_mode) {
+        GBA_DEBUG_PRINT("CPSR write to undefined mode 0x%02X (PC=0x%08X); treating as User-bank\n",
+                        effective_mode_bits, m_regs[15]);
     }
 
     if (new_mode != m_mode) {
         switch_mode(new_mode);
     }
-    m_cpsr = value;
+    m_cpsr = (value & ~0x1Fu) | effective_mode_bits;
 }
 
 uint32_t ARM7TDMI::get_spsr() const {
@@ -2217,30 +2303,18 @@ uint32_t ARM7TDMI::get_spsr() const {
 }
 
 void ARM7TDMI::set_spsr(uint32_t value) {
-    // Validate the mode bits in the SPSR value being written
-    // If the mode is invalid (0x00), preserve the current valid SPSR
-    // This helps prevent corruption when game code incorrectly uses SPSR operations
-    uint8_t mode_bits = value & 0x1F;
-    bool valid_mode = (mode_bits == 0x10 || mode_bits == 0x11 || mode_bits == 0x12 ||
-                       mode_bits == 0x13 || mode_bits == 0x17 || mode_bits == 0x1B ||
-                       mode_bits == 0x1F);
-
+    // SPSR mode bit 4 (M4) is hardwired to 1 on the ARM7TDMI, exactly like
+    // CPSR's: MSR SPSR with a bit-4-clear mode reads back with bit 4 set
+    // (mGBA MSRR/MSRRI: `spsr = (spsr & ~mask) | (operand & mask) | 0x10`).
+    // No other validation: an undefined mode pattern is stored as written and
+    // only takes effect if later restored into CPSR via set_cpsr(get_spsr()).
+    value |= 0x10u;
     switch (m_mode) {
-        case ProcessorMode::FIQ:
-            if (valid_mode || value == m_spsr_fiq) m_spsr_fiq = value;
-            break;
-        case ProcessorMode::Supervisor:
-            if (valid_mode || value == m_spsr_svc) m_spsr_svc = value;
-            break;
-        case ProcessorMode::Abort:
-            if (valid_mode || value == m_spsr_abt) m_spsr_abt = value;
-            break;
-        case ProcessorMode::IRQ:
-            if (valid_mode || value == m_spsr_irq) m_spsr_irq = value;
-            break;
-        case ProcessorMode::Undefined:
-            if (valid_mode || value == m_spsr_und) m_spsr_und = value;
-            break;
+        case ProcessorMode::FIQ:        m_spsr_fiq = value; break;
+        case ProcessorMode::Supervisor: m_spsr_svc = value; break;
+        case ProcessorMode::Abort:      m_spsr_abt = value; break;
+        case ProcessorMode::IRQ:        m_spsr_irq = value; break;
+        case ProcessorMode::Undefined:  m_spsr_und = value; break;
         default: break;
     }
 }
@@ -2342,70 +2416,53 @@ void ARM7TDMI::save_state(std::vector<uint8_t>& data) {
     data.insert(data.end(), last_fetch, last_fetch + 4);
 }
 
-void ARM7TDMI::load_state(const uint8_t*& data, size_t& remaining) {
+bool ARM7TDMI::load_state(const uint8_t*& data, size_t& remaining) {
     // Load registers
     for (int i = 0; i < 16; i++) {
-        std::memcpy(&m_regs[i], data, 4);
-        data += 4;
-        remaining -= 4;
+        if (!state_read(data, remaining, m_regs[i])) return false;
     }
 
     // Load banked registers
-    for (auto& reg : m_fiq_regs) {
-        std::memcpy(&reg, data, 4);
-        data += 4;
-        remaining -= 4;
-    }
-    for (auto& reg : m_svc_regs) {
-        std::memcpy(&reg, data, 4);
-        data += 4;
-        remaining -= 4;
-    }
-    for (auto& reg : m_abt_regs) {
-        std::memcpy(&reg, data, 4);
-        data += 4;
-        remaining -= 4;
-    }
-    for (auto& reg : m_irq_regs) {
-        std::memcpy(&reg, data, 4);
-        data += 4;
-        remaining -= 4;
-    }
-    for (auto& reg : m_und_regs) {
-        std::memcpy(&reg, data, 4);
-        data += 4;
-        remaining -= 4;
-    }
+    for (auto& reg : m_fiq_regs) { if (!state_read(data, remaining, reg)) return false; }
+    for (auto& reg : m_svc_regs) { if (!state_read(data, remaining, reg)) return false; }
+    for (auto& reg : m_abt_regs) { if (!state_read(data, remaining, reg)) return false; }
+    for (auto& reg : m_irq_regs) { if (!state_read(data, remaining, reg)) return false; }
+    for (auto& reg : m_und_regs) { if (!state_read(data, remaining, reg)) return false; }
 
     // Load CPSR and SPSRs
-    std::memcpy(&m_cpsr, data, 4);
-    data += 4;
-    remaining -= 4;
-
-    std::memcpy(&m_spsr_fiq, data, 4); data += 4; remaining -= 4;
-    std::memcpy(&m_spsr_svc, data, 4); data += 4; remaining -= 4;
-    std::memcpy(&m_spsr_abt, data, 4); data += 4; remaining -= 4;
-    std::memcpy(&m_spsr_irq, data, 4); data += 4; remaining -= 4;
-    std::memcpy(&m_spsr_und, data, 4); data += 4; remaining -= 4;
+    if (!state_read(data, remaining, m_cpsr)) return false;
+    if (!state_read(data, remaining, m_spsr_fiq)) return false;
+    if (!state_read(data, remaining, m_spsr_svc)) return false;
+    if (!state_read(data, remaining, m_spsr_abt)) return false;
+    if (!state_read(data, remaining, m_spsr_irq)) return false;
+    if (!state_read(data, remaining, m_spsr_und)) return false;
 
     // Load state flags
-    m_irq_pending = *data++ != 0; remaining--;
-    m_halted = *data++ != 0; remaining--;
-    m_mode = static_cast<ProcessorMode>(*data++); remaining--;
+    uint8_t irq_pending = 0, halted = 0;
+    if (!state_read_u8(data, remaining, irq_pending)) return false;
+    if (!state_read_u8(data, remaining, halted)) return false;
+    m_irq_pending = irq_pending != 0;
+    m_halted = halted != 0;
+    if (!state_read_u8(data, remaining, m_mode)) return false;
 
     // Load IRQ delay counter (added for 7-cycle IRQ delay implementation)
+    // Absent entirely in older savestates, so a short remainder here is not
+    // an error: only report failure if a partial (but non-empty) field is
+    // present, mirroring the original backwards-compatibility contract.
     if (remaining >= 1) {
-        m_irq_delay = *data++; remaining--;
+        if (!state_read_u8(data, remaining, m_irq_delay)) return false;
     } else {
         m_irq_delay = 0;
     }
 
     // Load IntrWait state (check if data is available for backwards compatibility)
     if (remaining >= 11) {
-        m_in_intr_wait = *data++ != 0; remaining--;
-        std::memcpy(&m_intr_wait_flags, data, 2); data += 2; remaining -= 2;
-        std::memcpy(&m_intr_wait_return_pc, data, 4); data += 4; remaining -= 4;
-        std::memcpy(&m_intr_wait_return_cpsr, data, 4); data += 4; remaining -= 4;
+        uint8_t in_intr_wait = 0;
+        if (!state_read_u8(data, remaining, in_intr_wait)) return false;
+        m_in_intr_wait = in_intr_wait != 0;
+        if (!state_read(data, remaining, m_intr_wait_flags)) return false;
+        if (!state_read(data, remaining, m_intr_wait_return_pc)) return false;
+        if (!state_read(data, remaining, m_intr_wait_return_cpsr)) return false;
     } else {
         // Old save state without IntrWait data
         m_in_intr_wait = false;
@@ -2417,25 +2474,33 @@ void ARM7TDMI::load_state(const uint8_t*& data, size_t& remaining) {
     // Load prefetch buffer state (check if data is available for backwards compatibility)
     if (remaining >= 15) {
         // New format with next_address and active
-        std::memcpy(&m_prefetch.head_address, data, 4); data += 4; remaining -= 4;
-        std::memcpy(&m_prefetch.next_address, data, 4); data += 4; remaining -= 4;
-        m_prefetch.count = *data++; remaining--;
-        m_prefetch.countdown = static_cast<int8_t>(*data++); remaining--;
-        m_prefetch.active = *data++ != 0; remaining--;
-        std::memcpy(&m_last_fetch_addr, data, 4); data += 4; remaining -= 4;
+        if (!state_read(data, remaining, m_prefetch.head_address)) return false;
+        if (!state_read(data, remaining, m_prefetch.next_address)) return false;
+        if (!state_read_u8(data, remaining, m_prefetch.count)) return false;
+        uint8_t countdown = 0;
+        if (!state_read_u8(data, remaining, countdown)) return false;
+        m_prefetch.countdown = static_cast<int8_t>(countdown);
+        uint8_t active = 0;
+        if (!state_read_u8(data, remaining, active)) return false;
+        m_prefetch.active = active != 0;
+        if (!state_read(data, remaining, m_last_fetch_addr)) return false;
     } else if (remaining >= 10) {
         // Old format without next_address and active
-        std::memcpy(&m_prefetch.head_address, data, 4); data += 4; remaining -= 4;
+        if (!state_read(data, remaining, m_prefetch.head_address)) return false;
         m_prefetch.next_address = m_prefetch.head_address;
-        m_prefetch.count = *data++; remaining--;
-        m_prefetch.countdown = static_cast<int8_t>(*data++); remaining--;
+        if (!state_read_u8(data, remaining, m_prefetch.count)) return false;
+        uint8_t countdown = 0;
+        if (!state_read_u8(data, remaining, countdown)) return false;
+        m_prefetch.countdown = static_cast<int8_t>(countdown);
         m_prefetch.active = m_prefetch.count > 0;
-        std::memcpy(&m_last_fetch_addr, data, 4); data += 4; remaining -= 4;
+        if (!state_read(data, remaining, m_last_fetch_addr)) return false;
     } else {
         // Old save state without prefetch data
         m_prefetch.reset();
         m_last_fetch_addr = 0xFFFFFFFF;
     }
+
+    return true;
 }
 
 // ============================================================================
@@ -3067,24 +3132,56 @@ void ARM7TDMI::bios_lz77_uncomp_wram() {
 }
 
 void ARM7TDMI::bios_lz77_uncomp_vram() {
-    // Same as WRAM version but writes in 16-bit units to VRAM
-    // To handle back-references correctly, we decompress to a local buffer first
+    // Same algorithm as the WRAM version, but VRAM does not support
+    // independent byte writes the way WRAM does (a CPU byte write to VRAM
+    // writes the same byte into both halves of the containing halfword), so
+    // the real BIOS assembles each pair of decompressed bytes and commits it
+    // with a single 16-bit write. This decompresses straight through
+    // emulated memory (read16/write16), with no host-side buffer:
+    // back-references read whatever is actually at that VRAM address --
+    // either a byte this call already committed, the single byte currently
+    // buffered waiting for its other half, or (for a malformed/offset stream
+    // that references before decompression started) whatever pre-existing
+    // VRAM content was already there. That matches real hardware and means
+    // there is no host buffer for an out-of-range offset to index past.
     uint32_t src = m_regs[0];
-    uint32_t dst_start = m_regs[1];
+    uint32_t dst_base = m_regs[1];
 
     uint32_t header = read32(src);
     src += 4;
 
     uint32_t decomp_size = header >> 8;
 
-    // Allocate temporary buffer for decompression
-    // For safety, limit to reasonable size (16MB should cover any GBA graphics)
-    if (decomp_size > 0x1000000) {
-        return;  // Too large, bail out
-    }
+    uint32_t dst_pos = 0;        // decompressed byte position, relative to dst_base
+    bool have_pending = false;   // true when dst_pos is odd: its low byte is buffered, not yet flushed
+    uint8_t pending_low = 0;
 
-    std::vector<uint8_t> temp_buffer(decomp_size);
-    uint32_t dst_pos = 0;
+    // Read decompressed byte `pos` (relative to dst_base) the way hardware
+    // would see it: whatever is actually in VRAM there.
+    //
+    // The pending (not-yet-flushed) low byte is deliberately NOT visible to
+    // back-references: hardware reads [dest-disp-1] from memory, and with
+    // disp=0 at an odd position that byte has not been written yet, so the
+    // stale VRAM content is read instead (GBATEK "LZ77UnCompReadNormalWrite16bit":
+    // "the 'Vram' function works only with disp=001h..FFFh, but not with
+    // disp=000h"; mGBA's _unLz77 width==2 path also reads memory).
+    auto read_decompressed_byte = [&](uint32_t pos) -> uint8_t {
+        uint32_t addr = dst_base + pos;
+        uint16_t hw = read16(addr & ~1u);
+        return (addr & 1) ? static_cast<uint8_t>(hw >> 8) : static_cast<uint8_t>(hw & 0xFF);
+    };
+
+    auto emit_byte = [&](uint8_t value) {
+        if (!have_pending) {
+            pending_low = value;
+            have_pending = true;
+        } else {
+            uint16_t hw = static_cast<uint16_t>(pending_low) | (static_cast<uint16_t>(value) << 8);
+            write16(dst_base + (dst_pos - 1), hw);
+            have_pending = false;
+        }
+        dst_pos++;
+    };
 
     while (dst_pos < decomp_size) {
         uint8_t flags = read8(src++);
@@ -3098,28 +3195,28 @@ void ARM7TDMI::bios_lz77_uncomp_vram() {
                 uint32_t len = ((b1 >> 4) & 0xF) + 3;
                 uint32_t offset = ((b1 & 0xF) << 8) | b2;
 
-                uint32_t src_ptr = dst_pos - offset - 1;
+                // dst_pos - offset - 1 underflows (wraps mod 2^32) exactly
+                // like real address arithmetic when offset >= dst_pos; once
+                // added to dst_base below it resolves to the same "before
+                // the destination" VRAM address hardware would land on, not
+                // a host out-of-bounds index.
+                uint32_t back_pos = dst_pos - offset - 1;
                 for (uint32_t j = 0; j < len && dst_pos < decomp_size; j++) {
-                    temp_buffer[dst_pos++] = temp_buffer[src_ptr++];
+                    emit_byte(read_decompressed_byte(back_pos));
+                    back_pos++;
                 }
             } else {
                 // Uncompressed
-                temp_buffer[dst_pos++] = read8(src++);
+                emit_byte(read8(src++));
             }
             flags <<= 1;
         }
     }
 
-    // Now write to VRAM in 16-bit units
-    uint32_t dst = dst_start;
-    for (uint32_t i = 0; i + 1 < decomp_size; i += 2) {
-        write16(dst, temp_buffer[i] | (temp_buffer[i + 1] << 8));
-        dst += 2;
-    }
-    // Handle odd byte if present
-    if (decomp_size & 1) {
-        // Last odd byte - write as 16-bit with 0 padding (hardware behavior)
-        write16(dst, temp_buffer[decomp_size - 1]);
+    // Flush a trailing odd byte (decomp_size odd): hardware writes it as a
+    // 16-bit value with the upper byte zero-padded.
+    if (have_pending) {
+        write16(dst_base + (dst_pos - 1), pending_low);
     }
 }
 

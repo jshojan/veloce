@@ -32,9 +32,10 @@ public:
     using AudioStreamCallback = std::function<void(const float*, size_t, int)>;
     void set_audio_callback(AudioStreamCallback callback) { m_audio_callback = callback; }
 
-    // Save state
+    // Save state. load_state returns false (without reading past
+    // `remaining`) if the buffer runs out before every field is read.
     void save_state(std::vector<uint8_t>& data);
-    void load_state(const uint8_t*& data, size_t& remaining);
+    bool load_state(const uint8_t*& data, size_t& remaining);
 
 private:
     void clock_frame_sequencer();
