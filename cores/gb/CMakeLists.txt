@@ -26,6 +26,7 @@ add_library(gb_plugin SHARED
     src/apu.cpp
     src/bus.cpp
     src/cartridge.cpp
+    src/test_channel.cpp
     src/mbc/mbc.cpp
     src/mbc/mbc1.cpp
     src/mbc/mbc3.cpp
@@ -96,6 +97,6 @@ elseif(MSVC)
     target_compile_options(gb_plugin PRIVATE /W4)
 endif()
 
-# Note: Test ROMs should be run through veloce directly with DEBUG=1 environment variable
-# Example: DEBUG=1 timeout 30 ./build/bin/veloce cores/gb/tests/gb-test-roms/cpu_instrs/cpu_instrs.gb
-# The emulator will detect test ROM results and report PASS/FAIL via debug output
+# Note: test ROM verdicts come from the VELOCE-RESULT/1 file, never stdout:
+#   VELOCE_TEST_OUT=/tmp/t.result ./build/bin/veloce cores/gb/tests/roms/blargg/cpu_instrs/cpu_instrs.gb
+# See src/test_channel.hpp and docs/testing/VELOCE-RESULT.md.

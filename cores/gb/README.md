@@ -4,7 +4,7 @@ M-cycle accurate Game Boy and Game Boy Color emulator for Veloce.
 
 ## Overview
 
-The Game Boy core provides high-accuracy emulation for both the original Game Boy (DMG) and Game Boy Color (CGB). It features M-cycle accurate Sharp LR35902 CPU emulation, scanline-accurate PPU timing, and four-channel audio processing, and automatically detects ROM type to configure the appropriate mode. For the current, measured accuracy status (Blargg/Mooneye/Mealybug/SameSuite coverage and known gaps) see the [Testing](#testing) section -- the previous "100%" claim has been retired pending Mooneye-aware result detection.
+The Game Boy core provides high-accuracy emulation for both the original Game Boy (DMG) and Game Boy Color (CGB). It features M-cycle accurate Sharp LR35902 CPU emulation, scanline-accurate PPU timing, and four-channel audio processing, and automatically detects ROM type to configure the appropriate mode. For the current, measured accuracy status (Blargg/Mooneye/Mealybug/SameSuite coverage and known gaps) see the [Testing](#testing) section -- the previous "100%" claim has been retired.
 
 ## Specifications
 
@@ -124,14 +124,16 @@ cmake --build build
 For the testing methodology and the platform-wide picture see the top-level
 [TESTING.md](../../TESTING.md) and [COMPLETENESS.md](../../COMPLETENESS.md).
 
-**Verified accuracy:** the **Blargg serial subset only**. The catalog is large
-(225 tests / 31 suites) but the large Mooneye / SameSuite / Wilbertpol half
-cannot yet be scored (detection gap, below), so the published number reflects
-the verified serial subset and the rest is reported as unverified. Verified:
-Blargg `cpu_instrs` 10/11 PASS (`02-interrupts` known_fail), `instr_timing` PASS,
-`mem_timing` 3/3 PASS. The previous "111/111, 100%" claim was not reproducible
-and has been retired. Full justification is in
-[COMPLETENESS.md](../../COMPLETENESS.md#game-boy).
+**Verified accuracy:** every non-visual test now gets its verdict from the
+VELOCE-RESULT/1 file the core writes (see *Result Detection* below). Measured
+2026-09-27: 65 PASS, 35 FAIL, 63 known_fail, 2 RUNS, 58 visual/skip (63.9%).
+Blargg `cpu_instrs` 11/11, `instr_timing` and `mem_timing` 3/3 PASS; Mooneye
+`timer` 13/13, `mbc1` 12/13, `mbc5` 8/8 PASS; Mooneye `timing` (13), `ppu` (11),
+`oam_dma` (5) and `interrupts` (5) have real failures. The headline fell from
+the earlier "Blargg serial subset" number because those Mooneye failures were
+previously unscored (RUNS), not because anything regressed. The previous
+"111/111, 100%" claim was not reproducible and has been retired. Full
+justification is in [COMPLETENESS.md](../../COMPLETENESS.md#game-boy).
 
 ### Test Suite
 
@@ -166,28 +168,40 @@ cd cores/gb/tests
 ./run_tests.sh --generate-refs # print measured screenshot CRC32 hashes
 ```
 
-### Result Detection (and its current limits)
+### Result Detection
 
-| Method | Suites | Status |
-|--------|--------|--------|
-| `serial` (ASCII "Passed"/"Failed") | Blargg cpu_instrs, instr_timing, mem_timing | Works (verified) |
-| `serial` (Mooneye Fibonacci reg + LD B,B) | All Mooneye, SameSuite, Wilbertpol | **Not yet detected** -- see below |
-| `screenshot-crc` (CRC32 of framebuffer PNG) | Mealybug, acid2, Blargg-sound, halt_bug, interrupt_time, mem_timing-2 | Pipeline works; `reference_hash` values not yet populated |
+Verdicts come only from the result file the application writes when
+`VELOCE_TEST_OUT` is set ([VELOCE-RESULT/1](../../docs/testing/VELOCE-RESULT.md));
+the core prints nothing to stdout. `gb::TestChannel`
+([src/test_channel.hpp](src/test_channel.hpp)) implements these drivers:
 
-**Mooneye detection gap (important):** Mooneye/SameSuite/Wilbertpol ROMs do not
-print ASCII pass/fail. They signal success via the Fibonacci register fingerprint
-(`B=3 C=5 D=8 E=13 H=21 L=34`) reached at an `LD B,B` software breakpoint, plus
-non-printable serial bytes (the bus only captures ASCII `0x20-0x7E`). The shared
-detector matches a `MOONEYE: PASS/FAIL` line, which the GB plugin does not yet
-emit. **Consequence:** every Mooneye/SameSuite/Wilbertpol test currently resolves
-to RUNS (unverified -- zero credit, excluded from the headline denominator), not a
-PASS. This is a measurement limitation, not necessarily an accuracy failure. The
-config marks each test's believed verdict via `expected`, so once the core emits
-a Mooneye breakpoint line the harness will score them automatically. (Fixing this
-requires a `src` change, which is out of scope for the test suite.)
+| Driver | Tier | Suites | What it writes |
+|--------|------|--------|----------------|
+| `serial` | A | ROMs built with the Veloce emitter | every byte sent with `SC=$81`, raw; the ROM's own `CHECK`/`END` lines |
+| `blarggtext` | B | Blargg `cpu_instrs`, `instr_timing`, `mem_timing` | the ROM's serial text, then `END 1/1` for a `Passed` line or `END 0/1 [code=n]` for `Failed [#n]` |
+| `a000` | B | Blargg `oam_bug`, `dmg_sound`, `cgb_sound`, `mem_timing-2` | the `$A000` text as `LOG` lines (when not mirrored to serial), `END` from the status byte, reset request on `$81` |
+| `hram` | B | GBMicrotest (cartridge title `microtest`) | `CHECK 1 PASS/FAIL hram exp=<$FF81> got=<$FF80>` + `END` once `$FF82` is `$01`/`$FF` |
+| `mooneye` | C | Mooneye, SameSuite, Wilbertpol | `REG b= c= d= e= h= l=` + `END 1/1` (Fibonacci fingerprint at `LD B,B`) or `END 0/1 code=66` (all `$42`) |
+| `screenshot-crc` | n/a | Mealybug, acid2, Blargg-sound, halt_bug, interrupt_time, mem_timing-2 | visual only; `reference_hash` values not populated, never scored |
 
-The measured per-suite results (the verified Blargg subset, the Mooneye RUNS
-state, and the captured acid2 CRCs) are tabulated with their justification in
+Any adapter stands down once the ROM has sent a `VELOCE 1` header or an `END`
+line over serial, and only one terminator is ever written. With a sink attached
+the cartridge RAM is zeroed first, so a battery save from an earlier run can
+never be read as this run's result.
+
+```bash
+VELOCE_TEST_OUT=/tmp/t.result ./build/bin/veloce cores/gb/tests/roms/blargg/cpu_instrs/individual/01-special.gb
+cat /tmp/t.result
+# #VELOCE 1 core=GBC rom_crc32=fdf8598c channels=serial,mooneye,a000,hram,blarggtext
+# 01-special
+# ...
+# Passed
+# #VELOCE adapter=blarggtext
+# END 1/1
+# #VELOCE end reason=terminator frames=140 cycles=2457919 status=0
+```
+
+The measured per-suite results are tabulated with their justification in
 [COMPLETENESS.md](../../COMPLETENESS.md#game-boy).
 
 ### Populating visual reference hashes

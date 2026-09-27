@@ -15,12 +15,10 @@
 #   ./run_tests.sh --generate-refs # print measured screenshot CRC32 hashes
 #
 # Result detection per test is declared in test_config.json:
-#   serial         Blargg ROMs echo ASCII "Passed"/"Failed" over the link port
-#   screenshot-crc Mealybug / acid2 / Blargg-sound (CRC32 of the framebuffer PNG)
-# NOTE: Mooneye/SameSuite/Wilbertpol need a "MOONEYE: PASS/FAIL" line from the
-#       binary (Fibonacci reg fingerprint + LD B,B); until src emits it they
-#       resolve to RUNS (no credit, excluded from the denominator). See the
-#       known_issues section of test_config.json.
+#   serial         (alias of "file") verdict from the VELOCE-RESULT/1 file the
+#                  core writes: Blargg serial text / $A000 block, Mooneye
+#                  LD B,B fingerprint (see cores/gb/src/test_channel.hpp)
+#   screenshot-crc Mealybug / acid2 / Blargg-sound (visual, unscored)
 
 set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

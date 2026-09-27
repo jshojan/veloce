@@ -21,11 +21,10 @@ CLI (identical for every console -- see veloce_testkit.runner):
     run_tests.sh -v              # per-test verdict lines
 
 Detection (declared per test in test_config.json; see its known_issues):
-  serial          Blargg ROMs echo ASCII "Passed"/"Failed" over the link port.
+  serial          alias of "file": the verdict comes from the VELOCE-RESULT/1
+                  file the core writes (Blargg serial text / $A000 block,
+                  Mooneye LD B,B fingerprint; cores/gb/src/test_channel.hpp).
   screenshot-crc  Mealybug / acid2 / Blargg-sound / on-screen Blargg results.
-  NOTE: Mooneye/SameSuite/Wilbertpol need a "MOONEYE: PASS/FAIL" line from the
-        binary (Fibonacci reg fingerprint + LD B,B); until src emits it they
-        resolve to RUNS (no credit, excluded from the denominator).
 """
 
 from __future__ import annotations

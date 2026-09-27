@@ -103,7 +103,7 @@ Partial credit is `progress = pass/total`, which feeds the existing `score_test(
 | Tier | Definition | `channel` values | Scored |
 |---|---|---|---|
 | **A** | ROM built from patched source emits `VELOCE-RESULT/1` over the console's port | `port` (NES/SNES), `serial` (GB), `mgba` (GBA) | yes; `rom_variant: veloce` |
-| **B** | ROM writes structured observed values to a fixed RAM block or hardware port; a core adapter streams or dumps it | `blargg6000` (NES/SNES), `a000`, `hram` (GB), `sram`+`stp` (SNES byuu), `spcport` (SNES gilyon) | yes; adapter recorded via `#VELOCE adapter=` |
+| **B** | ROM writes structured observed values to a fixed RAM block or hardware port; a core adapter streams or dumps it | `blargg6000` (NES/SNES), `a000`, `hram`, `blarggtext` (GB), `sram`+`stp` (SNES byuu), `spcport` (SNES gilyon) | yes; adapter recorded via `#VELOCE adapter=` |
 | **C** | Core infers a verdict from CPU registers at a stable PC | `r12` (GBA), `mooneye` (GB fingerprint) | bootstrap only; rejected in strict configs |
 | n/a | Screenshot or CRC of any kind | `screenshot-crc` | never; lives in `visual_test_suites` |
 
@@ -113,10 +113,12 @@ Partial credit is `progress = pass/total`, which feeds the existing `score_test(
 |---|---|---|---|---|
 | NES | `STA $401E` | `$401F` write: `$00` nop, `$01` terminator hint; read returns `$56` (`'V'`) | disabled CPU test registers: writes ignored, reads open bus | `blargg6000` (`$6000` status + `$6004` text streamed as `LOG`, `END`), status `0x81` goes to `request_reset()` |
 | SNES | `STA $21FE` (any bank, DMA-able B-bus) | `$21FF` write control, read returns `$56` | unused B-bus register, no-op | `blargg6000`; `stp` (`note stp=`, `blob sram`, `blob cgram`, synthesised `END`); `spcport` APU-port watcher |
-| GB | `SB`/`$FF01` + `SC=$81` (every byte, raw) | none | real serial output | `mooneye` (`LD B,B` + Fibonacci fingerprint), `a000` (blargg `$A000` block), `hram` (`$FF80-82` GBMicrotest) |
+| GB | `SB`/`$FF01` + `SC=$81` (every byte, raw) | none | real serial output | `mooneye` (`LD B,B` + Fibonacci fingerprint), `a000` (blargg `$A000` block), `hram` (`$FF80-82` GBMicrotest, armed for cartridges titled `microtest`), `blarggtext` (the `Passed`/`Failed #n` serial line of blargg shells without the `$A000` block) |
 | GBA | mGBA `0x4FFF600` string + `0x4FFF700` flush (`level \| 0x100`) | `0x4FFF780`: write `0xC0DE`, read `0x1DEA` | inert | `r12` (stable one-instruction loop, R12 = failing test) |
 
-Channel names used in `channels=`, `#VELOCE adapter=` and the config `channel` field: `port`, `serial`, `mgba`, `blargg6000`, `a000`, `hram`, `sram`, `stp`, `spcport`, `mooneye`, `r12`. Per console: NES `port, blargg6000`; SNES `port, blargg6000, stp, sram, spcport`; GB `serial, mooneye, a000, hram`; GBA `mgba, r12`.
+Channel names used in `channels=`, `#VELOCE adapter=` and the config `channel` field: `port`, `serial`, `mgba`, `blargg6000`, `a000`, `hram`, `blarggtext`, `sram`, `stp`, `spcport`, `mooneye`, `r12`. Per console: NES `port, blargg6000`; SNES `port, blargg6000, stp, sram, spcport`; GB `serial, mooneye, a000, hram, blarggtext`; GBA `mgba, r12`.
+
+On GB a serial stream that starts with a `VELOCE 1 ...` line (a Tier A ROM), or that already carried an `END` line, makes every adapter stand down, so a rebuilt ROM never gets a second, synthesised terminator. The reference implementation is `cores/gb/src/test_channel.cpp`.
 
 ## 6. Emitter vocabulary (ROM side)
 

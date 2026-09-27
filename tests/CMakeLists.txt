@@ -6,6 +6,7 @@
 # Targets registered:
 #   testkit_selftest    - fast pure-logic unit test (no ROMs, no emulator)
 #   test_file_sink      - C++ unit test of the VELOCE_TEST_OUT sink (stub plugin)
+#   gb_test_channel     - C++ unit test of the Game Boy result channel + adapters
 #   validate_configs    - schema validation of every test_config.json
 #   accuracy_<console>  - full per-console accuracy run (needs network for ROMs)
 #   accuracy_all        - cross-console aggregate scorecard
@@ -41,6 +42,19 @@ target_include_directories(test_file_sink PRIVATE
 )
 add_test(NAME test_file_sink COMMAND test_file_sink)
 set_tests_properties(test_file_sink PROPERTIES LABELS "unit;fast")
+
+# Game Boy result channel (gb::TestChannel): serial + mooneye/a000/hram/blarggtext
+# adapters against a recording sink.
+add_executable(gb_test_channel
+    ${VELOCE_TESTS_DIR}/cpp/gb_test_channel_test.cpp
+    ${CMAKE_SOURCE_DIR}/cores/gb/src/test_channel.cpp
+)
+target_include_directories(gb_test_channel PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/cores/gb/src
+)
+add_test(NAME gb_test_channel COMMAND gb_test_channel)
+set_tests_properties(gb_test_channel PROPERTIES LABELS "unit;fast")
 
 # --- per-console accuracy suites (slow: download ROMs, run emulator) ------
 foreach(console nes snes gb gba)

@@ -1,4 +1,5 @@
 #include "cartridge.hpp"
+#include <algorithm>
 #include "mbc/mbc.hpp"
 #include <cstring>
 #include <iostream>
@@ -228,6 +229,10 @@ bool Cartridge::set_save_data(const std::vector<uint8_t>& data) {
     size_t copy_size = std::min(data.size(), m_ram.size());
     std::memcpy(m_ram.data(), data.data(), copy_size);
     return true;
+}
+
+void Cartridge::clear_ram() {
+    std::fill(m_ram.begin(), m_ram.end(), 0);
 }
 
 uint32_t Cartridge::calculate_crc32(const uint8_t* data, size_t size) {

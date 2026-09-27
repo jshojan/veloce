@@ -36,7 +36,7 @@ Regenerate any console's authoritative scorecard with
 |---------|-----------|-------------------|--------------------|
 | [NES](#nes) | 172 tests / 32 suites | ~90-94% | Strongest verified coverage; memory-detected CPU/PPU/APU/mapper subset is real |
 | [SNES](#snes) | 67 tests / 19 suites | Low until refs land | Almost entirely `screenshot-crc`; a small Blargg SPC `memory` subset is the only currently-verifiable part |
-| [Game Boy](#game-boy) | 225 tests / 31 suites | Verified subset only | Blargg serial subset verified; the large Mooneye half is unverified pending a breakpoint emitter |
+| [Game Boy](#game-boy) | 225 tests / 31 suites | 63.9% | Every non-visual test scored from the result file (Blargg text/`$A000`, Mooneye fingerprint); real Mooneye timing/PPU/DMA failures now count |
 | [GBA](#gba) | 132 tests / 29 suites | Partial | CPU/memory/BIOS/saves verified via R12 protocol; cycle-accurate timing/PPU largely pending |
 
 The platform mean reported by `tests/run_all.py` weights each console equally.
@@ -162,39 +162,35 @@ PNG encoder; regenerate if either changes.
 
 ## Game Boy
 
-Verified headline: **the Blargg serial subset only.** The catalog is large (225
-tests / 31 suites) but the large Mooneye / SameSuite / Wilbertpol half cannot yet
-be scored, so the published number reflects the verified serial subset and the
-rest is reported as unverified.
+Headline: **63.9%**, measured 2026-09-27 from `cores/gb/tests/run_tests.sh --json`
+(65 PASS, 35 FAIL, 63 known_fail, 2 RUNS, 58 visual/skip, 2 visual errors). Every
+non-visual verdict comes from the VELOCE-RESULT/1 file the core writes
+(`source: file`); nothing is scraped from stdout.
 
-| Subsystem area | Verified today | Basis |
-|----------------|----------------|-------|
-| CPU instructions | Blargg `cpu_instrs` **10/11 PASS** | `02-interrupts` does not signal pass even at 8000 frames -> `known_fail` (real EI/IME or IF/IE dispatch-timing bug). |
-| Instruction / memory timing | Blargg `instr_timing` PASS, `mem_timing` 3/3 PASS | `serial` ASCII detection, verified. |
-| Timer / PPU / interrupt cycle timing | Mooneye acceptance: **unverified (RUNS)** | Detection gap, see below. |
-| APU (cycle-accurate) | SameSuite: **unverified (RUNS)** | Same detection gap. |
-| PPU pixel-perfect | dmg-acid2 / cgb-acid2: renders, **not yet validated** | `screenshot-crc`; measured CRC `e643bbc7` / `6ddfa9c7` captured but no golden reference yet. |
+| Subsystem area | Measured | Basis |
+|----------------|----------|-------|
+| CPU instructions | Blargg `cpu_instrs` **11/11 PASS**, Mooneye `daa` PASS | `blarggtext` / `mooneye` adapters. `02-interrupts` passes although the config still lists it `known_fail`. |
+| Instruction / memory timing | Blargg `instr_timing` PASS, `mem_timing` 3/3 PASS; Mooneye `timing` **1/14** | Mooneye call/ret/jp/push/rst timing fail (fingerprint `$42`). |
+| Timer | Mooneye `timer` **13/13 PASS**, `div_boot` 2/4 | `mooneye` adapter. |
+| Interrupts / OAM DMA / PPU | Mooneye `interrupts` 7/12, `oam_dma` 1/6, `ppu` 0/12 | Real failures (the core's PPU is scanline-based). |
+| Mappers | Mooneye `mbc1` 12/13, `mbc5` 8/8, `mbc2` 1/7 | MBC2 is not implemented; 6 of its tests are `known_fail` and `bits_ramg` still resolves through the legacy stdout shim. |
+| OAM bug | Blargg `oam_bug` 2/8 | `a000` adapter; 6 are `known_fail`. |
+| APU (cycle-accurate) | SameSuite: 0/46 (all `known_fail`) | `mooneye` adapter; real APU failures. |
+| PPU pixel-perfect | dmg-acid2 / cgb-acid2 / Mealybug: **visual, unscored** | `screenshot-crc` with no reference hashes. |
 
-**The Mooneye detection gap (the dominant caveat).** Mooneye / SameSuite /
-Wilbertpol ROMs do not print ASCII pass/fail. They signal success via the
-Fibonacci register fingerprint at an `LD B,B` breakpoint plus non-printable
-serial bytes (the bus only captures ASCII `0x20-0x7E`). The shared detector
-matches a `MOONEYE: PASS/FAIL` line that the GB plugin does not yet emit.
-**Consequence: every Mooneye / SameSuite / Wilbertpol test currently resolves to
-RUNS** (zero credit, excluded from the denominator), not PASS. The config records
-each test's believed verdict in `expected`, so the harness will score them
-automatically once the core emits the breakpoint line. This is a measurement
-limitation, not necessarily an accuracy failure, and fixing it requires a `src`
-change that is out of scope for the test suite.
+**Why the number fell.** The earlier "Blargg serial subset" headline excluded
+every Mooneye / SameSuite / Wilbertpol test as RUNS because nothing reported
+the `LD B,B` fingerprint. The core now does (`mooneye` adapter in
+`cores/gb/src/test_channel.cpp`), so those tests have real verdicts and the
+failures count. No previously passing test regressed.
 
 **Retired claim.** The previous "111/111, 100%" GB claim was not reproducible
-through the harness and has been retired: the Mooneye half was never actually
-detected, and `02-interrupts` is a real failure.
+through the harness and has been retired.
 
-**Path to a real GB headline.** Emit a `MOONEYE: PASS/FAIL` line on the `LD B,B`
-breakpoint (a `src` change) to unlock the cycle-accurate timer/PPU/interrupt/APU
-half, and capture acid2/Mealybug references on known-good hardware to validate
-the pixel-perfect PPU tests.
+**Path forward.** Rebuild Mooneye / SameSuite from patched source so they emit
+per-check `CHECK` lines (Tier A) instead of the Tier C fingerprint, add the
+GBMicrotest suite through the `hram` adapter, and fix the Mooneye timing / PPU /
+DMA failures.
 
 ---
 

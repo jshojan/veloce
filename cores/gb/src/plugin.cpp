@@ -6,6 +6,7 @@
 #include "apu.hpp"
 #include "cartridge.hpp"
 #include "debug.hpp"
+#include "test_channel.hpp"
 
 #include <cstring>
 #include <cstdio>
@@ -183,6 +184,11 @@ public:
     bool save_config(const char* path) override;
     bool load_config(const char* path) override;
 
+    // Test-result channel (plugin ABI v2)
+    bool set_test_sink(emu::ITestSink* sink) override;
+    const char* test_channels() const override { return TestChannel::kChannels; }
+    void on_test_reset() override { m_test_channel.on_test_reset(); }
+
 private:
     void run_gb_frame(const emu::InputState& input);
 
@@ -209,8 +215,8 @@ private:
     float m_audio_buffer[AUDIO_BUFFER_SIZE * 2];  // Stereo
     size_t m_audio_samples = 0;
 
-    // Test ROM result tracking (for DEBUG mode)
-    bool m_test_result_reported = false;
+    // VELOCE_TEST_OUT result channel (serial + legacy adapters)
+    TestChannel m_test_channel;
 
     // Configuration state
     int m_selected_palette = 0;      // Currently selected palette preset
@@ -297,6 +303,10 @@ bool GBPlugin::load_rom(const uint8_t* data, size_t size) {
     m_bus->connect_ppu(m_ppu.get());
     m_bus->connect_apu(m_apu.get());
     m_bus->connect_cartridge(m_cartridge.get());
+    m_bus->connect_test_channel(&m_test_channel);
+    // GBMicrotest has no in-RAM signature; its header title is the only
+    // thing that tells its $FF80-$FF82 result triple from ordinary HRAM use.
+    m_test_channel.set_hram_armed(m_cartridge->get_title() == "microtest");
 
     // Set CGB mode
     bool is_cgb = (m_system_type == SystemType::GameBoyColor);
@@ -322,7 +332,6 @@ bool GBPlugin::load_rom(const uint8_t* data, size_t size) {
     m_rom_loaded = true;
     m_total_cycles = 0;
     m_frame_count = 0;
-    m_test_result_reported = false;
 
     if (is_debug_mode()) {
         printf("[GB] ROM loaded: %s (%s)\n",
@@ -362,7 +371,6 @@ void GBPlugin::reset() {
 
     m_total_cycles = 0;
     m_frame_count = 0;
-    m_test_result_reported = false;
 }
 
 void GBPlugin::run_frame(const emu::InputState& input) {
@@ -416,26 +424,21 @@ void GBPlugin::run_gb_frame(const emu::InputState& input) {
     // Get audio samples
     m_audio_samples = m_apu->get_samples(m_audio_buffer, AUDIO_BUFFER_SIZE);
 
-    // Check for test ROM results in debug mode
-    if (is_debug_mode() && !m_test_result_reported) {
-        const std::string& serial_output = m_bus->get_serial_output();
-        if (!serial_output.empty()) {
-            // Look for test result patterns
-            if (serial_output.find("Passed") != std::string::npos ||
-                serial_output.find("PASSED") != std::string::npos ||
-                serial_output.find("passed") != std::string::npos) {
-                printf("\n=== TEST PASSED ===\n");
-                printf("Serial output:\n%s\n", serial_output.c_str());
-                m_test_result_reported = true;
-            } else if (serial_output.find("Failed") != std::string::npos ||
-                       serial_output.find("FAILED") != std::string::npos ||
-                       serial_output.find("failed") != std::string::npos) {
-                printf("\n=== TEST FAILED ===\n");
-                printf("Serial output:\n%s\n", serial_output.c_str());
-                m_test_result_reported = true;
-            }
-        }
+    // Result-channel probes ($A000 block, GBMicrotest HRAM triple).
+    if (m_test_channel.active()) {
+        m_test_channel.on_frame_end([this](uint16_t addr) -> uint8_t {
+            if (addr >= 0xA000 && addr < 0xC000) return m_cartridge->peek_ram(addr - 0xA000);
+            return m_bus->read(addr);
+        });
     }
+}
+
+bool GBPlugin::set_test_sink(emu::ITestSink* sink) {
+    m_test_channel.set_sink(sink);
+    // Determinism: a test run must not start from a battery save left by
+    // an earlier run (the application loads .sav files before attaching).
+    if (sink && m_rom_loaded) m_cartridge->clear_ram();
+    return true;
 }
 
 uint64_t GBPlugin::get_cycle_count() const {
