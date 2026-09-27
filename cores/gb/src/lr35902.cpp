@@ -52,16 +52,31 @@ LR35902::LR35902(Bus& bus) : m_bus(bus) {
 
 LR35902::~LR35902() = default;
 
-void LR35902::reset() {
-    // Post-boot ROM state (simulating boot ROM execution)
-    m_a = 0x01;  // 0x11 for GBC
-    m_f = 0xB0;
-    m_b = 0x00;
-    m_c = 0x13;
-    m_d = 0x00;
-    m_e = 0xD8;
-    m_h = 0x01;
-    m_l = 0x4D;
+void LR35902::reset(bool is_cgb) {
+    // Post-boot ROM state (simulating boot ROM execution).
+    // Pan Docs "Power Up Sequence": on CGB/AGB the boot ROM leaves A=0x11
+    // (this is how a cartridge's own boot code tells DMG and CGB hardware
+    // apart) with a different B..L/F set than the DMG boot ROM leaves;
+    // SP/PC are the same on both.
+    if (is_cgb) {
+        m_a = 0x11;
+        m_f = 0x80;
+        m_b = 0x00;
+        m_c = 0x00;
+        m_d = 0xFF;
+        m_e = 0x56;
+        m_h = 0x00;
+        m_l = 0x0D;
+    } else {
+        m_a = 0x01;
+        m_f = 0xB0;
+        m_b = 0x00;
+        m_c = 0x13;
+        m_d = 0x00;
+        m_e = 0xD8;
+        m_h = 0x01;
+        m_l = 0x4D;
+    }
     m_sp = 0xFFFE;
     m_pc = 0x0100;  // Entry point after boot ROM
 
@@ -118,9 +133,16 @@ void LR35902::push(uint16_t value) {
     // OAM bug: decrementing SP when it points to OAM range triggers corruption
     // PUSH decrements SP by 2 before writing
     check_oam_bug(m_sp, false);
-    m_sp -= 2;
+    // Hardware order: SP--, write high byte, SP--, write low byte. The final
+    // bytes in RAM are the same as a single SP-=2 followed by low-then-high
+    // writes, but the bus sees the high byte write first; anything that can
+    // observe the bus mid-push (DMA completing, the OAM corruption bug, an
+    // I/O-mapped stack, IE/IF being sampled again for the ie_push case) needs
+    // the writes to land in this order.
+    m_sp--;
+    write(m_sp, value >> 8);
+    m_sp--;
     write(m_sp, value & 0xFF);
-    write(m_sp + 1, value >> 8);
 }
 
 uint16_t LR35902::pop() {
@@ -157,6 +179,7 @@ void LR35902::handle_interrupts(uint8_t pending) {
     for (const auto& irq : interrupts) {
         if (pending & irq.bit) {
             m_ime = false;
+            m_ime_pending = false;
             m_bus.clear_interrupt(irq.bit);
             push(m_pc);
             m_pc = irq.vector;
@@ -172,8 +195,15 @@ int LR35902::step() {
         m_ime = true;
     }
 
-    // If halted, just consume 1 cycle
+    // If halted, still advance the bus one M-cycle so the timer, serial
+    // transfer, and OAM DMA keep running while the CPU is idle. Without this
+    // a HALT that is meant to be woken by a timer or serial interrupt (with
+    // no VBlank/STAT source enabled) never sees its wakeup condition and
+    // hangs forever, since tick_m_cycle is the only path that steps those
+    // peripherals. (Pan Docs: HALT ends when IE & IF != 0; only STOP halts
+    // DIV.)
     if (m_halted) {
+        internal_cycle();
         return 1;
     }
 
@@ -940,7 +970,7 @@ int LR35902::step() {
         case 0xF2: m_a = read(0xFF00 + m_c); break;
 
         // DI
-        case 0xF3: m_ime = false; break;
+        case 0xF3: m_ime = false; m_ime_pending = false; break;
 
         // PUSH AF (4 cycles: fetch + internal + push hi + push lo)
         case 0xF5: internal_cycle(); push(get_af()); break;
@@ -970,8 +1000,12 @@ int LR35902::step() {
         // LD A, (nn)
         case 0xFA: m_a = read(fetch16()); break;
 
-        // EI
-        case 0xFB: m_ime_pending = true; break;
+        // EI - only arm the delayed enable if IME is not already set and no
+        // enable is already pending; a second EI while one is already queued
+        // (e.g. EI;EI as the first two instructions of an ISR) must not
+        // re-arm the toggle, or IME can end up re-enabled a cycle earlier
+        // than hardware allows.
+        case 0xFB: if (!m_ime && !m_ime_pending) m_ime_pending = true; break;
 
         // CP n
         case 0xFE: alu_cp(fetch()); break;

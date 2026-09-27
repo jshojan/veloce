@@ -104,9 +104,9 @@ void APU::step(int cycles) {
         if (m_noise.timer > 0) {
             m_noise.timer--;
         }
-        if (m_noise.timer == 0) {
+        if (m_noise.timer == 0 && m_noise.clock_shift < 14) {
             // Divisor table: r=0 -> 8, else r*16
-            uint16_t divisor = m_noise.divisor_code == 0 ? 8 : (m_noise.divisor_code * 16);
+            uint32_t divisor = m_noise.divisor_code == 0 ? 8 : (m_noise.divisor_code * 16);
             m_noise.timer = divisor << m_noise.clock_shift;
 
             // Clock LFSR - XOR bits 0 and 1
@@ -118,6 +118,9 @@ void APU::step(int cycles) {
                 m_noise.lfsr |= xor_result << 6;
             }
         }
+        // clock_shift 14/15 give a divisor*shift product that never completes on
+        // real hardware within any practical timeframe; the LFSR effectively
+        // freezes (timer left untouched rather than reloaded/clocked).
 
         // Generate sample at target rate (~44100 Hz)
         // GB CPU: 4194304 Hz (T-cycles), target: 44100 Hz -> 4194304/44100 = ~95.1 cycles per sample
@@ -391,8 +394,20 @@ void APU::mix_output(float& left, float& right) {
 }
 
 uint8_t APU::read_register(uint16_t address) {
-    // Wave RAM (0xFF30-0xFF3F)
+    // Wave RAM (0xFF30-0xFF3F). Accessible regardless of APU power state
+    // (Pan Docs). While CH3 is actively playing (triggered with DAC on),
+    // real hardware redirects the access to the byte the wave-pointer is
+    // currently reading instead of the addressed byte: CGB always does
+    // this; DMG only during the exact T-cycle CH3 fetches a sample and
+    // otherwise reads back 0xFF. We don't yet track that fetch T-cycle, so
+    // on DMG treat any access during playback as blocked (0xFF).
     if ((address & 0xFF) >= 0x30 && (address & 0xFF) <= 0x3F) {
+        if (m_wave.enabled) {
+            if (m_cgb_mode) {
+                return m_wave.wave_ram[m_wave.position / 2];
+            }
+            return 0xFF;
+        }
         return m_wave.wave_ram[(address & 0xFF) - 0x30];
     }
     switch (address & 0xFF) {
@@ -440,6 +455,22 @@ uint8_t APU::read_register(uint16_t address) {
 void APU::write_register(uint16_t address, uint8_t value) {
     uint8_t reg = address & 0xFF;
 
+    // Wave RAM (0xFF30-0xFF3F) is writable regardless of APU power state
+    // (Pan Docs), so this must come before the power-gate below. The same
+    // active-channel redirect as read_register applies while CH3 is
+    // actively playing.
+    if (reg >= 0x30 && reg <= 0x3F) {
+        if (m_wave.enabled) {
+            if (m_cgb_mode) {
+                m_wave.wave_ram[m_wave.position / 2] = value;
+            }
+            // DMG: write is dropped outside the (untracked) exact fetch cycle.
+            return;
+        }
+        m_wave.wave_ram[reg - 0x30] = value;
+        return;
+    }
+
     // If APU is disabled, only NR52 and length registers (on DMG) can be written
     // On DMG, NRx1 length registers (NR11=0x11, NR21=0x16, NR31=0x1B, NR41=0x20)
     // can be written even when APU is off. On CGB, all registers except NR52 are blocked.
@@ -466,12 +497,6 @@ void APU::write_register(uint16_t address, uint8_t value) {
                     return;
             }
         }
-        return;
-    }
-
-    // Wave RAM (0xFF30-0xFF3F)
-    if (reg >= 0x30 && reg <= 0x3F) {
-        m_wave.wave_ram[reg - 0x30] = value;
         return;
     }
 
@@ -676,7 +701,7 @@ void APU::write_register(uint16_t address, uint8_t value) {
                         m_noise.length_counter--;
                     }
                 }
-                uint16_t divisor = m_noise.divisor_code == 0 ? 8 : (m_noise.divisor_code * 16);
+                uint32_t divisor = m_noise.divisor_code == 0 ? 8 : (m_noise.divisor_code * 16);
                 m_noise.timer = divisor << m_noise.clock_shift;
                 m_noise.volume = m_noise.envelope_initial;
                 m_noise.envelope_counter = m_noise.envelope_period > 0 ? m_noise.envelope_period : 8;
@@ -697,7 +722,15 @@ void APU::write_register(uint16_t address, uint8_t value) {
             m_enabled = value & 0x80;
             if (!m_enabled && was_enabled) {
                 // APU turned off - clear all registers to 0 (except NR52 itself and wave RAM)
-                // This is required behavior per Pan Docs
+                // This is required behavior per Pan Docs. On DMG specifically, the length
+                // counters keep running and are NOT reset by powering the APU off/on
+                // (Pan Docs: "the length counters ... on the DMG" survive power-off; only
+                // CGB clears them along with everything else).
+                uint8_t saved_pulse1_len = m_pulse1.length_counter;
+                uint8_t saved_pulse2_len = m_pulse2.length_counter;
+                uint16_t saved_wave_len = m_wave.length_counter;
+                uint8_t saved_noise_len = m_noise.length_counter;
+
                 m_pulse1 = {};  // Clear all pulse1 state
                 m_pulse2 = {};  // Clear all pulse2 state
 
@@ -708,6 +741,13 @@ void APU::write_register(uint16_t address, uint8_t value) {
 
                 m_noise = {};
                 m_noise.lfsr = 0x7FFF;  // LFSR initialized to all 1s
+
+                if (!m_cgb_mode) {
+                    m_pulse1.length_counter = saved_pulse1_len;
+                    m_pulse2.length_counter = saved_pulse2_len;
+                    m_wave.length_counter = saved_wave_len;
+                    m_noise.length_counter = saved_noise_len;
+                }
 
                 // Clear control registers (NR50, NR51)
                 m_nr50 = 0;

@@ -105,6 +105,7 @@ private:
     // Joypad state
     uint8_t m_joypad_buttons = 0xFF;   // Button states
     uint8_t m_joypad_directions = 0xFF; // Direction states
+    uint8_t m_prev_joyp_nibble = 0x0F;  // Last low nibble seen by update_joyp_irq (all released)
 
     // OAM DMA
     bool m_oam_dma_active = false;
@@ -115,6 +116,9 @@ private:
     uint16_t m_div_counter = 0;  // Full 16-bit DIV counter (system counter)
     bool m_prev_timer_bit = false;  // Previous state of selected bit for falling edge detection
     uint8_t m_tima_overflow_cycle = 0;  // Countdown for delayed TMA reload (0 = no overflow pending)
+    bool m_tima_reloading = false;  // True for the bus access right after the tick that
+                                     // copied TMA into TIMA (Pan Docs "cycle B": TIMA writes
+                                     // are ignored, TMA writes are mirrored into TIMA).
 
     // Serial internals
     int m_serial_counter = 0;
@@ -134,6 +138,10 @@ private:
 
     // Check for falling edge and increment TIMA if needed
     void check_timer_falling_edge(bool new_bit);
+
+    // Joypad interrupt is edge-triggered: request IF.4 only when a selected
+    // line transitions high-to-low (Pan Docs), not merely "some line is low".
+    void update_joyp_irq();
 
     // I/O helpers
     uint8_t read_io(uint16_t address);

@@ -16,8 +16,10 @@ public:
     explicit LR35902(Bus& bus);
     ~LR35902();
 
-    // Reset the CPU
-    void reset();
+    // Reset the CPU to the post-boot-ROM register state. `is_cgb` selects
+    // the CGB/AGB power-up values (A=0x11 identifies CGB hardware to the
+    // cartridge) instead of the DMG ones.
+    void reset(bool is_cgb = false);
 
     // Execute one instruction, return M-cycles consumed
     int step();

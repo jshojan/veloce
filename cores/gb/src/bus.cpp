@@ -268,6 +268,9 @@ void Bus::write_io(uint16_t address, uint8_t value) {
     switch (reg) {
         case 0x00:  // JOYP
             m_joyp = (m_joyp & 0x0F) | (value & 0x30);
+            // Selecting a group can expose an already-held line as a new
+            // falling edge on the low nibble (Pan Docs; used for STOP wake).
+            update_joyp_irq();
             break;
 
         case 0x01: m_sb = value; break;
@@ -303,13 +306,30 @@ void Bus::write_io(uint16_t address, uint8_t value) {
         }
 
         case 0x05:
-            // Writing to TIMA during overflow cycle cancels the reload
+            // TIMA write timing around an overflow (Pan Docs "Timer obscure
+            // behaviour"). The CPU performs its bus access before the M-cycle's
+            // timer tick (write-then-tick), so:
+            //  - cycle A: TIMA overflowed on the previous tick and still reads
+            //    0x00 (m_tima_overflow_cycle > 0). A write here overrides the
+            //    pending reload: the written value sticks, no TMA copy, no IRQ.
+            //  - cycle B: the previous tick just copied TMA into TIMA and raised
+            //    IF.2 (m_tima_reloading). A write here is ignored.
+            if (m_tima_reloading) {
+                break;
+            }
             if (m_tima_overflow_cycle > 0) {
-                m_tima_overflow_cycle = 0;  // Cancel pending overflow
+                m_tima_overflow_cycle = 0;  // cycle A: cancel reload + IRQ
             }
             m_tima = value;
             break;
-        case 0x06: m_tma = value; break;
+        case 0x06:
+            m_tma = value;
+            // cycle B: TIMA is being loaded from TMA during this M-cycle, so a
+            // TMA write here is copied into TIMA as well.
+            if (m_tima_reloading) {
+                m_tima = value;
+            }
+            break;
         case 0x07: {
             // TAC write can trigger timer increment via glitch
             // If changing from enabled to disabled, or changing clock select
@@ -394,13 +414,29 @@ void Bus::set_input_state(uint32_t buttons) {
     if (buttons & (1 << 8)) m_joypad_directions &= ~0x04;   // Up
     if (buttons & (1 << 9)) m_joypad_directions &= ~0x08;   // Down
 
-    // Check for joypad interrupt (any button pressed)
-    if ((m_joypad_buttons & 0x0F) != 0x0F || (m_joypad_directions & 0x0F) != 0x0F) {
-        // Only trigger if the appropriate selection is made
-        if (!(m_joyp & 0x20) || !(m_joyp & 0x10)) {
-            request_interrupt(0x10);  // Joypad interrupt
-        }
+    update_joyp_irq();
+}
+
+void Bus::update_joyp_irq() {
+    // Same low-nibble computation as read_io case 0x00, so the edge we
+    // detect always matches what the CPU would actually read.
+    uint8_t nibble;
+    if (!(m_joyp & 0x20)) {
+        nibble = m_joypad_buttons & 0x0F;
+    } else if (!(m_joyp & 0x10)) {
+        nibble = m_joypad_directions & 0x0F;
+    } else {
+        nibble = 0x0F;  // Neither group selected - no lines are pulled low
     }
+
+    // Pan Docs: the joypad interrupt fires on a high-to-low transition of a
+    // selected line, not merely "some line is currently low". A bit that was
+    // 1 (released) in the previous nibble and is 0 (pressed) now is a
+    // falling edge.
+    if (m_prev_joyp_nibble & (~nibble & 0x0F)) {
+        request_interrupt(0x10);  // Joypad interrupt
+    }
+    m_prev_joyp_nibble = nibble;
 }
 
 uint8_t Bus::get_pending_interrupts() {
@@ -458,7 +494,8 @@ void Bus::check_timer_falling_edge(bool new_bit) {
     if (m_prev_timer_bit && !new_bit) {
         m_tima++;
         if (m_tima == 0) {
-            // TIMA overflow - schedule delayed reload (happens 1 M-cycle later)
+            // TIMA overflow - schedule delayed reload (happens 1 M-cycle later).
+            // The next bus access sees TIMA == 0x00 (Pan Docs "cycle A").
             m_tima_overflow_cycle = 1;
         }
     }
@@ -469,6 +506,10 @@ void Bus::step_timer(int m_cycles) {
     // Timer uses falling edge detection on specific DIV bits
     // We need to tick one M-cycle at a time for accuracy
     for (int i = 0; i < m_cycles; i++) {
+        // The cycle-B write window only covers the bus access that follows
+        // the reload tick; it closes at the start of the next tick.
+        m_tima_reloading = false;
+
         // Handle delayed TIMA overflow reload
         if (m_tima_overflow_cycle > 0) {
             m_tima_overflow_cycle--;
@@ -476,6 +517,9 @@ void Bus::step_timer(int m_cycles) {
                 // TMA reload and interrupt happen now
                 m_tima = m_tma;
                 request_interrupt(0x04);  // Timer interrupt
+                // The next bus access is "cycle B": TIMA writes are ignored
+                // and TMA writes are mirrored into TIMA.
+                m_tima_reloading = true;
             }
         }
 
@@ -589,6 +633,12 @@ void Bus::load_state(const uint8_t*& data, size_t& remaining) {
     // Initialize timer falling edge state from current div_counter
     m_prev_timer_bit = get_timer_bit();
     m_tima_overflow_cycle = 0;
+    m_tima_reloading = false;
+
+    // Joypad button/direction state isn't part of this minimal savestate
+    // (it's re-supplied by the host every frame); reset edge-detection so a
+    // held button doesn't get lost or spuriously re-fire right after load.
+    m_prev_joyp_nibble = 0x0F;
 }
 
 } // namespace gb

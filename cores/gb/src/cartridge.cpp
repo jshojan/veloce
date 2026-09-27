@@ -37,14 +37,54 @@ bool Cartridge::load(const uint8_t* data, size_t size) {
     uint8_t cart_type = data[0x147];
     detect_mbc(cart_type);
 
-    // Get ROM size
+    // Get ROM size. Only the documented header codes are meaningful: 0x00-0x08
+    // (2 << code banks) and the three oddball Pan Docs codes used by a handful
+    // of Japan-only carts (0x52/0x53/0x54 -> 72/80/96 banks). Anything else is
+    // not a real Game Boy ROM-size code; decoding it as "2 << code" for a large
+    // code byte (e.g. 0x1F) previously produced a bank count of 0, which made
+    // every MBC1/MBC5 "bank %= m_rom_banks" a division by zero (SIGFPE).
     uint8_t rom_size_code = data[0x148];
-    m_rom_banks = 2 << rom_size_code;
+    int rom_banks;
+    if (rom_size_code <= 0x08) {
+        rom_banks = 2 << rom_size_code;
+    } else if (rom_size_code == 0x52) {
+        rom_banks = 72;
+    } else if (rom_size_code == 0x53) {
+        rom_banks = 80;
+    } else if (rom_size_code == 0x54) {
+        rom_banks = 96;
+    } else {
+        std::cerr << "GB ROM: unrecognized ROM size code 0x" << std::hex
+                   << static_cast<int>(rom_size_code) << std::dec << std::endl;
+        return false;
+    }
 
-    // Get RAM size
+    // Cross-check against the actual file size. A truncated/malformed dump
+    // whose header claims more banks than it actually contains would let
+    // MBC bank switches read out of the real data; clamp to what's present.
+    size_t expected_bytes = static_cast<size_t>(rom_banks) * 0x4000;
+    if (expected_bytes > size) {
+        int clamped_banks = static_cast<int>((size + 0x3FFF) / 0x4000);
+        if (clamped_banks < 2) clamped_banks = 2;
+        std::cerr << "GB ROM: header claims " << rom_banks << " banks ("
+                   << expected_bytes << " bytes) but file is only " << size
+                   << " bytes; clamping to " << clamped_banks << " banks" << std::endl;
+        rom_banks = clamped_banks;
+    }
+    m_rom_banks = rom_banks;
+
+    // Get RAM size. Codes 0x01 and >=6 are not defined by the header spec;
+    // fall back to "no RAM" rather than indexing the table with them.
     uint8_t ram_size_code = data[0x149];
     static const int ram_sizes[] = {0, 0, 8, 32, 128, 64};
-    int ram_kb = (ram_size_code < 6) ? ram_sizes[ram_size_code] : 0;
+    int ram_kb = 0;
+    if (ram_size_code < 6 && ram_size_code != 0x01) {
+        ram_kb = ram_sizes[ram_size_code];
+    } else if (ram_size_code != 0x00) {
+        std::cerr << "GB ROM: unrecognized/invalid RAM size code 0x" << std::hex
+                   << static_cast<int>(ram_size_code) << std::dec
+                   << ", defaulting to no RAM" << std::endl;
+    }
     m_ram_banks = ram_kb / 8;
     if (m_ram_banks == 0 && ram_kb > 0) m_ram_banks = 1;
 
