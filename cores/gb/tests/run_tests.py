@@ -24,12 +24,15 @@ Detection (declared per test in test_config.json; see its known_issues):
   serial          alias of "file": the verdict comes from the VELOCE-RESULT/1
                   file the core writes (Blargg serial text / $A000 block,
                   Mooneye LD B,B fingerprint; cores/gb/src/test_channel.hpp).
-  screenshot-crc  Mealybug / acid2 / Blargg-sound / on-screen Blargg results.
+  file            the same, with the adapter named in `channel` (a000 / hram /
+                  mooneye); rom_variant veloce ROMs live under roms/veloce/.
+  screenshot-crc  Mealybug / acid2 (visual_test_suites, never scored).
 """
 
 from __future__ import annotations
 
 import io
+import os
 import sys
 import urllib.request
 import zipfile
@@ -50,6 +53,29 @@ BUNDLE_URL = (
 SENTINEL = "blargg"
 
 
+# ROMs rebuilt by tests/roms-src/build.py land in <repo>/build/roms/gb/<suite>/.
+# Config entries with rom_variant "veloce" address them as
+# "veloce/<suite>/<rom>", through this symlink; the harness still refuses any
+# such ROM whose sha256 is not in tests/roms-src/rom_manifest.json. Without a
+# build the link dangles and those tests SKIP ("ROM not found").
+VELOCE_LINK = "veloce"
+
+
+def _link_veloce_builds(roms_dir: Path) -> None:
+    link = roms_dir / VELOCE_LINK
+    target = Path(os.path.relpath(SCRIPT_DIR.parents[2] / "build" / "roms" / "gb", roms_dir))
+    try:
+        if link.is_symlink():
+            if Path(os.readlink(link)) == target:
+                return
+            link.unlink()
+        elif link.exists():
+            return  # a real directory someone put there; leave it alone
+        link.symlink_to(target, target_is_directory=True)
+    except OSError as e:
+        print(f"  warning: cannot link {link} -> {target}: {e}", file=sys.stderr)
+
+
 def rom_provider(script_dir: Path, keep: bool, verbose: bool) -> Path:
     """Ensure the c-sp gameboy-test-roms bundle is unpacked; return its root.
 
@@ -58,6 +84,7 @@ def rom_provider(script_dir: Path, keep: bool, verbose: bool) -> Path:
     """
     roms_dir = script_dir / "roms"
     roms_dir.mkdir(exist_ok=True)
+    _link_veloce_builds(roms_dir)
 
     if (roms_dir / SENTINEL).is_dir():
         return roms_dir

@@ -54,3 +54,36 @@ present at the pinned commit, not something this rebuild introduced.
 
 Recorded per-ROM in `rom_manifest.json` (`tool_versions.wla-dx`); image id
 also recorded (`toolchain_image_id`).
+
+## Scored entries (GB-3): what is enumerated and where the verdict comes from
+
+`cores/gb/tests/test_config.json` scores 212 upstream ROMs in six
+`gbmicrotest_*` suites (`rom_variant: upstream`, the bundle binaries, which
+match this recipe's rebuild byte for byte). The selection is the plan's
+category list (timer/div, dma, hblank_int_scx, halt, lcdon_to_stat,
+VRAM/OAM lock), taken from the ROMs that report a result. It was not chosen
+by pass/fail.
+
+**Verdict.** Every scored ROM ends in a `tests/macros.inc` `test_end2`-family
+macro (`test_finish_*`, `test_pass`, `test_fail`, `test_assert_a`). These write
+`$FF80` = observed, `$FF81` = expected and `$FF82` = `$01` pass / `$FF` fail.
+The expected constants are compiled into each test from upstream's
+real-hardware measurements (README: "All tests in this repo have been
+checked on real hardware (version DMG-CPU-08 I believe)"). The core's `hram`
+adapter (`cores/gb/src/test_channel.cpp`, armed only for the cart title
+`microtest`) reads the triple at frame end. It writes
+`CHECK 1 PASS|FAIL hram exp=<$FF81> got=<$FF80>` + `END` to the result file.
+`$FF82` alone decides the verdict. The c-sp howto warns that `$FF80`/`$FF81`
+are not always consistent, and one ROM (`mbc1_rom_banks`) fails with exp == got.
+
+**Not scorable (31).** These sources contain no result macro (checked with
+`grep -E 'test_(end2|pass|fail|finish|assert)' tests/*.s`): the numbered
+`000-`..`803-` display probes, the testbenches (`audio_testbench`,
+`ppu_sprite_testbench`, ...), `minimal`, `poweron`, `flood_vram`,
+`toggle_lcdc`, etc., and `temp.s`, an empty stub. The list is in
+`known_issues.gbmicrotest_scope`.
+
+**Left for GB-7/GB-8 (270).** poweron_*, win*, sprite*, line_153*,
+stat_write_glitch*, lyc/oam/vblank interrupt edges, int_* nops/incs and
+mbc1_* all report through the same triple and can be added without any
+core change.

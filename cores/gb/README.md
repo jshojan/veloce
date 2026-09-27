@@ -126,10 +126,16 @@ For the testing methodology and the platform-wide picture see the top-level
 
 **Verified accuracy:** every non-visual test now gets its verdict from the
 VELOCE-RESULT/1 file the core writes (see *Result Detection* below). Measured
-2026-09-27: 65 PASS, 35 FAIL, 63 known_fail, 2 RUNS, 58 visual/skip (63.9%).
-Blargg `cpu_instrs` 11/11, `instr_timing` and `mem_timing` 3/3 PASS; Mooneye
-`timer` 13/13, `mbc1` 12/13, `mbc5` 8/8 PASS; Mooneye `timing` (13), `ppu` (11),
-`oam_dma` (5) and `interrupts` (5) have real failures. The headline fell from
+2026-09-27: 190 PASS, 158 FAIL, 68 known_fail, 2 RUNS, 30 visual/skip (65.1%).
+- **Pass:** Blargg `cpu_instrs` 11/11, `instr_timing`, `mem_timing` 3/3,
+  `mem_timing-2` 4/4 and `halt_bug`; Mooneye `timer` 13/13, `mbc1` 12/13 and
+  `mbc5` 8/8.
+- **Real failures:** Mooneye `timing` (13), `ppu` (11), `oam_dma` (5) and
+  `interrupts` (5); Blargg `interrupt_time`, `dmg_sound` 6/12 and
+  `cgb_sound` 8/12; SameSuite CGB DMA/HDMA 0/4; GBMicrotest 105/212 PASS,
+  weakest on HBlank-IRQ-vs-SCX (19/61) and HALT wakeup (11/34).
+
+The headline fell from
 the earlier "Blargg serial subset" number because those Mooneye failures were
 previously unscored (RUNS), not because anything regressed. The previous
 "111/111, 100%" claim was not reproducible and has been retired. Full
@@ -145,18 +151,20 @@ authoritative test ROM set is the prebuilt
 runnable `.gb` ROMs). The runner downloads and unpacks it into
 `cores/gb/tests/roms/` on first run.
 
-`cores/gb/tests/test_config.json` is schema-v2 and enumerates **225 tests across
-31 suites**, organized by hardware subsystem with a per-test `result_detection`,
+`cores/gb/tests/test_config.json` is schema-v2 and enumerates **448 tests across
+41 suites** (418 scored, 30 visual), organized by hardware subsystem with a per-test `result_detection`,
 `accuracy_type`, and `priority`:
 
 | Source | Subsystems exercised |
 |--------|----------------------|
 | Blargg `cpu_instrs`, `instr_timing`, `mem_timing(-2)`, `halt_bug`, `interrupt_time`, `oam_bug`, `dmg_sound`, `cgb_sound` | CPU instr + instruction/memory timing, HALT bug, OAM bug, APU |
 | Mooneye acceptance (`timer`, `ppu`, `interrupts`, `oam_dma`, `timing`, `bits`, `serial`, boot/div) | Cycle-accurate timer/PPU/interrupt/IME/HALT/DMA/control-flow timing |
+| Mooneye `misc` (CGB hardware: boot regs/HWIO/DIV, unused HWIO, VBlank STAT IRQ) | Post-boot CGB state (`known_fail`: DMG-header carts run as DMG, see `known_issues.model_selection`) |
+| GBMicrotest (212 of 513: timer/DIV, OAM DMA, HBlank IRQ vs SCX, HALT wakeup, LCD-on STAT, VRAM/OAM lock) | Single-cycle timer/PPU/interrupt/access probes |
 | Mooneye `emulator-only` (MBC1/MBC2/MBC5) | Mappers / banking |
 | Mealybug Tearoom (DMG + CGB) | Mid-scanline (mode-3) PPU register changes, pixel-perfect |
 | Wilbertpol | PPU sub-scanline STAT/mode timing |
-| SameSuite (APU ch1-4 + DIV/registers) | Cycle-accurate APU |
+| SameSuite (APU ch1-4 + DIV/registers, CGB DMA/HDMA, EI/HALT, BGPI lock) | Cycle-accurate APU, CGB DMA, interrupts, palette access |
 | dmg-acid2 / cgb-acid2 | Pixel-perfect PPU rendering |
 
 ```bash
@@ -179,10 +187,10 @@ the core prints nothing to stdout. `gb::TestChannel`
 |--------|------|--------|----------------|
 | `serial` | A | ROMs built with the Veloce emitter | every byte sent with `SC=$81`, raw; the ROM's own `CHECK`/`END` lines |
 | `blarggtext` | B | Blargg `cpu_instrs`, `instr_timing`, `mem_timing` | the ROM's serial text, then `END 1/1` for a `Passed` line or `END 0/1 [code=n]` for `Failed [#n]` |
-| `a000` | B | Blargg `oam_bug`, `dmg_sound`, `cgb_sound`, `mem_timing-2` | the `$A000` text as `LOG` lines (when not mirrored to serial), `END` from the status byte, reset request on `$81` |
+| `a000` | B | Blargg `oam_bug`, `dmg_sound`, `cgb_sound`, `mem_timing-2`, `halt_bug`, `interrupt_time` | the `$A000` text as `LOG` lines (when not mirrored to serial), `END` from the status byte, reset request on `$81` |
 | `hram` | B | GBMicrotest (cartridge title `microtest`) | `CHECK 1 PASS/FAIL hram exp=<$FF81> got=<$FF80>` + `END` once `$FF82` is `$01`/`$FF` |
 | `mooneye` | C | Mooneye, SameSuite, Wilbertpol | `REG b= c= d= e= h= l=` + `END 1/1` (Fibonacci fingerprint at `LD B,B`) or `END 0/1 code=66` (all `$42`) |
-| `screenshot-crc` | n/a | Mealybug, acid2, Blargg-sound, halt_bug, interrupt_time, mem_timing-2 | visual only; `reference_hash` values not populated, never scored |
+| `screenshot-crc` | n/a | Mealybug, acid2 | visual only (`visual_test_suites`); `reference_hash` values not populated, never scored |
 
 Any adapter stands down once the ROM has sent a `VELOCE 1` header or an `END`
 line over serial, and only one terminator is ever written. With a sink attached
@@ -225,10 +233,14 @@ c-sp v7.0 bundle this core actually runs against today (`tests/roms-src/gb/
 | GBMicrotest | yes (wla-gb) | 513/513 byte-identical |
 | Mooneye | yes (wla-gb) | 104/115 byte-identical; 11 differ by a handful of bytes each, traced to a WLA-DX *version* difference (Mooneye's own CI pin vs. c-sp's release pin), not a source or macro problem |
 | SameSuite | **no** | blocked: its vendored `include/hardware.inc` uses pre-RGBDS-0.5 `SET` syntax that neither of Veloce's two pinned RGBDS builds (0.6.1, 0.7.0) accepts; c-sp's own release builds it with RGBDS v0.5.2, which Veloce does not carry |
-| Blargg (`cpu_instrs`/`instr_timing`/`mem_timing(-2)`/sound/etc.) | not attempted | ships prebuilt upstream; already scored via the `blarggtext`/`a000` adapters above, no rebuild needed yet |
+| Blargg (`cpu_instrs`/`instr_timing`/`mem_timing(-2)`/sound/etc.) | not assembled | ships prebuilt upstream; scored via the `blarggtext`/`a000` adapters above. `halt_bug` and `interrupt_time` are built as `rom_variant: veloce` from the pinned upstream binaries with only the header RAM-size byte set, because their `$A000` block was otherwise unmapped (`tests/roms-src/gb/blargg/`) |
 
-None of this changes today's scored numbers — GB-1's adapters already read
-every suite's verdict from the vendored, unmodified c-sp bundle. It is the
+Apart from `halt_bug`/`interrupt_time`, this does not change the scored
+numbers: the adapters read every other verdict from the vendored,
+unmodified c-sp bundle. Veloce builds land in `build/roms/gb/<suite>/`, and
+the config addresses them as `veloce/<suite>/<rom>` through the
+`cores/gb/tests/roms/veloce` link that `run_tests.py` maintains. Run
+`tests/roms-src/build.py gb/blargg` first, or those tests SKIP. It is the
 groundwork for GB-4 through GB-7 (source patches that make each suite emit
 `CHECK`/`END` directly, promoting it to Tier A).
 

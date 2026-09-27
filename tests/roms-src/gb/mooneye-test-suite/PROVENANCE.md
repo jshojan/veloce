@@ -66,3 +66,19 @@ by byte-matching either WLA-DX build.
 
 Recorded per-ROM in `rom_manifest.json` (`tool_versions.wla-dx`); image id
 also recorded (`toolchain_image_id`).
+
+## Scored entries added by GB-3: misc/ (CGB hardware)
+
+`mooneye_misc_cgb` enumerates the misc/ ROMs for CGB CPU revisions A-E:
+`boot_regs-cgb`, `boot_hwio-C`, `boot_div-cgbABCDE`, `bits/unused_hwio-C` and
+`ppu/vblank_stat_intr-C`. The AGB variants (`-A`) and `boot_div-cgb0`
+(CPU CGB 0) are other hardware and are not enumerated. The expected values
+live in each test's source: post-boot register/HWIO tables and DIV-phase
+checks. The ROM reports them through the fingerprint + `LD B,B` (the
+`mooneye` adapter).
+
+All five carry a DMG header (`$0143 = $00`). They test what a CGB does with
+a DMG cart. The core chooses its model from `$0143` only, so it runs them
+as a DMG and they fail with `END 0/1 code=66`. They are `known_fail` with
+`known_issues.model_selection` until the core gains a model override. A pass
+still counts.

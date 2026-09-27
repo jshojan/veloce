@@ -1,9 +1,13 @@
 {
   "schema_version": 2,
   "console": "gb",
-  "description": "Game Boy / Game Boy Color authoritative test suite. Subsystem-organized, prioritized, per-test result-detection. Paths target the c-sp gameboy-test-roms v7.0 prebuilt bundle (the only source that ships runnable .gb ROMs for Mooneye/Mealybug/SameSuite/acid2; the upstream repos ship only RGBDS source).",
+  "description": "Game Boy / Game Boy Color authoritative test suite. Subsystem-organized, prioritized, per-test result-detection. Paths are relative to cores/gb/tests/roms/: the c-sp gameboy-test-roms v7.0 prebuilt bundle, plus veloce/<suite>/ (a link to build/roms/gb/, written by tests/roms-src/build.py) for rom_variant veloce rebuilds.",
   "timeout_seconds": 90,
   "frame_limit": 2500,
+  "rom_build": {
+    "dockerfile": "tools/rom-toolchain/Dockerfile",
+    "recipes": "tests/roms-src/gb"
+  },
   "repositories": {
     "bundle": {
       "url": "https://github.com/c-sp/gameboy-test-roms/releases/download/v7.0/game-boy-test-roms-v7.0.zip",
@@ -137,7 +141,7 @@
     },
     "mem_timing_2": {
       "name": "Memory Access Timing 2 (Blargg)",
-      "description": "Tighter sub-cycle memory access timing. Result shown on-screen; screenshot-crc avoids the non-ASCII serial decode crash.",
+      "description": "Tighter sub-cycle memory access timing. Verdict from blargg's $A000 result block (a000 adapter). Verified on DMG-C and CGB-B/C/E (c-sp v7.0 howto).",
       "subsystem": "timing",
       "priority": "high",
       "repo": "bundle",
@@ -145,77 +149,81 @@
         {
           "file": "blargg/mem_timing-2/mem_timing.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "screenshot-crc",
-          "expected": "known_fail",
-          "screenshot_frame": 180,
-          "reference_hash": "",
-          "notes": "Combined ROM; on-screen result. reference_hash TBD via --generate-refs."
+          "result_detection": "file",
+          "channel": "a000",
+          "require_channel": "a000",
+          "expected": "pass",
+          "notes": "Combined ROM of the three singles."
         },
         {
           "file": "blargg/mem_timing-2/rom_singles/01-read_timing.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "screenshot-crc",
-          "expected": "known_fail",
-          "screenshot_frame": 180,
-          "reference_hash": ""
+          "result_detection": "file",
+          "channel": "a000",
+          "require_channel": "a000",
+          "expected": "pass"
         },
         {
           "file": "blargg/mem_timing-2/rom_singles/02-write_timing.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "screenshot-crc",
-          "expected": "known_fail",
-          "screenshot_frame": 180,
-          "reference_hash": ""
+          "result_detection": "file",
+          "channel": "a000",
+          "require_channel": "a000",
+          "expected": "pass"
         },
         {
           "file": "blargg/mem_timing-2/rom_singles/03-modify_timing.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "screenshot-crc",
-          "expected": "known_fail",
-          "screenshot_frame": 180,
-          "reference_hash": ""
+          "result_detection": "file",
+          "channel": "a000",
+          "require_channel": "a000",
+          "expected": "pass"
         }
       ]
     },
     "halt_bug": {
       "name": "HALT Bug (Blargg)",
-      "description": "HALT with IME=0 and pending interrupt PC-double-read quirk.",
+      "description": "HALT with IME=0 and pending interrupt PC-double-read quirk. Verified on DMG-C and CGB-B/C/E. Verdict from blargg's $A000 result block.",
       "subsystem": "cpu",
       "priority": "high",
       "repo": "bundle",
       "tests": [
         {
-          "file": "blargg/halt_bug.gb",
+          "file": "veloce/blargg/halt_bug.gb",
           "accuracy_type": "timing",
-          "result_detection": "screenshot-crc",
-          "expected": "known_fail",
-          "screenshot_frame": 200,
-          "reference_hash": "",
-          "notes": "MEASURED: no ASCII serial (on-screen only). reference_hash TBD."
+          "result_detection": "file",
+          "channel": "a000",
+          "require_channel": "a000",
+          "expected": "pass",
+          "notes": "rom_variant veloce: upstream's binary at the pinned SHA with only the header RAM-size byte ($0149) set to 8 KiB by rgbfix (tests/roms-src/gb/blargg/recipe.json). Upstream declares MBC1+RAM with RAM size 0, so the $A000 block it writes is unmapped. Build with tests/roms-src/build.py gb/blargg; without the build this test SKIPs.",
+          "rom_variant": "veloce",
+          "source_url": "https://github.com/retrio/gb-test-roms"
         }
       ]
     },
     "interrupt_time": {
       "name": "Interrupt Timing (Blargg, CGB)",
-      "description": "Cycle at which an interrupt is serviced vs the trigger. CGB ROM.",
+      "description": "Cycle at which an interrupt is serviced vs the trigger, at normal and double speed. CGB-only ROM, verified on CGB-B/C/E. Verdict from blargg's $A000 result block.",
       "subsystem": "timing",
       "priority": "high",
       "repo": "bundle",
       "tests": [
         {
-          "file": "blargg/interrupt_time/interrupt_time.gb",
+          "file": "veloce/blargg/interrupt_time.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "screenshot-crc",
-          "expected": "known_fail",
-          "screenshot_frame": 200,
-          "reference_hash": "",
-          "notes": "MEASURED: no ASCII serial (on-screen, CGB-only). reference_hash TBD."
+          "result_detection": "file",
+          "channel": "a000",
+          "require_channel": "a000",
+          "expected": "pass",
+          "notes": "rom_variant veloce: upstream's binary at the pinned SHA with only the header RAM-size byte ($0149) set to 8 KiB by rgbfix (tests/roms-src/gb/blargg/recipe.json). Upstream declares MBC1+RAM with RAM size 0, so the $A000 block it writes is unmapped. Build with tests/roms-src/build.py gb/blargg; without the build this test SKIPs.",
+          "rom_variant": "veloce",
+          "source_url": "https://github.com/retrio/gb-test-roms"
         }
       ]
     },
     "oam_bug": {
       "name": "OAM Corruption Bug (Blargg)",
-      "description": "DMG OAM corruption on 16-bit inc/dec into $FE00-$FEFF during mode 2.",
+      "description": "DMG OAM corruption on 16-bit inc/dec into $FE00-$FEFF during mode 2. Verdict from blargg's $A000 result block. NOTE: the ROMs set CGB flag $80, so the core (model chosen from the header, no override) runs them in CGB mode, where the bug does not exist. See known_issues.model_selection.",
       "subsystem": "ppu",
       "priority": "medium",
       "repo": "bundle",
@@ -223,49 +231,66 @@
         {
           "file": "blargg/oam_bug/rom_singles/1-lcd_sync.gb",
           "accuracy_type": "timing",
-          "result_detection": "serial",
-          "expected": "known_fail"
+          "result_detection": "file",
+          "channel": "a000",
+          "require_channel": "a000",
+          "expected": "known_fail",
+          "notes": "known_fail: runs in CGB mode (header $0143=$80), so the DMG-only bug this ROM verifies is not exercised; see known_issues.model_selection."
         },
         {
           "file": "blargg/oam_bug/rom_singles/2-causes.gb",
           "accuracy_type": "timing",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "a000",
+          "require_channel": "a000",
           "expected": "known_fail"
         },
         {
           "file": "blargg/oam_bug/rom_singles/3-non_causes.gb",
           "accuracy_type": "timing",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "a000",
+          "require_channel": "a000",
           "expected": "known_fail"
         },
         {
           "file": "blargg/oam_bug/rom_singles/4-scanline_timing.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "a000",
+          "require_channel": "a000",
           "expected": "known_fail"
         },
         {
           "file": "blargg/oam_bug/rom_singles/5-timing_bug.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "a000",
+          "require_channel": "a000",
           "expected": "known_fail"
         },
         {
           "file": "blargg/oam_bug/rom_singles/6-timing_no_bug.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "a000",
+          "require_channel": "a000",
           "expected": "known_fail"
         },
         {
           "file": "blargg/oam_bug/rom_singles/7-timing_effect.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "a000",
+          "require_channel": "a000",
           "expected": "known_fail"
         },
         {
           "file": "blargg/oam_bug/rom_singles/8-instr_effect.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "a000",
+          "require_channel": "a000",
           "expected": "known_fail"
         }
       ]
@@ -281,8 +306,7 @@
           "file": "mooneye-test-suite/acceptance/instr/daa.gb",
           "accuracy_type": "functional",
           "result_detection": "serial",
-          "expected": "pass",
-          "notes": "Mooneye signals via Fibonacci reg fingerprint + LD B,B; binary does not yet print MOONEYE: PASS/FAIL, so currently resolves to RUNS. See known_issues.mooneye_detection."
+          "expected": "pass"
         }
       ]
     },
@@ -297,8 +321,7 @@
           "file": "mooneye-test-suite/acceptance/bits/mem_oam.gb",
           "accuracy_type": "functional",
           "result_detection": "serial",
-          "expected": "pass",
-          "notes": "Mooneye signals via Fibonacci reg fingerprint + LD B,B; binary does not yet print MOONEYE: PASS/FAIL, so currently resolves to RUNS. See known_issues.mooneye_detection."
+          "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/acceptance/bits/reg_f.gb",
@@ -325,8 +348,7 @@
           "file": "mooneye-test-suite/acceptance/interrupts/ie_push.gb",
           "accuracy_type": "cycle-accurate",
           "result_detection": "serial",
-          "expected": "pass",
-          "notes": "Mooneye signals via Fibonacci reg fingerprint + LD B,B; binary does not yet print MOONEYE: PASS/FAIL, so currently resolves to RUNS. See known_issues.mooneye_detection."
+          "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/acceptance/ei_sequence.gb",
@@ -408,8 +430,7 @@
           "file": "mooneye-test-suite/acceptance/oam_dma/basic.gb",
           "accuracy_type": "timing",
           "result_detection": "serial",
-          "expected": "pass",
-          "notes": "Mooneye signals via Fibonacci reg fingerprint + LD B,B; binary does not yet print MOONEYE: PASS/FAIL, so currently resolves to RUNS. See known_issues.mooneye_detection."
+          "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/acceptance/oam_dma/reg_read.gb",
@@ -454,8 +475,7 @@
           "file": "mooneye-test-suite/acceptance/ppu/hblank_ly_scx_timing-GS.gb",
           "accuracy_type": "cycle-accurate",
           "result_detection": "serial",
-          "expected": "pass",
-          "notes": "Mooneye signals via Fibonacci reg fingerprint + LD B,B; binary does not yet print MOONEYE: PASS/FAIL, so currently resolves to RUNS. See known_issues.mooneye_detection."
+          "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/acceptance/ppu/intr_1_2_timing-GS.gb",
@@ -537,8 +557,7 @@
           "file": "mooneye-test-suite/acceptance/timer/div_write.gb",
           "accuracy_type": "cycle-accurate",
           "result_detection": "serial",
-          "expected": "pass",
-          "notes": "Mooneye signals via Fibonacci reg fingerprint + LD B,B; binary does not yet print MOONEYE: PASS/FAIL, so currently resolves to RUNS. See known_issues.mooneye_detection."
+          "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/acceptance/timer/rapid_toggle.gb",
@@ -625,8 +644,7 @@
           "file": "mooneye-test-suite/acceptance/div_timing.gb",
           "accuracy_type": "cycle-accurate",
           "result_detection": "serial",
-          "expected": "pass",
-          "notes": "Mooneye signals via Fibonacci reg fingerprint + LD B,B; binary does not yet print MOONEYE: PASS/FAIL, so currently resolves to RUNS. See known_issues.mooneye_detection."
+          "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/acceptance/boot_div-dmgABCmgb.gb",
@@ -651,6 +669,59 @@
         }
       ]
     },
+    "mooneye_misc_cgb": {
+      "name": "Mooneye - misc (CGB hardware)",
+      "description": "Mooneye misc/ ROMs for CGB CPU revisions A-E: post-boot registers, HWIO, DIV phase, unused HWIO bits, VBlank STAT IRQ. AGB (-A) and CPU-CGB-0 (-cgb0) variants are not enumerated (other hardware).",
+      "subsystem": "timing",
+      "priority": "medium",
+      "repo": "bundle",
+      "tests": [
+        {
+          "file": "mooneye-test-suite/misc/boot_regs-cgb.gb",
+          "accuracy_type": "functional",
+          "subsystem": "memory",
+          "result_detection": "file",
+          "channel": "mooneye",
+          "expected": "known_fail",
+          "notes": "known_fail: CGB-hardware test on a DMG-header cart ($0143=$00); the core picks DMG from the header and has no model override, so the ROM runs on the wrong model. See known_issues.model_selection."
+        },
+        {
+          "file": "mooneye-test-suite/misc/boot_hwio-C.gb",
+          "accuracy_type": "functional",
+          "subsystem": "memory",
+          "result_detection": "file",
+          "channel": "mooneye",
+          "expected": "known_fail",
+          "notes": "known_fail: CGB-hardware test on a DMG-header cart ($0143=$00); the core picks DMG from the header and has no model override, so the ROM runs on the wrong model. See known_issues.model_selection."
+        },
+        {
+          "file": "mooneye-test-suite/misc/boot_div-cgbABCDE.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "mooneye",
+          "expected": "known_fail",
+          "notes": "known_fail: CGB-hardware test on a DMG-header cart ($0143=$00); the core picks DMG from the header and has no model override, so the ROM runs on the wrong model. See known_issues.model_selection."
+        },
+        {
+          "file": "mooneye-test-suite/misc/bits/unused_hwio-C.gb",
+          "accuracy_type": "functional",
+          "subsystem": "memory",
+          "result_detection": "file",
+          "channel": "mooneye",
+          "expected": "known_fail",
+          "notes": "known_fail: CGB-hardware test on a DMG-header cart ($0143=$00); the core picks DMG from the header and has no model override, so the ROM runs on the wrong model. See known_issues.model_selection."
+        },
+        {
+          "file": "mooneye-test-suite/misc/ppu/vblank_stat_intr-C.gb",
+          "accuracy_type": "cycle-accurate",
+          "subsystem": "ppu",
+          "result_detection": "file",
+          "channel": "mooneye",
+          "expected": "known_fail",
+          "notes": "known_fail: CGB-hardware test on a DMG-header cart ($0143=$00); the core picks DMG from the header and has no model override, so the ROM runs on the wrong model. See known_issues.model_selection."
+        }
+      ]
+    },
     "mooneye_timing": {
       "name": "Mooneye - Instruction/Control-Flow Timing",
       "description": "Per-instruction M-cycle timing for ADD SP,e / CALL / JP / PUSH / POP / RET / RST / RETI.",
@@ -662,8 +733,7 @@
           "file": "mooneye-test-suite/acceptance/add_sp_e_timing.gb",
           "accuracy_type": "cycle-accurate",
           "result_detection": "serial",
-          "expected": "pass",
-          "notes": "Mooneye signals via Fibonacci reg fingerprint + LD B,B; binary does not yet print MOONEYE: PASS/FAIL, so currently resolves to RUNS. See known_issues.mooneye_detection."
+          "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/acceptance/call_cc_timing.gb",
@@ -772,8 +842,7 @@
           "file": "mooneye-test-suite/emulator-only/mbc1/bits_bank1.gb",
           "accuracy_type": "functional",
           "result_detection": "serial",
-          "expected": "pass",
-          "notes": "Mooneye signals via Fibonacci reg fingerprint + LD B,B; binary does not yet print MOONEYE: PASS/FAIL, so currently resolves to RUNS. See known_issues.mooneye_detection."
+          "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/emulator-only/mbc1/bits_bank2.gb",
@@ -913,8 +982,7 @@
           "file": "mooneye-test-suite/emulator-only/mbc5/rom_512kb.gb",
           "accuracy_type": "functional",
           "result_detection": "serial",
-          "expected": "pass",
-          "notes": "Mooneye signals via Fibonacci reg fingerprint + LD B,B; binary does not yet print MOONEYE: PASS/FAIL, so currently resolves to RUNS. See known_issues.mooneye_detection."
+          "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/emulator-only/mbc5/rom_1Mb.gb",
@@ -972,7 +1040,7 @@
           "accuracy_type": "cycle-accurate",
           "result_detection": "serial",
           "expected": "known_fail",
-          "notes": "Needs dot-accurate FIFO; Mooneye signals via Fibonacci reg fingerprint + LD B,B; binary does not yet print MOONEYE: PASS/FAIL, so currently resolves to RUNS. See known_issues.mooneye_detection."
+          "notes": "Needs dot-accurate FIFO."
         },
         {
           "file": "mooneye-test-suite-wilbertpol/acceptance/gpu/intr_2_mode0_timing_sprites_nops.gb",
@@ -993,8 +1061,7 @@
           "file": "same-suite/apu/channel_1/channel_1_align.gb",
           "accuracy_type": "cycle-accurate",
           "result_detection": "serial",
-          "expected": "known_fail",
-          "notes": "Mooneye signals via Fibonacci reg fingerprint + LD B,B; binary does not yet print MOONEYE: PASS/FAIL, so currently resolves to RUNS. See known_issues.mooneye_detection."
+          "expected": "known_fail"
         },
         {
           "file": "same-suite/apu/channel_1/channel_1_align_cpu.gb",
@@ -1099,8 +1166,7 @@
           "file": "same-suite/apu/channel_2/channel_2_align.gb",
           "accuracy_type": "cycle-accurate",
           "result_detection": "serial",
-          "expected": "known_fail",
-          "notes": "Mooneye signals via Fibonacci reg fingerprint + LD B,B; binary does not yet print MOONEYE: PASS/FAIL, so currently resolves to RUNS. See known_issues.mooneye_detection."
+          "expected": "known_fail"
         },
         {
           "file": "same-suite/apu/channel_2/channel_2_duty.gb",
@@ -1139,8 +1205,7 @@
           "file": "same-suite/apu/channel_3/channel_3_and_glitch.gb",
           "accuracy_type": "cycle-accurate",
           "result_detection": "serial",
-          "expected": "known_fail",
-          "notes": "Mooneye signals via Fibonacci reg fingerprint + LD B,B; binary does not yet print MOONEYE: PASS/FAIL, so currently resolves to RUNS. See known_issues.mooneye_detection."
+          "expected": "known_fail"
         },
         {
           "file": "same-suite/apu/channel_3/channel_3_delay.gb",
@@ -1209,8 +1274,7 @@
           "file": "same-suite/apu/channel_4/channel_4_align.gb",
           "accuracy_type": "cycle-accurate",
           "result_detection": "serial",
-          "expected": "known_fail",
-          "notes": "Mooneye signals via Fibonacci reg fingerprint + LD B,B; binary does not yet print MOONEYE: PASS/FAIL, so currently resolves to RUNS. See known_issues.mooneye_detection."
+          "expected": "known_fail"
         },
         {
           "file": "same-suite/apu/channel_4/channel_4_delay.gb",
@@ -1279,8 +1343,7 @@
           "file": "same-suite/apu/div_write_trigger.gb",
           "accuracy_type": "cycle-accurate",
           "result_detection": "serial",
-          "expected": "known_fail",
-          "notes": "Mooneye signals via Fibonacci reg fingerprint + LD B,B; binary does not yet print MOONEYE: PASS/FAIL, so currently resolves to RUNS. See known_issues.mooneye_detection."
+          "expected": "known_fail"
         },
         {
           "file": "same-suite/apu/div_write_trigger_10.gb",
@@ -1305,6 +1368,2041 @@
           "accuracy_type": "cycle-accurate",
           "result_detection": "serial",
           "expected": "known_fail"
+        }
+      ]
+    },
+    "samesuite_dma": {
+      "name": "SameSuite - CGB DMA / HDMA",
+      "description": "CGB general-purpose and HBlank DMA: source address masking, continuation, LCD-off and mode-0 behaviour. Verdict: Mooneye fingerprint at LD B,B.",
+      "subsystem": "timing",
+      "priority": "medium",
+      "repo": "bundle",
+      "tests": [
+        {
+          "file": "same-suite/dma/gbc_dma_cont.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "mooneye",
+          "expected": "pass"
+        },
+        {
+          "file": "same-suite/dma/gdma_addr_mask.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "mooneye",
+          "expected": "pass"
+        },
+        {
+          "file": "same-suite/dma/hdma_lcd_off.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "mooneye",
+          "expected": "pass"
+        },
+        {
+          "file": "same-suite/dma/hdma_mode0.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "mooneye",
+          "expected": "pass"
+        }
+      ]
+    },
+    "samesuite_interrupt": {
+      "name": "SameSuite - Interrupts",
+      "description": "EI delay across HALT. Verdict: Mooneye fingerprint at LD B,B.",
+      "subsystem": "timing",
+      "priority": "medium",
+      "repo": "bundle",
+      "tests": [
+        {
+          "file": "same-suite/interrupt/ei_delay_halt.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "mooneye",
+          "expected": "pass"
+        }
+      ]
+    },
+    "samesuite_ppu": {
+      "name": "SameSuite - PPU",
+      "description": "BGPI auto-increment blocked while palette RAM is locked. Verdict: Mooneye fingerprint at LD B,B.",
+      "subsystem": "ppu",
+      "priority": "medium",
+      "repo": "bundle",
+      "tests": [
+        {
+          "file": "same-suite/ppu/blocking_bgpi_increase.gb",
+          "accuracy_type": "timing",
+          "result_detection": "file",
+          "channel": "mooneye",
+          "expected": "pass"
+        }
+      ]
+    },
+    "dmg_sound": {
+      "name": "DMG Sound (Blargg)",
+      "description": "DMG APU registers, length counters, trigger, sweep, wave RAM. Verdict from blargg's $A000 result block. Verified on DMG-C (c-sp v7.0 howto); header $0143=$00, so the core runs them as DMG.",
+      "subsystem": "apu",
+      "priority": "medium",
+      "repo": "bundle",
+      "tests": [
+        {
+          "file": "blargg/dmg_sound/rom_singles/01-registers.gb",
+          "accuracy_type": "functional",
+          "result_detection": "file",
+          "channel": "a000",
+          "require_channel": "a000",
+          "expected": "pass"
+        },
+        {
+          "file": "blargg/dmg_sound/rom_singles/02-len ctr.gb",
+          "accuracy_type": "timing",
+          "result_detection": "file",
+          "channel": "a000",
+          "require_channel": "a000",
+          "expected": "pass"
+        },
+        {
+          "file": "blargg/dmg_sound/rom_singles/03-trigger.gb",
+          "accuracy_type": "timing",
+          "result_detection": "file",
+          "channel": "a000",
+          "require_channel": "a000",
+          "expected": "pass"
+        },
+        {
+          "file": "blargg/dmg_sound/rom_singles/04-sweep.gb",
+          "accuracy_type": "timing",
+          "result_detection": "file",
+          "channel": "a000",
+          "require_channel": "a000",
+          "expected": "pass"
+        },
+        {
+          "file": "blargg/dmg_sound/rom_singles/05-sweep details.gb",
+          "accuracy_type": "timing",
+          "result_detection": "file",
+          "channel": "a000",
+          "require_channel": "a000",
+          "expected": "pass"
+        },
+        {
+          "file": "blargg/dmg_sound/rom_singles/06-overflow on trigger.gb",
+          "accuracy_type": "timing",
+          "result_detection": "file",
+          "channel": "a000",
+          "require_channel": "a000",
+          "expected": "pass"
+        },
+        {
+          "file": "blargg/dmg_sound/rom_singles/07-len sweep period sync.gb",
+          "accuracy_type": "timing",
+          "result_detection": "file",
+          "channel": "a000",
+          "require_channel": "a000",
+          "expected": "pass"
+        },
+        {
+          "file": "blargg/dmg_sound/rom_singles/08-len ctr during power.gb",
+          "accuracy_type": "timing",
+          "result_detection": "file",
+          "channel": "a000",
+          "require_channel": "a000",
+          "expected": "pass"
+        },
+        {
+          "file": "blargg/dmg_sound/rom_singles/09-wave read while on.gb",
+          "accuracy_type": "timing",
+          "result_detection": "file",
+          "channel": "a000",
+          "require_channel": "a000",
+          "expected": "pass"
+        },
+        {
+          "file": "blargg/dmg_sound/rom_singles/10-wave trigger while on.gb",
+          "accuracy_type": "timing",
+          "result_detection": "file",
+          "channel": "a000",
+          "require_channel": "a000",
+          "expected": "pass"
+        },
+        {
+          "file": "blargg/dmg_sound/rom_singles/11-regs after power.gb",
+          "accuracy_type": "functional",
+          "result_detection": "file",
+          "channel": "a000",
+          "require_channel": "a000",
+          "expected": "pass"
+        },
+        {
+          "file": "blargg/dmg_sound/rom_singles/12-wave write while on.gb",
+          "accuracy_type": "timing",
+          "result_detection": "file",
+          "channel": "a000",
+          "require_channel": "a000",
+          "expected": "pass"
+        }
+      ]
+    },
+    "cgb_sound": {
+      "name": "CGB Sound (Blargg)",
+      "description": "CGB APU differences vs DMG. Verdict from blargg's $A000 result block. Verified on CGB-C/E (c-sp v7.0 howto); header $0143=$C0, so the core runs them as CGB.",
+      "subsystem": "apu",
+      "priority": "low",
+      "repo": "bundle",
+      "tests": [
+        {
+          "file": "blargg/cgb_sound/rom_singles/01-registers.gb",
+          "accuracy_type": "functional",
+          "result_detection": "file",
+          "channel": "a000",
+          "require_channel": "a000",
+          "expected": "pass"
+        },
+        {
+          "file": "blargg/cgb_sound/rom_singles/02-len ctr.gb",
+          "accuracy_type": "timing",
+          "result_detection": "file",
+          "channel": "a000",
+          "require_channel": "a000",
+          "expected": "pass"
+        },
+        {
+          "file": "blargg/cgb_sound/rom_singles/03-trigger.gb",
+          "accuracy_type": "timing",
+          "result_detection": "file",
+          "channel": "a000",
+          "require_channel": "a000",
+          "expected": "pass"
+        },
+        {
+          "file": "blargg/cgb_sound/rom_singles/04-sweep.gb",
+          "accuracy_type": "timing",
+          "result_detection": "file",
+          "channel": "a000",
+          "require_channel": "a000",
+          "expected": "pass"
+        },
+        {
+          "file": "blargg/cgb_sound/rom_singles/05-sweep details.gb",
+          "accuracy_type": "timing",
+          "result_detection": "file",
+          "channel": "a000",
+          "require_channel": "a000",
+          "expected": "pass"
+        },
+        {
+          "file": "blargg/cgb_sound/rom_singles/06-overflow on trigger.gb",
+          "accuracy_type": "timing",
+          "result_detection": "file",
+          "channel": "a000",
+          "require_channel": "a000",
+          "expected": "pass"
+        },
+        {
+          "file": "blargg/cgb_sound/rom_singles/07-len sweep period sync.gb",
+          "accuracy_type": "timing",
+          "result_detection": "file",
+          "channel": "a000",
+          "require_channel": "a000",
+          "expected": "pass"
+        },
+        {
+          "file": "blargg/cgb_sound/rom_singles/08-len ctr during power.gb",
+          "accuracy_type": "timing",
+          "result_detection": "file",
+          "channel": "a000",
+          "require_channel": "a000",
+          "expected": "pass"
+        },
+        {
+          "file": "blargg/cgb_sound/rom_singles/09-wave read while on.gb",
+          "accuracy_type": "timing",
+          "result_detection": "file",
+          "channel": "a000",
+          "require_channel": "a000",
+          "expected": "pass"
+        },
+        {
+          "file": "blargg/cgb_sound/rom_singles/10-wave trigger while on.gb",
+          "accuracy_type": "timing",
+          "result_detection": "file",
+          "channel": "a000",
+          "require_channel": "a000",
+          "expected": "pass"
+        },
+        {
+          "file": "blargg/cgb_sound/rom_singles/11-regs after power.gb",
+          "accuracy_type": "functional",
+          "result_detection": "file",
+          "channel": "a000",
+          "require_channel": "a000",
+          "expected": "pass"
+        },
+        {
+          "file": "blargg/cgb_sound/rom_singles/12-wave.gb",
+          "accuracy_type": "timing",
+          "result_detection": "file",
+          "channel": "a000",
+          "require_channel": "a000",
+          "expected": "pass"
+        }
+      ]
+    },
+    "gbmicrotest_timer": {
+      "name": "GBMicrotest - Timer / DIV",
+      "description": "TIMA increment/reload/write races, TMA write, DIV phase, per-M-cycle. Verdict: $FF82 = $01 pass / $FF ($FF80 got, $FF81 exp informational) via the hram adapter. All checked on DMG-CPU-08 hardware (upstream README); header $0143=$00, run as DMG.",
+      "subsystem": "timing",
+      "priority": "medium",
+      "repo": "bundle",
+      "source_url": "https://github.com/aappleby/GBMicrotest",
+      "tests": [
+        {
+          "file": "gbmicrotest/div_inc_timing_a.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/div_inc_timing_b.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/poweron_div_000.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/poweron_div_004.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/poweron_div_005.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/poweron_tima_000.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/timer_div_phase_c.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/timer_div_phase_d.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/timer_tima_inc_256k_a.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/timer_tima_inc_256k_b.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/timer_tima_inc_256k_c.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/timer_tima_inc_256k_d.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/timer_tima_inc_256k_e.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/timer_tima_inc_256k_f.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/timer_tima_inc_256k_g.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/timer_tima_inc_256k_h.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/timer_tima_inc_256k_i.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/timer_tima_inc_256k_j.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/timer_tima_inc_256k_k.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/timer_tima_inc_64k_a.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/timer_tima_inc_64k_b.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/timer_tima_inc_64k_c.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/timer_tima_inc_64k_d.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/timer_tima_phase_a.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/timer_tima_phase_b.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/timer_tima_phase_c.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/timer_tima_phase_d.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/timer_tima_phase_e.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/timer_tima_phase_f.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/timer_tima_phase_g.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/timer_tima_phase_h.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/timer_tima_phase_i.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/timer_tima_phase_j.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/timer_tima_reload_256k_a.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/timer_tima_reload_256k_b.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/timer_tima_reload_256k_c.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/timer_tima_reload_256k_d.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/timer_tima_reload_256k_e.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/timer_tima_reload_256k_f.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/timer_tima_reload_256k_g.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/timer_tima_reload_256k_h.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/timer_tima_reload_256k_i.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/timer_tima_reload_256k_j.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/timer_tima_reload_256k_k.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/timer_tima_write_a.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/timer_tima_write_b.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/timer_tima_write_c.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/timer_tima_write_d.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/timer_tima_write_e.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/timer_tima_write_f.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/timer_tma_write_a.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/timer_tma_write_b.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        }
+      ]
+    },
+    "gbmicrotest_dma": {
+      "name": "GBMicrotest - OAM DMA",
+      "description": "OAM DMA start/bus-conflict timing, single-cycle probes. Verdict: $FF82 = $01 pass / $FF ($FF80 got, $FF81 exp informational) via the hram adapter. All checked on DMG-CPU-08 hardware (upstream README); header $0143=$00, run as DMG.",
+      "subsystem": "timing",
+      "priority": "medium",
+      "repo": "bundle",
+      "source_url": "https://github.com/aappleby/GBMicrotest",
+      "tests": [
+        {
+          "file": "gbmicrotest/dma_0x1000.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/dma_0x9000.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/dma_0xA000.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/dma_0xC000.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/dma_0xE000.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/dma_timing_a.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/poweron_dma_000.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        }
+      ]
+    },
+    "gbmicrotest_hblank_scx": {
+      "name": "GBMicrotest - HBlank IRQ vs SCX",
+      "description": "Mode-0 STAT interrupt / IF timing as a function of SCX fine scroll (mode-3 length). Verdict: $FF82 = $01 pass / $FF ($FF80 got, $FF81 exp informational) via the hram adapter. All checked on DMG-CPU-08 hardware (upstream README); header $0143=$00, run as DMG.",
+      "subsystem": "ppu",
+      "priority": "medium",
+      "repo": "bundle",
+      "source_url": "https://github.com/aappleby/GBMicrotest",
+      "tests": [
+        {
+          "file": "gbmicrotest/hblank_int_scx0.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/hblank_int_scx0_if_a.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/hblank_int_scx0_if_b.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/hblank_int_scx0_if_c.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/hblank_int_scx0_if_d.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/hblank_int_scx1.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/hblank_int_scx1_if_a.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/hblank_int_scx1_if_b.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/hblank_int_scx1_if_c.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/hblank_int_scx1_if_d.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/hblank_int_scx1_nops_a.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/hblank_int_scx1_nops_b.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/hblank_int_scx2.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/hblank_int_scx2_if_a.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/hblank_int_scx2_if_b.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/hblank_int_scx2_if_c.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/hblank_int_scx2_if_d.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/hblank_int_scx2_nops_a.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/hblank_int_scx2_nops_b.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/hblank_int_scx3.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/hblank_int_scx3_if_a.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/hblank_int_scx3_if_b.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/hblank_int_scx3_if_c.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/hblank_int_scx3_if_d.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/hblank_int_scx3_nops_a.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/hblank_int_scx3_nops_b.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/hblank_int_scx4.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/hblank_int_scx4_if_a.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/hblank_int_scx4_if_b.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/hblank_int_scx4_if_c.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/hblank_int_scx4_if_d.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/hblank_int_scx4_nops_a.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/hblank_int_scx4_nops_b.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/hblank_int_scx5.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/hblank_int_scx5_if_a.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/hblank_int_scx5_if_b.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/hblank_int_scx5_if_c.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/hblank_int_scx5_if_d.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/hblank_int_scx5_nops_a.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/hblank_int_scx5_nops_b.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/hblank_int_scx6.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/hblank_int_scx6_if_a.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/hblank_int_scx6_if_b.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/hblank_int_scx6_if_c.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/hblank_int_scx6_if_d.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/hblank_int_scx6_nops_a.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/hblank_int_scx6_nops_b.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/hblank_int_scx7.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/hblank_int_scx7_if_a.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/hblank_int_scx7_if_b.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/hblank_int_scx7_if_c.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/hblank_int_scx7_if_d.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/hblank_int_scx7_nops_a.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/hblank_int_scx7_nops_b.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/hblank_scx2_if_a.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/hblank_scx3_if_a.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/hblank_scx3_if_b.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/hblank_scx3_if_c.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/hblank_scx3_if_d.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/hblank_scx3_int_a.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/hblank_scx3_int_b.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        }
+      ]
+    },
+    "gbmicrotest_halt": {
+      "name": "GBMicrotest - HALT Wakeup",
+      "description": "HALT exit timing on hblank/vblank/STAT/timer interrupts. Verdict: $FF82 = $01 pass / $FF ($FF80 got, $FF81 exp informational) via the hram adapter. All checked on DMG-CPU-08 hardware (upstream README); header $0143=$00, run as DMG.",
+      "subsystem": "timing",
+      "priority": "medium",
+      "repo": "bundle",
+      "source_url": "https://github.com/aappleby/GBMicrotest",
+      "tests": [
+        {
+          "file": "gbmicrotest/halt_bug.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/halt_op_dupe.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/halt_op_dupe_delay.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/int_hblank_halt_bug_a.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/int_hblank_halt_bug_b.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/int_hblank_halt_scx0.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/int_hblank_halt_scx1.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/int_hblank_halt_scx2.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/int_hblank_halt_scx3.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/int_hblank_halt_scx4.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/int_hblank_halt_scx5.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/int_hblank_halt_scx6.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/int_hblank_halt_scx7.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/int_lyc_halt.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/int_oam_halt.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/int_timer_halt.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/int_timer_halt_div_a.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/int_timer_halt_div_b.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/int_vblank1_halt.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/int_vblank2_halt.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/lcdon_halt_to_vblank_int_a.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/lcdon_halt_to_vblank_int_b.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/lyc1_int_halt_a.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/lyc1_int_halt_b.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/lyc2_int_halt_a.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/lyc2_int_halt_b.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/lyc_int_halt_a.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/lyc_int_halt_b.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/oam_int_halt_a.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/oam_int_halt_b.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/vblank2_int_halt_a.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/vblank2_int_halt_b.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/vblank_int_halt_a.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/vblank_int_halt_b.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        }
+      ]
+    },
+    "gbmicrotest_lcdon_stat": {
+      "name": "GBMicrotest - LCD-on STAT",
+      "description": "STAT mode/LY sequence on the first line after LCDC.7 is set. Verdict: $FF82 = $01 pass / $FF ($FF80 got, $FF81 exp informational) via the hram adapter. All checked on DMG-CPU-08 hardware (upstream README); header $0143=$00, run as DMG.",
+      "subsystem": "ppu",
+      "priority": "medium",
+      "repo": "bundle",
+      "source_url": "https://github.com/aappleby/GBMicrotest",
+      "tests": [
+        {
+          "file": "gbmicrotest/lcdon_to_stat0_a.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/lcdon_to_stat0_b.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/lcdon_to_stat0_c.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/lcdon_to_stat0_d.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/lcdon_to_stat1_a.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/lcdon_to_stat1_b.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/lcdon_to_stat1_c.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/lcdon_to_stat1_d.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/lcdon_to_stat1_e.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/lcdon_to_stat2_a.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/lcdon_to_stat2_b.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/lcdon_to_stat2_c.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/lcdon_to_stat2_d.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/lcdon_to_stat3_a.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/lcdon_to_stat3_b.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/lcdon_to_stat3_c.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/lcdon_to_stat3_d.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        }
+      ]
+    },
+    "gbmicrotest_vram_oam_lock": {
+      "name": "GBMicrotest - VRAM/OAM Access Lock",
+      "description": "CPU read/write of VRAM and OAM on the cycles around the PPU mode-2/3 lock edges. Verdict: $FF82 = $01 pass / $FF ($FF80 got, $FF81 exp informational) via the hram adapter. All checked on DMG-CPU-08 hardware (upstream README); header $0143=$00, run as DMG.",
+      "subsystem": "memory",
+      "priority": "medium",
+      "repo": "bundle",
+      "source_url": "https://github.com/aappleby/GBMicrotest",
+      "tests": [
+        {
+          "file": "gbmicrotest/lcdon_to_oam_unlock_a.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/lcdon_to_oam_unlock_b.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/lcdon_to_oam_unlock_c.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/lcdon_to_oam_unlock_d.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/oam_read_l0_a.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/oam_read_l0_b.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/oam_read_l0_c.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/oam_read_l0_d.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/oam_read_l1_a.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/oam_read_l1_b.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/oam_read_l1_c.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/oam_read_l1_d.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/oam_read_l1_e.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/oam_read_l1_f.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/oam_write_l0_a.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/oam_write_l0_b.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/oam_write_l0_c.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/oam_write_l0_d.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/oam_write_l0_e.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/oam_write_l1_a.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/oam_write_l1_b.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/oam_write_l1_c.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/oam_write_l1_d.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/oam_write_l1_e.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/oam_write_l1_f.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/vram_read_l0_a.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/vram_read_l0_b.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/vram_read_l0_c.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/vram_read_l0_d.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/vram_read_l1_a.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/vram_read_l1_b.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/vram_read_l1_c.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/vram_read_l1_d.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/vram_write_l0_a.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/vram_write_l0_b.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/vram_write_l0_c.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/vram_write_l0_d.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/vram_write_l1_a.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/vram_write_l1_b.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/vram_write_l1_c.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
+        },
+        {
+          "file": "gbmicrotest/vram_write_l1_d.gb",
+          "accuracy_type": "cycle-accurate",
+          "result_detection": "file",
+          "channel": "hram",
+          "require_channel": "hram",
+          "expected": "pass"
         }
       ]
     }
@@ -1592,227 +3690,19 @@
           "id": "mealybug_cgb.m3_window_timing"
         }
       ]
-    },
-    "dmg_sound": {
-      "name": "DMG Sound (Blargg, visual)",
-      "description": "DMG APU register/length/trigger/sweep/wave; on-screen result -> screenshot-crc.",
-      "subsystem": "apu",
-      "priority": "medium",
-      "repo": "bundle",
-      "tests": [
-        {
-          "file": "blargg/dmg_sound/rom_singles/01-registers.gb",
-          "accuracy_type": "visual",
-          "result_detection": "screenshot-crc",
-          "expected": "known_fail",
-          "screenshot_frame": 120,
-          "reference_hash": ""
-        },
-        {
-          "file": "blargg/dmg_sound/rom_singles/02-len ctr.gb",
-          "accuracy_type": "visual",
-          "result_detection": "screenshot-crc",
-          "expected": "known_fail",
-          "screenshot_frame": 120,
-          "reference_hash": ""
-        },
-        {
-          "file": "blargg/dmg_sound/rom_singles/03-trigger.gb",
-          "accuracy_type": "visual",
-          "result_detection": "screenshot-crc",
-          "expected": "known_fail",
-          "screenshot_frame": 120,
-          "reference_hash": ""
-        },
-        {
-          "file": "blargg/dmg_sound/rom_singles/04-sweep.gb",
-          "accuracy_type": "visual",
-          "result_detection": "screenshot-crc",
-          "expected": "known_fail",
-          "screenshot_frame": 120,
-          "reference_hash": ""
-        },
-        {
-          "file": "blargg/dmg_sound/rom_singles/05-sweep details.gb",
-          "accuracy_type": "visual",
-          "result_detection": "screenshot-crc",
-          "expected": "known_fail",
-          "screenshot_frame": 120,
-          "reference_hash": ""
-        },
-        {
-          "file": "blargg/dmg_sound/rom_singles/06-overflow on trigger.gb",
-          "accuracy_type": "visual",
-          "result_detection": "screenshot-crc",
-          "expected": "known_fail",
-          "screenshot_frame": 120,
-          "reference_hash": ""
-        },
-        {
-          "file": "blargg/dmg_sound/rom_singles/07-len sweep period sync.gb",
-          "accuracy_type": "visual",
-          "result_detection": "screenshot-crc",
-          "expected": "known_fail",
-          "screenshot_frame": 120,
-          "reference_hash": ""
-        },
-        {
-          "file": "blargg/dmg_sound/rom_singles/08-len ctr during power.gb",
-          "accuracy_type": "visual",
-          "result_detection": "screenshot-crc",
-          "expected": "known_fail",
-          "screenshot_frame": 120,
-          "reference_hash": ""
-        },
-        {
-          "file": "blargg/dmg_sound/rom_singles/09-wave read while on.gb",
-          "accuracy_type": "visual",
-          "result_detection": "screenshot-crc",
-          "expected": "known_fail",
-          "screenshot_frame": 120,
-          "reference_hash": ""
-        },
-        {
-          "file": "blargg/dmg_sound/rom_singles/10-wave trigger while on.gb",
-          "accuracy_type": "visual",
-          "result_detection": "screenshot-crc",
-          "expected": "known_fail",
-          "screenshot_frame": 120,
-          "reference_hash": ""
-        },
-        {
-          "file": "blargg/dmg_sound/rom_singles/11-regs after power.gb",
-          "accuracy_type": "visual",
-          "result_detection": "screenshot-crc",
-          "expected": "known_fail",
-          "screenshot_frame": 120,
-          "reference_hash": ""
-        },
-        {
-          "file": "blargg/dmg_sound/rom_singles/12-wave write while on.gb",
-          "accuracy_type": "visual",
-          "result_detection": "screenshot-crc",
-          "expected": "known_fail",
-          "screenshot_frame": 120,
-          "reference_hash": ""
-        }
-      ]
-    },
-    "cgb_sound": {
-      "name": "CGB Sound (Blargg, visual)",
-      "description": "CGB APU differences vs DMG; on-screen result -> screenshot-crc.",
-      "subsystem": "apu",
-      "priority": "low",
-      "repo": "bundle",
-      "tests": [
-        {
-          "file": "blargg/cgb_sound/rom_singles/01-registers.gb",
-          "accuracy_type": "visual",
-          "result_detection": "screenshot-crc",
-          "expected": "known_fail",
-          "screenshot_frame": 120,
-          "reference_hash": ""
-        },
-        {
-          "file": "blargg/cgb_sound/rom_singles/02-len ctr.gb",
-          "accuracy_type": "visual",
-          "result_detection": "screenshot-crc",
-          "expected": "known_fail",
-          "screenshot_frame": 120,
-          "reference_hash": ""
-        },
-        {
-          "file": "blargg/cgb_sound/rom_singles/03-trigger.gb",
-          "accuracy_type": "visual",
-          "result_detection": "screenshot-crc",
-          "expected": "known_fail",
-          "screenshot_frame": 120,
-          "reference_hash": ""
-        },
-        {
-          "file": "blargg/cgb_sound/rom_singles/04-sweep.gb",
-          "accuracy_type": "visual",
-          "result_detection": "screenshot-crc",
-          "expected": "known_fail",
-          "screenshot_frame": 120,
-          "reference_hash": ""
-        },
-        {
-          "file": "blargg/cgb_sound/rom_singles/05-sweep details.gb",
-          "accuracy_type": "visual",
-          "result_detection": "screenshot-crc",
-          "expected": "known_fail",
-          "screenshot_frame": 120,
-          "reference_hash": ""
-        },
-        {
-          "file": "blargg/cgb_sound/rom_singles/06-overflow on trigger.gb",
-          "accuracy_type": "visual",
-          "result_detection": "screenshot-crc",
-          "expected": "known_fail",
-          "screenshot_frame": 120,
-          "reference_hash": ""
-        },
-        {
-          "file": "blargg/cgb_sound/rom_singles/07-len sweep period sync.gb",
-          "accuracy_type": "visual",
-          "result_detection": "screenshot-crc",
-          "expected": "known_fail",
-          "screenshot_frame": 120,
-          "reference_hash": ""
-        },
-        {
-          "file": "blargg/cgb_sound/rom_singles/08-len ctr during power.gb",
-          "accuracy_type": "visual",
-          "result_detection": "screenshot-crc",
-          "expected": "known_fail",
-          "screenshot_frame": 120,
-          "reference_hash": ""
-        },
-        {
-          "file": "blargg/cgb_sound/rom_singles/09-wave read while on.gb",
-          "accuracy_type": "visual",
-          "result_detection": "screenshot-crc",
-          "expected": "known_fail",
-          "screenshot_frame": 120,
-          "reference_hash": ""
-        },
-        {
-          "file": "blargg/cgb_sound/rom_singles/10-wave trigger while on.gb",
-          "accuracy_type": "visual",
-          "result_detection": "screenshot-crc",
-          "expected": "known_fail",
-          "screenshot_frame": 120,
-          "reference_hash": ""
-        },
-        {
-          "file": "blargg/cgb_sound/rom_singles/11-regs after power.gb",
-          "accuracy_type": "visual",
-          "result_detection": "screenshot-crc",
-          "expected": "known_fail",
-          "screenshot_frame": 120,
-          "reference_hash": ""
-        },
-        {
-          "file": "blargg/cgb_sound/rom_singles/12-wave.gb",
-          "accuracy_type": "visual",
-          "result_detection": "screenshot-crc",
-          "expected": "known_fail",
-          "screenshot_frame": 120,
-          "reference_hash": ""
-        }
-      ]
     }
   },
   "known_issues": {
-    "mooneye_detection": "Mooneye/SameSuite/Wilbertpol ROMs do NOT print ASCII 'Passed'/'Failed'. They signal success via the Fibonacci register fingerprint (B=3 C=5 D=8 E=13 H=21 L=34) reached at an LD B,B software breakpoint, plus non-printable serial bytes (the bus captures only ASCII 0x20-0x7E). The shared detector matches 'MOONEYE: PASS|FAIL' only if the binary prints it, which cores/gb/src/plugin.cpp currently does NOT. CONSEQUENCE: every Mooneye/SameSuite/Wilbertpol test currently resolves to RUNS (zero credit, excluded from the denominator), NOT a verdict. expected=pass is set where the ROM is believed to pass so that once src adds Mooneye-aware detection the harness scores them automatically. This is the single biggest MEASUREMENT gap; it is a detection limitation, not necessarily an accuracy failure.",
-    "blargg_onscreen_only": "MEASURED: halt_bug.gb and interrupt_time.gb (CGB) emit NO ASCII serial in this build (LCD result only); scored via screenshot-crc, reference_hash TBD.",
-    "mem_timing2_serial_crash": "mem_timing-2 ROMs emit a raw 0x80 serial byte that crashes the shared harness's text-mode stdout decode (UnicodeDecodeError). Worked around by scoring mem_timing-2 via screenshot-crc. Fixing the harness (text=False / errors='replace') belongs in the shared testkit, not this core.",
+    "mooneye_detection": "Mooneye/SameSuite/Wilbertpol ROMs signal via the Fibonacci register fingerprint (B=3 C=5 D=8 E=13 H=21 L=34 pass, all $42 fail) at an LD B,B breakpoint. Since GB-1 the core's mooneye adapter (cores/gb/src/test_channel.cpp) turns that into REG + END 1/1 / END 0/1 code=66 in the VELOCE-RESULT/1 file, so these are real verdicts. It is a Tier C (register-heuristic) channel: GB-4/GB-5 rebuild the suites to emit CHECK/END over serial themselves and GB-8 flips the config to channel serial.",
+    "blargg_onscreen_only": "RESOLVED (GB-3): halt_bug.gb and interrupt_time.gb do write blargg's $A000 block, but their header declares MBC1+RAM with RAM size 0, so no cart RAM was mapped. They now run as rom_variant veloce builds with only $0149 set to 8 KiB (tests/roms-src/gb/blargg/).",
+    "mem_timing2_serial_crash": "RESOLVED (GB-3): the 0x80 byte that crashed the harness's stdout decode was not serial output. It was the CGB flag at $0143 leaking into the cartridge title the core prints ('02-WRITE_TIMING\\x80'): cartridge.cpp compared a signed char against 0x80. Fixed in the core; mem_timing-2 is scored from the $A000 block.",
     "cpu_instrs_combined": "The combined cpu_instrs.gb / mem_timing.gb print no aggregate serial verdict (MEASURED); the individual ROMs do, and are used instead.",
     "cpu_02_interrupts": "MEASURED REAL FAIL: cpu_instrs 02-interrupts never prints 'Passed' (to 8000 frames). Indicates an EI/IME-enable-delay or IF/IE dispatch-timing bug. Currently resolves to RUNS (no 'Failed' string either), tracked as known_fail.",
     "pixel_fifo_scanline_based": "Core README states the pixel FIFO is scanline-based, not dot-accurate. Expected to fail the hardest mid-scanline PPU tests (Mealybug, Wilbertpol, intr_2_mode0_timing_sprites).",
     "mbc2_unsupported": "Core README lists only None/MBC1/MBC3/MBC5; MBC2 tests are known_fail until MBC2 is implemented. (No MBC3-specific Mooneye acceptance ROMs exist; MBC3 RTC is covered by rtc3test in the bundle but not yet wired here.)",
-    "visual_refs_unpopulated": "All screenshot-crc reference_hash values are empty; generate with run_tests.sh --generate-refs against a known-good reference, then flip expected to 'pass'. Until then these SKIP (excluded from the score)."
+    "visual_refs_unpopulated": "All screenshot-crc reference_hash values in visual_test_suites (acid2, Mealybug) are empty, so those SKIP. They are non-scoring by design (plan section 11, Q1).",
+    "model_selection": "The core picks DMG or CGB from header byte $0143 only ($80/$C0 -> CGB) and has no per-test model override. Two groups therefore run on the wrong hardware and stay known_fail until one exists (core + testkit gap, not a measurement gap): Blargg oam_bug ($0143=$80, run as CGB, which has no OAM bug; the ROMs verify the DMG bug) and the Mooneye misc/ CGB-hardware ROMs ($0143=$00, run as DMG).",
+    "gbmicrotest_scope": "GB-3 enumerates the GBMicrotest categories named in the plan (timer/div, dma, hblank_int_scx, halt, lcdon_to_stat, VRAM/OAM lock): 212 of the 482 ROMs whose source ends in a test_end2-family macro (the $FF80-$FF82 triple). The other 270 reporting ROMs (poweron_*, win*, sprite*, line_153*, stat_write_glitch*, lyc/oam/vblank interrupt edges, int_* nops/incs, mbc1_*) are left for GB-7/GB-8. 31 ROMs contain no result macro (testbenches, display-only probes, the empty stub temp.gb) and cannot be scored."
   },
   "references": {
     "bundle_v7": "https://github.com/c-sp/gameboy-test-roms",

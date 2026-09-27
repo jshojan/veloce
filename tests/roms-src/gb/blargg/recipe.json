@@ -1,0 +1,28 @@
+{
+  "console": "gb",
+  "suite": "blargg",
+  "description": "Blargg GB halt_bug.gb and interrupt_time.gb from the retrio/gb-test-roms mirror, with the cartridge header's RAM-size byte ($0149) set to $02 (8 KiB) by rgbfix. Both ROMs already run blargg's newer shell and write the $A000 result block (status, $DE $B0 $61 signature, text); upstream's header declares MBC1+RAM ($0147 = $02) but RAM size 0, so an emulator that honours the header maps no cart RAM and the block is invisible. No code byte changes: rgbfix rewrites $0149 and the header checksum ($014D); the global checksum stays valid without change.",
+  "license": "No licence file upstream (blargg's readmes carry no restriction). Treated as patch-only: this recipe and PROVENANCE.md are committed, the built ROMs never are.",
+  "repo": {
+    "url": "https://github.com/retrio/gb-test-roms.git",
+    "sha": "c240dd7d700e5c0b00a7bbba52b53e4ee67b5f15"
+  },
+  "toolchain_stage": "rgbds",
+  "golden_gate": false,
+  "golden_gate_reason": "Nothing is assembled: halt_bug has no source anywhere upstream, and the input to this recipe is upstream's own shipped binary at the pinned SHA (sha256 ddebfb81... / 1a8f8f3b..., identical to the c-sp v7.0 bundle copies). The only change is the header fix-up, verified byte-for-byte in PROVENANCE.md (exactly $0149 and $014D differ).",
+  "rom_variant": "veloce",
+  "build": {
+    "workdir": ".",
+    "commands": [
+      "export PATH=/opt/rgbds-0.7.0/bin:$PATH",
+      "mkdir -p veloce",
+      "cp halt_bug.gb veloce/halt_bug.gb",
+      "cp interrupt_time/interrupt_time.gb veloce/interrupt_time.gb",
+      "rgbfix -r 2 -f hg veloce/halt_bug.gb veloce/interrupt_time.gb"
+    ],
+    "artifacts": {
+      "veloce/halt_bug.gb": "halt_bug.gb",
+      "veloce/interrupt_time.gb": "interrupt_time.gb"
+    }
+  }
+}

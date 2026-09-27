@@ -18,12 +18,15 @@ bool Cartridge::load(const uint8_t* data, size_t size) {
     // Copy ROM
     m_rom.assign(data, data + size);
 
-    // Extract title (at 0x134, up to 16 bytes)
+    // Extract title (at 0x134, up to 16 bytes). On a CGB cart a 15-character
+    // title runs straight into the CGB flag at 0x143 ($80/$C0), which must
+    // end the title. Unsigned: with a signed char `c >= 0x80` never held, so
+    // the flag byte leaked into the title and into stdout.
     m_title.clear();
     for (int i = 0; i < 16; i++) {
-        char c = data[0x134 + i];
+        const uint8_t c = data[0x134 + i];
         if (c == 0 || c >= 0x80) break;
-        m_title += c;
+        m_title += static_cast<char>(c);
     }
 
     // Detect system type from CGB flag at 0x143

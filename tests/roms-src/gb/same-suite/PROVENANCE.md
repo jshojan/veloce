@@ -66,3 +66,18 @@ and never rebuilt by this item.
 Recorded as `status: "blocked"` / `blocked_reason` in `recipe.json` rather
 than silently omitted, so this is tracked and `build.py`'s "N suite(s)
 failed" is the expected, documented outcome until one of the above lands.
+
+## Scored entries added by GB-3
+
+`samesuite_dma` (gbc_dma_cont, gdma_addr_mask, hdma_lcd_off, hdma_mode0),
+`samesuite_interrupt` (ei_delay_halt) and `samesuite_ppu`
+(blocking_bgpi_increase) run the c-sp v7.0 bundle binaries
+(`rom_variant: upstream`; this recipe is still blocked, see above).
+`sgb/` is not enumerated because the core does not emulate an SGB.
+
+Verdict source: `include/base.inc` compares each test's stored results
+against the test's own `CorrectResults` table: the hardware behaviour the
+suite documents (upstream README). It then sets the Mooneye fingerprint (3/5/8/13/21/34 pass,
+`$42` x6 fail) and executes `LD B,B`. The core's `mooneye` adapter turns that
+into `REG` + `END 1/1` / `END 0/1 code=66` (`channel: mooneye`, Tier C). GB-4
+patches `base.inc` to emit a `CHECK` per table index instead.

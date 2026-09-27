@@ -18,7 +18,8 @@
 #   serial         (alias of "file") verdict from the VELOCE-RESULT/1 file the
 #                  core writes: Blargg serial text / $A000 block, Mooneye
 #                  LD B,B fingerprint (see cores/gb/src/test_channel.hpp)
-#   screenshot-crc Mealybug / acid2 / Blargg-sound (visual, unscored)
+#   file           same file, adapter named in "channel" (a000/hram/mooneye)
+#   screenshot-crc Mealybug / acid2 (visual, unscored)
 
 set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

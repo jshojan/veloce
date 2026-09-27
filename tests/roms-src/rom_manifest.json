@@ -1,5 +1,57 @@
 {
   "roms": {
+    "gb/blargg/halt_bug.gb": {
+      "console": "gb",
+      "golden_gate": null,
+      "license": "No licence file upstream (blargg's readmes carry no restriction). Treated as patch-only: this recipe and PROVENANCE.md are committed, the built ROMs never are.",
+      "patches": [],
+      "rom_variant": "veloce",
+      "sha256": "43ced46f97991a17220930b1359a1578feb86789a530eeb57e26972f20bb8d39",
+      "source_repo": "https://github.com/retrio/gb-test-roms.git",
+      "source_sha": "c240dd7d700e5c0b00a7bbba52b53e4ee67b5f15",
+      "suite": "blargg",
+      "tool_versions": {
+        "asar": "Asar 1.91, originally developed by Alcaro, maintained by Asar devs. Source code: https://github.com/RPGHacker/asar",
+        "asm6f": "asm6f 1.6 (+ f003)  Usage: asm6f [-options] sourcefile [outputfile] [listfile]  \t-?\t\tshow this help \t-l\t\tcreate listing \t-L\t\tcreate verbose listing (expand REPT, MACRO) \t-N\t\tdefine symbols for Nintendo Famicom PPU \t-d<name>\tdefine symbol \t-q\t\tquiet mode (no output unless error) \t-n\t\texport FCEUX-compatible .nl files \t-f\t\texport Lua symbol file \t-c\t\texport .cdl for use with FCEUX/Mesen \t-m\t\texport new format Mesen label file (.mlb) \t-M\t\texport old format Mesen label file (.mlb)  See README.TXT for more info.",
+        "bass": "bass v18  usage:   bass [options] source [source ...]  options:   -o target        specify default output filename [overwrite]   -m target        specify default output filename [modify]   -d name[=value]  create define with optional value   -c name[=value]  create constant with optional value   -strict          upgrade warnings to errors   -benchmark       benchmark performance",
+        "bass-untech": "bass-untech v17  usage:   bass-untech [options] source [source ...]  options:   -o target        specify default output filename [overwrite]   -m target        specify default output filename [modify]   -d name[=value]  create define with optional value   -c name[=value]  create constant with optional value   -sym filename    create symbol file   -strict          upgrade warnings to errors   -benchmark       benchmark performance",
+        "cc65": "ca65 V2.18 - Git 5552824",
+        "devkitarm": "arm-none-eabi-gcc (devkitARM) 16.1.0 Copyright (C) 2026 Free Software Foundation, Inc. This is free software; see the source for copying conditions.  There is NO warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.",
+        "fasmarm": "flat assembler for ARM  version 1.44 (built on fasm 1.73.30)",
+        "nesasm": "nesasm v3.6 - a 6502 assembler with specific NES support commit: 2b39ec6 @ https://github.com/ClusterM/nesasm/",
+        "rgbds-0.6.1": "rgbasm 69a5739",
+        "rgbds-0.7.0": "rgbasm 08f3e36",
+        "spcasm": "spcasm 1.2.0 rustc 1.83.0-nightly (8d6b88b16 2024-09-11) x86_64-unknown-linux-gnu, built 2026-09-26 17:22:22 +00:00",
+        "wla-dx": "---------------------------------------------------------------------- ---                WLA GB-Z80 Macro Assembler v10.6                --- ----------------------------------------------------------------------                 Programmed by Ville Helin in 1998-2008         In GitHub since 2014: https://github.com/vhelin/wla-dx                     : wla-gb 10.6 (19.11.2023)  USAGE: /src/wla-dx/build/binaries/wla-gb [OPTIONS] <OUTPUT> <ASM FILE>  OPTIONS: -c  Continue parsing after an error -d  Disable WLA's ability to calculate A-B where A and B are labels -h  Assume all label references are 16-bit by default (size hints     still work) -i  Add list file information -k  Keep empty sections -M  Output makefile rules -MP Create a phony target for each dependency other than the main file,     use this with -M -MF <FILE> Specify a file to write the dependencies to, use with -M -p  Pause printing after a screen full of text has been printed,     use this with -SX and -SY -q  Quiet -s  Don't create _sizeof_* and _paddingof_* definitions -SX <WIDTH> The number of characters per line in console (default 80) -SY <HEIGHT> The number of lines in console (default 24) -t  Test assemble -v  Verbose messages -v1 Verbose messages (only discard sections) -v2 Verbose messages (-v1 plus short summary) -w  Require labels to end in a colon -x  Extra compile time labels and definitions -I <DIR>  Include directory -D <DEF>  Declare definition  OUTPUT: -o <FILE>  Output object file -l <FILE>  Output library file  EXAMPLES: /src/wla-dx/build/binaries/wla-gb -M -t -o main.o main.asm /src/wla-dx/build/binaries/wla-gb -D VER=1 -D TWO=2 -v -o main.o main.asm"
+      },
+      "toolchain_image_id": "sha256:71c159dd80048214ea2f03bcb75b41e0a5c073b55f66a4333ed6bdbef7a3b26f"
+    },
+    "gb/blargg/interrupt_time.gb": {
+      "console": "gb",
+      "golden_gate": null,
+      "license": "No licence file upstream (blargg's readmes carry no restriction). Treated as patch-only: this recipe and PROVENANCE.md are committed, the built ROMs never are.",
+      "patches": [],
+      "rom_variant": "veloce",
+      "sha256": "653206ab4d7f025a9d37fad234973c3c79e2c5877a67af99f05ce4cc278d92fc",
+      "source_repo": "https://github.com/retrio/gb-test-roms.git",
+      "source_sha": "c240dd7d700e5c0b00a7bbba52b53e4ee67b5f15",
+      "suite": "blargg",
+      "tool_versions": {
+        "asar": "Asar 1.91, originally developed by Alcaro, maintained by Asar devs. Source code: https://github.com/RPGHacker/asar",
+        "asm6f": "asm6f 1.6 (+ f003)  Usage: asm6f [-options] sourcefile [outputfile] [listfile]  \t-?\t\tshow this help \t-l\t\tcreate listing \t-L\t\tcreate verbose listing (expand REPT, MACRO) \t-N\t\tdefine symbols for Nintendo Famicom PPU \t-d<name>\tdefine symbol \t-q\t\tquiet mode (no output unless error) \t-n\t\texport FCEUX-compatible .nl files \t-f\t\texport Lua symbol file \t-c\t\texport .cdl for use with FCEUX/Mesen \t-m\t\texport new format Mesen label file (.mlb) \t-M\t\texport old format Mesen label file (.mlb)  See README.TXT for more info.",
+        "bass": "bass v18  usage:   bass [options] source [source ...]  options:   -o target        specify default output filename [overwrite]   -m target        specify default output filename [modify]   -d name[=value]  create define with optional value   -c name[=value]  create constant with optional value   -strict          upgrade warnings to errors   -benchmark       benchmark performance",
+        "bass-untech": "bass-untech v17  usage:   bass-untech [options] source [source ...]  options:   -o target        specify default output filename [overwrite]   -m target        specify default output filename [modify]   -d name[=value]  create define with optional value   -c name[=value]  create constant with optional value   -sym filename    create symbol file   -strict          upgrade warnings to errors   -benchmark       benchmark performance",
+        "cc65": "ca65 V2.18 - Git 5552824",
+        "devkitarm": "arm-none-eabi-gcc (devkitARM) 16.1.0 Copyright (C) 2026 Free Software Foundation, Inc. This is free software; see the source for copying conditions.  There is NO warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.",
+        "fasmarm": "flat assembler for ARM  version 1.44 (built on fasm 1.73.30)",
+        "nesasm": "nesasm v3.6 - a 6502 assembler with specific NES support commit: 2b39ec6 @ https://github.com/ClusterM/nesasm/",
+        "rgbds-0.6.1": "rgbasm 69a5739",
+        "rgbds-0.7.0": "rgbasm 08f3e36",
+        "spcasm": "spcasm 1.2.0 rustc 1.83.0-nightly (8d6b88b16 2024-09-11) x86_64-unknown-linux-gnu, built 2026-09-26 17:22:22 +00:00",
+        "wla-dx": "---------------------------------------------------------------------- ---                WLA GB-Z80 Macro Assembler v10.6                --- ----------------------------------------------------------------------                 Programmed by Ville Helin in 1998-2008         In GitHub since 2014: https://github.com/vhelin/wla-dx                     : wla-gb 10.6 (19.11.2023)  USAGE: /src/wla-dx/build/binaries/wla-gb [OPTIONS] <OUTPUT> <ASM FILE>  OPTIONS: -c  Continue parsing after an error -d  Disable WLA's ability to calculate A-B where A and B are labels -h  Assume all label references are 16-bit by default (size hints     still work) -i  Add list file information -k  Keep empty sections -M  Output makefile rules -MP Create a phony target for each dependency other than the main file,     use this with -M -MF <FILE> Specify a file to write the dependencies to, use with -M -p  Pause printing after a screen full of text has been printed,     use this with -SX and -SY -q  Quiet -s  Don't create _sizeof_* and _paddingof_* definitions -SX <WIDTH> The number of characters per line in console (default 80) -SY <HEIGHT> The number of lines in console (default 24) -t  Test assemble -v  Verbose messages -v1 Verbose messages (only discard sections) -v2 Verbose messages (-v1 plus short summary) -w  Require labels to end in a colon -x  Extra compile time labels and definitions -I <DIR>  Include directory -D <DEF>  Declare definition  OUTPUT: -o <FILE>  Output object file -l <FILE>  Output library file  EXAMPLES: /src/wla-dx/build/binaries/wla-gb -M -t -o main.o main.asm /src/wla-dx/build/binaries/wla-gb -D VER=1 -D TWO=2 -v -o main.o main.asm"
+      },
+      "toolchain_image_id": "sha256:71c159dd80048214ea2f03bcb75b41e0a5c073b55f66a4333ed6bdbef7a3b26f"
+    },
     "gb/gbmicrotest/000-oam_lock.gb": {
       "console": "gb",
       "golden_gate": {
