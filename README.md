@@ -340,6 +340,7 @@ veloce/
 - [nlohmann/json](https://github.com/nlohmann/json) - JSON library
 - [nes-test-roms](https://github.com/christopherpow/nes-test-roms) - NES emulator test ROMs
 - [gba-tests](https://github.com/jsmolka/gba-tests) - GBA emulator test ROMs by jsmolka
+- [hw-test](https://codeberg.org/nba-emu/hw-test) - GBA hardware timing tests by fleroviux (NanoBoyAdvance), rebuilt with a result-channel patch
 - [snes-tests](https://github.com/gilyon/snes-tests) - SNES emulator test ROMs by gilyon
 - [Project64](https://www.pj64-emu.com/) - Plugin architecture inspiration
 

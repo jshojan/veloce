@@ -1,0 +1,245 @@
+{
+  "roms": {
+    "dma/latch": {
+      "main": {
+        "expect": "identical"
+      }
+    },
+    "dma/start-delay": {
+      "test_immediate": {
+        "expect": "identical"
+      }
+    },
+    "dma/force-nseq-access": {
+      "__test": {
+        "expect": "identical"
+      },
+      "test_ewram": {
+        "expect": "identical"
+      },
+      "test_rom": {
+        "expect": "identical"
+      }
+    },
+    "dma/burst-into-tears": {
+      "main": {
+        "expect": "identical"
+      }
+    },
+    "irq/irq-delay": {
+      "irq_handler": {
+        "expect": "reviewed",
+        "why": "Register allocation only, plus the zero test of the byte just loaded by ldrb: rebuilt `cmp r2, #0`, shipped `ands r3, r3, #255`. Both are one single-cycle ARM data-processing instruction setting Z, so the instruction count, classes and memory accesses from IRQ dispatch to the TM0CNT_L read (`ldrh ip, [ip]`, identical) are unchanged.",
+        "diff": [
+          [
+            "replace",
+            [
+              "ldr r3, [pc, #X]",
+              "ldrb r2, [r3]",
+              "cmp r2, #0"
+            ],
+            [
+              "ldr r2, [pc, #X]",
+              "ldrb r3, [r2]",
+              "ands r3, r3, #255"
+            ]
+          ],
+          [
+            "replace",
+            [
+              "strb r0, [r3]",
+              "strh ip, [r3, #2]",
+              "str r2, [r1, #256]"
+            ],
+            [
+              "strb r0, [r2]",
+              "strh ip, [r2, #2]",
+              "str r3, [r1, #256]"
+            ]
+          ]
+        ]
+      },
+      "test_irq_time_iwram": {
+        "expect": "identical"
+      },
+      "test_irq_time_ewram": {
+        "expect": "identical"
+      },
+      "test_irq_time_rom": {
+        "expect": "identical"
+      },
+      "IntrMain": {
+        "expect": "identical"
+      },
+      "findIRQ": {
+        "expect": "identical"
+      },
+      "no_handler": {
+        "expect": "identical"
+      },
+      "jump_intr": {
+        "expect": "identical"
+      },
+      "got_handler": {
+        "expect": "identical"
+      },
+      "IntrRet": {
+        "expect": "identical"
+      }
+    },
+    "timer/start-stop": {
+      "test_start_stop": {
+        "expect": "reviewed",
+        "why": "After the window: the second TM0CNT_L read is `ldrh r3, [r3]` in both builds; the rebuilt one then copies it with `mov r4, r3` where the shipped one loaded straight into r4. Nothing between timer start and either read differs.",
+        "diff": [
+          [
+            "replace",
+            [
+              "ldrh r3, [r3]",
+              "mov r4, r3"
+            ],
+            [
+              "ldrh r4, [r3]"
+            ]
+          ]
+        ]
+      }
+    },
+    "timer/reload": {
+      "test_reload": {
+        "expect": "identical"
+      },
+      "test_reload_overwrite_16_0": {
+        "expect": "identical"
+      },
+      "test_reload_overwrite_32_0": {
+        "expect": "identical"
+      },
+      "test_reload_overwrite_32_6": {
+        "expect": "identical"
+      },
+      "test_reload_overwrite_32_7": {
+        "expect": "identical"
+      }
+    },
+    "haltcnt": {
+      "test_haltcnt_direct": {
+        "expect": "identical"
+      },
+      "test_haltcnt_cpuset": {
+        "expect": "reviewed",
+        "why": "Before the window: `sub sp, sp, #8` is scheduled earlier in the rebuilt code, but in both builds it runs before TM0 is started (`strh lr, [r4, #2]`); from TM0 start to the TM0CNT_L read the sequences are identical.",
+        "diff": [
+          [
+            "delete",
+            [
+              "sub sp, sp, #8"
+            ],
+            []
+          ],
+          [
+            "insert",
+            [],
+            [
+              "sub sp, sp, #8"
+            ]
+          ]
+        ]
+      },
+      "haltcnt_cpuset_dma_time": {
+        "expect": "reviewed",
+        "why": "Pinned by the Veloce patch to the shipped sequence (see PROVENANCE.md). Everything up to and including the TM0CNT_L read (`ldrh r2, [r4]`) is identical; after it the shipped function goes on to call test_expect(), the pinned one returns the value (`mov r0, r2`) to a C wrapper that calls it.",
+        "diff": [
+          [
+            "replace",
+            [
+              "mov r0, r2"
+            ],
+            [
+              "ldr r1, [pc, #X]",
+              "ldr r0, [pc, #X]",
+              "bl T"
+            ]
+          ]
+        ]
+      },
+      "test_haltcnt_timing_iwram": {
+        "expect": "reviewed",
+        "why": "Before the window: the shipped -O0 code zero-extends REG_IF with `lsl/lsr #16` inside the `while ((REG_IF & IRQ_TIMER0) == 0);` poll. The poll ends before TM0 is reset and restarted, which is where the measured interval starts; from there to the TM0CNT_L read the sequences are identical.",
+        "diff": [
+          [
+            "insert",
+            [],
+            [
+              "lsl r3, r3, #16",
+              "lsr r3, r3, #16"
+            ]
+          ]
+        ]
+      },
+      "test_haltcnt_timing_rom": {
+        "expect": "reviewed",
+        "why": "Same as test_haltcnt_timing_iwram (identical -O0 body, executed from ROM): the extra shipped `lsl/lsr #16` is in the IF poll before TM0 is restarted.",
+        "diff": [
+          [
+            "insert",
+            [],
+            [
+              "lsl r3, r3, #16",
+              "lsr r3, r3, #16"
+            ]
+          ]
+        ]
+      },
+      "IWRAM_CpuSet": {
+        "expect": "identical"
+      },
+      "CpuSet": {
+        "expect": "identical"
+      }
+    },
+    "bus/128kb-boundary": {
+      "ldm": {
+        "expect": "identical"
+      },
+      "dma_inc": {
+        "expect": "identical"
+      },
+      "dma_dec": {
+        "expect": "identical"
+      },
+      "time": {
+        "expect": "identical"
+      }
+    },
+    "ppu/status-irq-dma": {
+      "__test_dma_hblank_irq_handler": {
+        "expect": "identical"
+      },
+      "emit_get_wait": {
+        "expect": "identical"
+      },
+      "emit_init": {
+        "expect": "identical"
+      },
+      "IntrMain": {
+        "expect": "identical"
+      },
+      "findIRQ": {
+        "expect": "identical"
+      },
+      "no_handler": {
+        "expect": "identical"
+      },
+      "jump_intr": {
+        "expect": "identical"
+      },
+      "got_handler": {
+        "expect": "identical"
+      },
+      "IntrRet": {
+        "expect": "identical"
+      }
+    }
+  }
+}

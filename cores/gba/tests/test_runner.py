@@ -243,6 +243,10 @@ class GBATestRunner:
             return TestResult.SKIP
 
         rom_path = repo_dir / test.path
+        if test.path.parts and test.path.parts[0] == "veloce":
+            # rom_variant "veloce": rebuilt by tests/roms-src/build.py into
+            # build/roms/gba/<suite>/ (runner.py reaches it via a symlink).
+            rom_path = self.project_root / "build" / "roms" / "gba" / Path(*test.path.parts[1:])
 
         if not rom_path.exists():
             test.result = TestResult.SKIP

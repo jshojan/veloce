@@ -264,7 +264,7 @@ cycle-accurate-class tests.
 |------|------------|---------|
 | [jsmolka/gba-tests](https://github.com/jsmolka/gba-tests) | ARM/Thumb, memory, BIOS, PPU smoke, saves | MIT |
 | [alyosha-tas/gba-tests](https://github.com/alyosha-tas/gba-tests) | timing, IRQ, DMA, prefetch, LDM, interactions, PSR | MIT (fork) |
-| [nba-emu/hw-test](https://github.com/nba-emu/hw-test) | DMA, IRQ delay, timer, HALTCNT, bus, PPU status/affine | see upstream |
+| [nba-emu/hw-test](https://codeberg.org/nba-emu/hw-test) | DMA, IRQ delay, timer, HALTCNT, bus, PPU status/affine | BSD-3-Clause |
 | [DenSinH/FuzzARM](https://github.com/DenSinH/FuzzARM) | randomized ARM/Thumb CPU fuzz | see upstream |
 | [destoer/armwrestler-gba-fixed](https://github.com/destoer/armwrestler-gba-fixed) | ARM ALU + load/store | see upstream |
 
@@ -355,24 +355,26 @@ pre-marked `known_fail` and excluded from the headline score until verified.
 
 ### NanoBoyAdvance Hardware Tests
 
-These ROMs print results to the screen only (no R12 protocol); earlier PASS
-entries here were not measured and have been corrected to the observed
-on-screen FAILs (DMA/IRQ/timer scheduler gaps, tracked separately).
+Upstream prints results only to the screen. Veloce runs its own rebuilds
+(`rom_variant: veloce`, [`tests/roms-src/gba/nba_hw_test`](../../tests/roms-src/gba/nba_hw_test/PROVENANCE.md))
+that also write one `CHECK` line per expectation and an `END` line over the
+mGBA debug registers, so the checks below are the ROM's own. Expected values
+are upstream's hardware numbers, unchanged.
 
-| Category | Test | Status | Notes |
-|----------|------|--------|-------|
-| DMA | latch.gba | **FAIL** | DMA SAD/DAD latch timing |
-| DMA | start-delay.gba | **FAIL** | DMA enable to first transfer delay |
-| DMA | force-nseq-access.gba | **FAIL** | DMA non-sequential access |
-| DMA | burst-into-tears.gba | **FAIL** | DMA burst behavior |
-| IRQ | irq-delay.gba | **FAIL** | IRQ trigger to handler entry cycles |
-| Timer | start-stop.gba | **FAIL** | Timer enable/disable behavior |
-| Timer | reload.gba | **FAIL** | Timer reload on overflow |
-| HALTCNT | haltcnt.gba | **FAIL** | Halt/stop mode behavior |
-| Bus | 128kb-boundary.gba | **FAIL** | Memory access across 128KB boundaries |
-| PPU | status-irq-dma.gba | KNOWN | Requires sub-scanline cycle accuracy |
-| PPU | bgpd.gba | VISUAL | HBlank DMA to BG2PD (screenshot captured) |
-| PPU | bgx.gba | VISUAL | HBlank DMA to BG2X (screenshot captured) |
+| Category | Test | Status | Checks | Notes |
+|----------|------|--------|--------|-------|
+| DMA | latch.gba | **FAIL** | 0/4 | Per-channel DMA data latch, open bus via DMA |
+| DMA | start-delay.gba | **FAIL** | 0/1 | Immediate DMA start delay (exp 20, got 7) |
+| DMA | force-nseq-access.gba | **FAIL** | 0/2 | First DMA access forced non-sequential |
+| DMA | burst-into-tears.gba | **FAIL** | 0/3 | DMA3 into ROM: two values and the time |
+| IRQ | irq-delay.gba | **FAIL** | 0/3 | IRQ entry latency from IWRAM/EWRAM/ROM |
+| Timer | start-stop.gba | **FAIL** | 0/2 | Timer start/stop latency |
+| Timer | reload.gba | **FAIL** | 6/7 | Reload on overflow; plain reload case reads 0xFFFA, expected 0xFFF9 |
+| HALTCNT | haltcnt.gba | **FAIL** | 0/6 | HALT directly, via CpuSet and DMA; POSTFLG |
+| Bus | 128kb-boundary.gba | **FAIL** | 0/18 | LDM/DMA timing across 128KB ROM pages |
+| PPU | status-irq-dma.gba | KNOWN | 0/9 of 12 | Sub-scanline DISPSTAT/IF timing; DMA page waits on DMA3 video capture and never finishes |
+| PPU | bgpd.gba | VISUAL | - | BG2PD latch; picture only, non-scoring |
+| PPU | bgx.gba | VISUAL | - | BG2X latch; picture only, non-scoring |
 
 ### Edge Case Tests
 
@@ -470,8 +472,8 @@ cd cores/gba/tests
 - [ ] Event scheduler for sub-frame timing
 - [x] Implement remaining BIOS functions (Diff filters) - DONE
 - [ ] Implement SoundBias and MidiKey2Freq BIOS functions
-- [x] Verify timer cascade mode accuracy - DONE (NBA tests pass)
-- [x] Verify all interrupt source timing - DONE (NBA IRQ tests pass)
+- [ ] Verify timer cascade mode accuracy - NBA timer tests fail (see COMPLETENESS.md)
+- [ ] Verify all interrupt source timing - NBA irq-delay fails (see COMPLETENESS.md)
 
 ### Priority 3 - Polish
 - [x] Implement mosaic effect - DONE (BG and OBJ mosaic, regular and affine)

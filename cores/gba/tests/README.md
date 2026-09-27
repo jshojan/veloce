@@ -106,6 +106,23 @@ and checked byte-for-byte against the shipped binary -- proving the
 toolchain reproduces these suites before any of them are patched to speak
 this channel (see each suite's `PROVENANCE.md`).
 
+`tests/roms-src/gba/nba_hw_test/` is the first patched upstream suite: nba's
+10 scored hw-test ROMs, built from the pinned Codeberg source plus
+`patches/0001-veloce-result-channel.patch`, which makes nba's shared
+`test_expect*()` also emit `CHECK` lines and `END` over the mGBA registers.
+Because their expected values are hardware cycle counts, the suite ships
+`verify_windows.py`: it checks that every function inside a measured window
+of the rebuilt ROM is instruction-for-instruction the one in nba's shipped
+binary (`windows.json` records the few reviewed differences). The config
+addresses the rebuilt ROMs as `veloce/nba_hw_test/<rom>.gba`; `runner.py`
+links `_roms/veloce` to `build/roms/gba`, so without a build those tests SKIP.
+
+```bash
+tests/roms-src/build.py gba/nba_hw_test              # from the repo root
+tests/roms-src/gba/nba_hw_test/verify_windows.py
+cd cores/gba/tests && python3 runner.py timing_dma_nba
+```
+
 ## Directory Structure
 
 ```
@@ -115,6 +132,8 @@ tests/
   test_runner.py        # Legacy flat-summary runner (per-repo ROM resolution)
   test_config.json      # Test configuration
   gba-test-roms/        # Cloned test ROMs (gitignored)
+  _roms/                # Merged ROM view runner.py builds (gitignored)
+    veloce/             # -> build/roms/gba (rom_variant veloce rebuilds)
 ```
 
 ## Current Test Status
