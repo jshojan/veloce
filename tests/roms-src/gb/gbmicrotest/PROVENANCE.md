@@ -1,7 +1,12 @@
 # gbmicrotest (GB) — provenance
 
 - Upstream: https://github.com/aappleby/GBMicrotest, pinned at
-  `f3b55497c1d1202c784b8201dafc888c838b7302` (MIT).
+  `f3b55497c1d1202c784b8201dafc888c838b7302`.
+- Licence: the pinned checkout carries no LICENSE file and its README does
+  not name one (checked 2026-09-27; an earlier draft here said "MIT" without
+  a source). Treated as **patch-only**, like the other unlicensed suites:
+  only this file and `recipe.json` are committed, never a built or modified
+  ROM, and nothing from upstream is vendored.
 - Built with the upstream `build.sh` (loops `wla-gb -Itests -DDMG` +
   `wlalink` over every `tests/*.s`, into `bin/`), `wla-gb`/`wlalink` from
   the toolchain image's `wla-dx` stage.

@@ -45,7 +45,7 @@ The Game Boy core provides high-accuracy emulation for both the original Game Bo
 | LCD STAT interrupts | Complete | Mode 0/1/2, LYC=LY |
 | Pixel FIFO | Partial | Scanline-based (accurate enough for most games) |
 
-### APU (Fully Implemented)
+### APU (implemented, not sample-accurate: SameSuite APU 0/46, Blargg sound 14/24)
 
 | Feature | Status | Notes |
 |---------|--------|-------|
@@ -127,14 +127,17 @@ For the testing methodology and the platform-wide picture see the top-level
 **Verified accuracy:** every non-visual test's `result_detection` is `file`
 (the config carries no `serial`/`memory` legacy alias any more) and its
 verdict comes from the VELOCE-RESULT/1 file the core writes (see *Result
-Detection* below). Measured 2026-09-27: 190 PASS, 158 FAIL, 67 known_fail,
-3 RUNS, 30 visual/skip (65.1%, unchanged).
+Detection* below). Measured 2026-09-27: 190 PASS, 202 FAIL, 23 known_fail,
+3 RUNS, 30 visual/skip (60.5%). Every `known_fail` entry carries a reason
+(`known_issues.known_fail_policy`); the review follow-up flipped 44 SameSuite
+APU entries that had been `known_fail` with none to `pass`, so they count.
 - **Pass:** Blargg `cpu_instrs` 11/11, `instr_timing`, `mem_timing` 3/3,
   `mem_timing-2` 4/4 and `halt_bug`; Mooneye `timer` 13/13, `mbc1` 12/13 and
   `mbc5` 8/8.
 - **Real failures:** Mooneye `timing` (13), `ppu` (11), `oam_dma` (5) and
   `interrupts` (5); Blargg `interrupt_time`, `dmg_sound` 6/12 and
-  `cgb_sound` 8/12; SameSuite CGB DMA/HDMA 0/4; GBMicrotest 105/212 PASS,
+  `cgb_sound` 8/12; SameSuite APU 0/46 (sample-accurate PCM checks against
+  CPU-CGB-E, 44 counted) and CGB DMA/HDMA 0/4; GBMicrotest 105/212 PASS,
   weakest on HBlank-IRQ-vs-SCX (19/61) and HALT wakeup (11/34).
 - **RUNS (unverified), not known_fail:** `mooneye_mbc2.bits_ramg` and both
   `wilbertpol_ppu` tests never reach a fingerprint verdict (MBC2 is

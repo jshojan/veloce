@@ -38,8 +38,8 @@
           "result_detection": "file",
           "channel": "blarggtext",
           "require_channel": "blarggtext",
-          "expected": "known_fail",
-          "notes": "MEASURED FAIL: no serial 'Passed' even at 8000 frames. EI/IME-enable-delay or IF/IE dispatch-timing bug."
+          "expected": "pass",
+          "notes": "MEASURED PASS (2026-09-27, blarggtext adapter, 26 frames). Earlier 'no serial Passed at 8000 frames' note predates the result channel and was stale."
         },
         {
           "file": "blargg/cpu_instrs/individual/03-op sp,hl.gb",
@@ -273,7 +273,8 @@
           "result_detection": "file",
           "channel": "a000",
           "require_channel": "a000",
-          "expected": "known_fail"
+          "expected": "known_fail",
+          "notes": "known_fail: runs in CGB mode (header $0143=$80), so the DMG-only OAM bug this ROM verifies is not exercised; see known_issues.model_selection."
         },
         {
           "file": "blargg/oam_bug/rom_singles/3-non_causes.gb",
@@ -281,7 +282,8 @@
           "result_detection": "file",
           "channel": "a000",
           "require_channel": "a000",
-          "expected": "known_fail"
+          "expected": "known_fail",
+          "notes": "known_fail: runs in CGB mode (header $0143=$80), so the DMG-only OAM bug this ROM verifies is not exercised; see known_issues.model_selection. This ROM checks that nothing corrupts OAM, so it PASSES trivially in CGB mode; that PASS says nothing about the DMG bug."
         },
         {
           "file": "blargg/oam_bug/rom_singles/4-scanline_timing.gb",
@@ -289,7 +291,8 @@
           "result_detection": "file",
           "channel": "a000",
           "require_channel": "a000",
-          "expected": "known_fail"
+          "expected": "known_fail",
+          "notes": "known_fail: runs in CGB mode (header $0143=$80), so the DMG-only OAM bug this ROM verifies is not exercised; see known_issues.model_selection."
         },
         {
           "file": "blargg/oam_bug/rom_singles/5-timing_bug.gb",
@@ -297,7 +300,8 @@
           "result_detection": "file",
           "channel": "a000",
           "require_channel": "a000",
-          "expected": "known_fail"
+          "expected": "known_fail",
+          "notes": "known_fail: runs in CGB mode (header $0143=$80), so the DMG-only OAM bug this ROM verifies is not exercised; see known_issues.model_selection."
         },
         {
           "file": "blargg/oam_bug/rom_singles/6-timing_no_bug.gb",
@@ -305,7 +309,8 @@
           "result_detection": "file",
           "channel": "a000",
           "require_channel": "a000",
-          "expected": "known_fail"
+          "expected": "known_fail",
+          "notes": "known_fail: runs in CGB mode (header $0143=$80), so the DMG-only OAM bug this ROM verifies is not exercised; see known_issues.model_selection. This ROM checks that nothing corrupts OAM, so it PASSES trivially in CGB mode; that PASS says nothing about the DMG bug."
         },
         {
           "file": "blargg/oam_bug/rom_singles/7-timing_effect.gb",
@@ -313,7 +318,8 @@
           "result_detection": "file",
           "channel": "a000",
           "require_channel": "a000",
-          "expected": "known_fail"
+          "expected": "known_fail",
+          "notes": "known_fail: runs in CGB mode (header $0143=$80), so the DMG-only OAM bug this ROM verifies is not exercised; see known_issues.model_selection."
         },
         {
           "file": "blargg/oam_bug/rom_singles/8-instr_effect.gb",
@@ -321,7 +327,8 @@
           "result_detection": "file",
           "channel": "a000",
           "require_channel": "a000",
-          "expected": "known_fail"
+          "expected": "known_fail",
+          "notes": "known_fail: runs in CGB mode (header $0143=$80), so the DMG-only OAM bug this ROM verifies is not exercised; see known_issues.model_selection."
         }
       ]
     },
@@ -1048,42 +1055,48 @@
           "accuracy_type": "functional",
           "result_detection": "file",
           "channel": "mooneye",
-          "expected": "known_fail"
+          "expected": "known_fail",
+          "notes": "known_fail: MBC2 is not implemented in the core (README lists None/MBC1/MBC3/MBC5); see known_issues.mbc2_unsupported."
         },
         {
           "file": "mooneye-test-suite/emulator-only/mbc2/bits_unused.gb",
           "accuracy_type": "functional",
           "result_detection": "file",
           "channel": "mooneye",
-          "expected": "known_fail"
+          "expected": "known_fail",
+          "notes": "known_fail: MBC2 is not implemented in the core (README lists None/MBC1/MBC3/MBC5); see known_issues.mbc2_unsupported."
         },
         {
           "file": "mooneye-test-suite/emulator-only/mbc2/ram.gb",
           "accuracy_type": "functional",
           "result_detection": "file",
           "channel": "mooneye",
-          "expected": "known_fail"
+          "expected": "known_fail",
+          "notes": "known_fail: MBC2 is not implemented in the core (README lists None/MBC1/MBC3/MBC5); see known_issues.mbc2_unsupported."
         },
         {
           "file": "mooneye-test-suite/emulator-only/mbc2/rom_512kb.gb",
           "accuracy_type": "functional",
           "result_detection": "file",
           "channel": "mooneye",
-          "expected": "known_fail"
+          "expected": "known_fail",
+          "notes": "known_fail: MBC2 is not implemented in the core (README lists None/MBC1/MBC3/MBC5); see known_issues.mbc2_unsupported."
         },
         {
           "file": "mooneye-test-suite/emulator-only/mbc2/rom_1Mb.gb",
           "accuracy_type": "functional",
           "result_detection": "file",
           "channel": "mooneye",
-          "expected": "known_fail"
+          "expected": "known_fail",
+          "notes": "known_fail: MBC2 is not implemented in the core (README lists None/MBC1/MBC3/MBC5); see known_issues.mbc2_unsupported."
         },
         {
           "file": "mooneye-test-suite/emulator-only/mbc2/rom_2Mb.gb",
           "accuracy_type": "functional",
           "result_detection": "file",
           "channel": "mooneye",
-          "expected": "known_fail"
+          "expected": "known_fail",
+          "notes": "known_fail: MBC2 is not implemented in the core (README lists None/MBC1/MBC3/MBC5); see known_issues.mbc2_unsupported."
         }
       ]
     },
@@ -1172,13 +1185,14 @@
           "accuracy_type": "cycle-accurate",
           "result_detection": "file",
           "channel": "mooneye",
-          "expected": "known_fail"
+          "expected": "known_fail",
+          "notes": "known_fail: needs dot-accurate mode-3 timing with sprites; the PPU is scanline-based (known_issues.pixel_fifo_scanline_based). Currently RUNS (no fingerprint reached)."
         }
       ]
     },
     "samesuite_apu_ch1": {
       "name": "SameSuite - APU Channel 1 (Pulse+Sweep)",
-      "description": "Sweep, envelope, duty alignment, restart NRx2 glitch.",
+      "description": "Sweep, envelope, duty alignment, restart NRx2 glitch. Reference model CPU-CGB-E (upstream apu/README.md: passes all tests; CGB-D all but channel_1_sweep_restart_2; CGB-C fails most). The ROMs set $0143=$80 and run as CGB here, so failures are real and scored (review follow-up).",
       "subsystem": "apu",
       "priority": "medium",
       "repo": "bundle",
@@ -1188,118 +1202,119 @@
           "accuracy_type": "cycle-accurate",
           "result_detection": "file",
           "channel": "mooneye",
-          "expected": "known_fail"
+          "expected": "pass"
         },
         {
           "file": "same-suite/apu/channel_1/channel_1_align_cpu.gb",
           "accuracy_type": "cycle-accurate",
           "result_detection": "file",
           "channel": "mooneye",
-          "expected": "known_fail"
+          "expected": "pass"
         },
         {
           "file": "same-suite/apu/channel_1/channel_1_delay.gb",
           "accuracy_type": "cycle-accurate",
           "result_detection": "file",
           "channel": "mooneye",
-          "expected": "known_fail"
+          "expected": "pass"
         },
         {
           "file": "same-suite/apu/channel_1/channel_1_duty.gb",
           "accuracy_type": "cycle-accurate",
           "result_detection": "file",
           "channel": "mooneye",
-          "expected": "known_fail"
+          "expected": "pass"
         },
         {
           "file": "same-suite/apu/channel_1/channel_1_duty_delay.gb",
           "accuracy_type": "cycle-accurate",
           "result_detection": "file",
           "channel": "mooneye",
-          "expected": "known_fail"
+          "expected": "pass"
         },
         {
           "file": "same-suite/apu/channel_1/channel_1_extra_length_clocking-cgb0B.gb",
           "accuracy_type": "cycle-accurate",
           "result_detection": "file",
           "channel": "mooneye",
-          "expected": "known_fail"
+          "expected": "pass"
         },
         {
           "file": "same-suite/apu/channel_1/channel_1_freq_change.gb",
           "accuracy_type": "cycle-accurate",
           "result_detection": "file",
           "channel": "mooneye",
-          "expected": "known_fail"
+          "expected": "pass"
         },
         {
           "file": "same-suite/apu/channel_1/channel_1_nrx2_glitch.gb",
           "accuracy_type": "cycle-accurate",
           "result_detection": "file",
           "channel": "mooneye",
-          "expected": "known_fail"
+          "expected": "pass"
         },
         {
           "file": "same-suite/apu/channel_1/channel_1_nrx2_speed_change.gb",
           "accuracy_type": "cycle-accurate",
           "result_detection": "file",
           "channel": "mooneye",
-          "expected": "known_fail"
+          "expected": "pass"
         },
         {
           "file": "same-suite/apu/channel_1/channel_1_restart.gb",
           "accuracy_type": "cycle-accurate",
           "result_detection": "file",
           "channel": "mooneye",
-          "expected": "known_fail"
+          "expected": "pass"
         },
         {
           "file": "same-suite/apu/channel_1/channel_1_restart_nrx2_glitch.gb",
           "accuracy_type": "cycle-accurate",
           "result_detection": "file",
           "channel": "mooneye",
-          "expected": "known_fail"
+          "expected": "pass"
         },
         {
           "file": "same-suite/apu/channel_1/channel_1_sweep.gb",
           "accuracy_type": "cycle-accurate",
           "result_detection": "file",
           "channel": "mooneye",
-          "expected": "known_fail"
+          "expected": "pass"
         },
         {
           "file": "same-suite/apu/channel_1/channel_1_sweep_restart.gb",
           "accuracy_type": "cycle-accurate",
           "result_detection": "file",
           "channel": "mooneye",
-          "expected": "known_fail"
+          "expected": "pass"
         },
         {
           "file": "same-suite/apu/channel_1/channel_1_sweep_restart_2.gb",
           "accuracy_type": "cycle-accurate",
           "result_detection": "file",
           "channel": "mooneye",
-          "expected": "known_fail"
+          "expected": "known_fail",
+          "notes": "known_fail: upstream's apu/README.md says this fails on CPU-CGB-D and on SameBoy (CGB-E), only real CPU-CGB-E passes; listed there as not yet understood."
         },
         {
           "file": "same-suite/apu/channel_1/channel_1_volume.gb",
           "accuracy_type": "cycle-accurate",
           "result_detection": "file",
           "channel": "mooneye",
-          "expected": "known_fail"
+          "expected": "pass"
         },
         {
           "file": "same-suite/apu/channel_1/channel_1_volume_div.gb",
           "accuracy_type": "cycle-accurate",
           "result_detection": "file",
           "channel": "mooneye",
-          "expected": "known_fail"
+          "expected": "pass"
         }
       ]
     },
     "samesuite_apu_ch2": {
       "name": "SameSuite - APU Channel 2 (Pulse)",
-      "description": "Channel 2 envelope/duty/restart.",
+      "description": "Channel 2 envelope/duty/restart. Reference model CPU-CGB-E (upstream apu/README.md: passes all tests; CGB-D all but channel_1_sweep_restart_2; CGB-C fails most). The ROMs set $0143=$80 and run as CGB here, so failures are real and scored (review follow-up).",
       "subsystem": "apu",
       "priority": "low",
       "repo": "bundle",
@@ -1309,41 +1324,41 @@
           "accuracy_type": "cycle-accurate",
           "result_detection": "file",
           "channel": "mooneye",
-          "expected": "known_fail"
+          "expected": "pass"
         },
         {
           "file": "same-suite/apu/channel_2/channel_2_duty.gb",
           "accuracy_type": "cycle-accurate",
           "result_detection": "file",
           "channel": "mooneye",
-          "expected": "known_fail"
+          "expected": "pass"
         },
         {
           "file": "same-suite/apu/channel_2/channel_2_restart.gb",
           "accuracy_type": "cycle-accurate",
           "result_detection": "file",
           "channel": "mooneye",
-          "expected": "known_fail"
+          "expected": "pass"
         },
         {
           "file": "same-suite/apu/channel_2/channel_2_volume.gb",
           "accuracy_type": "cycle-accurate",
           "result_detection": "file",
           "channel": "mooneye",
-          "expected": "known_fail"
+          "expected": "pass"
         },
         {
           "file": "same-suite/apu/channel_2/channel_2_nrx2_glitch.gb",
           "accuracy_type": "cycle-accurate",
           "result_detection": "file",
           "channel": "mooneye",
-          "expected": "known_fail"
+          "expected": "pass"
         }
       ]
     },
     "samesuite_apu_ch3": {
       "name": "SameSuite - APU Channel 3 (Wave)",
-      "description": "Wave RAM access while on, trigger glitches, sample timing.",
+      "description": "Wave RAM access while on, trigger glitches, sample timing. Reference model CPU-CGB-E (upstream apu/README.md: passes all tests; CGB-D all but channel_1_sweep_restart_2; CGB-C fails most). The ROMs set $0143=$80 and run as CGB here, so failures are real and scored (review follow-up).",
       "subsystem": "apu",
       "priority": "low",
       "repo": "bundle",
@@ -1353,76 +1368,76 @@
           "accuracy_type": "cycle-accurate",
           "result_detection": "file",
           "channel": "mooneye",
-          "expected": "known_fail"
+          "expected": "pass"
         },
         {
           "file": "same-suite/apu/channel_3/channel_3_delay.gb",
           "accuracy_type": "cycle-accurate",
           "result_detection": "file",
           "channel": "mooneye",
-          "expected": "known_fail"
+          "expected": "pass"
         },
         {
           "file": "same-suite/apu/channel_3/channel_3_first_sample.gb",
           "accuracy_type": "cycle-accurate",
           "result_detection": "file",
           "channel": "mooneye",
-          "expected": "known_fail"
+          "expected": "pass"
         },
         {
           "file": "same-suite/apu/channel_3/channel_3_restart_delay.gb",
           "accuracy_type": "cycle-accurate",
           "result_detection": "file",
           "channel": "mooneye",
-          "expected": "known_fail"
+          "expected": "pass"
         },
         {
           "file": "same-suite/apu/channel_3/channel_3_restart_during_delay.gb",
           "accuracy_type": "cycle-accurate",
           "result_detection": "file",
           "channel": "mooneye",
-          "expected": "known_fail"
+          "expected": "pass"
         },
         {
           "file": "same-suite/apu/channel_3/channel_3_restart_stop_delay.gb",
           "accuracy_type": "cycle-accurate",
           "result_detection": "file",
           "channel": "mooneye",
-          "expected": "known_fail"
+          "expected": "pass"
         },
         {
           "file": "same-suite/apu/channel_3/channel_3_shift_delay.gb",
           "accuracy_type": "cycle-accurate",
           "result_detection": "file",
           "channel": "mooneye",
-          "expected": "known_fail"
+          "expected": "pass"
         },
         {
           "file": "same-suite/apu/channel_3/channel_3_shift_skip_delay.gb",
           "accuracy_type": "cycle-accurate",
           "result_detection": "file",
           "channel": "mooneye",
-          "expected": "known_fail"
+          "expected": "pass"
         },
         {
           "file": "same-suite/apu/channel_3/channel_3_wave_ram_locked_write.gb",
           "accuracy_type": "cycle-accurate",
           "result_detection": "file",
           "channel": "mooneye",
-          "expected": "known_fail"
+          "expected": "pass"
         },
         {
           "file": "same-suite/apu/channel_3/channel_3_wave_ram_sync.gb",
           "accuracy_type": "cycle-accurate",
           "result_detection": "file",
           "channel": "mooneye",
-          "expected": "known_fail"
+          "expected": "pass"
         }
       ]
     },
     "samesuite_apu_ch4": {
       "name": "SameSuite - APU Channel 4 (Noise)",
-      "description": "LFSR width/period, frozen LFSR, delay.",
+      "description": "LFSR width/period, frozen LFSR, delay. Reference model CPU-CGB-E (upstream apu/README.md: passes all tests; CGB-D all but channel_1_sweep_restart_2; CGB-C fails most). The ROMs set $0143=$80 and run as CGB here, so failures are real and scored (review follow-up).",
       "subsystem": "apu",
       "priority": "low",
       "repo": "bundle",
@@ -1432,76 +1447,77 @@
           "accuracy_type": "cycle-accurate",
           "result_detection": "file",
           "channel": "mooneye",
-          "expected": "known_fail"
+          "expected": "pass"
         },
         {
           "file": "same-suite/apu/channel_4/channel_4_delay.gb",
           "accuracy_type": "cycle-accurate",
           "result_detection": "file",
           "channel": "mooneye",
-          "expected": "known_fail"
+          "expected": "pass"
         },
         {
           "file": "same-suite/apu/channel_4/channel_4_equivalent_frequencies.gb",
           "accuracy_type": "cycle-accurate",
           "result_detection": "file",
           "channel": "mooneye",
-          "expected": "known_fail"
+          "expected": "pass"
         },
         {
           "file": "same-suite/apu/channel_4/channel_4_freq_change.gb",
           "accuracy_type": "cycle-accurate",
           "result_detection": "file",
           "channel": "mooneye",
-          "expected": "known_fail"
+          "expected": "known_fail",
+          "notes": "known_fail: upstream's apu/README.md says SameBoy itself (emulating CPU-CGB-E) fails this one; the behaviour is not yet documented well enough to demand it."
         },
         {
           "file": "same-suite/apu/channel_4/channel_4_frequency_alignment.gb",
           "accuracy_type": "cycle-accurate",
           "result_detection": "file",
           "channel": "mooneye",
-          "expected": "known_fail"
+          "expected": "pass"
         },
         {
           "file": "same-suite/apu/channel_4/channel_4_lfsr.gb",
           "accuracy_type": "cycle-accurate",
           "result_detection": "file",
           "channel": "mooneye",
-          "expected": "known_fail"
+          "expected": "pass"
         },
         {
           "file": "same-suite/apu/channel_4/channel_4_lfsr15.gb",
           "accuracy_type": "cycle-accurate",
           "result_detection": "file",
           "channel": "mooneye",
-          "expected": "known_fail"
+          "expected": "pass"
         },
         {
           "file": "same-suite/apu/channel_4/channel_4_lfsr_15_7.gb",
           "accuracy_type": "cycle-accurate",
           "result_detection": "file",
           "channel": "mooneye",
-          "expected": "known_fail"
+          "expected": "pass"
         },
         {
           "file": "same-suite/apu/channel_4/channel_4_lfsr_7_15.gb",
           "accuracy_type": "cycle-accurate",
           "result_detection": "file",
           "channel": "mooneye",
-          "expected": "known_fail"
+          "expected": "pass"
         },
         {
           "file": "same-suite/apu/channel_4/channel_4_lfsr_restart.gb",
           "accuracy_type": "cycle-accurate",
           "result_detection": "file",
           "channel": "mooneye",
-          "expected": "known_fail"
+          "expected": "pass"
         }
       ]
     },
     "samesuite_apu_regs": {
       "name": "SameSuite - APU Registers / DIV",
-      "description": "DIV-triggered length/volume, power-off register state.",
+      "description": "DIV-triggered length/volume, power-off register state. Reference model CPU-CGB-E (upstream apu/README.md: passes all tests; CGB-D all but channel_1_sweep_restart_2; CGB-C fails most). The ROMs set $0143=$80 and run as CGB here, so failures are real and scored (review follow-up).",
       "subsystem": "apu",
       "priority": "medium",
       "repo": "bundle",
@@ -1511,35 +1527,35 @@
           "accuracy_type": "cycle-accurate",
           "result_detection": "file",
           "channel": "mooneye",
-          "expected": "known_fail"
+          "expected": "pass"
         },
         {
           "file": "same-suite/apu/div_write_trigger_10.gb",
           "accuracy_type": "cycle-accurate",
           "result_detection": "file",
           "channel": "mooneye",
-          "expected": "known_fail"
+          "expected": "pass"
         },
         {
           "file": "same-suite/apu/div_trigger_volume_10.gb",
           "accuracy_type": "cycle-accurate",
           "result_detection": "file",
           "channel": "mooneye",
-          "expected": "known_fail"
+          "expected": "pass"
         },
         {
           "file": "same-suite/apu/div_write_trigger_volume.gb",
           "accuracy_type": "cycle-accurate",
           "result_detection": "file",
           "channel": "mooneye",
-          "expected": "known_fail"
+          "expected": "pass"
         },
         {
           "file": "same-suite/apu/div_write_trigger_volume_10.gb",
           "accuracy_type": "cycle-accurate",
           "result_detection": "file",
           "channel": "mooneye",
-          "expected": "known_fail"
+          "expected": "pass"
         }
       ]
     },
@@ -3869,13 +3885,15 @@
     "blargg_onscreen_only": "RESOLVED (GB-3): halt_bug.gb and interrupt_time.gb do write blargg's $A000 block, but their header declares MBC1+RAM with RAM size 0, so no cart RAM was mapped. They now run as rom_variant veloce builds with only $0149 set to 8 KiB (tests/roms-src/gb/blargg/).",
     "mem_timing2_serial_crash": "RESOLVED (GB-3): the 0x80 byte that crashed the harness's stdout decode was not serial output. It was the CGB flag at $0143 leaking into the cartridge title the core prints ('02-WRITE_TIMING\\x80'): cartridge.cpp compared a signed char against 0x80. Fixed in the core; mem_timing-2 is scored from the $A000 block.",
     "cpu_instrs_combined": "The combined cpu_instrs.gb / mem_timing.gb print no aggregate serial verdict (MEASURED); the individual ROMs do, and are used instead.",
-    "cpu_02_interrupts": "MEASURED REAL FAIL: cpu_instrs 02-interrupts never prints 'Passed' (to 8000 frames). Indicates an EI/IME-enable-delay or IF/IE dispatch-timing bug. Currently resolves to RUNS (no 'Failed' string either), tracked as known_fail.",
+    "cpu_02_interrupts": "RESOLVED: cpu_instrs 02-interrupts PASSES through the blarggtext adapter (26 frames, measured 2026-09-27). The old 'no serial Passed at 8000 frames' note came from the DEBUG-stdout era; the entry is expected: pass now.",
     "pixel_fifo_scanline_based": "Core README states the pixel FIFO is scanline-based, not dot-accurate. Expected to fail the hardest mid-scanline PPU tests (Mealybug, Wilbertpol, intr_2_mode0_timing_sprites).",
     "mbc2_unsupported": "Core README lists only None/MBC1/MBC3/MBC5; MBC2 acceptance ROMs cannot pass until MBC2 is implemented. bits_ramg specifically now resolves as unverified (RUNS), not known_fail: see its test-level note (SH-7 gb honest-detector fix). (No MBC3-specific Mooneye acceptance ROMs exist; MBC3 RTC is covered by rtc3test in the bundle but not yet wired here.)",
     "visual_refs_unpopulated": "All screenshot-crc reference_hash values in visual_test_suites (acid2, Mealybug) are empty, so those SKIP. They are non-scoring by design (plan section 11, Q1).",
-    "model_selection": "The core picks DMG or CGB from header byte $0143 only ($80/$C0 -> CGB) and has no per-test model override. Two groups therefore run on the wrong hardware and stay known_fail until one exists (core + testkit gap, not a measurement gap): Blargg oam_bug ($0143=$80, run as CGB, which has no OAM bug; the ROMs verify the DMG bug) and the Mooneye misc/ CGB-hardware ROMs ($0143=$00, run as DMG).",
+    "model_selection": "The core picks DMG or CGB from header byte $0143 only ($80/$C0 -> CGB) and has no per-test model override. Two groups therefore run on the wrong hardware and stay known_fail until one exists (core + testkit gap, not a measurement gap): Blargg oam_bug ($0143=$80, run as CGB, which has no OAM bug; the ROMs verify the DMG bug) and the Mooneye misc/ CGB-hardware ROMs ($0143=$00, run as DMG). Note the two oam_bug ROMs that check for the ABSENCE of corruption (3-non_causes, 6-timing_no_bug) pass trivially in CGB mode: they count as PASS, but they do not demonstrate DMG behaviour.",
     "gbmicrotest_scope": "GB-3 enumerates the GBMicrotest categories named in the plan (timer/div, dma, hblank_int_scx, halt, lcdon_to_stat, VRAM/OAM lock): 212 of the 482 ROMs whose source ends in a test_end2-family macro (the $FF80-$FF82 triple). The other 270 reporting ROMs (poweron_*, win*, sprite*, line_153*, stat_write_glitch*, lyc/oam/vblank interrupt edges, int_* nops/incs, mbc1_*) are left for GB-7/GB-8. 31 ROMs contain no result macro (testbenches, display-only probes, the empty stub temp.gb) and cannot be scored.",
-    "result_policy_strict_blocked": "result_policy stays \"legacy\" (SH-7 gb). validate_configs.py --strict (result_policy: strict) rejects any test whose channel/require_channel is a Tier C heuristic (mooneye here, r12 on gba); 153 of this file's 448 tests still resolve through the mooneye LD B,B fingerprint adapter (12 Mooneye acceptance suites, wilbertpol_ppu, and the 5 SameSuite/APU groups), because GB-4/GB-5 have not yet patched those suites' source to emit CHECK/END over the real serial channel. No expected_checks values were added by this item either: every channel currently in use (mooneye/a000/hram/blarggtext) synthesizes exactly one END (1/1 or 0/1) per ROM with no per-ROM CHECK line, so there is no per-ROM check count to know yet; expected_checks only becomes meaningful once a suite emits multiple real CHECK lines per ROM (GB-4/5/6/7/10)."
+    "result_policy_strict_blocked": "result_policy stays \"legacy\" (SH-7 gb). validate_configs.py --strict (result_policy: strict) rejects any test whose channel/require_channel is a Tier C heuristic (mooneye here, r12 on gba); 153 of this file's 448 tests still resolve through the mooneye LD B,B fingerprint adapter (12 Mooneye acceptance suites, wilbertpol_ppu, and the 5 SameSuite/APU groups), because GB-4/GB-5 have not yet patched those suites' source to emit CHECK/END over the real serial channel. No expected_checks values were added by this item either: every channel currently in use (mooneye/a000/hram/blarggtext) synthesizes exactly one END (1/1 or 0/1) per ROM with no per-ROM CHECK line, so there is no per-ROM check count to know yet; expected_checks only becomes meaningful once a suite emits multiple real CHECK lines per ROM (GB-4/5/6/7/10).",
+    "samesuite_apu": "SameSuite APU (46 ROMs, channel: mooneye) measured 0/46 on 2026-09-27; 44 are expected: pass and count as real failures. The 46 had been known_fail since before any of them could produce a verdict (they were RUNS under the stdout era), which after GB-1 silently hid measured failures from the headline. Upstream apu/README.md: all pass on real CPU-CGB-E; the two it lists as failing even on SameBoy/CGB-D (channel_4_freq_change, channel_1_sweep_restart_2) stay known_fail with that reason.",
+    "known_fail_policy": "Every expected: known_fail entry carries a per-test notes reason or points at a known_issues entry (review follow-up 2026-09-27). A measured failure without a documented hardware/WIP reason is expected: pass and counts against the headline."
   },
   "references": {
     "bundle_v7": "https://github.com/c-sp/gameboy-test-roms",

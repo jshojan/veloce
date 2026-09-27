@@ -2,7 +2,7 @@
   "console": "gb",
   "suite": "gbmicrotest",
   "description": "aappleby/GBMicrotest: tiny, single-purpose PPU/timer/OAM/HDMA microtests. Assembled with wla-gb via the upstream build.sh (produces bin/*.gb).",
-  "license": "MIT (see upstream README.md)",
+  "license": "No licence file at the pinned SHA and none named in its README; treated as patch-only (recipe + PROVENANCE.md committed, never a ROM)",
   "repo": {
     "url": "https://github.com/aappleby/GBMicrotest.git",
     "sha": "f3b55497c1d1202c784b8201dafc888c838b7302"

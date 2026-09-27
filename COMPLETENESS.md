@@ -36,7 +36,7 @@ Regenerate any console's authoritative scorecard with
 |---------|-----------|-------------------|--------------------|
 | [NES](#nes) | 172 tests / 32 suites | ~90-94% | Strongest verified coverage; memory-detected CPU/PPU/APU/mapper subset is real |
 | [SNES](#snes) | 67 tests / 19 suites | Low until refs land | Almost entirely `screenshot-crc`; a small Blargg SPC `memory` subset is the only currently-verifiable part |
-| [Game Boy](#game-boy) | 448 tests / 41 suites | 65.1% | Every non-visual test scored from the result file (Blargg text/`$A000`, Mooneye fingerprint, GBMicrotest `$FF80-82`); real timing/PPU/DMA/APU failures count |
+| [Game Boy](#game-boy) | 448 tests / 41 suites | 60.5% | Every non-visual test scored from the result file (Blargg text/`$A000`, Mooneye fingerprint, GBMicrotest `$FF80-82`); real timing/PPU/DMA/APU failures count |
 | [GBA](#gba) | 132 tests / 29 suites | Partial | CPU/memory/BIOS/saves verified via R12 protocol; cycle-accurate timing/PPU largely pending |
 
 The platform mean reported by `tests/run_all.py` weights each console equally.
@@ -162,8 +162,8 @@ PNG encoder; regenerate if either changes.
 
 ## Game Boy
 
-Headline: **65.1%**, measured 2026-09-27 from `cores/gb/tests/run_tests.sh --json`
-(448 tests: 190 PASS, 158 FAIL, 67 known_fail, 3 RUNS, 30 visual/skip). All 418
+Headline: **60.5%**, measured 2026-09-27 from `cores/gb/tests/run_tests.sh --json`
+(448 tests: 190 PASS, 202 FAIL, 23 known_fail, 3 RUNS, 30 visual/skip). All 418
 non-visual verdicts come from the VELOCE-RESULT/1 file the core writes
 (`source: file`) -- `result_detection` is `file` for every one of them now,
 with no `serial`/`memory` alias left in `cores/gb/tests/test_config.json` --
@@ -181,7 +181,7 @@ from source.
 
 | Subsystem area | Measured | Basis |
 |----------------|----------|-------|
-| CPU instructions | Blargg `cpu_instrs` **11/11 PASS**, Mooneye `daa` PASS | `blarggtext` / `mooneye` adapters. `02-interrupts` passes although the config still lists it `known_fail`. |
+| CPU instructions | Blargg `cpu_instrs` **11/11 PASS**, Mooneye `daa` PASS | `blarggtext` / `mooneye` adapters. `02-interrupts` PASSES (26 frames); its stale `known_fail` entry was flipped to `pass` in the review follow-up. |
 | Instruction / memory timing | Blargg `instr_timing` PASS, `mem_timing` 3/3, `mem_timing-2` **4/4**; Mooneye `timing` **1/14** | `mem_timing-2` is scored from its `$A000` block. Mooneye call/ret/jp/push/rst timing fail (fingerprint `$42`). |
 | Timer | Mooneye `timer` **13/13**, `div_boot` 2/4; GBMicrotest timer/DIV **39/52** | `mooneye` / `hram` adapters. |
 | Interrupts / HALT | Mooneye `interrupts` 7/12; Blargg `halt_bug` PASS, `interrupt_time` FAIL; GBMicrotest HALT wakeup **11/34**; SameSuite `ei_delay_halt` FAIL | `interrupt_time` measures 10 cycles for a serviced interrupt where the ROM expects 13, and its second pass still reports normal speed after `cpu_fast` (CRC check fails, code 1). |
@@ -189,7 +189,7 @@ from source.
 | PPU timing | Mooneye `ppu` 0/12; GBMicrotest HBlank IRQ vs SCX **19/61**, LCD-on STAT 11/17; SameSuite `blocking_bgpi_increase` PASS | The core's PPU is scanline-based, so mode-3 length does not vary with SCX. |
 | VRAM/OAM access | GBMicrotest VRAM/OAM lock edges **19/41**; Mooneye `bits` 2/3 | `hram` adapter. |
 | Mappers | Mooneye `mbc1` 12/13, `mbc5` 8/8, `mbc2` 1/7 (5 `known_fail`, 1 `RUNS`) | MBC2 is not implemented. `bits_ramg` never reaches the `mooneye` fingerprint and correctly shows `RUNS`, not `known_fail`; see `known_issues.mbc2_unsupported`. |
-| APU | Blargg `dmg_sound` **6/12**, `cgb_sound` **8/12**; SameSuite 0/46 (all `known_fail`) | Blargg sound is scored from `$A000` (previously an unscored screenshot). The failures are sweep details, length/sweep sync, length during power-off and wave RAM access while on. |
+| APU | Blargg `dmg_sound` **6/12**, `cgb_sound` **8/12**; SameSuite APU **0/46** (44 counted as FAIL, 2 `known_fail` with upstream's own reason) | Blargg sound is scored from `$A000` (previously an unscored screenshot). The failures are sweep details, length/sweep sync, length during power-off and wave RAM access while on. SameSuite's APU tests are sample-accurate PCM12/PCM34 checks against CPU-CGB-E; every one fails at the first check (`$42` fingerprint within 5 frames). |
 | OAM bug / CGB-model ROMs | Blargg `oam_bug` 2/8, Mooneye `misc` (CGB) 0/5, all `known_fail` | Both groups run on the wrong model. The core chooses DMG/CGB from header `$0143` and has no override: `oam_bug` ($80) runs as CGB, which has no OAM bug, and the misc ROMs ($00) run as DMG. See `known_issues.model_selection`. |
 | PPU pixel-perfect | dmg-acid2 / cgb-acid2 / Mealybug: **visual, unscored** | `screenshot-crc` with no reference hashes. |
 
@@ -231,6 +231,21 @@ this was a config-correctness pass, not a scoring change.
   any ROM verdict. It now correctly shows `RUNS` (unverified) -- the score is
   unaffected (`RUNS` and `known_fail` are both excluded from the headline)
   but the reporting is now honest.
+
+**What the review follow-up changed (2026-09-27).** The headline moved from
+65.1% to 60.5% with no regressions (`veloce_testkit.baseline
+--fail-on-regression` exits 0; the only status changes are 44
+`known_fail -> fail`). The 46 SameSuite APU entries had been `known_fail`
+since before any of them could produce a verdict (they were `RUNS` under the
+stdout era); once GB-1 gave them real verdicts, that label hid 46 measured
+failures from the headline with no documented reason. 44 are now
+`expected: pass` and count; the two that upstream's own `apu/README.md`
+lists as failing even on SameBoy / CPU-CGB-D (`channel_4_freq_change`,
+`channel_1_sweep_restart_2`) stay `known_fail` with that reason. Every other
+`known_fail` now carries a per-test reason (`oam_bug` model selection,
+MBC2 unimplemented, Wilbertpol dot timing), and `cpu_instrs/02-interrupts`,
+which passes, is no longer listed `known_fail`. `known_issues.known_fail_policy`
+records the rule.
 
 **Why the number fell earlier (GB-1).** The earlier "Blargg serial subset" headline
 (83.5%) excluded every Mooneye / SameSuite / Wilbertpol test as RUNS because
