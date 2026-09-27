@@ -163,10 +163,21 @@ PNG encoder; regenerate if either changes.
 ## Game Boy
 
 Headline: **65.1%**, measured 2026-09-27 from `cores/gb/tests/run_tests.sh --json`
-(448 tests: 190 PASS, 158 FAIL, 68 known_fail, 2 RUNS, 30 visual/skip). 415
-verdicts come from the VELOCE-RESULT/1 file the core writes (`source: file`),
-30 are unscored visual tests, and 3 still resolve through the legacy stdout
-shim (MBC2 `bits_ramg` and the two Wilbertpol ROMs; removed in SH-8).
+(448 tests: 190 PASS, 158 FAIL, 67 known_fail, 3 RUNS, 30 visual/skip). All 418
+non-visual verdicts come from the VELOCE-RESULT/1 file the core writes
+(`source: file`) -- `result_detection` is `file` for every one of them now,
+with no `serial`/`memory` alias left in `cores/gb/tests/test_config.json` --
+and 30 are unscored visual tests. 3 of the 418 (MBC2 `bits_ramg` and the two
+Wilbertpol ROMs) genuinely have no verdict on the channel and correctly show
+`RUNS`. `bits_ramg` used to show `known_fail` only because the legacy
+stdout-scrape fallback matched the harness's own "Failed to load battery save
+data" log line, not a ROM result; that fallback cannot fire once a test's
+`result_detection` is `file` instead of the deprecated `serial` alias, so this
+item's config flip retired it for `bits_ramg` (and for every other GB test)
+without waiting on SH-8. `result_policy` stays `"legacy"`: 153 of the 418
+still resolve through the Tier C `mooneye` fingerprint adapter, which
+`validate_configs.py --strict` rejects until GB-4/GB-5 rebuild those suites
+from source.
 
 | Subsystem area | Measured | Basis |
 |----------------|----------|-------|
@@ -177,7 +188,7 @@ shim (MBC2 `bits_ramg` and the two Wilbertpol ROMs; removed in SH-8).
 | DMA | Mooneye `oam_dma` 1/6; GBMicrotest OAM DMA 6/7; SameSuite CGB DMA/HDMA **0/4** | Real failures. |
 | PPU timing | Mooneye `ppu` 0/12; GBMicrotest HBlank IRQ vs SCX **19/61**, LCD-on STAT 11/17; SameSuite `blocking_bgpi_increase` PASS | The core's PPU is scanline-based, so mode-3 length does not vary with SCX. |
 | VRAM/OAM access | GBMicrotest VRAM/OAM lock edges **19/41**; Mooneye `bits` 2/3 | `hram` adapter. |
-| Mappers | Mooneye `mbc1` 12/13, `mbc5` 8/8, `mbc2` 1/7 | MBC2 is not implemented. 6 of its tests are `known_fail`, and `bits_ramg` still resolves through the legacy stdout shim. |
+| Mappers | Mooneye `mbc1` 12/13, `mbc5` 8/8, `mbc2` 1/7 (5 `known_fail`, 1 `RUNS`) | MBC2 is not implemented. `bits_ramg` never reaches the `mooneye` fingerprint and correctly shows `RUNS`, not `known_fail`; see `known_issues.mbc2_unsupported`. |
 | APU | Blargg `dmg_sound` **6/12**, `cgb_sound` **8/12**; SameSuite 0/46 (all `known_fail`) | Blargg sound is scored from `$A000` (previously an unscored screenshot). The failures are sweep details, length/sweep sync, length during power-off and wave RAM access while on. |
 | OAM bug / CGB-model ROMs | Blargg `oam_bug` 2/8, Mooneye `misc` (CGB) 0/5, all `known_fail` | Both groups run on the wrong model. The core chooses DMG/CGB from header `$0143` and has no override: `oam_bug` ($80) runs as CGB, which has no OAM bug, and the misc ROMs ($00) run as DMG. See `known_issues.model_selection`. |
 | PPU pixel-perfect | dmg-acid2 / cgb-acid2 / Mealybug: **visual, unscored** | `screenshot-crc` with no reference hashes. |
@@ -195,6 +206,31 @@ scored or tracked entries and no regressions.
   build fixes only that byte (`tests/roms-src/gb/blargg/`).
 - The core no longer prints the CGB flag byte as part of the cartridge title.
   That byte was the "mem_timing-2 serial crash".
+
+**What this item (SH-7 gb) changed.** The headline stayed at 65.1% (no
+regressions, confirmed with `veloce_testkit.baseline --fail-on-regression`);
+this was a config-correctness pass, not a scoring change.
+- The 157 remaining `result_detection: "serial"` entries (Blargg `cpu_instrs`
+  /`instr_timing`/`mem_timing`, all 12 Mooneye acceptance suites,
+  `wilbertpol_ppu`, and the 5 SameSuite APU groups) were flipped to
+  `result_detection: "file"` with an explicit `channel` (`blarggtext` for the
+  three Blargg suites, `mooneye` for the rest), matching the adapter that was
+  already producing their real verdicts (GB-1). No bare `screenshot-crc`
+  entries were found in `test_suites`; the visual suites were already in
+  `visual_test_suites`.
+- `result_policy: "strict"` was tried and confirmed blocked: 153 tests still
+  resolve through the Tier C `mooneye` channel, which `validate_configs.py`
+  rejects under `--strict`. `result_policy` stays `"legacy"` until GB-4/GB-5
+  rebuild Mooneye/SameSuite/Wilbertpol from source. No `expected_checks`
+  values were added: every channel in use today synthesizes exactly one
+  `END` per ROM, so there is no per-ROM check count to know yet.
+- Flipping `mooneye_mbc2.bits_ramg` off the `serial` alias surfaced a real
+  measurement bug: it had been resolving `known_fail` from the harness's own
+  "Failed to load battery save data" log line via the legacy stdout-scrape
+  fallback (`detect_serial_output`'s `"Failed" in output` match), not from
+  any ROM verdict. It now correctly shows `RUNS` (unverified) -- the score is
+  unaffected (`RUNS` and `known_fail` are both excluded from the headline)
+  but the reporting is now honest.
 
 **Why the number fell earlier (GB-1).** The earlier "Blargg serial subset" headline
 (83.5%) excluded every Mooneye / SameSuite / Wilbertpol test as RUNS because

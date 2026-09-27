@@ -21,11 +21,13 @@ CLI (identical for every console -- see veloce_testkit.runner):
     run_tests.sh -v              # per-test verdict lines
 
 Detection (declared per test in test_config.json; see its known_issues):
-  serial          alias of "file": the verdict comes from the VELOCE-RESULT/1
-                  file the core writes (Blargg serial text / $A000 block,
-                  Mooneye LD B,B fingerprint; cores/gb/src/test_channel.hpp).
-  file            the same, with the adapter named in `channel` (a000 / hram /
-                  mooneye); rom_variant veloce ROMs live under roms/veloce/.
+  file            every non-visual test (SH-7 gb retired the last "serial"
+                  aliases): verdict from the VELOCE-RESULT/1 file the core
+                  writes, with the adapter named in `channel` (blarggtext /
+                  a000 / hram / mooneye; cores/gb/src/test_channel.hpp).
+                  `mooneye` is Tier C, so result_policy stays "legacy" until
+                  GB-4/GB-5 rebuild Mooneye/SameSuite/Wilbertpol from source.
+                  rom_variant veloce ROMs live under roms/veloce/.
   screenshot-crc  Mealybug / acid2 (visual_test_suites, never scored).
 """
 

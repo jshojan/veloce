@@ -124,9 +124,11 @@ cmake --build build
 For the testing methodology and the platform-wide picture see the top-level
 [TESTING.md](../../TESTING.md) and [COMPLETENESS.md](../../COMPLETENESS.md).
 
-**Verified accuracy:** every non-visual test now gets its verdict from the
-VELOCE-RESULT/1 file the core writes (see *Result Detection* below). Measured
-2026-09-27: 190 PASS, 158 FAIL, 68 known_fail, 2 RUNS, 30 visual/skip (65.1%).
+**Verified accuracy:** every non-visual test's `result_detection` is `file`
+(the config carries no `serial`/`memory` legacy alias any more) and its
+verdict comes from the VELOCE-RESULT/1 file the core writes (see *Result
+Detection* below). Measured 2026-09-27: 190 PASS, 158 FAIL, 67 known_fail,
+3 RUNS, 30 visual/skip (65.1%, unchanged).
 - **Pass:** Blargg `cpu_instrs` 11/11, `instr_timing`, `mem_timing` 3/3,
   `mem_timing-2` 4/4 and `halt_bug`; Mooneye `timer` 13/13, `mbc1` 12/13 and
   `mbc5` 8/8.
@@ -134,12 +136,34 @@ VELOCE-RESULT/1 file the core writes (see *Result Detection* below). Measured
   `interrupts` (5); Blargg `interrupt_time`, `dmg_sound` 6/12 and
   `cgb_sound` 8/12; SameSuite CGB DMA/HDMA 0/4; GBMicrotest 105/212 PASS,
   weakest on HBlank-IRQ-vs-SCX (19/61) and HALT wakeup (11/34).
+- **RUNS (unverified), not known_fail:** `mooneye_mbc2.bits_ramg` and both
+  `wilbertpol_ppu` tests never reach a fingerprint verdict (MBC2 is
+  unimplemented; the wilbertpol ROMs need dot-accurate PPU timing this core
+  doesn't have) and now say so honestly. `bits_ramg` previously showed
+  `known_fail` only because the legacy stdout-scrape fallback matched the
+  harness's own "Failed to load battery save data" log line, not a ROM
+  verdict; making `result_detection` explicitly `file` (rather than the
+  deprecated `serial` alias) retires that fallback for every test that uses
+  it, so a test with no real verdict now shows `RUNS` instead of a fabricated
+  `known_fail`.
 
 The headline fell from
 the earlier "Blargg serial subset" number because those Mooneye failures were
 previously unscored (RUNS), not because anything regressed. The previous
 "111/111, 100%" claim was not reproducible and has been retired. Full
 justification is in [COMPLETENESS.md](../../COMPLETENESS.md#game-boy).
+
+`result_policy` stays `"legacy"` in `test_config.json`: `tests/validate_configs.py`
+`--strict` semantics (`result_policy: "strict"`) reject any test on a Tier C
+channel, and 153 of these 448 tests still resolve through the `mooneye`
+register-fingerprint adapter (all 12 Mooneye acceptance suites, both
+`wilbertpol_ppu` tests, and the 5 SameSuite/APU groups) because GB-4/GB-5
+haven't yet patched those suites' source to emit `CHECK`/`END` over the real
+`serial` channel. `expected_checks` is likewise not set anywhere yet: every
+channel in use today (`mooneye`/`a000`/`hram`/`blarggtext`) synthesizes
+exactly one `END` per ROM with no per-ROM `CHECK` line, so there is no
+per-ROM check count to declare until a suite emits real `CHECK` lines
+(GB-4/5/6/7/10).
 
 ### Test Suite
 

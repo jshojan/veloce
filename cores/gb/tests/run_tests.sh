@@ -15,10 +15,12 @@
 #   ./run_tests.sh --generate-refs # print measured screenshot CRC32 hashes
 #
 # Result detection per test is declared in test_config.json:
-#   serial         (alias of "file") verdict from the VELOCE-RESULT/1 file the
-#                  core writes: Blargg serial text / $A000 block, Mooneye
-#                  LD B,B fingerprint (see cores/gb/src/test_channel.hpp)
-#   file           same file, adapter named in "channel" (a000/hram/mooneye)
+#   file           every non-visual test: verdict from the VELOCE-RESULT/1
+#                  file the core writes, adapter named in "channel"
+#                  (blarggtext/a000/hram/mooneye; see
+#                  cores/gb/src/test_channel.hpp). "mooneye" is Tier C, so
+#                  result_policy stays "legacy" until GB-4/GB-5 rebuild
+#                  Mooneye/SameSuite/Wilbertpol from source (SH-7 gb).
 #   screenshot-crc Mealybug / acid2 (visual, unscored)
 
 set -e

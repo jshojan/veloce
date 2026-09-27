@@ -27,68 +27,90 @@
         {
           "file": "blargg/cpu_instrs/individual/01-special.gb",
           "accuracy_type": "functional",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "blarggtext",
+          "require_channel": "blarggtext",
           "expected": "pass"
         },
         {
           "file": "blargg/cpu_instrs/individual/02-interrupts.gb",
           "accuracy_type": "timing",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "blarggtext",
+          "require_channel": "blarggtext",
           "expected": "known_fail",
           "notes": "MEASURED FAIL: no serial 'Passed' even at 8000 frames. EI/IME-enable-delay or IF/IE dispatch-timing bug."
         },
         {
           "file": "blargg/cpu_instrs/individual/03-op sp,hl.gb",
           "accuracy_type": "functional",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "blarggtext",
+          "require_channel": "blarggtext",
           "expected": "pass"
         },
         {
           "file": "blargg/cpu_instrs/individual/04-op r,imm.gb",
           "accuracy_type": "functional",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "blarggtext",
+          "require_channel": "blarggtext",
           "expected": "pass"
         },
         {
           "file": "blargg/cpu_instrs/individual/05-op rp.gb",
           "accuracy_type": "functional",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "blarggtext",
+          "require_channel": "blarggtext",
           "expected": "pass"
         },
         {
           "file": "blargg/cpu_instrs/individual/06-ld r,r.gb",
           "accuracy_type": "functional",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "blarggtext",
+          "require_channel": "blarggtext",
           "expected": "pass"
         },
         {
           "file": "blargg/cpu_instrs/individual/07-jr,jp,call,ret,rst.gb",
           "accuracy_type": "functional",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "blarggtext",
+          "require_channel": "blarggtext",
           "expected": "pass"
         },
         {
           "file": "blargg/cpu_instrs/individual/08-misc instrs.gb",
           "accuracy_type": "functional",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "blarggtext",
+          "require_channel": "blarggtext",
           "expected": "pass"
         },
         {
           "file": "blargg/cpu_instrs/individual/09-op r,r.gb",
           "accuracy_type": "functional",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "blarggtext",
+          "require_channel": "blarggtext",
           "expected": "pass"
         },
         {
           "file": "blargg/cpu_instrs/individual/10-bit ops.gb",
           "accuracy_type": "functional",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "blarggtext",
+          "require_channel": "blarggtext",
           "expected": "pass"
         },
         {
           "file": "blargg/cpu_instrs/individual/11-op a,(hl).gb",
           "accuracy_type": "functional",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "blarggtext",
+          "require_channel": "blarggtext",
           "expected": "pass"
         }
       ]
@@ -103,7 +125,9 @@
         {
           "file": "blargg/instr_timing/instr_timing.gb",
           "accuracy_type": "timing",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "blarggtext",
+          "require_channel": "blarggtext",
           "expected": "pass",
           "notes": "MEASURED PASS"
         }
@@ -119,21 +143,27 @@
         {
           "file": "blargg/mem_timing/individual/01-read_timing.gb",
           "accuracy_type": "timing",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "blarggtext",
+          "require_channel": "blarggtext",
           "expected": "pass",
           "notes": "MEASURED PASS"
         },
         {
           "file": "blargg/mem_timing/individual/02-write_timing.gb",
           "accuracy_type": "timing",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "blarggtext",
+          "require_channel": "blarggtext",
           "expected": "pass",
           "notes": "MEASURED PASS"
         },
         {
           "file": "blargg/mem_timing/individual/03-modify_timing.gb",
           "accuracy_type": "timing",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "blarggtext",
+          "require_channel": "blarggtext",
           "expected": "pass",
           "notes": "MEASURED PASS"
         }
@@ -305,7 +335,8 @@
         {
           "file": "mooneye-test-suite/acceptance/instr/daa.gb",
           "accuracy_type": "functional",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         }
       ]
@@ -320,19 +351,22 @@
         {
           "file": "mooneye-test-suite/acceptance/bits/mem_oam.gb",
           "accuracy_type": "functional",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/acceptance/bits/reg_f.gb",
           "accuracy_type": "functional",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/acceptance/bits/unused_hwio-GS.gb",
           "accuracy_type": "functional",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         }
       ]
@@ -347,74 +381,86 @@
         {
           "file": "mooneye-test-suite/acceptance/interrupts/ie_push.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/acceptance/ei_sequence.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/acceptance/ei_timing.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/acceptance/di_timing-GS.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/acceptance/rapid_di_ei.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/acceptance/intr_timing.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/acceptance/if_ie_registers.gb",
           "accuracy_type": "functional",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/acceptance/reti_intr_timing.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/acceptance/halt_ime0_ei.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass",
           "notes": "HALT bug path"
         },
         {
           "file": "mooneye-test-suite/acceptance/halt_ime0_nointr_timing.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/acceptance/halt_ime1_timing.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/acceptance/halt_ime1_timing2-GS.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         }
       ]
@@ -429,37 +475,43 @@
         {
           "file": "mooneye-test-suite/acceptance/oam_dma/basic.gb",
           "accuracy_type": "timing",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/acceptance/oam_dma/reg_read.gb",
           "accuracy_type": "timing",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/acceptance/oam_dma/sources-GS.gb",
           "accuracy_type": "timing",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/acceptance/oam_dma_restart.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/acceptance/oam_dma_start.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/acceptance/oam_dma_timing.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         }
       ]
@@ -474,74 +526,86 @@
         {
           "file": "mooneye-test-suite/acceptance/ppu/hblank_ly_scx_timing-GS.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/acceptance/ppu/intr_1_2_timing-GS.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/acceptance/ppu/intr_2_0_timing.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/acceptance/ppu/intr_2_mode0_timing.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/acceptance/ppu/intr_2_mode0_timing_sprites.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "known_fail",
           "notes": "Sprite-count-dependent mode-3 length; scanline FIFO likely fails."
         },
         {
           "file": "mooneye-test-suite/acceptance/ppu/intr_2_mode3_timing.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/acceptance/ppu/intr_2_oam_ok_timing.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/acceptance/ppu/lcdon_timing-GS.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/acceptance/ppu/lcdon_write_timing-GS.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/acceptance/ppu/stat_irq_blocking.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/acceptance/ppu/stat_lyc_onoff.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/acceptance/ppu/vblank_stat_intr-GS.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         }
       ]
@@ -556,79 +620,92 @@
         {
           "file": "mooneye-test-suite/acceptance/timer/div_write.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/acceptance/timer/rapid_toggle.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/acceptance/timer/tim00.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/acceptance/timer/tim00_div_trigger.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/acceptance/timer/tim01.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/acceptance/timer/tim01_div_trigger.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/acceptance/timer/tim10.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/acceptance/timer/tim10_div_trigger.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/acceptance/timer/tim11.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/acceptance/timer/tim11_div_trigger.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/acceptance/timer/tima_reload.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/acceptance/timer/tima_write_reloading.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/acceptance/timer/tma_write_reloading.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         }
       ]
@@ -643,27 +720,31 @@
         {
           "file": "mooneye-test-suite/acceptance/div_timing.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/acceptance/boot_div-dmgABCmgb.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "known_fail",
           "notes": "Boot-ROM/DIV power-on state; needs exact boot timing."
         },
         {
           "file": "mooneye-test-suite/acceptance/boot_regs-dmgABC.gb",
           "accuracy_type": "functional",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass",
           "notes": "Post-boot register state."
         },
         {
           "file": "mooneye-test-suite/acceptance/boot_hwio-dmgABCmgb.gb",
           "accuracy_type": "functional",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "known_fail",
           "notes": "Post-boot HWIO register state."
         }
@@ -732,85 +813,99 @@
         {
           "file": "mooneye-test-suite/acceptance/add_sp_e_timing.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/acceptance/call_cc_timing.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/acceptance/call_cc_timing2.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/acceptance/call_timing.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/acceptance/call_timing2.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/acceptance/jp_cc_timing.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/acceptance/jp_timing.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/acceptance/ld_hl_sp_e_timing.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/acceptance/pop_timing.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/acceptance/push_timing.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/acceptance/ret_cc_timing.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/acceptance/ret_timing.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/acceptance/reti_timing.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/acceptance/rst_timing.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         }
       ]
@@ -825,7 +920,8 @@
         {
           "file": "mooneye-test-suite/acceptance/serial/boot_sclk_align-dmgABCmgb.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "known_fail",
           "notes": "Serial clock divider phase vs boot."
         }
@@ -841,79 +937,92 @@
         {
           "file": "mooneye-test-suite/emulator-only/mbc1/bits_bank1.gb",
           "accuracy_type": "functional",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/emulator-only/mbc1/bits_bank2.gb",
           "accuracy_type": "functional",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/emulator-only/mbc1/bits_mode.gb",
           "accuracy_type": "functional",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/emulator-only/mbc1/bits_ramg.gb",
           "accuracy_type": "functional",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/emulator-only/mbc1/ram_64kb.gb",
           "accuracy_type": "functional",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/emulator-only/mbc1/ram_256kb.gb",
           "accuracy_type": "functional",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/emulator-only/mbc1/rom_512kb.gb",
           "accuracy_type": "functional",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/emulator-only/mbc1/rom_1Mb.gb",
           "accuracy_type": "functional",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/emulator-only/mbc1/rom_2Mb.gb",
           "accuracy_type": "functional",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/emulator-only/mbc1/rom_4Mb.gb",
           "accuracy_type": "functional",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/emulator-only/mbc1/rom_8Mb.gb",
           "accuracy_type": "functional",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/emulator-only/mbc1/rom_16Mb.gb",
           "accuracy_type": "functional",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/emulator-only/mbc1/multicart_rom_8Mb.gb",
           "accuracy_type": "functional",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "known_fail",
           "notes": "MBC1 multicart alt bank wiring; often unimplemented."
         }
@@ -929,44 +1038,51 @@
         {
           "file": "mooneye-test-suite/emulator-only/mbc2/bits_ramg.gb",
           "accuracy_type": "functional",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "known_fail",
-          "notes": "MBC2 not in core README supported list (None/MBC1/MBC3/MBC5)."
+          "notes": "MBC2 not in core README supported list (None/MBC1/MBC3/MBC5). RESOLVED (SH-7 gb): previously scored known_fail from the harness's own \"Failed to load battery save data\" log line matching the legacy serial stdout-scrape fallback (GB-1). Now that this suite is result_detection: file (not the serial alias), that fallback never runs; the mooneye fingerprint genuinely never fires because MBC2 mapping is unimplemented, so this resolves honestly as unverified (RUNS), not known_fail."
         },
         {
           "file": "mooneye-test-suite/emulator-only/mbc2/bits_romb.gb",
           "accuracy_type": "functional",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "known_fail"
         },
         {
           "file": "mooneye-test-suite/emulator-only/mbc2/bits_unused.gb",
           "accuracy_type": "functional",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "known_fail"
         },
         {
           "file": "mooneye-test-suite/emulator-only/mbc2/ram.gb",
           "accuracy_type": "functional",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "known_fail"
         },
         {
           "file": "mooneye-test-suite/emulator-only/mbc2/rom_512kb.gb",
           "accuracy_type": "functional",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "known_fail"
         },
         {
           "file": "mooneye-test-suite/emulator-only/mbc2/rom_1Mb.gb",
           "accuracy_type": "functional",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "known_fail"
         },
         {
           "file": "mooneye-test-suite/emulator-only/mbc2/rom_2Mb.gb",
           "accuracy_type": "functional",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "known_fail"
         }
       ]
@@ -981,49 +1097,57 @@
         {
           "file": "mooneye-test-suite/emulator-only/mbc5/rom_512kb.gb",
           "accuracy_type": "functional",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/emulator-only/mbc5/rom_1Mb.gb",
           "accuracy_type": "functional",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/emulator-only/mbc5/rom_2Mb.gb",
           "accuracy_type": "functional",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/emulator-only/mbc5/rom_4Mb.gb",
           "accuracy_type": "functional",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/emulator-only/mbc5/rom_8Mb.gb",
           "accuracy_type": "functional",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/emulator-only/mbc5/rom_16Mb.gb",
           "accuracy_type": "functional",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/emulator-only/mbc5/rom_32Mb.gb",
           "accuracy_type": "functional",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         },
         {
           "file": "mooneye-test-suite/emulator-only/mbc5/rom_64Mb.gb",
           "accuracy_type": "functional",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "pass"
         }
       ]
@@ -1038,14 +1162,16 @@
         {
           "file": "mooneye-test-suite-wilbertpol/acceptance/gpu/hblank_ly_scx_timing_nops.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "known_fail",
           "notes": "Needs dot-accurate FIFO."
         },
         {
           "file": "mooneye-test-suite-wilbertpol/acceptance/gpu/intr_2_mode0_timing_sprites_nops.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "known_fail"
         }
       ]
@@ -1060,97 +1186,113 @@
         {
           "file": "same-suite/apu/channel_1/channel_1_align.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "known_fail"
         },
         {
           "file": "same-suite/apu/channel_1/channel_1_align_cpu.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "known_fail"
         },
         {
           "file": "same-suite/apu/channel_1/channel_1_delay.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "known_fail"
         },
         {
           "file": "same-suite/apu/channel_1/channel_1_duty.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "known_fail"
         },
         {
           "file": "same-suite/apu/channel_1/channel_1_duty_delay.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "known_fail"
         },
         {
           "file": "same-suite/apu/channel_1/channel_1_extra_length_clocking-cgb0B.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "known_fail"
         },
         {
           "file": "same-suite/apu/channel_1/channel_1_freq_change.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "known_fail"
         },
         {
           "file": "same-suite/apu/channel_1/channel_1_nrx2_glitch.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "known_fail"
         },
         {
           "file": "same-suite/apu/channel_1/channel_1_nrx2_speed_change.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "known_fail"
         },
         {
           "file": "same-suite/apu/channel_1/channel_1_restart.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "known_fail"
         },
         {
           "file": "same-suite/apu/channel_1/channel_1_restart_nrx2_glitch.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "known_fail"
         },
         {
           "file": "same-suite/apu/channel_1/channel_1_sweep.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "known_fail"
         },
         {
           "file": "same-suite/apu/channel_1/channel_1_sweep_restart.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "known_fail"
         },
         {
           "file": "same-suite/apu/channel_1/channel_1_sweep_restart_2.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "known_fail"
         },
         {
           "file": "same-suite/apu/channel_1/channel_1_volume.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "known_fail"
         },
         {
           "file": "same-suite/apu/channel_1/channel_1_volume_div.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "known_fail"
         }
       ]
@@ -1165,31 +1307,36 @@
         {
           "file": "same-suite/apu/channel_2/channel_2_align.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "known_fail"
         },
         {
           "file": "same-suite/apu/channel_2/channel_2_duty.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "known_fail"
         },
         {
           "file": "same-suite/apu/channel_2/channel_2_restart.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "known_fail"
         },
         {
           "file": "same-suite/apu/channel_2/channel_2_volume.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "known_fail"
         },
         {
           "file": "same-suite/apu/channel_2/channel_2_nrx2_glitch.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "known_fail"
         }
       ]
@@ -1204,61 +1351,71 @@
         {
           "file": "same-suite/apu/channel_3/channel_3_and_glitch.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "known_fail"
         },
         {
           "file": "same-suite/apu/channel_3/channel_3_delay.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "known_fail"
         },
         {
           "file": "same-suite/apu/channel_3/channel_3_first_sample.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "known_fail"
         },
         {
           "file": "same-suite/apu/channel_3/channel_3_restart_delay.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "known_fail"
         },
         {
           "file": "same-suite/apu/channel_3/channel_3_restart_during_delay.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "known_fail"
         },
         {
           "file": "same-suite/apu/channel_3/channel_3_restart_stop_delay.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "known_fail"
         },
         {
           "file": "same-suite/apu/channel_3/channel_3_shift_delay.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "known_fail"
         },
         {
           "file": "same-suite/apu/channel_3/channel_3_shift_skip_delay.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "known_fail"
         },
         {
           "file": "same-suite/apu/channel_3/channel_3_wave_ram_locked_write.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "known_fail"
         },
         {
           "file": "same-suite/apu/channel_3/channel_3_wave_ram_sync.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "known_fail"
         }
       ]
@@ -1273,61 +1430,71 @@
         {
           "file": "same-suite/apu/channel_4/channel_4_align.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "known_fail"
         },
         {
           "file": "same-suite/apu/channel_4/channel_4_delay.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "known_fail"
         },
         {
           "file": "same-suite/apu/channel_4/channel_4_equivalent_frequencies.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "known_fail"
         },
         {
           "file": "same-suite/apu/channel_4/channel_4_freq_change.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "known_fail"
         },
         {
           "file": "same-suite/apu/channel_4/channel_4_frequency_alignment.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "known_fail"
         },
         {
           "file": "same-suite/apu/channel_4/channel_4_lfsr.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "known_fail"
         },
         {
           "file": "same-suite/apu/channel_4/channel_4_lfsr15.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "known_fail"
         },
         {
           "file": "same-suite/apu/channel_4/channel_4_lfsr_15_7.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "known_fail"
         },
         {
           "file": "same-suite/apu/channel_4/channel_4_lfsr_7_15.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "known_fail"
         },
         {
           "file": "same-suite/apu/channel_4/channel_4_lfsr_restart.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "known_fail"
         }
       ]
@@ -1342,31 +1509,36 @@
         {
           "file": "same-suite/apu/div_write_trigger.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "known_fail"
         },
         {
           "file": "same-suite/apu/div_write_trigger_10.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "known_fail"
         },
         {
           "file": "same-suite/apu/div_trigger_volume_10.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "known_fail"
         },
         {
           "file": "same-suite/apu/div_write_trigger_volume.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "known_fail"
         },
         {
           "file": "same-suite/apu/div_write_trigger_volume_10.gb",
           "accuracy_type": "cycle-accurate",
-          "result_detection": "serial",
+          "result_detection": "file",
+          "channel": "mooneye",
           "expected": "known_fail"
         }
       ]
@@ -3693,16 +3865,17 @@
     }
   },
   "known_issues": {
-    "mooneye_detection": "Mooneye/SameSuite/Wilbertpol ROMs signal via the Fibonacci register fingerprint (B=3 C=5 D=8 E=13 H=21 L=34 pass, all $42 fail) at an LD B,B breakpoint. Since GB-1 the core's mooneye adapter (cores/gb/src/test_channel.cpp) turns that into REG + END 1/1 / END 0/1 code=66 in the VELOCE-RESULT/1 file, so these are real verdicts. It is a Tier C (register-heuristic) channel: GB-4/GB-5 rebuild the suites to emit CHECK/END over serial themselves and GB-8 flips the config to channel serial.",
+    "mooneye_detection": "Mooneye/SameSuite/Wilbertpol ROMs signal via the Fibonacci register fingerprint (B=3 C=5 D=8 E=13 H=21 L=34 pass, all $42 fail) at an LD B,B breakpoint. Since GB-1 the core's mooneye adapter (cores/gb/src/test_channel.cpp) turns that into REG + END 1/1 / END 0/1 code=66 in the VELOCE-RESULT/1 file, so these are real verdicts. This item (SH-7 gb) flipped every remaining result_detection: serial entry that resolves through it to result_detection: file, channel: mooneye, matching the actual source of the verdict. It is still a Tier C (register-heuristic) channel: 153 tests use it, which is exactly why result_policy stays legacy for gb (validate_configs.py --strict rejects Tier C channels). GB-4/GB-5 rebuild the suites to emit CHECK/END over the serial channel themselves and GB-8 flips these entries to channel: serial, rom_variant: veloce, after which result_policy: strict becomes reachable.",
     "blargg_onscreen_only": "RESOLVED (GB-3): halt_bug.gb and interrupt_time.gb do write blargg's $A000 block, but their header declares MBC1+RAM with RAM size 0, so no cart RAM was mapped. They now run as rom_variant veloce builds with only $0149 set to 8 KiB (tests/roms-src/gb/blargg/).",
     "mem_timing2_serial_crash": "RESOLVED (GB-3): the 0x80 byte that crashed the harness's stdout decode was not serial output. It was the CGB flag at $0143 leaking into the cartridge title the core prints ('02-WRITE_TIMING\\x80'): cartridge.cpp compared a signed char against 0x80. Fixed in the core; mem_timing-2 is scored from the $A000 block.",
     "cpu_instrs_combined": "The combined cpu_instrs.gb / mem_timing.gb print no aggregate serial verdict (MEASURED); the individual ROMs do, and are used instead.",
     "cpu_02_interrupts": "MEASURED REAL FAIL: cpu_instrs 02-interrupts never prints 'Passed' (to 8000 frames). Indicates an EI/IME-enable-delay or IF/IE dispatch-timing bug. Currently resolves to RUNS (no 'Failed' string either), tracked as known_fail.",
     "pixel_fifo_scanline_based": "Core README states the pixel FIFO is scanline-based, not dot-accurate. Expected to fail the hardest mid-scanline PPU tests (Mealybug, Wilbertpol, intr_2_mode0_timing_sprites).",
-    "mbc2_unsupported": "Core README lists only None/MBC1/MBC3/MBC5; MBC2 tests are known_fail until MBC2 is implemented. (No MBC3-specific Mooneye acceptance ROMs exist; MBC3 RTC is covered by rtc3test in the bundle but not yet wired here.)",
+    "mbc2_unsupported": "Core README lists only None/MBC1/MBC3/MBC5; MBC2 acceptance ROMs cannot pass until MBC2 is implemented. bits_ramg specifically now resolves as unverified (RUNS), not known_fail: see its test-level note (SH-7 gb honest-detector fix). (No MBC3-specific Mooneye acceptance ROMs exist; MBC3 RTC is covered by rtc3test in the bundle but not yet wired here.)",
     "visual_refs_unpopulated": "All screenshot-crc reference_hash values in visual_test_suites (acid2, Mealybug) are empty, so those SKIP. They are non-scoring by design (plan section 11, Q1).",
     "model_selection": "The core picks DMG or CGB from header byte $0143 only ($80/$C0 -> CGB) and has no per-test model override. Two groups therefore run on the wrong hardware and stay known_fail until one exists (core + testkit gap, not a measurement gap): Blargg oam_bug ($0143=$80, run as CGB, which has no OAM bug; the ROMs verify the DMG bug) and the Mooneye misc/ CGB-hardware ROMs ($0143=$00, run as DMG).",
-    "gbmicrotest_scope": "GB-3 enumerates the GBMicrotest categories named in the plan (timer/div, dma, hblank_int_scx, halt, lcdon_to_stat, VRAM/OAM lock): 212 of the 482 ROMs whose source ends in a test_end2-family macro (the $FF80-$FF82 triple). The other 270 reporting ROMs (poweron_*, win*, sprite*, line_153*, stat_write_glitch*, lyc/oam/vblank interrupt edges, int_* nops/incs, mbc1_*) are left for GB-7/GB-8. 31 ROMs contain no result macro (testbenches, display-only probes, the empty stub temp.gb) and cannot be scored."
+    "gbmicrotest_scope": "GB-3 enumerates the GBMicrotest categories named in the plan (timer/div, dma, hblank_int_scx, halt, lcdon_to_stat, VRAM/OAM lock): 212 of the 482 ROMs whose source ends in a test_end2-family macro (the $FF80-$FF82 triple). The other 270 reporting ROMs (poweron_*, win*, sprite*, line_153*, stat_write_glitch*, lyc/oam/vblank interrupt edges, int_* nops/incs, mbc1_*) are left for GB-7/GB-8. 31 ROMs contain no result macro (testbenches, display-only probes, the empty stub temp.gb) and cannot be scored.",
+    "result_policy_strict_blocked": "result_policy stays \"legacy\" (SH-7 gb). validate_configs.py --strict (result_policy: strict) rejects any test whose channel/require_channel is a Tier C heuristic (mooneye here, r12 on gba); 153 of this file's 448 tests still resolve through the mooneye LD B,B fingerprint adapter (12 Mooneye acceptance suites, wilbertpol_ppu, and the 5 SameSuite/APU groups), because GB-4/GB-5 have not yet patched those suites' source to emit CHECK/END over the real serial channel. No expected_checks values were added by this item either: every channel currently in use (mooneye/a000/hram/blarggtext) synthesizes exactly one END (1/1 or 0/1) per ROM with no per-ROM CHECK line, so there is no per-ROM check count to know yet; expected_checks only becomes meaningful once a suite emits multiple real CHECK lines per ROM (GB-4/5/6/7/10)."
   },
   "references": {
     "bundle_v7": "https://github.com/c-sp/gameboy-test-roms",
