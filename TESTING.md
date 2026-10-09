@@ -11,6 +11,31 @@ For the per-console scorecard (the actual numbers and where the gaps are) see
 schema reference, see [tests/README.md](tests/README.md), which is the source of
 truth this document summarizes rather than duplicates.
 
+## Repository-owned register corpora
+
+Original NES and GB ROMs are committed with their Python source generators.
+Build reproducibility and source/image SHA256 are checked with
+`python3 tests/roms-src/build.py --original-only --check`, without a downloaded
+ROM, Docker, or an assembler. Run both suites with
+`ctest --test-dir build -L owned --output-on-failure`.
+
+The [NES ADC/SBC corpus](tests/roms-src/nes/alu_exhaustive/README.md) records
+524,288 accumulator/status pairs through `$401E`. Its host oracle independently
+checks every operand pair, carry input, and decimal-flag setting for zero-page
+ADC/SBC. The ROM reports completion with an unknown verdict; the ordinary file
+detector must not infer PASS from these raw `REG` lines. The dedicated runner
+reports PASS only after the observations match and the entire expected corpus
+is present. An opcode mutation and damaged file controls must fail.
+
+The [GB register probe](tests/roms-src/gb/register_probe/README.md) sends observed
+WRAM and ADD results through SB/SC. Its `REG`, `CHECK`, and `END` records are
+scored by the ordinary file detector, and an injected wrong WRAM value must fail.
+Both suites retain raw output and reports under `build/artifacts/owned/`, which
+CI uploads. These results are separate from the existing external-ROM weighted
+scorecards; exact domain coverage is documented in
+[HARDWARE-COVERAGE.md](docs/HARDWARE-COVERAGE.md). Other CPU behaviors, timing,
+video, audio, mappers, and remaining platforms still require original corpora.
+
 ## Testing philosophy
 
 Veloce targets accuracy where it matters for speedrunning and TAS, so the test

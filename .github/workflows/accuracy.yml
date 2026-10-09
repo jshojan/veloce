@@ -3,8 +3,9 @@ name: Accuracy
 # Cross-console test + accuracy-measurement CI for the Veloce emulator platform.
 # Jobs run only on a self-hosted runner ([self-hosted, linux]); the project does
 # not use GitHub-hosted runners. With no runner registered, jobs just queue.
-# Two tiers:
+# Three tiers:
 #   * fast-gates : pure-logic unit test + config schema validation (every push/PR)
+#   * owned-hardware : original register-output ROMs (every push/PR; no ROM download)
 #   * accuracy   : full per-console ROM suites + aggregate scorecard (needs build
 #                  + network for test ROMs). Runs on PRs to main and nightly.
 
@@ -25,11 +26,33 @@ jobs:
         run: python3 tests/veloce_testkit/selftest.py
       - name: Validate all test_config.json
         run: python3 tests/validate_configs.py
+      - name: Verify original ROM builds and source ledger
+        run: python3 tests/roms-src/build.py --original-only --check
       - name: Result-file sink unit test (C++, no SDL)
         run: |
           g++ -std=c++17 -Wall -Wextra -Iinclude -Isrc \
             tests/cpp/test_file_sink_test.cpp src/core/test_file_sink.cpp -o test_file_sink
           ./test_file_sink
+
+  owned-hardware:
+    needs: fast-gates
+    runs-on: [self-hosted, linux]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build original ROMs and emulator plugins
+        run: |
+          python3 tests/roms-src/build.py --original-only --check
+          cmake -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --target veloce gb_plugin nes_plugin cartridge_crc_test -j
+          ctest --test-dir build -R cartridge_crc_test --output-on-failure
+      - name: Grade observed hardware registers
+        run: ctest --test-dir build -L owned --output-on-failure
+      - name: Upload raw register files and reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: owned-hardware-registers
+          path: build/artifacts/owned/
 
   accuracy:
     needs: fast-gates
@@ -52,10 +75,10 @@ jobs:
       - name: Build veloce (headless)
         run: |
           cmake -B build -DCMAKE_BUILD_TYPE=Release
-          cmake --build build --target veloce -j
+          cmake --build build --target veloce ${{ matrix.console }}_plugin -j
       - name: Run ${{ matrix.console }} accuracy suite
         run: |
-          python3 cores/${{ matrix.console }}/tests/test_runner.py --json \
+          bash cores/${{ matrix.console }}/tests/run_tests.sh --json \
             | tee scorecard-${{ matrix.console }}.json
       - name: Upload scorecard + artifacts
         if: always()

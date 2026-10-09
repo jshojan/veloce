@@ -145,6 +145,8 @@ public:
     void run_frame(const emu::InputState& input) override;
     uint64_t get_cycle_count() const override;
     uint64_t get_frame_count() const override;
+    bool set_test_sink(emu::ITestSink* sink) override;
+    const char* test_channels() const override { return "serial"; }
 
     // Video
     emu::FrameBuffer get_framebuffer() override;
@@ -245,8 +247,8 @@ emu::EmulatorInfo GBPlugin::get_info() {
         info.version = "0.1.0";
         info.author = "Veloce Team";
         info.description = "M-cycle accurate Game Boy Color emulator with Sharp LR35902 CPU. "
-                           "Features color palettes, double-speed mode, HDMA transfers, "
-                           "and passes 100% of Mooneye timing tests.";
+                           "Features color palettes, double-speed mode, and HDMA transfers. "
+                           "Timing coverage is still being verified.";
         info.file_extensions = s_extensions;
         info.native_fps = 59.7275;
         info.cycles_per_second = 8388608;  // 8.39 MHz (double speed capable)
@@ -257,8 +259,8 @@ emu::EmulatorInfo GBPlugin::get_info() {
         info.version = "0.1.0";
         info.author = "Veloce Team";
         info.description = "M-cycle accurate Game Boy emulator with Sharp LR35902 CPU. "
-                           "Features accurate PPU/APU emulation and passes 100% of "
-                           "Blargg and Mooneye timing tests.";
+                           "Features PPU/APU emulation and a serial register test channel. "
+                           "Timing coverage is still being verified.";
         info.file_extensions = s_extensions;
         info.native_fps = 59.7275;  // 70224 cycles per frame at 4.19 MHz
         info.cycles_per_second = 4194304;  // 4.19 MHz
@@ -363,6 +365,11 @@ void GBPlugin::reset() {
     m_total_cycles = 0;
     m_frame_count = 0;
     m_test_result_reported = false;
+}
+
+bool GBPlugin::set_test_sink(emu::ITestSink* sink) {
+    if (m_bus) m_bus->set_test_sink(sink);
+    return true;
 }
 
 void GBPlugin::run_frame(const emu::InputState& input) {

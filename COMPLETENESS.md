@@ -1,7 +1,7 @@
 # Veloce Accuracy Scorecard
 
 This is the project's honest, evidence-based statement of how complete and
-cycle-accurate each emulator core is. Every percentage here is produced by the
+cycle-accurate each emulator core is. Legacy headline percentages are produced by the
 shared scoring methodology described in [TESTING.md](TESTING.md#how-the-completeness-percentage-is-computed)
 and is reproducible by running the corresponding suite. Nothing here is a
 hand-estimated "feels done" number.
@@ -30,13 +30,19 @@ Regenerate any console's authoritative scorecard with
 `cd cores/<console>/tests && ./run_tests.sh --json`, or the whole platform with
 `python tests/run_all.py`.
 
+Original ROM corpora report the fraction of their explicitly enumerated domain
+that was observed and matched, separately from the legacy weighted scorecard.
+Run `ctest --test-dir build -L owned --output-on-failure`; read
+[HARDWARE-COVERAGE.md](docs/HARDWARE-COVERAGE.md) for the full remaining scope.
+No full-core completion percentage has been established.
+
 ## Platform summary
 
 | Console | Suite size | Verified headline | Verification state |
 |---------|-----------|-------------------|--------------------|
-| [NES](#nes) | 172 tests / 32 suites | ~90-94% | Strongest verified coverage; memory-detected CPU/PPU/APU/mapper subset is real |
+| [NES](#nes) | 172 external tests / 32 suites, plus 1 original ROM | ~90-94% historical external subset | Original zero-page ADC/SBC corpus additionally verifies 524,288 A/P pairs; other hardware domains remain |
 | [SNES](#snes) | 67 tests / 19 suites | Low until refs land | Almost entirely `screenshot-crc`; a small Blargg SPC `memory` subset is the only currently-verifiable part |
-| [Game Boy](#game-boy) | 225 tests / 31 suites | Verified subset only | Blargg serial subset verified; the large Mooneye half is unverified pending a breakpoint emitter |
+| [Game Boy](#game-boy) | 225 external tests / 31 suites, plus 1 original ROM | Verified subset only | Blargg serial subset and 2 original register checks verified; Mooneye remains unverified |
 | [GBA](#gba) | 132 tests / 29 suites | Partial | CPU/memory/BIOS/saves verified via R12 protocol; cycle-accurate timing/PPU largely pending |
 
 The platform mean reported by `tests/run_all.py` weights each console equally.
@@ -53,6 +59,14 @@ Headline accuracy: **approximately 90-94%**, dominated by CPU and PPU. This is
 the most thoroughly *verified* core because most of its critical tests use the
 Blargg `$6000` `memory` protocol, which the binary reads directly under `DEBUG=1`
 (no reference hashes required). Measured 2026-06-02 against `build/bin/veloce`.
+
+Measured 2026-10-09: the original
+[ADC/SBC register corpus](tests/roms-src/nes/alu_exhaustive/README.md) matched
+524,288/524,288 accumulator/PHP-status pairs (100% of all two-byte operand, carry,
+and decimal-flag combinations for these zero-page instructions). The injected
+ADC-to-SBC mutation caused 256 mismatches. The raw file and per-group JSON report
+are produced in `build/artifacts/owned/nes_alu/`. This proves that specific
+arithmetic domain, and is not folded into the historical weighted headline.
 
 | Subsystem | Importance | Verified score | Basis |
 |-----------|-----------|----------------|-------|
@@ -162,7 +176,7 @@ PNG encoder; regenerate if either changes.
 
 ## Game Boy
 
-Verified headline: **the Blargg serial subset only.** The catalog is large (225
+Verified headline: **the Blargg serial subset plus one original register probe.** The external catalog is large (225
 tests / 31 suites) but the large Mooneye / SameSuite / Wilbertpol half cannot yet
 be scored, so the published number reflects the verified serial subset and the
 rest is reported as unverified.
@@ -171,6 +185,7 @@ rest is reported as unverified.
 |----------------|----------------|-------|
 | CPU instructions | Blargg `cpu_instrs` **10/11 PASS** | `02-interrupts` does not signal pass even at 8000 frames -> `known_fail` (real EI/IME or IF/IE dispatch-timing bug). |
 | Instruction / memory timing | Blargg `instr_timing` PASS, `mem_timing` 3/3 PASS | `serial` ASCII detection, verified. |
+| Original CPU/WRAM probe | 2/2 checks PASS; injected wrong WRAM stimulus FAILs | SB/SC bytes to `VELOCE_TEST_OUT`; `REG` values and `CHECK` verdicts are parsed from the result file. Runs as `gb_register_probe` in CTest; not yet included in the 225-test external scorecard. |
 | Timer / PPU / interrupt cycle timing | Mooneye acceptance: **unverified (RUNS)** | Detection gap, see below. |
 | APU (cycle-accurate) | SameSuite: **unverified (RUNS)** | Same detection gap. |
 | PPU pixel-perfect | dmg-acid2 / cgb-acid2: renders, **not yet validated** | `screenshot-crc`; measured CRC `e643bbc7` / `6ddfa9c7` captured but no golden reference yet. |

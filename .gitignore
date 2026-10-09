@@ -76,6 +76,9 @@ artifacts/
 *.gb
 *.gbc
 *.gba
+# Repository-owned, reproducible hardware probes are committed with their source.
+!tests/roms-src/gb/register_probe/register_probe.gb
+!tests/roms-src/nes/alu_exhaustive/alu_exhaustive.nes
 *-test-roms/
 mgba-suite/
 nba-hw-test/

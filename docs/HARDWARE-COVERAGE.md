@@ -1,0 +1,72 @@
+# Nintendo implementation and hardware test coverage
+
+The goal includes Nintendo core plugins, repository-owned ROMs covering the
+hardware, machine-readable register observations, netplay, seamless controllers,
+and documentation. The full goal is incomplete. Existing test-subset scores
+are not measurements of overall hardware or product completion.
+
+## Implemented cores and original ROMs
+
+| Core family | Plugin | Original hardware evidence | Full core completion |
+|---|---|---|---|
+| NES/Famicom | `nes_plugin` | ADC/SBC zero-page arithmetic: 524,288/524,288 A/P pairs verified (100% of both operands, C and D states) | Not measured; other CPU instructions/addressing/timing and peripheral corpora remain |
+| GB/CGB | `gb_plugin` | DMG WRAM roundtrip and ADD result: 2/2 checks verified; injected failure verified | Not measured; CPU/timing/PPU/APU/MBC/CGB corpus remains |
+| SNES | `snes_plugin` | No original register-output ROM yet | Not measured |
+| GBA | `gba_plugin` | No original hardware ROM yet; cartridge ROM identity has an independent CRC fixture | Not measured |
+
+Run `python3 tests/roms-src/build.py --original-only --check` to reproduce the
+original ROM images and verify their source and image SHA256 ledger. Run
+`ctest --test-dir build -L owned --output-on-failure` to execute them. Raw
+register files and reports remain in `build/artifacts/owned/`, and CI uploads
+them as `owned-hardware-registers`.
+
+The NES corpus is graded by a host arithmetic oracle that reads every observed
+A/P pair. The GB ROM emits its own `CHECK` lines alongside observed values.
+Neither original suite scores a screenshot or stdout verdict. External ROM
+suites still use their documented legacy detection paths; they have not all
+been migrated to original ROMs or register-file scoring.
+
+## Coverage still required
+
+Every core needs explicit, reproducible domains and independent reference
+expectations for:
+
+- CPU instructions, addressing modes, flags, stack and bus behavior; exhaustive
+  operand enumeration where finite domains are practical, plus specified
+  boundaries for wide arithmetic and every supported architectural mode.
+- Interrupt entry/exit, halt/stop/reset, priority, and each timing phase that can
+  change an externally observed result.
+- Memory maps, banks, mirrors, open bus, cartridge/save hardware, and every
+  documented read/write register behavior.
+- DMA transfers, overlap/priority, CPU stalls, audio transfers, and completion
+  interrupts across start phases and lengths.
+- Video register behavior, scanline/dot timing, memory access restrictions,
+  sprites, blending, and rendering output as raw observed data in files.
+- Audio clocks, envelopes, counters, FIFO/DSP behavior, and observed samples.
+- Timers, serial/link peripherals, controller protocols, and platform-specific
+  coprocessors or accessories.
+
+ROM generators, expected-value oracles, committed binaries, coverage metadata,
+and deliberate failure controls are required for each corpus. A new platform
+must implement its hardware as a loadable core plugin and execute its own ROMs;
+an empty plugin or declared platform name does not count as implementation.
+
+Additional requested platform families without a core in this worktree include
+Virtual Boy, Nintendo 64, Nintendo DS/DSi, GameCube/Wii, Nintendo 3DS, Wii U,
+and Switch. Famicom Disk System and other Nintendo accessories still need
+separate validation. There is no verified completion percentage for these
+missing implementations.
+
+## Modern feature evidence still required
+
+The frontend has controller and netplay plugins, and the NES core exposes
+`INetplayCapable`. Release readiness still requires controller connection,
+reconnection, and binding tests, plus real session tests for peer agreement,
+rollback state restoration, resimulation, reconnects, and desync detection.
+Other core families need complete deterministic state and appropriate
+multiplayer/link behavior before their netplay can be claimed as verified.
+
+The corrected NES/GB/GBA CRC32 identities can change the identifier of a ROM
+previously loaded with the mistyped table. Old savestate filenames and embedded
+ROM identifiers may therefore stop matching; recreate those states. The core
+state serialization format itself has not changed in this increment.

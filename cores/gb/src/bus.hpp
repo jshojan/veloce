@@ -6,6 +6,7 @@
 #include <vector>
 #include <string>
 
+namespace emu { struct ITestSink; }
 namespace gb {
 
 class LR35902;
@@ -63,6 +64,7 @@ public:
     // Serial output capture (for test ROMs)
     const std::string& get_serial_output() const { return m_serial_output; }
     void clear_serial_output() { m_serial_output.clear(); }
+    void set_test_sink(emu::ITestSink* sink) { m_test_sink = sink; }
 
     // Save state
     void save_state(std::vector<uint8_t>& data);
@@ -124,6 +126,7 @@ private:
     int m_serial_counter = 0;
     int m_serial_bits = 0;
     std::string m_serial_output;  // Captured serial output for test ROMs
+    emu::ITestSink* m_test_sink = nullptr;  // Borrowed from application
 
     // CGB mode flag
     bool m_cgb_mode = false;

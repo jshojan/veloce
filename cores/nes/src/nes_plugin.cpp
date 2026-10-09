@@ -60,6 +60,8 @@ public:
     void run_frame(const emu::InputState& input) override;
     uint64_t get_cycle_count() const override;
     uint64_t get_frame_count() const override;
+    bool set_test_sink(emu::ITestSink* sink) override;
+    const char* test_channels() const override { return "port"; }
 
     // Video
     emu::FrameBuffer get_framebuffer() override;
@@ -384,6 +386,11 @@ uint64_t NESPlugin::get_cycle_count() const {
 
 uint64_t NESPlugin::get_frame_count() const {
     return m_frame_count;
+}
+
+bool NESPlugin::set_test_sink(emu::ITestSink* sink) {
+    m_bus->set_test_sink(sink);
+    return true;
 }
 
 emu::FrameBuffer NESPlugin::get_framebuffer() {

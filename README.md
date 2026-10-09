@@ -12,7 +12,7 @@ A cross-platform, plugin-based emulator framework built for speedrunners and TAS
 
 ## Overview
 
-Veloce is a modular emulator platform that combines cycle-accurate console emulation with advanced features for speedrunning and tool-assisted speedruns (TAS). The architecture follows a Project64-style plugin system where emulator cores, audio backends, input handlers, and TAS tools are all swappable components.
+Veloce is a modular emulator platform that combines Nintendo console emulation with features for speedrunning and tool-assisted speedruns (TAS). The architecture follows a Project64-style plugin system where emulator cores, audio backends, input handlers, and TAS tools are all swappable components.
 
 The framework prioritizes accuracy where it matters for speedrunning (timing-sensitive operations, RNG behavior) while maintaining playable performance on modern hardware.
 
@@ -34,9 +34,13 @@ See [Build Instructions](#building) for platform-specific details.
 | System | Core | Status | Notes |
 |--------|------|--------|-------|
 | NES/Famicom | [cores/nes](cores/nes/README.md) | Playable | 20+ mappers, ~90% library coverage |
-| Game Boy / Color | [cores/gb](cores/gb/README.md) | In Progress | DMG and CGB, MBC1/3/5 |
+| Game Boy / Color | [cores/gb](cores/gb/README.md) | In Progress | DMG and CGB, MBC1/3/5; serial register test channel |
 | Game Boy Advance | [cores/gba](cores/gba/README.md) | In Progress | ARM7TDMI, all video modes |
 | Super Nintendo | [cores/snes](cores/snes/README.md) | In Progress | 65C816, Mode 7, SPC700 |
+
+Additional Nintendo families, including Virtual Boy, N64, DS/DSi, GameCube/Wii,
+3DS, Wii U, and Switch, still need core plugins. Overall completion is not yet
+measured. See the [hardware coverage and remaining work](docs/HARDWARE-COVERAGE.md).
 
 ## Architecture
 
@@ -276,11 +280,44 @@ console. Start here:
 |---------|-------------------|--------|
 | NES | ~90-94% (strongest verified coverage) | [scorecard](COMPLETENESS.md#nes) / [notes](cores/nes/README.md#testing) |
 | SNES | low until reference hashes land | [scorecard](COMPLETENESS.md#snes) / [notes](cores/snes/README.md#testing) |
-| Game Boy | Blargg serial subset verified | [scorecard](COMPLETENESS.md#game-boy) / [notes](cores/gb/README.md#testing) |
+| Game Boy | Blargg serial subset and original 2-check register probe verified; Mooneye unscored | [scorecard](COMPLETENESS.md#game-boy) / [notes](cores/gb/README.md#testing) |
 | GBA | partial (CPU/memory/BIOS/saves verified) | [scorecard](COMPLETENESS.md#gba) / [notes](cores/gba/README.md#test-status) |
 
-Run everything with `python tests/run_all.py`; see [TESTING.md](TESTING.md) for
-per-console and CI usage.
+Run external ROM suites with `python tests/run_all.py`; see [TESTING.md](TESTING.md)
+for per-console and CI usage. The percentages above describe that measured
+subset, not whole-core completion.
+
+### Original register-output ROMs
+
+| Original corpus | Measured coverage | Result artifacts |
+|---|---|---|
+| [NES ADC/SBC](tests/roms-src/nes/alu_exhaustive/README.md) | 524,288/524,288 A/P observations matched (100% of all 8-bit operand pairs and C/D states, zero-page addressing) | `build/artifacts/owned/nes_alu/` |
+| [GB CPU/WRAM probe](tests/roms-src/gb/register_probe/README.md) | 2/2 checks passed; injected wrong WRAM value fails | `build/artifacts/owned/gb_register_probe/` |
+
+```bash
+python3 tests/roms-src/build.py --original-only --check
+ctest --test-dir build -L owned --output-on-failure
+```
+
+The NES ROM writes every observed accumulator/status pair to `$401E`; its host
+oracle grades the captured file using independent arithmetic expectations. The
+ROM itself makes no pass claim. Its small opcode mutation must fail, and missing
+or malformed register files are rejected. Both original suites retain raw
+register output and reports; CI builds the actual core plugins, runs these tests,
+and uploads the files. Source generators and ROM images are stored in this repo.
+
+The repository now includes an original Game Boy ROM at
+[`tests/roms-src/gb/register_probe/register_probe.gb`](tests/roms-src/gb/register_probe/register_probe.gb).
+Its [source generator](tests/roms-src/gb/register_probe/build.py) produces the
+same 32 KiB ROM with Python 3. The ROM writes observed WRAM and ALU values to
+the Game Boy serial registers; the GB core forwards `SC=$81` writes to
+`VELOCE_TEST_OUT`, where the application records `REG`, `CHECK`, and `END` lines.
+Run `python3 tests/roms-src/gb/register_probe/test_probe.py build/bin/veloce`
+or `ctest --test-dir build -R gb_register_probe --output-on-failure`. The test
+also mutates the ROM's WRAM stimulus and requires a scored failure, guarding
+against a result path that always reports success. This is two CPU/memory
+checks. Most GB subsystems, the remaining NES CPU and peripheral behaviors,
+and the other consoles still need repository-owned register-output ROMs.
 
 ### Headless Mode
 

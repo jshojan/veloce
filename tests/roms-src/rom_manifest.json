@@ -1,5 +1,27 @@
 {
   "roms": {
+    "gb/register_probe/register_probe.gb": {
+      "build_command": "python3 tests/roms-src/gb/register_probe/build.py",
+      "console": "gb",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "6b1f71bbd3b57a1d4e4b73b79e89d4e588c0da5413e952b48e8caf05d6a12f90",
+      "source_repo": "tests/roms-src/gb/register_probe/build.py",
+      "source_sha": "586a713737a5d7c202d494781f9edaa069bf2a26c9416e61a9de63cee048eb21",
+      "source_type": "original",
+      "suite": "register_probe"
+    },
+    "nes/alu_exhaustive/alu_exhaustive.nes": {
+      "build_command": "python3 tests/roms-src/nes/alu_exhaustive/build.py",
+      "console": "nes",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "1c0fd225564c79dc66e9549e776585c06093a778f7c504397c9c3b795965121f",
+      "source_repo": "tests/roms-src/nes/alu_exhaustive/build.py",
+      "source_sha": "1a415ddc9ec681a9e52e6985390a13a05dd00eac885ba341deadc6d0373a9146",
+      "source_type": "original",
+      "suite": "alu_exhaustive"
+    },
     "nes/cpu_dummy_reads/cpu_dummy_reads.nes": {
       "console": "nes",
       "golden_gate": {

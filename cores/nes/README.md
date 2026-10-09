@@ -180,6 +180,18 @@ The NES core implements INetplayCapable for rollback netplay:
 
 ## Testing
 
+The core implements the optional `$401E` register-output channel when
+`VELOCE_TEST_OUT` is attached. `$401F` reads `$56`; writing 1 signals completion
+without claiming pass/fail. The original
+[ADC/SBC ROM](../../tests/roms-src/nes/alu_exhaustive/README.md) sends every
+observed A/P pair for all operands, both carry states, and both D states to the
+result file. Its host oracle verified 524,288/524,288 pairs on 2026-10-09.
+The opcode mutation and damaged-file controls also pass their required gates.
+Run `ctest --test-dir build -R nes_alu_exhaustive --output-on-failure`.
+Source and binary are committed, reproducible with Python 3. This covers the
+zero-page ADC/SBC data domain; addressing, timing, and other hardware need
+separate corpora. It does not change the historical external-suite score below.
+
 The NES core ships an authoritative, subsystem-organized accuracy suite in
 `tests/test_config.json` (schema v2), driven by the shared `veloce_testkit`
 harness so detection and scoring are identical across all consoles. For the

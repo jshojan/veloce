@@ -42,12 +42,58 @@ target_include_directories(test_file_sink PRIVATE
 add_test(NAME test_file_sink COMMAND test_file_sink)
 set_tests_properties(test_file_sink PROPERTIES LABELS "unit;fast")
 
+add_executable(cartridge_crc_test
+    cpp/cartridge_crc_test.cpp
+    ${CMAKE_SOURCE_DIR}/cores/gb/src/cartridge.cpp
+    ${CMAKE_SOURCE_DIR}/cores/gb/src/mbc/mbc.cpp
+    ${CMAKE_SOURCE_DIR}/cores/gb/src/mbc/mbc1.cpp
+    ${CMAKE_SOURCE_DIR}/cores/gb/src/mbc/mbc3.cpp
+    ${CMAKE_SOURCE_DIR}/cores/gb/src/mbc/mbc5.cpp
+    ${CMAKE_SOURCE_DIR}/cores/gba/src/cartridge.cpp
+)
+target_include_directories(cartridge_crc_test PRIVATE ${CMAKE_SOURCE_DIR})
+add_test(NAME cartridge_crc_test COMMAND cartridge_crc_test)
+set_tests_properties(cartridge_crc_test PROPERTIES LABELS "unit;fast")
+
+add_test(NAME original_rom_builds
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/roms-src/build.py --original-only --check)
+set_tests_properties(original_rom_builds PROPERTIES LABELS "unit;fast")
+
+# Original checked-in Game Boy ROM: validates serial register observations,
+# the file sink, and an injected failure through the real headless frontend.
+add_test(
+    NAME gb_register_probe
+    COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_SOURCE_DIR}/tests/roms-src/gb/register_probe/test_probe.py
+            $<TARGET_FILE:veloce>
+            --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/gb_register_probe
+)
+set_tests_properties(gb_register_probe PROPERTIES LABELS "accuracy;fast;owned"
+    REQUIRED_FILES $<TARGET_FILE:veloce>)
+
+add_test(
+    NAME nes_alu_exhaustive
+    COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_SOURCE_DIR}/tests/roms-src/nes/alu_exhaustive/run.py
+            --emulator $<TARGET_FILE:veloce>
+            --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/nes_alu
+)
+set_tests_properties(nes_alu_exhaustive PROPERTIES LABELS "accuracy;owned"
+    TIMEOUT 240 REQUIRED_FILES $<TARGET_FILE:veloce>)
+
 # --- per-console accuracy suites (slow: download ROMs, run emulator) ------
 foreach(console nes snes gb gba)
+    if(console STREQUAL "nes")
+        set(console_runner runner.py)
+    elseif(console STREQUAL "gb")
+        set(console_runner run_tests.py)
+    else()
+        set(console_runner test_runner.py)
+    endif()
     add_test(
         NAME accuracy_${console}
         COMMAND ${Python3_EXECUTABLE}
-                ${VELOCE_TESTS_DIR}/../cores/${console}/tests/test_runner.py --json
+                ${VELOCE_TESTS_DIR}/../cores/${console}/tests/${console_runner} --json
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     )
     set_tests_properties(accuracy_${console} PROPERTIES

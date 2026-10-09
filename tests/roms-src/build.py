@@ -4,7 +4,7 @@ tests/roms-src/build.py — SH-3b
 
 Rebuilds Veloce's test ROMs from source, one suite at a time, driven by a
 `recipe.json` next to each suite (`tests/roms-src/<console>/<suite>/recipe.json`).
-For every suite this:
+For upstream recipes this:
 
   1. **clones the upstream repo at its pinned SHA** into
      `tests/roms-src/<console>/<suite>/upstream/` (never committed — see
@@ -26,6 +26,13 @@ For every suite this:
      written by `build-image.sh`). `veloce_testkit.rom_manifest` is what the
      harness reads back to refuse an unreproducible `rom_variant: veloce` ROM.
 
+Recipes marked `source_type: original` instead run their repository-owned
+Python builder. They write build/roms/<console>/<suite>/, update the committed
+ROM image, and record image and generator SHA256 in the same ledger. For these
+entries source_repo is the local generator path and source_sha is its SHA256
+(upstream entries continue to use a Git SHA). --check verifies both the archived
+image and generator against the ledger; --original-only skips Docker and network.
+
 Usage:
     tests/roms-src/build.py                        # every recipe.json found
     tests/roms-src/build.py nes/cpu_dummy_reads     # one suite
@@ -34,6 +41,7 @@ Usage:
                                                    # (reset to the pinned SHA, cleaned)
     tests/roms-src/build.py --check ...             # rebuild and verify every ROM's sha256
                                                    # against rom_manifest.json (no write)
+    tests/roms-src/build.py --original-only --check # Python-built repository ROMs, no Docker/network
 
 The toolchain image defaults to $VELOCE_ROM_TOOLCHAIN_IMAGE, else
 veloce/rom-toolchain:dev (what tools/rom-toolchain/build-image.sh tags by
@@ -333,10 +341,40 @@ def read_manifest() -> dict:
         raise BuildError(f"{MANIFEST_PATH} is unreadable ({e}); fix or restore it from git") from e
 
 
-def write_manifest(new_entries: dict, image: str) -> None:
+def build_original(recipe_path: Path, check_archive: bool) -> dict:
+    """Build our own byte-emitting Python sources, with no upstream or Docker."""
+    raw = json.loads(recipe_path.read_text())
+    console, suite = raw["console"], raw["suite"]
+    if recipe_path.parent != ROMS_SRC / console / suite:
+        raise BuildError(f"original recipe console/suite disagrees with its path: {recipe_path}")
+    script = recipe_path.parent / raw["build"]["script"]
+    name = raw["build"]["artifact"]
+    if script.name != "build.py" or Path(name).name != name:
+        raise BuildError(f"invalid original recipe build paths: {recipe_path}")
+    out_dir = REPO_ROOT / "build" / "roms" / console / suite
+    out_dir.mkdir(parents=True, exist_ok=True)
+    output = out_dir / name
+    sh([sys.executable, str(script), str(output)])
+    archive = recipe_path.parent / name
+    if check_archive:
+        if not archive.exists() or sha256_file(archive) != sha256_file(output):
+            raise BuildError(f"original ROM {archive} differs from its source rebuild")
+    else:
+        shutil.copy2(output, archive)
+    source_rel = script.relative_to(REPO_ROOT).as_posix()
+    print(f"   original {console}/{suite}: built {name}", file=sys.stderr)
+    return {f"{console}/{suite}/{name}": {
+        "console": console, "suite": suite, "source_type": "original", "rom_variant": "veloce",
+        "sha256": sha256_file(output), "source_repo": source_rel, "source_sha": sha256_file(script),
+        "build_command": f"python3 {source_rel}", "license": raw["license"],
+    }}
+
+
+def write_manifest(new_entries: dict, image: Optional[str]) -> None:
     manifest = read_manifest()
     manifest.setdefault("roms", {}).update(new_entries)
-    manifest["tool_versions"] = image_info(image)[1]
+    if image is not None:
+        manifest["tool_versions"] = image_info(image)[1]
     MANIFEST_PATH.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
 
 
@@ -350,6 +388,8 @@ def check_manifest(new_entries: dict) -> list[str]:
             problems.append(f"{key}: not in rom_manifest.json (run build.py without --check)")
         elif rec.get("sha256") != entry["sha256"]:
             problems.append(f"{key}: rebuilt {entry['sha256']} != recorded {rec.get('sha256')}")
+        elif entry.get("source_type") == "original" and rec.get("source_sha") != entry["source_sha"]:
+            problems.append(f"{key}: original source hash differs from rom_manifest.json (rebuild ledger)")
     return problems
 
 
@@ -361,10 +401,14 @@ def main(argv: list[str]) -> int:
                     help="reuse an existing upstream/ checkout (reset to the pinned SHA and cleaned)")
     ap.add_argument("--check", action="store_true",
                     help="verify rebuilt sha256s against rom_manifest.json instead of writing it")
+    ap.add_argument("--original-only", action="store_true",
+                    help="build only repository-owned Python recipes (no network or Docker)")
     args = ap.parse_args(argv)
 
     try:
         recipe_paths = find_recipes(args.suite)
+        if args.original_only:
+            recipe_paths = [p for p in recipe_paths if json.loads(p.read_text()).get("source_type") == "original"]
     except BuildError as e:
         print(f"error: {e}", file=sys.stderr)
         return 2
@@ -375,12 +419,15 @@ def main(argv: list[str]) -> int:
     all_entries = {}
     failures = []
     for rp in recipe_paths:
-        recipe = Recipe.load(rp)
         try:
-            all_entries.update(build_one(recipe, image=args.image, skip_clone=args.skip_clone))
+            if json.loads(rp.read_text()).get("source_type") == "original":
+                all_entries.update(build_original(rp, check_archive=args.check))
+            else:
+                recipe = Recipe.load(rp)
+                all_entries.update(build_one(recipe, image=args.image, skip_clone=args.skip_clone))
         except BuildError as e:
-            print(f"FAILED {recipe.console}/{recipe.suite}: {e}", file=sys.stderr)
-            failures.append(recipe.suite)
+            print(f"FAILED {rp.parent.relative_to(ROMS_SRC)}: {e}", file=sys.stderr)
+            failures.append(rp.parent.name)
 
     if all_entries and args.check:
         try:
@@ -394,7 +441,8 @@ def main(argv: list[str]) -> int:
         print(f"{len(all_entries)} ROM(s) match rom_manifest.json", file=sys.stderr)
     elif all_entries:
         try:
-            write_manifest(all_entries, args.image)
+            uses_image = any(e.get("source_type") != "original" for e in all_entries.values())
+            write_manifest(all_entries, args.image if uses_image else None)
         except BuildError as e:
             print(f"error: {e}", file=sys.stderr)
             return 1

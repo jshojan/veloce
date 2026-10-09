@@ -116,6 +116,20 @@ Partial credit is `progress = pass/total`, which feeds the existing `score_test(
 | GB | `SB`/`$FF01` + `SC=$81` (every byte, raw) | none | real serial output | `mooneye` (`LD B,B` + Fibonacci fingerprint), `a000` (blargg `$A000` block), `hram` (`$FF80-82` GBMicrotest) |
 | GBA | mGBA `0x4FFF600` string + `0x4FFF700` flush (`level \| 0x100`) | `0x4FFF780`: write `0xC0DE`, read `0x1DEA` | inert | `r12` (stable one-instruction loop, R12 = failing test) |
 
+The NES `port` channel is implemented only while a sink is attached. `$401E`
+writes stream raw bytes, `$401F` reads `$56`, and `$401F=1` calls `finish(-1)`.
+The hint proves completion, not success. The original
+[ADC/SBC corpus](../../tests/roms-src/nes/alu_exhaustive/README.md) emits packed
+`REG ap=` rows and its dedicated host oracle grades them; the ordinary file
+detector leaves an unknown-status raw stream unscored. Blargg's `$6000` file
+adapter remains planned; the legacy stdout path still exists.
+
+The GB `serial` file channel is implemented: the core forwards the SB byte when
+the ROM writes `SC=$81` to start an internal-clock transfer. The original
+[`register_probe.gb`](../../tests/roms-src/gb/register_probe/register_probe.gb)
+uses this path and emits observed register values followed by checks. The
+`mooneye`, `a000`, and `hram` adapters listed above remain planned.
+
 Channel names used in `channels=`, `#VELOCE adapter=` and the config `channel` field: `port`, `serial`, `mgba`, `blargg6000`, `a000`, `hram`, `sram`, `stp`, `spcport`, `mooneye`, `r12`. Per console: NES `port, blargg6000`; SNES `port, blargg6000, stp, sram, spcport`; GB `serial, mooneye, a000, hram`; GBA `mgba, r12`.
 
 ## 6. Emitter vocabulary (ROM side)
