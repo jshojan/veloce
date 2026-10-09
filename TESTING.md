@@ -60,9 +60,16 @@ identities, and axis endpoints. The test uses a temporary config directory and
 requires no physical pad or display. SDL before 2.0.14 reports SKIP rather than
 PASS. Physical USB/Bluetooth behavior and multiplayer routing remain unverified.
 
-Netplay still needs a real transport and frame history: the default plugin's
-connection and broadcast paths are simulations, and it has no rollback loop.
-Controller tests do not establish working network multiplayer.
+The [rollback execution test](plugins/netplay_default/README.md) loads the actual
+NES plugin with an original controller-polling ROM. Two sessions receive inputs
+three/five frames late, with final confirmations reversed. Both converge on
+the ordinary 100-frame baseline, including every serialized state byte. The test
+checks stalls, confirmation conflicts, stale/future bounds, serialization errors,
+and replay audio handling. Guest registers and final states remain in
+`build/artifacts/rollback/`. Run `ctest --test-dir build -L netplay --output-on-failure`.
+
+The lobby still simulates connections; network transport and frontend integration
+of the rollback module remain. These tests do not establish working online play.
 
 ## Testing philosophy
 

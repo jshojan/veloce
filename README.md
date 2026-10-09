@@ -149,10 +149,15 @@ All plugin interfaces are defined in include/emu/:
 ### Netplay Features
 
 The plugin API, lobby UI, local session codes/chat, input-slot manager, and NES
-netplay capability interface exist. The default plugin currently simulates peer
-connections and stores inputs locally: network transport, synchronized frame
-history, rollback/resimulation, and desync recovery are not implemented.
-Internet multiplayer and GGPO-style rollback are not ready.
+netplay interface exist. A [two-player rollback module](plugins/netplay_default/README.md)
+now saves frame history, predicts input, restores/replays late corrections, and
+stalls at its speculation limit. Two delayed NES sessions match an ordinary
+100-frame run byte-for-byte, including guest register observations in files.
+
+The default lobby still simulates connections and does not use this module.
+Network transport, peer/start-state agreement, frontend wiring/audio gating,
+desync recovery, and live two-machine verification remain. Internet multiplayer
+is not ready.
 
 ### Controller connection and bindings
 
@@ -307,6 +312,7 @@ subset, not whole-core completion.
 | Original corpus | Measured coverage | Result artifacts |
 |---|---|---|
 | [NES ADC/SBC](tests/roms-src/nes/alu_exhaustive/README.md) | 524,288/524,288 A/P observations matched (100% of all 8-bit operand pairs and C/D states, zero-page addressing) | `build/artifacts/owned/nes_alu/` |
+| [NES rollback controller probe](tests/roms-src/nes/netplay_probe/README.md) | Two delayed 100-frame sessions match the full baseline state; guest counters recorded; hardware timing unverified | `build/artifacts/rollback/` |
 | [GB CPU/WRAM probe](tests/roms-src/gb/register_probe/README.md) | 2/2 checks passed; injected wrong WRAM value fails | `build/artifacts/owned/gb_register_probe/` |
 | [SNES math registers](tests/roms-src/snes/math_registers/README.md) | 65,536/65,536 multiplication pairs and 3,328 division boundary cases matched; settled results only | `build/artifacts/owned/snes_math/` |
 | [GBA ARM register shifts](tests/roms-src/gba/arm_shifts/README.md) | 65,536/65,536 result/CPSR pairs matched; all low-byte amounts and C/V inputs, 16 selected operands | `build/artifacts/owned/gba_shifts/` |
@@ -323,7 +329,7 @@ or malformed register files are rejected. The SNES ROM streams products,
 quotients, and remainders through `$21FE` for its independent host oracle.
 The GBA ROM records ARM shift results and CPSR flags through mGBA debug
 registers, with an independent host oracle and file-channel boundary controls.
-All four original suites retain raw
+Original suites retain raw
 register output and reports; CI builds the actual core plugins, runs these tests,
 and uploads the files. Source generators and ROM images are stored in this repo.
 

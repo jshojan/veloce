@@ -65,10 +65,17 @@ selection after removal, ambiguous devices, and axis endpoints. Physical devices
 Bluetooth, cross-platform drivers, and multiplayer routing still need testing.
 
 The frontend has netplay interfaces/UI and the NES core exposes `INetplayCapable`.
-The default netplay plugin simulates connections and game broadcasts, and keeps
-inputs locally without frame history. Network transport, peer agreement,
-rollback/resimulation, reconnect handling, and desync detection/recovery require
-implementation and real two-peer tests. No live multiplayer is verified.
+The [two-player rollback module](../plugins/netplay_default/README.md) implements
+bounded history, prediction, late-input restore/replay, stalls, and confirmation
+validation. Two delayed actual NES sessions converge byte-for-byte on a 100-frame
+baseline running an original controller ROM. Guest RAM observations and states
+are retained in files; buffered/streaming replay audio is exercised in the test.
+This is execution-module evidence, not network or whole-core accuracy evidence.
+
+The default lobby still simulates connections and game broadcasts and does not
+use the module. Peer transport, handshake/start-state agreement, frontend wiring
+and audio gating, reconnects, desync detection/recovery, and real two-machine
+verification remain. No live multiplayer is verified.
 Other core families need complete deterministic state and appropriate
 multiplayer/link behavior before their netplay can be claimed as verified.
 

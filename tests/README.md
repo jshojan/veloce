@@ -6,7 +6,8 @@ the single source of truth for the config schema, result-detection protocols,
 and the completeness-scoring methodology.
 
 Repository-owned ROMs live in `roms-src/gb/register_probe/` and
-`roms-src/nes/alu_exhaustive/`, `roms-src/snes/math_registers/`, and
+`roms-src/nes/alu_exhaustive/`, `roms-src/nes/netplay_probe/`,
+`roms-src/snes/math_registers/`, and
 `roms-src/gba/arm_shifts/`. Verify their binaries and source ledger with
 `python3 tests/roms-src/build.py --original-only --check`; execute them with
 `ctest --test-dir build -L owned --output-on-failure`. The NES, SNES, and GBA runners grade raw
@@ -14,6 +15,12 @@ register observations using independent host oracles. The GB probe uses the
 shared file detector on ROM-emitted checks. All include failure controls and
 retain register files under `build/artifacts/owned/`. Their exact domain coverage
 is documented in [HARDWARE-COVERAGE.md](../docs/HARDWARE-COVERAGE.md).
+
+The separate C++ `netplay_rollback_test` runs the controller probe through the
+actual NES plugin and checks two delayed sessions against an ordinary 100-frame
+baseline, including full serialized state equality. It records guest registers
+and states under `build/artifacts/rollback/`. This measures execution/replay
+behavior; network transport and lobby integration remain pending.
 
 > **Ownership rule.** Console agents own ONLY `cores/<c>/tests/test_config.json`
 > (and a ~10-line runner shim). They do **not** edit `veloce_testkit/` or the

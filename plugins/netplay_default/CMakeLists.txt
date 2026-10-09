@@ -4,6 +4,7 @@
 add_library(netplay_default SHARED
     src/default_netplay_plugin.cpp
     src/netplay_input_manager.cpp
+    src/rollback_session.cpp
 )
 
 target_include_directories(netplay_default PRIVATE

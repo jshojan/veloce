@@ -43,7 +43,7 @@ jobs:
         run: |
           python3 tests/roms-src/build.py --original-only --check
           cmake -B build -DCMAKE_BUILD_TYPE=Release
-          cmake --build build --target veloce gb_plugin nes_plugin snes_plugin gba_plugin cartridge_crc_test input_hotplug_test -j
+          cmake --build build --target veloce gb_plugin nes_plugin snes_plugin gba_plugin cartridge_crc_test input_hotplug_test netplay_rollback_test -j
           ctest --test-dir build -R cartridge_crc_test --output-on-failure
           ctest --test-dir build -L controllers --output-on-failure
       - name: Grade observed hardware registers
@@ -53,7 +53,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: owned-hardware-registers
-          path: build/artifacts/owned/
+          path: |
+            build/artifacts/owned/
+            build/artifacts/rollback/
 
   accuracy:
     needs: fast-gates

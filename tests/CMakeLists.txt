@@ -15,6 +15,20 @@
 
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
 
+add_executable(netplay_rollback_test cpp/netplay_rollback_test.cpp
+    ${CMAKE_SOURCE_DIR}/plugins/netplay_default/src/rollback_session.cpp)
+target_include_directories(netplay_rollback_test PRIVATE ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/plugins/netplay_default/src ${SDL2_INCLUDE_DIRS})
+target_link_libraries(netplay_rollback_test PRIVATE ${SDL2_LIBRARIES})
+target_compile_definitions(netplay_rollback_test PRIVATE SDL_MAIN_HANDLED)
+add_dependencies(netplay_rollback_test nes_plugin)
+add_test(NAME netplay_rollback_test COMMAND netplay_rollback_test
+    $<TARGET_FILE:nes_plugin>
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/nes/netplay_probe/netplay_probe.nes
+    ${CMAKE_BINARY_DIR}/artifacts/rollback)
+set_tests_properties(netplay_rollback_test PROPERTIES LABELS "integration;netplay;owned"
+    TIMEOUT 60)
+
 add_executable(input_hotplug_test cpp/input_hotplug_test.cpp
     ${CMAKE_SOURCE_DIR}/src/core/input_manager.cpp)
 target_include_directories(input_hotplug_test PRIVATE ${CMAKE_SOURCE_DIR}/include
