@@ -50,6 +50,20 @@ scorecards; exact domain coverage is documented in
 [HARDWARE-COVERAGE.md](docs/HARDWARE-COVERAGE.md). Other CPU behaviors, timing,
 video, audio, mappers, and remaining platforms still require original corpora.
 
+## Controller integration evidence
+
+Build `input_hotplug_test` and run
+`ctest --test-dir build -L controllers --output-on-failure`. This uses actual SDL virtual game controllers to test
+identical devices, duplicate hotplug events, custom mappings, capture isolation,
+disconnect/reconnect, config persistence, selection after removal, ambiguous
+identities, and axis endpoints. The test uses a temporary config directory and
+requires no physical pad or display. SDL before 2.0.14 reports SKIP rather than
+PASS. Physical USB/Bluetooth behavior and multiplayer routing remain unverified.
+
+Netplay still needs a real transport and frame history: the default plugin's
+connection and broadcast paths are simulations, and it has no rollback loop.
+Controller tests do not establish working network multiplayer.
+
 ## Testing philosophy
 
 Veloce targets accuracy where it matters for speedrunning and TAS, so the test

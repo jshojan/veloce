@@ -148,11 +148,26 @@ All plugin interfaces are defined in include/emu/:
 
 ### Netplay Features
 
-- GGPO-style rollback netcode
-- Delay-based mode for stable connections
-- Session codes for easy joining
-- In-game chat with timestamps
-- Desync detection and recovery
+The plugin API, lobby UI, local session codes/chat, input-slot manager, and NES
+netplay capability interface exist. The default plugin currently simulates peer
+connections and stores inputs locally: network transport, synchronized frame
+history, rollback/resimulation, and desync recovery are not implemented.
+Internet multiplayer and GGPO-style rollback are not ready.
+
+### Controller connection and bindings
+
+Identical SDL gamepads remain separate devices. Custom gamepad bindings now save
+the model GUID and serial when available and restore after an unambiguous
+reconnect or restart. Devices of the same model without unique serials may
+require remapping when several are connected. Legacy configurations containing
+only numeric connection IDs need remapping once to gain saved identities.
+
+The SDL virtual-controller integration test covers identical pads, duplicate
+events, remapping, capture mode, disconnect/reconnect, saved bindings, selection
+after removal, ambiguous identities, and normalized axis endpoints:
+`ctest --test-dir build -L controllers --output-on-failure`.
+Physical USB/Bluetooth, cross-platform driver behavior, and multiplayer routing
+still require verification.
 
 ## Building
 

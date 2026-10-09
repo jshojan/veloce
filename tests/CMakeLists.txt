@@ -15,6 +15,16 @@
 
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
 
+add_executable(input_hotplug_test cpp/input_hotplug_test.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/input_manager.cpp)
+target_include_directories(input_hotplug_test PRIVATE ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/src ${SDL2_INCLUDE_DIRS})
+target_link_libraries(input_hotplug_test PRIVATE ${SDL2_LIBRARIES} nlohmann_json::nlohmann_json)
+target_compile_definitions(input_hotplug_test PRIVATE SDL_MAIN_HANDLED)
+add_test(NAME input_hotplug_test COMMAND input_hotplug_test)
+set_tests_properties(input_hotplug_test PROPERTIES LABELS "integration;fast;controllers"
+    TIMEOUT 30 SKIP_RETURN_CODE 77)
+
 set(VELOCE_TESTS_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 
 # --- fast gates (always run, no emulator/ROMs needed) ---------------------

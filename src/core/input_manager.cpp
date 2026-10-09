@@ -45,9 +45,15 @@ void InputManager::shutdown() {
         }
     }
     m_controllers.clear();
+    m_active_controller = -1;
+    m_button_state = m_prev_button_state = 0;
+    m_keyboard_state = nullptr;
+    m_keyboard_state_count = 0;
 }
 
 void InputManager::load_default_bindings() {
+    m_bindings.clear();
+    m_binding_identities.clear();
     // Default keyboard bindings for NES-style controller
     m_bindings[VirtualButton::Up] = {InputSourceType::Keyboard, -1, SDL_SCANCODE_UP, 0, false};
     m_bindings[VirtualButton::Down] = {InputSourceType::Keyboard, -1, SDL_SCANCODE_DOWN, 0, false};
@@ -116,7 +122,7 @@ void InputManager::update_button_state() {
                 if (binding.device_id == -1 || binding.device_id == controller.instance_id) {
                     int16_t value = SDL_GameControllerGetAxis(controller.controller,
                             static_cast<SDL_GameControllerAxis>(binding.code));
-                    float normalized = value / 32767.0f;
+                    float normalized = std::clamp(value / 32767.0f, -1.0f, 1.0f);
 
                     if (binding.axis_positive && normalized > binding.axis_threshold) {
                         pressed = true;
@@ -208,19 +214,12 @@ void InputManager::open_controller(int device_index) {
         SDL_JoystickGetGUIDString(guid, guid_str, sizeof(guid_str));
 
         // Check if this controller is already in our list (avoid duplicates)
-        // On Windows, both XInput and DirectInput may detect the same controller
-        // Check by instance_id first, then by GUID + name combination
+        // SDL instance IDs identify connections. GUID/name identify a model,
+        // so two identical physical pads must remain independently usable.
         for (const auto& existing : m_controllers) {
             if (existing.instance_id == instance_id) {
                 // Same instance ID - definitely a duplicate
                 SDL_GameControllerClose(controller);
-                return;
-            }
-
-            // Check if same GUID and name (likely same physical device via different API)
-            if (existing.guid == guid_str && existing.name == name) {
-                SDL_GameControllerClose(controller);
-                std::cout << "Ignoring duplicate controller (same GUID): " << name << std::endl;
                 return;
             }
         }
@@ -230,7 +229,12 @@ void InputManager::open_controller(int device_index) {
         info.instance_id = instance_id;
         info.name = name;
         info.guid = guid_str;
+#if SDL_VERSION_ATLEAST(2, 0, 14)
+        const char* serial = SDL_GameControllerGetSerial(controller);
+        info.serial = serial ? serial : "";
+#endif
         m_controllers.push_back(info);
+        restore_controller_bindings(info.guid);
 
         std::cout << "Controller connected: " << info.name << " (GUID: " << guid_str << ")" << std::endl;
     }
@@ -240,10 +244,38 @@ void InputManager::close_controller(int instance_id) {
     for (auto it = m_controllers.begin(); it != m_controllers.end(); ++it) {
         if (it->instance_id == instance_id) {
             std::cout << "Controller disconnected: " << it->name << std::endl;
+            const int removed = static_cast<int>(it - m_controllers.begin());
             SDL_GameControllerClose(it->controller);
             m_controllers.erase(it);
+            if (m_active_controller == removed) m_active_controller = -1;
+            else if (m_active_controller > removed) --m_active_controller;
+            // Release held input immediately rather than waiting for a frame.
+            m_button_state = 0;
             break;
         }
+    }
+}
+
+void InputManager::restore_controller_bindings(const std::string& connected_guid) {
+    for (const auto& [button, identity] : m_binding_identities) {
+        // A different model joining must not reassign a disconnected binding
+        // to a pad of the old model that was already connected.
+        if (!connected_guid.empty() && identity.guid != connected_guid) continue;
+        auto binding = m_bindings.find(button);
+        if (binding == m_bindings.end()) continue;
+        // Preserve an existing connection even when another identical pad joins.
+        if (std::any_of(m_controllers.begin(), m_controllers.end(), [&](const auto& pad) {
+                return pad.instance_id == binding->second.device_id;
+            })) continue;
+        const ControllerInfo* match = nullptr;
+        bool ambiguous = false;
+        for (const auto& pad : m_controllers) {
+            if (pad.guid != identity.guid ||
+                (!identity.serial.empty() && pad.serial != identity.serial)) continue;
+            if (match) { ambiguous = true; break; }
+            match = &pad;
+        }
+        binding->second.device_id = match && !ambiguous ? match->instance_id : -2;
     }
 }
 
@@ -260,6 +292,15 @@ std::string InputManager::get_controller_name(int index) const {
 
 void InputManager::set_binding(VirtualButton button, const InputBinding& binding) {
     m_bindings[button] = binding;
+    m_binding_identities.erase(button);
+    if (binding.type != InputSourceType::Keyboard && binding.device_id >= 0) {
+        for (const auto& controller : m_controllers) {
+            if (controller.instance_id == binding.device_id) {
+                m_binding_identities[button] = {controller.guid, controller.serial};
+                break;
+            }
+        }
+    }
 }
 
 const InputBinding* InputManager::get_binding(VirtualButton button) const {
@@ -280,10 +321,12 @@ bool InputManager::load_config(const std::string& path) {
 
 void InputManager::clear_binding(VirtualButton button) {
     m_bindings.erase(button);
+    m_binding_identities.erase(button);
 }
 
 void InputManager::set_active_controller(int controller_index) {
-    m_active_controller = controller_index;
+    m_active_controller = controller_index >= 0 &&
+        controller_index < static_cast<int>(m_controllers.size()) ? controller_index : -1;
 }
 
 std::vector<std::pair<int, std::string>> InputManager::get_available_controllers() const {
@@ -319,7 +362,7 @@ float InputManager::get_gamepad_axis(int controller_index, int axis) const {
     if (controller_index >= 0 && controller_index < static_cast<int>(m_controllers.size())) {
         int16_t value = SDL_GameControllerGetAxis(m_controllers[controller_index].controller,
             static_cast<SDL_GameControllerAxis>(axis));
-        return value / 32767.0f;
+        return std::clamp(value / 32767.0f, -1.0f, 1.0f);
     }
     return 0.0f;
 }
@@ -350,6 +393,7 @@ void InputManager::set_controller_layout(const ControllerLayoutInfo* layout) {
 
 void InputManager::load_default_bindings_for_platform(const std::string& platform) {
     m_bindings.clear();
+    m_binding_identities.clear();
 
     // Common D-pad bindings for all platforms
     m_bindings[VirtualButton::Up] = {InputSourceType::Keyboard, -1, SDL_SCANCODE_UP, 0, false};
@@ -409,6 +453,11 @@ bool InputManager::save_platform_config(const std::string& platform) {
                     break;
             }
 
+            auto identity = m_binding_identities.find(button);
+            if (identity != m_binding_identities.end()) {
+                binding_json["device_guid"] = identity->second.guid;
+                binding_json["device_serial"] = identity->second.serial;
+            }
             binding_json["device_id"] = binding.device_id;
             binding_json["code"] = binding.code;
             binding_json["axis_threshold"] = binding.axis_threshold;
@@ -449,6 +498,7 @@ bool InputManager::load_platform_config(const std::string& platform) {
 
         if (j.contains("bindings")) {
             m_bindings.clear();
+            m_binding_identities.clear();
 
             for (auto& [button_name, binding_json] : j["bindings"].items()) {
                 // Convert button name to enum
@@ -477,9 +527,18 @@ bool InputManager::load_platform_config(const std::string& platform) {
                 binding.axis_threshold = binding_json.value("axis_threshold", 0.5f);
                 binding.axis_positive = binding_json.value("axis_positive", true);
 
+                if (binding.type != InputSourceType::Keyboard && binding_json.contains("device_guid")) {
+                    m_binding_identities[button] = {binding_json["device_guid"].get<std::string>(),
+                        binding_json.value("device_serial", std::string{})};
+                    // Never resolve a saved connection ID against a different
+                    // pad after process restart. -2 is disconnected, not "any".
+                    binding.device_id = -2;
+                }
                 m_bindings[button] = binding;
             }
         }
+        restore_controller_bindings();
+        set_active_controller(m_active_controller);
 
         std::cout << "Loaded input config for " << platform << std::endl;
         return true;

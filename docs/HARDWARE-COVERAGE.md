@@ -59,10 +59,16 @@ missing implementations.
 
 ## Modern feature evidence still required
 
-The frontend has controller and netplay plugins, and the NES core exposes
-`INetplayCapable`. Release readiness still requires controller connection,
-reconnection, and binding tests, plus real session tests for peer agreement,
-rollback state restoration, resimulation, reconnects, and desync detection.
+The SDL virtual-controller test verifies two identical pads, duplicate events,
+custom mappings, capture mode, disconnect/reconnect, saved identity restoration,
+selection after removal, ambiguous devices, and axis endpoints. Physical devices,
+Bluetooth, cross-platform drivers, and multiplayer routing still need testing.
+
+The frontend has netplay interfaces/UI and the NES core exposes `INetplayCapable`.
+The default netplay plugin simulates connections and game broadcasts, and keeps
+inputs locally without frame history. Network transport, peer agreement,
+rollback/resimulation, reconnect handling, and desync detection/recovery require
+implementation and real two-peer tests. No live multiplayer is verified.
 Other core families need complete deterministic state and appropriate
 multiplayer/link behavior before their netplay can be claimed as verified.
 

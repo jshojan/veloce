@@ -153,7 +153,7 @@ public:
             "Default Netplay",
             "1.0.0",
             "Veloce Team",
-            "Rollback netplay with lobby-first game selection",
+            "Netplay lobby prototype; peer transport and rollback are not implemented",
             0,  // capabilities
             4,  // max players
             4   // max spectators

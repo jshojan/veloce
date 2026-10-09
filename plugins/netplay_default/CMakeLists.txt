@@ -1,5 +1,5 @@
 # Default Netplay Plugin
-# Provides rollback netplay with GUI integration
+# Lobby/UI prototype; peer transport and rollback remain to be implemented
 
 add_library(netplay_default SHARED
     src/default_netplay_plugin.cpp

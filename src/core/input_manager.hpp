@@ -103,6 +103,7 @@ private:
     void open_controller(int device_index);
     void close_controller(int instance_id);
     void update_button_state();
+    void restore_controller_bindings(const std::string& connected_guid = {});
     std::string get_config_path(const std::string& platform) const;
 
     // Current button state bitmask
@@ -118,7 +119,8 @@ private:
         SDL_GameController* controller;
         int instance_id;
         std::string name;
-        std::string guid;  // For duplicate detection on Windows
+        std::string guid;  // Device model; different physical pads may share it
+        std::string serial;
     };
     std::vector<ControllerInfo> m_controllers;
 
@@ -133,6 +135,12 @@ private:
 
     // Input bindings (current active bindings)
     std::unordered_map<VirtualButton, InputBinding> m_bindings;
+
+    struct ControllerIdentity {
+        std::string guid;
+        std::string serial;
+    };
+    std::unordered_map<VirtualButton, ControllerIdentity> m_binding_identities;
 
     // Per-platform bindings cache
     std::map<std::string, std::unordered_map<VirtualButton, InputBinding>> m_platform_bindings;
