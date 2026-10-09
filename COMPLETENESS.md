@@ -41,7 +41,7 @@ No full-core completion percentage has been established.
 | Console | Suite size | Verified headline | Verification state |
 |---------|-----------|-------------------|--------------------|
 | [NES](#nes) | 172 external tests / 32 suites, plus 1 original ROM | ~90-94% historical external subset | Original zero-page ADC/SBC corpus additionally verifies 524,288 A/P pairs; other hardware domains remain |
-| [SNES](#snes) | 67 tests / 19 suites | Low until refs land | Almost entirely `screenshot-crc`; a small Blargg SPC `memory` subset is the only currently-verifiable part |
+| [SNES](#snes) | 67 external tests / 19 suites, plus 1 original ROM | 68,864 settled math cases verified | Original multiplication domain is exhaustive; division covers boundaries; external catalog remains unscored |
 | [Game Boy](#game-boy) | 225 external tests / 31 suites, plus 1 original ROM | Verified subset only | Blargg serial subset and 2 original register checks verified; Mooneye remains unverified |
 | [GBA](#gba) | 132 tests / 29 suites | Partial | CPU/memory/BIOS/saves verified via R12 protocol; cycle-accurate timing/PPU largely pending |
 
@@ -125,16 +125,23 @@ pass under the `memory` protocol. These are the strongest evidence (rigor weight
 
 ## SNES
 
-Verified headline: **low until reference hashes are populated**, despite a broad
-67-test / 19-suite catalog. This is a coverage-versus-verification gap, not an
-implementation gap: almost every SNES test is a community ROM that draws its
-result on screen, so it requires a `screenshot-crc` reference hash that has not
-yet been measured on a trusted build. Those tests ship `known_fail` with an empty
-hash and contribute zero, which is the honest treatment.
+Verified original corpus: **68,864/68,864 settled math cases matched** on
+2026-10-09: all 65,536 unsigned multiplication operand pairs, including the
+RDDIV side effect, and 3,328 division cases (13 selected dividends, all 256
+divisors). The [original ROM and integer host oracle](tests/roms-src/snes/math_registers/README.md)
+use register files, with a deliberately failing stimulus and malformed-file
+controls. Multiplication previously left RDDIV unchanged: the new ROM recorded
+65,280 mismatches before the core fix, and zero afterward. Math latency and
+intermediate outputs remain unverified and currently calculated immediately.
+This domain coverage does not establish overall SNES completion.
+
+The external 67-test / 19-suite catalog remains unscored. Most ROMs draw results
+on screen and require trusted reference hashes. The following table describes
+that external catalog, separate from the original math corpus.
 
 | Subsystem | Importance | Verifiable today | Basis |
 |-----------|-----------|------------------|-------|
-| APU (SPC700 + DSP) | 0.55 | **0 verified** (`memory`-detected, but no signal) | Blargg SPC ROMs (`spc_smp`, `spc_timer`, `spc_mem_access_times`, `spc_dsp*`) use `result_detection: memory` ($6000), but MEASURED: none of the four blargg-spc-6 ROMs in this mirror ever write $6000, so all four report RUNS / "no result signal" rather than pass or fail (snes-24). No SNES score is currently verified end-to-end; the headline is 0% across every subsystem. |
+| APU (SPC700 + DSP) | 0.55 | **0 verified** (`memory`-detected, but no signal) | Blargg SPC ROMs (`spc_smp`, `spc_timer`, `spc_mem_access_times`, `spc_dsp*`) use `result_detection: memory` ($6000), but MEASURED: none of the four blargg-spc-6 ROMs in this mirror ever write $6000, so all four report RUNS / "no result signal" rather than pass or fail (snes-24). No score in this external catalog is currently verified end-to-end. |
 | CPU (65816) | 1.00 | unverified (visual) | krom/PeterLemon CPU opcode suites (ADC/SBC/MSC/MOV, gilyon cputest) draw to screen; `screenshot-crc`, refs pending. |
 | PPU | 0.90 | unverified (visual) | smoke, OAM, mode3/color-halve, bus/INIDISP tests; `screenshot-crc`. |
 | Timing | 0.85 | unverified (visual) | IRQ/DMA/HDMA timing tests (`test_irq4209`, `test_dmatiming`, `test_hdmatiming`, `HblankEmuTest`); cycle-accurate class, refs pending. |
@@ -153,9 +160,8 @@ hash and contribute zero, which is the honest treatment.
 - `apu.spc_smp`/`spc_timer`/`spc_mem_access_times`/`spc_dsp6`: none of the
   blargg-spc-6 ROMs in this mirror write the `$6000` Blargg status byte, so
   `result_detection: memory` never gets a signal from them regardless of core
-  correctness (snes-24). Zero SNES tests are actually verified today; treat
-  the "Verifiable today" column above as aspirational config, not a measured
-  result, until this is reclassified.
+  correctness (snes-24). These external tests remain unverified; the original
+  math corpus above provides independent register-file evidence.
 - `apu.spc_dsp6` fails on real 3-chip SNES consoles (passes only on
   higan/bsnes); it is a documented hardware quirk, marked `known_fail`.
 

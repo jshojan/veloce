@@ -81,6 +81,14 @@ add_test(
 set_tests_properties(nes_alu_exhaustive PROPERTIES LABELS "accuracy;owned"
     TIMEOUT 240 REQUIRED_FILES $<TARGET_FILE:veloce>)
 
+add_test(NAME snes_math_registers
+    COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_SOURCE_DIR}/tests/roms-src/snes/math_registers/run.py
+            --emulator $<TARGET_FILE:veloce>
+            --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/snes_math)
+set_tests_properties(snes_math_registers PROPERTIES LABELS "accuracy;owned"
+    TIMEOUT 240 REQUIRED_FILES $<TARGET_FILE:veloce>)
+
 # --- per-console accuracy suites (slow: download ROMs, run emulator) ------
 foreach(console nes snes gb gba)
     if(console STREQUAL "nes")

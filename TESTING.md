@@ -13,10 +13,10 @@ truth this document summarizes rather than duplicates.
 
 ## Repository-owned register corpora
 
-Original NES and GB ROMs are committed with their Python source generators.
+Original NES, GB, and SNES ROMs are committed with their Python source generators.
 Build reproducibility and source/image SHA256 are checked with
 `python3 tests/roms-src/build.py --original-only --check`, without a downloaded
-ROM, Docker, or an assembler. Run both suites with
+ROM, Docker, or an assembler. Run the suites with
 `ctest --test-dir build -L owned --output-on-failure`.
 
 The [NES ADC/SBC corpus](tests/roms-src/nes/alu_exhaustive/README.md) records
@@ -30,7 +30,14 @@ is present. An opcode mutation and damaged file controls must fail.
 The [GB register probe](tests/roms-src/gb/register_probe/README.md) sends observed
 WRAM and ADD results through SB/SC. Its `REG`, `CHECK`, and `END` records are
 scored by the ordinary file detector, and an injected wrong WRAM value must fail.
-Both suites retain raw output and reports under `build/artifacts/owned/`, which
+The [SNES math corpus](tests/roms-src/snes/math_registers/README.md) streams
+65,536 multiplication products and 3,328 division quotient/remainder pairs through
+`$21FE`. Its integer host oracle grades every settled observation, including
+division by zero. A trigger mutation must fail and damaged files must be errors.
+Operation latency and intermediate results remain unverified; division covers
+13 boundary dividends with all 256 divisors.
+
+All suites retain raw output and reports under `build/artifacts/owned/`, which
 CI uploads. These results are separate from the existing external-ROM weighted
 scorecards; exact domain coverage is documented in
 [HARDWARE-COVERAGE.md](docs/HARDWARE-COVERAGE.md). Other CPU behaviors, timing,

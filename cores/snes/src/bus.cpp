@@ -5,6 +5,7 @@
 #include "dma.hpp"
 #include "cartridge.hpp"
 #include "debug.hpp"
+#include "emu/emulator_plugin.hpp"
 #include <cstring>
 
 namespace snes {
@@ -128,6 +129,10 @@ uint8_t Bus::read(uint32_t address) {
 
     // Banks $00-$3F and $80-$BF (mirrors)
     if (bank <= 0x3F || (bank >= 0x80 && bank <= 0xBF)) {
+        if (m_test_sink && offset == 0x21FF) {
+            m_open_bus = 0x56;
+            return m_open_bus;
+        }
         if (offset < 0x2000) {
             // WRAM mirror (first 8KB)
             m_open_bus = m_wram[offset];
@@ -237,6 +242,16 @@ void Bus::write(uint32_t address, uint8_t value) {
 
     // Banks $00-$3F and $80-$BF
     if (bank <= 0x3F || (bank >= 0x80 && bank <= 0xBF)) {
+        if (m_test_sink && offset == 0x21FE) {
+            const char byte = static_cast<char>(value);
+            m_test_sink->write(&byte, 1);
+            return;
+        }
+        if (m_test_sink && offset == 0x21FF) {
+            // Completion alone is not a correctness verdict.
+            if (value == 1) m_test_sink->finish(-1);
+            return;
+        }
         if (offset < 0x2000) {
             // WRAM mirror
             // Debug: Log writes to $1B00-$1BFF range
@@ -671,6 +686,9 @@ void Bus::write_cpu_io(uint16_t address, uint8_t value) {
         case 0x4203:  // WRMPYB - Multiplication operand B (triggers multiply)
             m_wrmpyb = value;
             m_rdmpy = m_wrmpya * m_wrmpyb;
+            // Multiplication also replaces RDDIV with WRMPYB (high byte zero).
+            // Reference: nocash fullsnes, SNES Maths Multiply/Divide.
+            m_rddiv = value;
             break;
 
         case 0x4204:  // WRDIVL - Division dividend (low)

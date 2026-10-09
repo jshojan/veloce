@@ -467,6 +467,27 @@ Debug output includes:
 HEADLESS=1 FRAMES=300 ./veloce game.sfc
 ```
 
+### Original math register ROM
+
+The repository-owned [math corpus](../../tests/roms-src/snes/math_registers/README.md)
+verifies 65,536 unsigned multiplication pairs and 3,328 division boundary cases
+through raw `$21FE` output and an independent host integer oracle. It captures
+products, the multiplication RDDIV side effect, quotients, and remainders.
+The side-effect check found 65,280 failures before its core fix and zero afterward.
+Mapped I/O mirrors and selected WRAM offsets are checked with the sink attached.
+
+```bash
+cmake --build build --target veloce snes_plugin
+ctest --test-dir build -R snes_math_registers --output-on-failure
+```
+
+The optional host sink is borrowed and excluded from save states. `$21FE`
+streams bytes and `$21FF` reads `$56` or accepts completion `$01`, only in
+I/O banks `$00-$3F/$80-$BF`. WRAM and cartridge banks retain their mappings.
+A completion hint has unknown status; the host oracle determines PASS/FAIL.
+The current math implementation calculates outputs immediately; operation latency,
+intermediate values, and overlapping operations still require work and tests.
+
 ### Automated Test Suite
 
 The SNES core ships a subsystem-organized test suite (`tests/test_config.json`,
@@ -483,8 +504,8 @@ methodology and the platform-wide picture see the top-level
 > tests ship `known_fail` and contribute zero. The Blargg SPC `memory`-detected
 > subset does not currently verify either: none of the blargg-spc-6 ROMs in the
 > mirror write the `$6000` status byte, so they report RUNS / "no result signal"
-> and zero SNES tests are verified today. This is a coverage-versus-verification gap, not an
-> implementation gap. Full per-subsystem justification and the path to a real
+> and these external tests remain unverified. The original math corpus below
+> provides independent register-file evidence. Full per-subsystem justification and the path to a real
 > headline are in [COMPLETENESS.md](../../COMPLETENESS.md#snes).
 
 ```bash

@@ -51,6 +51,17 @@
         "wla-dx": "---------------------------------------------------------------------- ---                WLA GB-Z80 Macro Assembler v10.6                --- ----------------------------------------------------------------------                 Programmed by Ville Helin in 1998-2008         In GitHub since 2014: https://github.com/vhelin/wla-dx                     : wla-gb 10.6 (19.11.2023)  USAGE: /src/wla-dx/build/binaries/wla-gb [OPTIONS] <OUTPUT> <ASM FILE>  OPTIONS: -c  Continue parsing after an error -d  Disable WLA's ability to calculate A-B where A and B are labels -h  Assume all label references are 16-bit by default (size hints     still work) -i  Add list file information -k  Keep empty sections -M  Output makefile rules -MP Create a phony target for each dependency other than the main file,     use this with -M -MF <FILE> Specify a file to write the dependencies to, use with -M -p  Pause printing after a screen full of text has been printed,     use this with -SX and -SY -q  Quiet -s  Don't create _sizeof_* and _paddingof_* definitions -SX <WIDTH> The number of characters per line in console (default 80) -SY <HEIGHT> The number of lines in console (default 24) -t  Test assemble -v  Verbose messages -v1 Verbose messages (only discard sections) -v2 Verbose messages (-v1 plus short summary) -w  Require labels to end in a colon -x  Extra compile time labels and definitions -I <DIR>  Include directory -D <DEF>  Declare definition  OUTPUT: -o <FILE>  Output object file -l <FILE>  Output library file  EXAMPLES: /src/wla-dx/build/binaries/wla-gb -M -t -o main.o main.asm /src/wla-dx/build/binaries/wla-gb -D VER=1 -D TWO=2 -v -o main.o main.asm"
       },
       "toolchain_image_id": "sha256:71c159dd80048214ea2f03bcb75b41e0a5c073b55f66a4333ed6bdbef7a3b26f"
+    },
+    "snes/math_registers/math_registers.sfc": {
+      "build_command": "python3 tests/roms-src/snes/math_registers/build.py",
+      "console": "snes",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "10ca24c4b88661d4b52f4c5b20a5822d0acbe94b45be4af89c604e92d71952b7",
+      "source_repo": "tests/roms-src/snes/math_registers/build.py",
+      "source_sha": "9be5014016d4e90e4a80665f7995b7fe7cff79ba0e59ca18a04979e29af9056c",
+      "source_type": "original",
+      "suite": "math_registers"
     }
   },
   "tool_versions": {

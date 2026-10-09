@@ -43,7 +43,7 @@ jobs:
         run: |
           python3 tests/roms-src/build.py --original-only --check
           cmake -B build -DCMAKE_BUILD_TYPE=Release
-          cmake --build build --target veloce gb_plugin nes_plugin cartridge_crc_test -j
+          cmake --build build --target veloce gb_plugin nes_plugin snes_plugin cartridge_crc_test -j
           ctest --test-dir build -R cartridge_crc_test --output-on-failure
       - name: Grade observed hardware registers
         run: ctest --test-dir build -L owned --output-on-failure

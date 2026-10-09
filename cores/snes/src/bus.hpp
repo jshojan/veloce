@@ -5,6 +5,8 @@
 #include <vector>
 #include "debug.hpp"
 
+namespace emu { class ITestSink; }
+
 namespace snes {
 
 class CPU;
@@ -33,6 +35,9 @@ public:
     // Memory access (24-bit address)
     uint8_t read(uint32_t address);
     void write(uint32_t address, uint8_t value);
+
+    // Borrowed host observation sink; excluded from serialized hardware state.
+    void set_test_sink(emu::ITestSink* sink) { m_test_sink = sink; }
 
     // Controller input
     void set_controller_state(int controller, uint32_t buttons);
@@ -92,6 +97,8 @@ public:
     void load_state(const uint8_t*& data, size_t& remaining);
 
 private:
+    emu::ITestSink* m_test_sink = nullptr;
+
     // Components
     CPU* m_cpu = nullptr;
     PPU* m_ppu = nullptr;

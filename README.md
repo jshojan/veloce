@@ -279,7 +279,7 @@ console. Start here:
 | Console | Verified headline | Detail |
 |---------|-------------------|--------|
 | NES | ~90-94% (strongest verified coverage) | [scorecard](COMPLETENESS.md#nes) / [notes](cores/nes/README.md#testing) |
-| SNES | low until reference hashes land | [scorecard](COMPLETENESS.md#snes) / [notes](cores/snes/README.md#testing) |
+| SNES | Original settled math: 68,864 cases verified; external visual catalog unscored | [scorecard](COMPLETENESS.md#snes) / [notes](cores/snes/README.md#testing) |
 | Game Boy | Blargg serial subset and original 2-check register probe verified; Mooneye unscored | [scorecard](COMPLETENESS.md#game-boy) / [notes](cores/gb/README.md#testing) |
 | GBA | partial (CPU/memory/BIOS/saves verified) | [scorecard](COMPLETENESS.md#gba) / [notes](cores/gba/README.md#test-status) |
 
@@ -293,6 +293,7 @@ subset, not whole-core completion.
 |---|---|---|
 | [NES ADC/SBC](tests/roms-src/nes/alu_exhaustive/README.md) | 524,288/524,288 A/P observations matched (100% of all 8-bit operand pairs and C/D states, zero-page addressing) | `build/artifacts/owned/nes_alu/` |
 | [GB CPU/WRAM probe](tests/roms-src/gb/register_probe/README.md) | 2/2 checks passed; injected wrong WRAM value fails | `build/artifacts/owned/gb_register_probe/` |
+| [SNES math registers](tests/roms-src/snes/math_registers/README.md) | 65,536/65,536 multiplication pairs and 3,328 division boundary cases matched; settled results only | `build/artifacts/owned/snes_math/` |
 
 ```bash
 python3 tests/roms-src/build.py --original-only --check
@@ -302,7 +303,9 @@ ctest --test-dir build -L owned --output-on-failure
 The NES ROM writes every observed accumulator/status pair to `$401E`; its host
 oracle grades the captured file using independent arithmetic expectations. The
 ROM itself makes no pass claim. Its small opcode mutation must fail, and missing
-or malformed register files are rejected. Both original suites retain raw
+or malformed register files are rejected. The SNES ROM streams products,
+quotients, and remainders through `$21FE` for its independent host oracle.
+All original suites retain raw
 register output and reports; CI builds the actual core plugins, runs these tests,
 and uploads the files. Source generators and ROM images are stored in this repo.
 
@@ -317,7 +320,7 @@ or `ctest --test-dir build -R gb_register_probe --output-on-failure`. The test
 also mutates the ROM's WRAM stimulus and requires a scored failure, guarding
 against a result path that always reports success. This is two CPU/memory
 checks. Most GB subsystems, the remaining NES CPU and peripheral behaviors,
-and the other consoles still need repository-owned register-output ROMs.
+remaining SNES hardware, and GBA still need repository-owned register-output ROMs.
 
 ### Headless Mode
 
