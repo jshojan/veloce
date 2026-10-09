@@ -15,6 +15,19 @@
 
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
 
+add_executable(netplay_network_peer cpp/netplay_network_peer.cpp
+    ${CMAKE_SOURCE_DIR}/plugins/netplay_default/src/rollback_session.cpp)
+target_include_directories(netplay_network_peer PRIVATE ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/plugins/netplay_default/src ${SDL2_INCLUDE_DIRS})
+target_link_libraries(netplay_network_peer PRIVATE ${SDL2_LIBRARIES} netplay_transport)
+target_compile_definitions(netplay_network_peer PRIVATE SDL_MAIN_HANDLED)
+add_dependencies(netplay_network_peer nes_plugin)
+add_test(NAME netplay_network_test COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/netplay_network_test.py $<TARGET_FILE:netplay_network_peer>
+    $<TARGET_FILE:nes_plugin> ${CMAKE_SOURCE_DIR}/tests/roms-src/nes/netplay_probe/netplay_probe.nes
+    ${CMAKE_BINARY_DIR}/artifacts/network)
+set_tests_properties(netplay_network_test PROPERTIES LABELS "integration;netplay;owned" TIMEOUT 90)
+
 add_executable(netplay_rollback_test cpp/netplay_rollback_test.cpp
     ${CMAKE_SOURCE_DIR}/plugins/netplay_default/src/rollback_session.cpp)
 target_include_directories(netplay_rollback_test PRIVATE ${CMAKE_SOURCE_DIR}/include

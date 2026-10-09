@@ -18,7 +18,7 @@ The result file is a dedicated rollback-test report, not a `VELOCE-RESULT/1`
 ROM-emitted verdict. No screenshot or stdout verdict is scored.
 
 ```bash
-cmake --build build --target netplay_rollback_test
+cmake --build build --target netplay_rollback_test netplay_network_peer
 ctest --test-dir build -L netplay --output-on-failure
 ```
 
@@ -27,3 +27,10 @@ the observed accumulators were P0=145, P1=247. These are recorded observations
 for this deterministic stimulus, not independent hardware reference values.
 The test verifies replay/input sensitivity for this ROM; it does not establish
 controller timing accuracy, all-state/mapper coverage, or live network play.
+
+The additional `netplay_network_test` runs this ROM in two independent NES
+processes over loopback TCP, with delayed polling causing rollback. Both final
+states equal the ordinary baseline. Guest accumulators and full states are
+retained under `build/artifacts/network/`, alongside transport reports and logs.
+This verifies a local socket scenario; frontend integration and physical
+two-machine testing remain.

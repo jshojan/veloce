@@ -1,5 +1,5 @@
 #include "rollback_session.hpp"
-#include "emu/emulator_plugin.hpp"
+#include "nes_plugin_fixture.hpp"
 #include <SDL.h>
 #include <cstring>
 #include <filesystem>
@@ -116,37 +116,8 @@ static void run_delayed(emu::INetplayCapable& baseline, emu::INetplayCapable& a,
     require(!peer0.is_replaying() && !peer1.is_replaying(), "replay audio gate stuck active");
 }
 
-struct LoadedCore {
-    void* handle = nullptr;
-    emu::IEmulatorPlugin* plugin = nullptr;
-    using Destroy = void (*)(emu::IEmulatorPlugin*);
-    Destroy destroy = nullptr;
-    LoadedCore(const char* path, const std::vector<uint8_t>& rom) {
-        handle = SDL_LoadObject(path);
-        require(handle != nullptr, SDL_GetError());
-        auto version = reinterpret_cast<uint32_t (*)()>(SDL_LoadFunction(handle, "get_plugin_api_version"));
-        require(version && version() == EMU_PLUGIN_API_VERSION, "core plugin ABI mismatch");
-        auto create = reinterpret_cast<emu::IEmulatorPlugin* (*)()>(SDL_LoadFunction(handle, "create_emulator_plugin"));
-        destroy = reinterpret_cast<Destroy>(SDL_LoadFunction(handle, "destroy_emulator_plugin"));
-        require(create && destroy, "missing core factory exports");
-        plugin = create();
-        require(plugin && plugin->load_rom(rom.data(), rom.size()), "original controller ROM did not load");
-    }
-    ~LoadedCore() { if (plugin && destroy) destroy(plugin); if (handle) SDL_UnloadObject(handle); }
-    emu::INetplayCapable& netplay() {
-        auto* core = dynamic_cast<emu::INetplayCapable*>(plugin);
-        require(core != nullptr, "NES plugin lacks netplay interface");
-        return *core;
-    }
-};
-
-static std::vector<uint8_t> snapshot(emu::INetplayCapable& core) {
-    std::vector<uint8_t> data(core.get_max_state_size());
-    auto size = core.save_state_fast(data.data(), data.size());
-    require(size > 0 && size <= data.size(), "final state save failed");
-    data.resize(size);
-    return data;
-}
+using emulator_test::LoadedCore;
+using emulator_test::snapshot;
 
 int main(int argc, char** argv) {
     try {

@@ -153,9 +153,12 @@ netplay interface exist. A [two-player rollback module](plugins/netplay_default/
 now saves frame history, predicts input, restores/replays late corrections, and
 stalls at its speculation limit. Two delayed NES sessions match an ordinary
 100-frame run byte-for-byte, including guest register observations in files.
+A nonblocking IPv4 TCP transport validates ROM/core/build/start-state agreement.
+Two independent processes over loopback TCP also match the full baseline state;
+ROM mismatches and four malformed-message cases are rejected.
 
 The default lobby still simulates connections and does not use this module.
-Network transport, peer/start-state agreement, frontend wiring/audio gating,
+Frontend wiring/audio gating,
 desync recovery, and live two-machine verification remain. Internet multiplayer
 is not ready.
 

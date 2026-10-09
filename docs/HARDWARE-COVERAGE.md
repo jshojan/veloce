@@ -70,10 +70,15 @@ bounded history, prediction, late-input restore/replay, stalls, and confirmation
 validation. Two delayed actual NES sessions converge byte-for-byte on a 100-frame
 baseline running an original controller ROM. Guest RAM observations and states
 are retained in files; buffered/streaming replay audio is exercised in the test.
-This is execution-module evidence, not network or whole-core accuracy evidence.
+The IPv4 TCP transport also passes a two-process loopback test: both complete
+NES states match the baseline after late-input replay, ROM mismatch is rejected,
+and four fragmented malformed-message cases fail cleanly. Network reports,
+guest registers, logs, and states are saved under `build/artifacts/network/`.
+This establishes the tested local transport/replay scenarios, not whole-core
+accuracy or Internet play.
 
 The default lobby still simulates connections and game broadcasts and does not
-use the module. Peer transport, handshake/start-state agreement, frontend wiring
+use the modules. Frontend wiring
 and audio gating, reconnects, desync detection/recovery, and real two-machine
 verification remain. No live multiplayer is verified.
 Other core families need complete deterministic state and appropriate

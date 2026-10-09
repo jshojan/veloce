@@ -20,7 +20,11 @@ The separate C++ `netplay_rollback_test` runs the controller probe through the
 actual NES plugin and checks two delayed sessions against an ordinary 100-frame
 baseline, including full serialized state equality. It records guest registers
 and states under `build/artifacts/rollback/`. This measures execution/replay
-behavior; network transport and lobby integration remain pending.
+behavior. `netplay_network_test` runs two independent NES processes over
+loopback TCP, verifies identical complete states, rejects ROM mismatch and four
+fragmented malformed-message cases, and saves observations/reports/logs under
+`build/artifacts/network/`. Build `netplay_network_peer`; local socket permission
+is required. Lobby integration and live two-machine verification remain pending.
 
 > **Ownership rule.** Console agents own ONLY `cores/<c>/tests/test_config.json`
 > (and a ~10-line runner shim). They do **not** edit `veloce_testkit/` or the

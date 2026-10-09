@@ -68,8 +68,15 @@ checks stalls, confirmation conflicts, stale/future bounds, serialization errors
 and replay audio handling. Guest registers and final states remain in
 `build/artifacts/rollback/`. Run `ctest --test-dir build -L netplay --output-on-failure`.
 
-The lobby still simulates connections; network transport and frontend integration
-of the rollback module remain. These tests do not establish working online play.
+`netplay_network_test` launches two independent NES processes using IPv4 TCP
+loopback. Delayed inputs cause replay, and both complete states match the same
+100-frame baseline. It also checks ROM mismatch and fragmented zero-length,
+oversized, unknown-type, and truncated messages. Reports, guest registers,
+logs, and states remain in `build/artifacts/network/`. Build `netplay_network_peer`
+and run the same netplay label. Local socket permission is required.
+
+The lobby still simulates connections; frontend integration of the transport
+and rollback modules remains. These tests do not establish working online play.
 
 ## Testing philosophy
 
