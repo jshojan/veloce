@@ -89,6 +89,14 @@ add_test(NAME snes_math_registers
 set_tests_properties(snes_math_registers PROPERTIES LABELS "accuracy;owned"
     TIMEOUT 240 REQUIRED_FILES $<TARGET_FILE:veloce>)
 
+add_test(NAME gba_arm_shifts
+    COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_SOURCE_DIR}/tests/roms-src/gba/arm_shifts/run.py
+            --emulator $<TARGET_FILE:veloce>
+            --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/gba_shifts)
+set_tests_properties(gba_arm_shifts PROPERTIES LABELS "accuracy;owned"
+    TIMEOUT 240 REQUIRED_FILES $<TARGET_FILE:veloce>)
+
 # --- per-console accuracy suites (slow: download ROMs, run emulator) ------
 foreach(console nes snes gb gba)
     if(console STREQUAL "nes")

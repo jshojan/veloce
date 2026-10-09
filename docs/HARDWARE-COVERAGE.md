@@ -12,7 +12,7 @@ are not measurements of overall hardware or product completion.
 | NES/Famicom | `nes_plugin` | ADC/SBC zero-page arithmetic: 524,288/524,288 A/P pairs verified (100% of both operands, C and D states) | Not measured; other CPU instructions/addressing/timing and peripheral corpora remain |
 | GB/CGB | `gb_plugin` | DMG WRAM roundtrip and ADD result: 2/2 checks verified; injected failure verified | Not measured; CPU/timing/PPU/APU/MBC/CGB corpus remains |
 | SNES | `snes_plugin` | Settled multiplication: 65,536/65,536 operand pairs verified (100%); division: 3,328 selected boundary cases verified | Not measured; timing/intermediate math results and remaining hardware corpora pending |
-| GBA | `gba_plugin` | No original hardware ROM yet; cartridge ROM identity has an independent CRC fixture | Not measured |
+| GBA | `gba_plugin` | ARM MOVS register shifts: 65,536/65,536 result/CPSR pairs verified; all low-byte amounts and C/V inputs on 16 operands | Not measured; remaining CPU modes/instructions, timing and peripheral corpora pending |
 
 Run `python3 tests/roms-src/build.py --original-only --check` to reproduce the
 original ROM images and verify their source and image SHA256 ledger. Run
@@ -20,9 +20,9 @@ original ROM images and verify their source and image SHA256 ledger. Run
 register files and reports remain in `build/artifacts/owned/`, and CI uploads
 them as `owned-hardware-registers`.
 
-The NES and SNES corpora are graded by host integer oracles that read every
+The NES, SNES, and GBA corpora are graded by host integer oracles that read every
 observed register result. The GB ROM emits its own `CHECK` lines alongside observed values.
-Neither original suite scores a screenshot or stdout verdict. External ROM
+No original suite scores a screenshot or stdout verdict. External ROM
 suites still use their documented legacy detection paths; they have not all
 been migrated to original ROMs or register-file scoring.
 

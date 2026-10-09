@@ -80,6 +80,7 @@ artifacts/
 !tests/roms-src/gb/register_probe/register_probe.gb
 !tests/roms-src/nes/alu_exhaustive/alu_exhaustive.nes
 !tests/roms-src/snes/math_registers/math_registers.sfc
+!tests/roms-src/gba/arm_shifts/arm_shifts.gba
 *-test-roms/
 mgba-suite/
 nba-hw-test/

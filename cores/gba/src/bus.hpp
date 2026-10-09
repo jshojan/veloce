@@ -5,6 +5,8 @@
 #include <array>
 #include <vector>
 
+namespace emu { class ITestSink; }
+
 namespace gba {
 
 class ARM7TDMI;
@@ -39,6 +41,9 @@ public:
     // I/O register access
     uint16_t read_io(uint32_t address);
     void write_io(uint32_t address, uint16_t value);
+
+    // Borrowed host observation sink, excluded from serialized hardware state.
+    void set_test_sink(emu::ITestSink* sink) { m_test_sink = sink; }
 
     // Input handling
     void set_input_state(uint32_t buttons);
@@ -271,6 +276,8 @@ private:
     // Wait state lookup tables (populated based on WAITCNT)
     std::array<int, 16> m_ws_n;  // Non-sequential
     std::array<int, 16> m_ws_s;  // Sequential
+
+    emu::ITestSink* m_test_sink = nullptr;
 
     // mGBA debug registers (for test ROM output)
     // 0x04FFF600-0x04FFF6FF: 256-byte debug string buffer

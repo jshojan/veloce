@@ -43,7 +43,7 @@ No full-core completion percentage has been established.
 | [NES](#nes) | 172 external tests / 32 suites, plus 1 original ROM | ~90-94% historical external subset | Original zero-page ADC/SBC corpus additionally verifies 524,288 A/P pairs; other hardware domains remain |
 | [SNES](#snes) | 67 external tests / 19 suites, plus 1 original ROM | 68,864 settled math cases verified | Original multiplication domain is exhaustive; division covers boundaries; external catalog remains unscored |
 | [Game Boy](#game-boy) | 225 external tests / 31 suites, plus 1 original ROM | Verified subset only | Blargg serial subset and 2 original register checks verified; Mooneye remains unverified |
-| [GBA](#gba) | 132 tests / 29 suites | Partial | CPU/memory/BIOS/saves verified via R12 protocol; cycle-accurate timing/PPU largely pending |
+| [GBA](#gba) | 132 external tests / 29 suites, plus 1 original ROM | Partial; 65,536 original ARM shift cases verified | Legacy CPU/memory/BIOS/saves subsets verified; timing/PPU and remaining original hardware corpus pending |
 
 The platform mean reported by `tests/run_all.py` weights each console equally.
 Because three of the four cores have large currently-unverifiable blocks, the
@@ -220,6 +220,15 @@ the pixel-perfect PPU tests.
 ---
 
 ## GBA
+
+Original register-file evidence measured 2026-10-09: **65,536/65,536 ARM shift
+result/CPSR observations matched**. The
+[original ROM](tests/roms-src/gba/arm_shifts/README.md) covers LSL/LSR/ASR/ROR,
+every low-byte amount, all C/V inputs, and 16 selected source operands.
+The independent host oracle rejects a changed instruction and damaged files;
+a channel probe verifies disabled output and the 255-character buffer boundary.
+Thumb, other operands/instructions, timing, and peripherals remain unverified
+by this corpus. It does not establish a whole-core completion percentage.
 
 Verified headline: **partial.** The CPU, memory, BIOS, and save subsystems are
 verified through the R12 spin-loop `serial` protocol; the large cycle-accurate

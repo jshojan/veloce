@@ -6,9 +6,10 @@ the single source of truth for the config schema, result-detection protocols,
 and the completeness-scoring methodology.
 
 Repository-owned ROMs live in `roms-src/gb/register_probe/` and
-`roms-src/nes/alu_exhaustive/` and `roms-src/snes/math_registers/`. Verify their binaries and source ledger with
+`roms-src/nes/alu_exhaustive/`, `roms-src/snes/math_registers/`, and
+`roms-src/gba/arm_shifts/`. Verify their binaries and source ledger with
 `python3 tests/roms-src/build.py --original-only --check`; execute them with
-`ctest --test-dir build -L owned --output-on-failure`. The NES and SNES runners grade raw
+`ctest --test-dir build -L owned --output-on-failure`. The NES, SNES, and GBA runners grade raw
 register observations using independent host oracles. The GB probe uses the
 shared file detector on ROM-emitted checks. All include failure controls and
 retain register files under `build/artifacts/owned/`. Their exact domain coverage

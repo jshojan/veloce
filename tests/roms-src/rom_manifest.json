@@ -11,6 +11,17 @@
       "source_type": "original",
       "suite": "register_probe"
     },
+    "gba/arm_shifts/arm_shifts.gba": {
+      "build_command": "python3 tests/roms-src/gba/arm_shifts/build.py",
+      "console": "gba",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "de6b956fd7417ef9332c47ab1367db82e1ad67ec959688fee41f5af08cb48c45",
+      "source_repo": "tests/roms-src/gba/arm_shifts/build.py",
+      "source_sha": "42689177c439e45a7dfb7938baea5dd169e93a8d408f60cff5791187bd0eceba",
+      "source_type": "original",
+      "suite": "arm_shifts"
+    },
     "nes/alu_exhaustive/alu_exhaustive.nes": {
       "build_command": "python3 tests/roms-src/nes/alu_exhaustive/build.py",
       "console": "nes",

@@ -13,7 +13,7 @@ truth this document summarizes rather than duplicates.
 
 ## Repository-owned register corpora
 
-Original NES, GB, and SNES ROMs are committed with their Python source generators.
+Original NES, GB, SNES, and GBA ROMs are committed with their Python source generators.
 Build reproducibility and source/image SHA256 are checked with
 `python3 tests/roms-src/build.py --original-only --check`, without a downloaded
 ROM, Docker, or an assembler. Run the suites with
@@ -36,6 +36,13 @@ The [SNES math corpus](tests/roms-src/snes/math_registers/README.md) streams
 division by zero. A trigger mutation must fail and damaged files must be errors.
 Operation latency and intermediate results remain unverified; division covers
 13 boundary dividends with all 256 divisors.
+
+The [GBA ARM shift corpus](tests/roms-src/gba/arm_shifts/README.md) records
+65,536 result/CPSR pairs over the `mgba` channel: four shifts, every low-byte
+amount, all C/V inputs, and 16 operand patterns. Timing and the full source
+operand domain remain unverified. An opcode mutation, damaged files, and a
+channel enable/disable and buffer boundary probe exercise the measurement path.
+It uses direct cartridge-entry boot and contains no retail BIOS logo.
 
 All suites retain raw output and reports under `build/artifacts/owned/`, which
 CI uploads. These results are separate from the existing external-ROM weighted

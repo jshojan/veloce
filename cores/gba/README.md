@@ -235,6 +235,13 @@ Based on comparison with GBATEK documentation and reference emulators (mGBA, Nan
 
 ## Test Status
 
+The [original ARM shift corpus](../../tests/roms-src/gba/arm_shifts/README.md)
+verifies 65,536 result/CPSR pairs through register files and an independent
+host oracle. It covers register-specified LSL/LSR/ASR/ROR on 16 operand
+patterns, every low-byte amount, and all C/V inputs. Timing, Thumb shifts, and
+the remaining hardware corpus are pending. A changed opcode must fail; damaged
+files must be measurement errors. This is separate from the external catalog below.
+
 For the testing methodology and the platform-wide picture see the top-level
 [TESTING.md](../../TESTING.md) and [COMPLETENESS.md](../../COMPLETENESS.md).
 
@@ -402,6 +409,19 @@ cmake --build build
 Output: `build/bin/cores/gba.so` (Linux), `.dll` (Windows), `.dylib` (macOS)
 
 ## Testing
+
+```bash
+cmake --build build --target veloce gba_plugin
+ctest --test-dir build -R gba_arm_shifts --output-on-failure
+```
+
+The `mgba` file channel streams enabled debug-buffer flushes to `VELOCE_TEST_OUT`.
+The original ROM logs the enable reply and raw result/CPSR pairs;
+`$04FFF782=1` is a Veloce-only unknown-status completion hint. Byte writes
+preserve neighboring characters and flushing bounds its NUL scan. The channel
+probe verifies disabled output and the maximum terminated buffer message.
+The borrowed sink is excluded from save states. The ROM uses direct entry
+through BIOS HLE and has no Nintendo logo; physical/retail BIOS boot is unverified.
 
 ```bash
 # Run with debug output

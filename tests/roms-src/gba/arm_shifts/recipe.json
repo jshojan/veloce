@@ -1,0 +1,7 @@
+{
+  "source_type": "original",
+  "console": "gba",
+  "suite": "arm_shifts",
+  "license": "MIT",
+  "build": { "script": "build.py", "artifact": "arm_shifts.gba" }
+}

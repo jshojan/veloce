@@ -64,6 +64,12 @@ public:
     uint64_t get_cycle_count() const override;
     uint64_t get_frame_count() const override;
 
+    bool set_test_sink(emu::ITestSink* sink) override {
+        m_bus->set_test_sink(sink);
+        return true;
+    }
+    const char* test_channels() const override { return "mgba"; }
+
     // Video
     emu::FrameBuffer get_framebuffer() override;
 

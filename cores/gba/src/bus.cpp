@@ -4,6 +4,8 @@
 #include "apu.hpp"
 #include "cartridge.hpp"
 #include "debug.hpp"
+#include "emu/emulator_plugin.hpp"
+#include <algorithm>
 #include <cstring>
 
 namespace gba {
@@ -493,6 +495,16 @@ void Bus::write8(uint32_t address, uint8_t value) {
         }
 
         case MemoryRegion::IO: {
+            // Debug strings are byte-addressable storage. The ordinary I/O
+            // merge reads zero from this write-only range and would erase the
+            // neighboring byte whenever software writes a character.
+            if (address >= 0x04FFF600 && address < 0x04FFF700) {
+                size_t offset = address - 0x04FFF600;
+                m_debug_string[offset] = static_cast<char>(value);
+                m_debug_string_pos = std::max(m_debug_string_pos, offset + 1);
+                break;
+            }
+
             // Byte writes to I/O need special handling. The generic path
             // below reconstructs a full 16-bit value by merging the new
             // byte with whatever the *other* byte currently reads back as,
@@ -839,6 +851,12 @@ void Bus::write_io(uint32_t address, uint16_t value) {
     // mGBA debug registers (0x04FFF600-0x04FFF7FF)
     uint32_t debug_offset = address & 0xFFFF;
     if (debug_offset >= 0xF600) {
+        // Veloce-only completion hint, active only with a host sink. It
+        // carries no PASS verdict and does not replace the mGBA handshake.
+        if (address == 0x04FFF782 && m_test_sink) {
+            if (value == 1) m_test_sink->finish(-1);
+            return;
+        }
         if (debug_offset == 0xF780) {
             // REG_DEBUG_ENABLE - write 0xC0DE to enable debug console
             m_debug_enabled = (value == 0xC0DE);
@@ -855,15 +873,14 @@ void Bus::write_io(uint32_t address, uint16_t value) {
         if (debug_offset >= 0xF600 && debug_offset < 0xF700) {
             // REG_DEBUG_STRING - write characters to debug string buffer
             size_t buf_offset = debug_offset - 0xF600;
-            if (buf_offset < 255) {
+            if (buf_offset < m_debug_string.size()) {
                 m_debug_string[buf_offset] = static_cast<char>(value & 0xFF);
-                if (buf_offset + 1 < 255) {
+                if (buf_offset + 1 < m_debug_string.size()) {
                     m_debug_string[buf_offset + 1] = static_cast<char>((value >> 8) & 0xFF);
                 }
-                // Track highest written position for null termination
-                if (buf_offset + 1 > m_debug_string_pos) {
-                    m_debug_string_pos = buf_offset + 2;
-                }
+                // Track the written extent without exceeding the array.
+                m_debug_string_pos = std::max(m_debug_string_pos,
+                    std::min(buf_offset + 2, m_debug_string.size()));
             }
             return;
         }
@@ -1872,8 +1889,14 @@ void Bus::flush_debug_string() {
     // Output the debug string buffer with [GBA/DEBUG] prefix
     // This is used by test ROMs that support mGBA's debug console
     if (m_debug_string_pos > 0) {
-        // Ensure null termination
-        m_debug_string[m_debug_string_pos] = '\0';
+        // Scan within the buffer: a full 256-byte write must never append a
+        // terminator past the array. mGBA messages end at the first NUL.
+        const size_t length = static_cast<size_t>(std::find(
+            m_debug_string.begin(), m_debug_string.end(), '\0') - m_debug_string.begin());
+        if (m_test_sink && m_debug_enabled) {
+            m_test_sink->write(m_debug_string.data(), length);
+            if (length == 0 || m_debug_string[length - 1] != '\n') m_test_sink->write("\n", 1);
+        }
 
         // Determine log level from flags
         const char* level = "DEBUG";
@@ -1888,7 +1911,8 @@ void Bus::flush_debug_string() {
         }
 
         // Output the debug message
-        fprintf(stderr, "[GBA/%s] %s\n", level, m_debug_string.data());
+        if (!m_test_sink) fprintf(stderr, "[GBA/%s] %.*s\n", level,
+                                  static_cast<int>(length), m_debug_string.data());
 
         // Reset buffer for next message
         m_debug_string.fill('\0');

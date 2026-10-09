@@ -114,7 +114,7 @@ Partial credit is `progress = pass/total`, which feeds the existing `score_test(
 | NES | `STA $401E` | `$401F` write: `$00` nop, `$01` terminator hint; read returns `$56` (`'V'`) | disabled CPU test registers: writes ignored, reads open bus | `blargg6000` (`$6000` status + `$6004` text streamed as `LOG`, `END`), status `0x81` goes to `request_reset()` |
 | SNES | `STA $21FE` (I/O banks `$00-$3F/$80-$BF`, DMA-able B-bus) | `$21FF` write control, read returns `$56` | unused B-bus register, no-op | planned: `blargg6000`; `stp` (`note stp=`, `blob sram`, `blob cgram`, synthesised `END`); `spcport` APU-port watcher |
 | GB | `SB`/`$FF01` + `SC=$81` (every byte, raw) | none | real serial output | `mooneye` (`LD B,B` + Fibonacci fingerprint), `a000` (blargg `$A000` block), `hram` (`$FF80-82` GBMicrotest) |
-| GBA | mGBA `0x4FFF600` string + `0x4FFF700` flush (`level \| 0x100`) | `0x4FFF780`: write `0xC0DE`, read `0x1DEA` | inert | `r12` (stable one-instruction loop, R12 = failing test) |
+| GBA | mGBA `0x4FFF600` string + `0x4FFF700` flush (`level \| 0x100`) | `0x4FFF780`: write `0xC0DE`, read `0x1DEA`; Veloce-only `0x4FFF782=1`: unknown-status completion | inert | planned file adapter: `r12` (stable one-instruction loop, R12 = failing test) |
 
 The NES `port` channel is implemented only while a sink is attached. `$401E`
 writes stream raw bytes, `$401F` reads `$56`, and `$401F=1` calls `finish(-1)`.
@@ -136,6 +136,14 @@ the ROM writes `SC=$81` to start an internal-clock transfer. The original
 [`register_probe.gb`](../../tests/roms-src/gb/register_probe/register_probe.gb)
 uses this path and emits observed register values followed by checks. The
 `mooneye`, `a000`, and `hram` adapters listed above remain planned.
+
+The GBA `mgba` file channel is implemented. Enabled flushes stream bounded,
+NUL-terminated strings with a newline if needed. Byte writes preserve other
+buffer bytes. The borrowed sink is excluded from serialized state.
+The [original ARM shift corpus](../../tests/roms-src/gba/arm_shifts/README.md)
+records result/CPSR pairs; its host oracle grades them. Completion at
+`$04FFF782=1` is a Veloce extension active only with a sink and implies no PASS.
+The legacy R12 stdout detector remains; the R12 file adapter is planned.
 
 Channel names used in `channels=`, `#VELOCE adapter=` and the config `channel` field: `port`, `serial`, `mgba`, `blargg6000`, `a000`, `hram`, `sram`, `stp`, `spcport`, `mooneye`, `r12`. Per console: NES `port, blargg6000`; SNES `port, blargg6000, stp, sram, spcport`; GB `serial, mooneye, a000, hram`; GBA `mgba, r12`.
 
