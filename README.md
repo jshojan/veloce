@@ -21,7 +21,7 @@
 
 These percentages count the 20 explicit delivery milestones in [the completion ledger](docs/CORE-COMPLETION.md); partial or unverified milestones receive zero credit. Each milestone is worth 5 percentage points. **They are not percentages of native hardware accuracy or retail compatibility.** Bounded profile tests do not complete a whole CPU or hardware subsystem.
 
-Super Mario 64 (USA) was tested locally on 2026-10-10: **loads and reaches 5,896,277 startup step attempts**, then faults at unsupported FPU control instruction CFC1 at PC `80328730`. Boot and playability remain pending. See the [repeatable local probe](cores/n64/README.md#local-retail-regression-target).
+Super Mario 64 (USA) was tested locally on 2026-10-10: **loads and reaches 5,896,601 startup step attempts**, then faults at unsupported TLB write instruction TLBWI at PC `80328818`. Boot and playability remain pending. See the [repeatable local probe](cores/n64/README.md#local-retail-regression-target).
 <!-- completion:end -->
 
 A cross-platform, plugin-based emulator framework built for speedrunners and TAS creators.
@@ -437,13 +437,14 @@ subset, not whole-core completion.
 | [N64 cache coherence](tests/roms-src/n64/cache_coherence/README.md) | 2,097,152/2,097,152 D-cache cases; 12,582,912 guest values; I-cache/tag/dirty replay component evidence; physical timing/errors pending | `build/artifacts/owned/n64_cache_coherence/` |
 | [N64 SP controls](tests/roms-src/n64/sp_controls/README.md) | 196,608/196,608 eight-word captures matched: status pairs, MI source, semaphore, PC and CPU interrupt level; RSP execution pending | `build/artifacts/owned/n64_sp_controls/` |
 | [N64 SP DMA](tests/roms-src/n64/sp_dma/README.md) | 65,536/65,536 six-word captures matched: every raw length, both directions/banks and four wrap boundaries; scheduling/readback physical validation pending | `build/artifacts/owned/n64_sp_dma/` |
+| [N64 FPU controls](tests/roms-src/n64/fpu_controls/README.md) | 8,192/8,192 eight-word guest captures matched; exhaustive declared control/branch fields in component harness, arithmetic/timing pending | `build/artifacts/owned/n64_fpu_controls/` |
 | [N64 AI FIFO](tests/roms-src/n64/ai_fifo/README.md) | 2,048/2,048 eleven-word guest captures matched; clock/status-counter physical behavior pending | `build/artifacts/owned/n64_ai_fifo/` |
 | [N64 AI PCM](tests/roms-src/n64/ai_pcm/README.md) | Nine guest FIFO/IRQ captures and 66,169 production ABI stereo pairs covering all 65,536 signed sample values per channel matched; buffered/streaming replay verified, physical timing pending | `build/artifacts/owned/n64_ai_pcm_audio/` |
 | [N64 RDRAM devices](tests/roms-src/n64/rdram_devices/README.md) | 14,336/14,336 cases; 86,016 guest values; four-device register discovery/storage; native RAM remapping/calibration pending | `build/artifacts/owned/n64_rdram_devices/` |
 | [N64 MI controls](tests/roms-src/n64/mi_controls/README.md) | 393,216/393,216 mode/mask transitions; 3,145,728 guest captures with real SI/PI requests; RDRAM transaction effects/timing pending | `build/artifacts/owned/n64_mi_controls/` |
 | [N64 RI controls](tests/roms-src/n64/ri_registers/README.md) | 524,288/524,288 cases; 3,145,728 guest reads; current-load/state component checks; RDRAM chip startup and physical timing pending | `build/artifacts/owned/n64_ri_registers/` |
 | [N64 cartridge DMA](tests/roms-src/n64/pi_dma/README.md) | 524,288/524,288 aligned cases; 8,388,608 guest values; busy/quirk/peripheral timing pending | `build/artifacts/owned/n64_pi_dma/` |
-| [N64 IPL3 handoff](tests/roms-src/n64/ipl3_handoff/README.md) | 12/12 original startup captures; native retail boot remains blocked at unsupported FPU CFC1 | `build/artifacts/owned/n64_ipl3_handoff/` |
+| [N64 IPL3 handoff](tests/roms-src/n64/ipl3_handoff/README.md) | 12/12 original startup captures; native retail boot remains blocked at unsupported TLBWI | `build/artifacts/owned/n64_ipl3_handoff/` |
 | [N64 interrupt gates](tests/roms-src/n64/interrupts/README.md) | 65,536/65,536 cases matched; 524,288 guest values for software/SI/timer, MI/CPU masks and IE/EXL/ERL; pipeline and physical timer timing pending | `build/artifacts/owned/n64_interrupts/` |
 | [N64 digital controller](tests/roms-src/n64/controller_serial/README.md) | 16,384/16,384 combinations matched; 131,072 guest values for digital input, identity, absent port and settled SI/MI registers; analog and physical timing pending | `build/artifacts/owned/n64_controller/` |
 | [N64 merge memory](tests/roms-src/n64/merge_memory/README.md) | 3,158,016/3,158,016 observations matched; eight instructions, every byte lane, all repeated-byte pairs and full-width boundaries; full multi-byte domains/timing unverified | `build/artifacts/owned/n64_merge_memory/` |

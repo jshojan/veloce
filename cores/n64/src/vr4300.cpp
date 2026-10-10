@@ -248,6 +248,23 @@ void VR4300::step() {
                 s.next_pc = s.pc + 4; s.delay_slot = false;
             } else fault(10);
             break;
+        case 17:
+            if (!(s.cp0[12] & 0x20000000)) {
+                s.cp0[13] = (s.cp0[13] & ~0x30000000ull) | 0x10000000;
+                fault(11);
+            } else if (rs == 2 && !(ins & 0x7ff) && (rd == 0 || rd == 31)) {
+                // FCR0 is read-only. Revision zero is the selected VR4300 profile.
+                put(rt, sign32(rd == 0 ? 0x00000b00 : s.fcr31));
+            } else if (rs == 6 && !(ins & 0x7ff) && (rd == 0 || rd == 31)) {
+                if (rd == 31) {
+                    s.fcr31 = uint32_t(b) & 0x0183ffff;
+                    // CTC1 commits the control word before raising an enabled cause.
+                    if ((s.fcr31 & 0x20000) || ((s.fcr31 >> 5) & s.fcr31 & 0xf80)) fault(15);
+                }
+            } else if (rs == 8 && rt < 4) {
+                branch(bool(s.fcr31 & 0x800000) == bool(rt & 1), rt & 2);
+            } else fault(10); // Remaining COP1 operations are explicitly unsupported.
+            break;
         case 24: add(rt, a, imm, true, false, true); break;
         case 25: add(rt, a, imm, true, false, false); break;
         case 26: merge_load(8, true); break;

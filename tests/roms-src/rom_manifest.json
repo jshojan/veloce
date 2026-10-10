@@ -242,6 +242,17 @@
       "source_type": "original",
       "suite": "controller_serial"
     },
+    "n64/fpu_controls/fpu_controls.z64": {
+      "build_command": "python3 tests/roms-src/n64/fpu_controls/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "b4207e71b9b525aff7706132e09ab11890e238c133f9daed2e06a57697e55d50",
+      "source_repo": "tests/roms-src/n64/fpu_controls/build.py",
+      "source_sha": "7982e72007c48806d2e4f3194cde20fdf9a803f5d10d7e76586ddb1e21d3dc2f",
+      "source_type": "original",
+      "suite": "fpu_controls"
+    },
     "n64/integer_registers/integer_registers.z64": {
       "build_command": "python3 tests/roms-src/n64/integer_registers/build.py",
       "console": "n64",
