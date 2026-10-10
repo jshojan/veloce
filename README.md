@@ -326,6 +326,7 @@ subset, not whole-core completion.
 | [NES ADC/SBC](tests/roms-src/nes/alu_exhaustive/README.md) | 524,288/524,288 A/P observations matched (100% of all 8-bit operand pairs and C/D states, zero-page addressing) | `build/artifacts/owned/nes_alu/` |
 | [NES rollback controller probe](tests/roms-src/nes/netplay_probe/README.md) | Execution, TCP transport, and production-plugin 100-frame checks match complete baseline states; guest counters recorded; hardware timing unverified | `build/artifacts/rollback/`, `build/artifacts/network/`, `build/artifacts/netplay-plugin/` |
 | [GB CPU/WRAM probe](tests/roms-src/gb/register_probe/README.md) | 2/2 checks passed; injected wrong WRAM value fails | `build/artifacts/owned/gb_register_probe/` |
+| [GB byte ALU](tests/roms-src/gb/alu_exhaustive/README.md) | 8,388,608/8,388,608 A/F pairs matched (100% of every operand pair and incoming Z/N/H/C state for eight E-register ALU operations); timing and other operands remain unverified | `build/artifacts/owned/gb_alu/` |
 | [SNES math registers](tests/roms-src/snes/math_registers/README.md) | 65,536/65,536 multiplication pairs and 3,328 division boundary cases matched; settled results only | `build/artifacts/owned/snes_math/` |
 | [GBA ARM register shifts](tests/roms-src/gba/arm_shifts/README.md) | 65,536/65,536 result/CPSR pairs matched; all low-byte amounts and C/V inputs, 16 selected operands | `build/artifacts/owned/gba_shifts/` |
 

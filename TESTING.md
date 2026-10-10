@@ -30,6 +30,14 @@ is present. An opcode mutation and damaged file controls must fail.
 The [GB register probe](tests/roms-src/gb/register_probe/README.md) sends observed
 WRAM and ADD results through SB/SC. Its `REG`, `CHECK`, and `END` records are
 scored by the ordinary file detector, and an injected wrong WRAM value must fail.
+The [GB byte ALU corpus](tests/roms-src/gb/alu_exhaustive/README.md) observes
+8,388,608 A/F pairs: ADD, ADC, SUB, SBC, AND, XOR, OR, and CP using register E,
+all operand pairs, and all 16 incoming Z/N/H/C states. Its independent integer
+oracle grades every result, including half carry/borrow and CP retaining A.
+Completion has unknown status; a mutated opcode must fail, and damaged or
+false-PASS result files must be measurement errors. SB/SC writes use the existing
+test hook without waiting for physical serial delivery. Timing, other operand
+locations, CGB operation, and retail boot are not established by this corpus.
 The [SNES math corpus](tests/roms-src/snes/math_registers/README.md) streams
 65,536 multiplication products and 3,328 division quotient/remainder pairs through
 `$21FE`. Its integer host oracle grades every settled observation, including

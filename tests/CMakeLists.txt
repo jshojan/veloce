@@ -119,6 +119,12 @@ add_test(
 set_tests_properties(gb_register_probe PROPERTIES LABELS "accuracy;fast;owned"
     REQUIRED_FILES $<TARGET_FILE:veloce>)
 
+add_test(NAME gb_alu_exhaustive COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/gb/alu_exhaustive/run.py
+    --emulator $<TARGET_FILE:veloce> --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/gb_alu)
+set_tests_properties(gb_alu_exhaustive PROPERTIES LABELS "accuracy;owned" TIMEOUT 950
+    REQUIRED_FILES $<TARGET_FILE:veloce>)
+
 add_test(
     NAME nes_alu_exhaustive
     COMMAND ${Python3_EXECUTABLE}

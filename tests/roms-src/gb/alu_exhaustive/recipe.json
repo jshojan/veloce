@@ -1,0 +1,7 @@
+{
+  "source_type": "original",
+  "console": "gb",
+  "suite": "alu_exhaustive",
+  "build": {"script": "build.py", "artifact": "alu_exhaustive.gb"},
+  "license": "MIT"
+}

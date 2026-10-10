@@ -1,5 +1,16 @@
 {
   "roms": {
+    "gb/alu_exhaustive/alu_exhaustive.gb": {
+      "build_command": "python3 tests/roms-src/gb/alu_exhaustive/build.py",
+      "console": "gb",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "ab94563c49f8d2161aab6b54ef87f0030fb316610c3432e2539e20e35d3735e2",
+      "source_repo": "tests/roms-src/gb/alu_exhaustive/build.py",
+      "source_sha": "94f95396d30c380ad86fa4570ef16a8bf7fc13e470c160e3460e9356bfa328c3",
+      "source_type": "original",
+      "suite": "alu_exhaustive"
+    },
     "gb/register_probe/register_probe.gb": {
       "build_command": "python3 tests/roms-src/gb/register_probe/build.py",
       "console": "gb",
