@@ -1626,3 +1626,14 @@ stay local. This trace does not establish the full RSP hardware scope.
 N64 remains **40% = 8/20 fixed delivery milestones**. The complete graphics
 milestone and full Nintendo-platform goal remain unfinished. Front-page and
 core README percentages remain synchronized. CI/CD stays disabled.
+
+Verification: the full build and **68 distinct N64 gates pass**. The new original
+suite passes in **1,657.36 seconds**, independently grading **5,898,240 cases /
+123,863,040 actual 64-bit words** with zero mismatches and rejecting all executed,
+21-field and seven malformed-stream controls. **24/24 component gates** pass in
+**50.48 seconds**. The remaining ROM batch passes 42 of 43 in **1,285.47 seconds**;
+the video capture helper needed its EOF-relative VI offset moved eight bytes for
+S020, and the corrected gate passes in **4.78 seconds**, completing all 43.
+All **91 original ROM archives** reproduce. Undefined-behavior sanitization,
+current executable hashes for both private retail reports, completion synchronization
+and whitespace checks pass.
