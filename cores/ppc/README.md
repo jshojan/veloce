@@ -1,5 +1,24 @@
 # Experimental GameCube and Wii PowerPC cores
 
+<!-- completion:start -->
+## Completion percentage
+
+| Platform | Delivery checklist completion | Delivered / total |
+|---|---:|---:|
+| GameCube | **25%** | 5/20 |
+| Wii | **25%** | 5/20 |
+
+These percentages count the 20 explicit delivery milestones in [the completion ledger](../../docs/CORE-COMPLETION.md); partial or unverified milestones receive zero credit. Each milestone is worth 5 percentage points. **They are not percentages of native hardware accuracy or retail compatibility.** Bounded profile tests do not complete a whole CPU or hardware subsystem.
+
+GameCube delivered milestones: Native digital controller/keypad registers consume frontend input, Repository-owned ROM source and reproducible archived image, Separate core plugin and ABI entry points, Actual guest register-file output independently graded on the host, with negative controls, Complete states for the implemented profile and deterministic replay.
+
+Remaining: Remaining CPU, firmware/retail boot, polling/timing/analog/multiplayer, graphics/audio and netplay remain.
+
+Wii delivered milestones: Native digital controller/keypad registers consume frontend input, Repository-owned ROM source and reproducible archived image, Separate core plugin and ABI entry points, Actual guest register-file output independently graded on the host, with negative controls, Complete states for the implemented profile and deterministic replay.
+
+Remaining: Remaining CPU, MEM2/IOS/retail boot, GameCube polling, Wii Remote, graphics/audio and netplay remain.
+<!-- completion:end -->
+
 `gc_plugin` and `wii_plugin` are ABI v2 plugins sharing a supplied PowerPC
 integer execution profile. They execute repository-owned programs; retail
 GameCube/Wii software cannot boot. Full platform completion is unknown.
@@ -194,8 +213,11 @@ hexadecimal observations at `$FFF00008` and completion at `$FFF00004` through
 `ppcdebug`. These addresses are test conventions, not Nintendo MMIO. The
 application writes `VELOCE_TEST_OUT`; completion remains ungraded (`-1`).
 
-`VPPC0001` states contain profile, full image identity/CRC, frame/completion
-counters, all GPRs, PC/CR/XER/LR/CTR, instruction count/diagnostic and all RAM.
+`VPPC0002` states contain profile, full image identity/CRC, frame/completion
+counters, all GPRs, PC/CR/XER/LR/CTR, instruction count/diagnostic, all RAM and 156 bytes of serial communication RAM,
+input/connection masks, control and error latches. Old `VPPC0001` states load
+with the serial device reset to its neutral default. New invalid peripheral
+fields are validated before any CPU/RAM mutation.
 Malformed states and states from another ROM/profile are rejected before any
 mutation. Output files/sink callbacks are external to state; replaying a state
 can emit observations again.
@@ -205,8 +227,8 @@ can emit observations again.
 Most CPU instructions, exceptions/interrupts, privileged
 state, MMU/caches, floating point and paired-single operations remain absent.
 So do IPL/IOS and firmware startup, disc loading, Flipper/Hollywood graphics,
-DSP/audio, EXI/SI controllers, Wii Bluetooth/Wiimote accessories, memory cards,
-network hardware and netplay. Input is ignored, video is blank and audio is
+DSP/audio, EXI, most SI behavior, Wii Bluetooth/Wiimote accessories, memory cards,
+network hardware and netplay. Port-one digital input drives the supplied SI direct-read profile; video is blank and audio is
 empty. The 100,000-instruction scheduling quantum and 60 Hz frontend metadata
 are not measured physical instruction or video timing; the ABI cycle counter
 reports attempted instructions and CPU frequency is unspecified.
@@ -224,9 +246,46 @@ python3 tests/roms-src/build.py --original-only --check
 
 `src/cpu.{hpp,cpp}` now exposes `ppc::execute(State&, Memory&)`, separating
 instruction behavior from each console's bus and completion/scheduling policy.
-The original GC/Wii `Machine` retains its maps, loader and state format.
+The original GC/Wii `Machine` retains its maps and loader; its versioned states now also preserve SI.
 The separate [Wii U plugin](../wiiu/README.md) supplies three CPU contexts and
 a 32 MiB MEM1/2 GiB MEM2 physical profile. The extraction changes bus routing
 and caller-owned completion only; GC/Wii component regression passes. Espresso
 privileged state, MMU/cache/coherency, timing and remaining instructions are
 pending. GC/Wii coverage counts are not evidence of all Wii U hardware.
+
+## GameCube controller communication RAM
+
+Version 0.10.0 adds settled direct SI transactions at `CC006400` (GameCube) or
+`CD006400` (Wii), aligned 32-bit register/buffer access, SICOMCSR lengths/channel
+selection/completion/masks, SISR per-channel errors and W1C acknowledgement.
+Only standard identify/reset (`00`/`FF`) and mode-3 direct digital reads
+(`40 03 00/01/02`) are supplied; unsupported commands/modes return a profile
+no-response error. Requested lengths use zero for 128 bytes; replies preserve
+bytes beyond the received payload and record short/long errors. TCINT indicates
+completion independently of its mask; CPU interrupt delivery is pending.
+Polling/output/input-buffer registers reject rather than simulate polling.
+
+[GameCube](../../tests/roms-src/gc/controller_serial/README.md) and
+[Wii](../../tests/roms-src/wii/controller_serial/README.md) original ROMs each
+match 4,096/4,096 sixteen-word snapshots. The component gate adds 262,144
+port/input/connection snapshots and 196,608 length snapshots. Exact state
+replay, legacy state loading and malformed state atomicity pass for both cores.
+
+The frontend routes one digital pad. Its twelve controls appear in the input
+layout/configuration UI: A=Z, B=X, X=A, Y=S, Z=C, L=Q, R=W, Start=Enter,
+D-pad=arrows. Custom bindings use the existing saved configuration/hotplug
+system; the virtual-device integration gate verifies defaults and persistence.
+Native analog axes, polling, origin calibration, physical rumble, timing,
+accessories, four-port frontend routing and Wii Remotes remain pending. Wii
+uses this legacy GameCube-controller path; this is not Wii Remote emulation.
+
+Register and length definitions are grounded in Nintendo's
+[external-interface patent](https://patents.google.com/patent/US6609977B1/en).
+The Wii/GC effective addresses and zero-for-128 encoding are independently
+confirmed by [libogc's SI implementation](https://github.com/devkitPro/libogc/blob/master/libogc/si.c).
+Controller wire layout follows original research in
+[YAGCD Joybus](https://www.gc-forever.com/yagcd/chap9.html); the origin marker
+and mode-3 arrangement are cross-checked against
+[Dolphin's authored controller implementation](https://github.com/dolphin-emu/dolphin/blob/master/Source/Core/Core/HW/SI/SI_DeviceGCController.cpp).
+No upstream implementation was copied. The idle ID/status and unsupported-mode
+responses are supplied conventions; physical hardware validation remains pending.

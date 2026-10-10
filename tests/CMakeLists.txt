@@ -327,7 +327,7 @@ add_test(NAME nds_netplay_plugin_test COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_BINARY_DIR}/artifacts/netplay-nds --netplay-plugin $<TARGET_FILE:netplay_default> --console nds)
 set_tests_properties(nds_netplay_plugin_test PROPERTIES LABELS "integration;netplay;owned" TIMEOUT 90)
 
-add_executable(ppc_machine_test cpp/ppc_machine_test.cpp ${CMAKE_SOURCE_DIR}/cores/ppc/src/machine.cpp ${CMAKE_SOURCE_DIR}/cores/ppc/src/cpu.cpp)
+add_executable(ppc_machine_test cpp/ppc_machine_test.cpp ${CMAKE_SOURCE_DIR}/cores/ppc/src/machine.cpp ${CMAKE_SOURCE_DIR}/cores/ppc/src/cpu.cpp ${CMAKE_SOURCE_DIR}/cores/ppc/src/serial.cpp)
 target_include_directories(ppc_machine_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/ppc/src ${CMAKE_SOURCE_DIR}/include ${SDL2_INCLUDE_DIRS})
 target_link_libraries(ppc_machine_test PRIVATE ${SDL2_LIBRARIES})
 target_compile_definitions(ppc_machine_test PRIVATE SDL_MAIN_HANDLED)
@@ -453,3 +453,26 @@ add_test(NAME wiiu_netplay_plugin_test COMMAND ${Python3_EXECUTABLE}
     $<TARGET_FILE:wiiu_plugin> ${CMAKE_SOURCE_DIR}/tests/roms-src/wiiu/netplay_probe/netplay_probe.vwiiu
     ${CMAKE_BINARY_DIR}/artifacts/netplay-wiiu --netplay-plugin $<TARGET_FILE:netplay_default> --console wiiu)
 set_tests_properties(wiiu_netplay_plugin_test PROPERTIES LABELS "integration;netplay;owned" TIMEOUT 180)
+
+add_executable(ppc_serial_test cpp/ppc_serial_test.cpp
+    ${CMAKE_SOURCE_DIR}/cores/ppc/src/machine.cpp ${CMAKE_SOURCE_DIR}/cores/ppc/src/cpu.cpp
+    ${CMAKE_SOURCE_DIR}/cores/ppc/src/serial.cpp)
+target_include_directories(ppc_serial_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/ppc/src
+    ${CMAKE_SOURCE_DIR}/include ${SDL2_INCLUDE_DIRS})
+target_link_libraries(ppc_serial_test PRIVATE ${SDL2_LIBRARIES})
+target_compile_definitions(ppc_serial_test PRIVATE SDL_MAIN_HANDLED)
+add_dependencies(ppc_serial_test gc_plugin wii_plugin)
+add_test(NAME ppc_serial_test COMMAND ppc_serial_test $<TARGET_FILE:gc_plugin> $<TARGET_FILE:wii_plugin>)
+set_tests_properties(ppc_serial_test PROPERTIES LABELS "unit;accuracy;owned" TIMEOUT 90)
+foreach(profile gc wii)
+    add_test(NAME ${profile}_controller_serial COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_SOURCE_DIR}/tests/roms-src/${profile}/controller_serial/run.py --emulator $<TARGET_FILE:veloce>
+        --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/${profile}_controller)
+    set_tests_properties(${profile}_controller_serial PROPERTIES LABELS "accuracy;owned" TIMEOUT 180)
+endforeach()
+
+# Optional local commercial-ROM probe. No ROM path or bytes enter CTest/git.
+add_executable(retail_core_probe cpp/retail_core_probe.cpp)
+target_include_directories(retail_core_probe PRIVATE ${CMAKE_SOURCE_DIR}/include ${SDL2_INCLUDE_DIRS})
+target_link_libraries(retail_core_probe PRIVATE ${SDL2_LIBRARIES})
+target_compile_definitions(retail_core_probe PRIVATE SDL_MAIN_HANDLED)

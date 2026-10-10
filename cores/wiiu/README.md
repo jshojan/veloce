@@ -1,5 +1,19 @@
 # Experimental Wii U core plugin
 
+<!-- completion:start -->
+## Completion percentage
+
+| Platform | Delivery checklist completion | Delivered / total |
+|---|---:|---:|
+| Wii U | **25%** | 5/20 |
+
+These percentages count the 20 explicit delivery milestones in [the completion ledger](../../docs/CORE-COMPLETION.md); partial or unverified milestones receive zero credit. Each milestone is worth 5 percentage points. **They are not percentages of native hardware accuracy or retail compatibility.** Bounded profile tests do not complete a whole CPU or hardware subsystem.
+
+Wii U delivered milestones: Actual production-plugin TCP peers pass original guest oracle and whole-state comparison, Repository-owned ROM source and reproducible archived image, Separate core plugin and ABI entry points, Actual guest register-file output independently graded on the host, with negative controls, Complete states for the implemented profile and deterministic replay.
+
+Remaining: Remaining CPU/MMU, firmware/native formats, graphics/audio, native GamePad and wireless multiplayer remain.
+<!-- completion:end -->
+
 `wiiu_plugin` builds `wiiu.so` (or the platform library equivalent), ABI v2,
 version 0.2.0. It executes repository-owned `.vwiiu` PowerPC integer programs
 on three independent Espresso-style contexts and shared RAM. **Native Wii U
@@ -75,7 +89,7 @@ domain plus all RT/RA fields/aliases on eight source/eight immediate patterns,
 all supplied RAM bytes and selected boundary/endian/page widths. Full dense
 2,183,168,992-byte state round trip and sparse replay pass, as do atomic
 loaders/states, all 4,096 original digital latch values, a three-context guest
-at MEM1/MEM2 endpoints and the actual plugin lifecycle. All 52 original ROMs
+at MEM1/MEM2 endpoints and the actual plugin lifecycle. All 54 original ROMs
 reproduce against their source/image ledger. The full component gate passes
 undefined-behavior sanitization; the GC/Wii component regression passes.
 

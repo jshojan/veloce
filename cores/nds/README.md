@@ -1,5 +1,19 @@
 # Experimental Nintendo DS core plugin
 
+<!-- completion:start -->
+## Completion percentage
+
+| Platform | Delivery checklist completion | Delivered / total |
+|---|---:|---:|
+| Nintendo DS | **30%** | 6/20 |
+
+These percentages count the 20 explicit delivery milestones in [the completion ledger](../../docs/CORE-COMPLETION.md); partial or unverified milestones receive zero credit. Each milestone is worth 5 percentage points. **They are not percentages of native hardware accuracy or retail compatibility.** Bounded profile tests do not complete a whole CPU or hardware subsystem.
+
+Nintendo DS delivered milestones: Native digital controller/keypad registers consume frontend input, Actual production-plugin TCP peers pass original guest oracle and whole-state comparison, Repository-owned ROM source and reproducible archived image, Separate core plugin and ABI entry points, Actual guest register-file output independently graded on the host, with negative controls, Complete states for the implemented profile and deterministic replay.
+
+Remaining: Remaining CPU, native firmware/boot, graphics/audio, touch and wireless multiplayer remain.
+<!-- completion:end -->
+
 `nds_plugin` builds `nds.so`/`nds.dll`/`nds.dylib` and implements emulator ABI v2.
 The frontend discovers it and selects it for `.nds` files. It executes original
 ARM/Thumb integer homebrew on two independent CPU contexts with shared main RAM and
@@ -267,7 +281,7 @@ Raw observations/reports remain in `build/artifacts/owned/nds_integer/`,
 `build/artifacts/owned/nds_memory/`, `build/artifacts/owned/nds_long_calls/`,
 `build/artifacts/owned/nds_multiple/`, `build/artifacts/owned/nds_keypad/` and
 `build/artifacts/netplay-nds/`,
-and are uploaded by owned-hardware CI. Generator/image SHA256 are recorded
+and remain local while CI/CD is disabled. Generator/image SHA256 are recorded
 in the ROM manifest. Component evidence is separate from the original-ROM domain.
 
 ## Remaining hardware and features

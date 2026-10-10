@@ -34,7 +34,10 @@ Original ROM corpora report the fraction of their explicitly enumerated domain
 that was observed and matched, separately from the legacy weighted scorecard.
 Run `ctest --test-dir build -L owned --output-on-failure`; read
 [HARDWARE-COVERAGE.md](docs/HARDWARE-COVERAGE.md) for the full remaining scope.
-No full-core completion percentage has been established.
+Native hardware completion remains unmeasured. The separate, reproducible
+[delivery completion ledger](docs/CORE-COMPLETION.md) gives implementation
+milestone percentages in the main and core READMEs; these are not the accuracy
+headlines or original-ROM domain pass fractions.
 
 ## Platform summary
 
@@ -49,9 +52,9 @@ No full-core completion percentage has been established.
 | Nintendo DS | 8 original ROMs; no external catalog | 44,238,336 integer plus 38,338,560 multiply plus 51,426,816 Thumb result/CPSR/source/PC observations matched; 49,694,208 nine-word memory and 9,437,184 eight-word long-call observations matched; 3,720,960 stack/block observations matched; 4,096/4,096 digital keypad combinations matched; 100-frame TCP host/viewer states and eight guest words match baseline/oracle; DS wireless multiplayer pending; ARM7 unpredictable multiply flags excluded | Experimental marked ARM/Thumb integer homebrew; firmware, ARM block transfers, graphics/audio, peripherals pending; DSi has a separate partial plugin; [limits](cores/nds/README.md) |
 | Nintendo DSi | 2 original ROMs; no external catalog | 387,072/387,072 RAM captures; 67,109,008 component bus observations; 100-frame TCP host/viewer states and eight guest register words match oracle | Experimental dual-CPU expanded-memory profile; firmware/retail boot, full SCFG/MBK, graphics/audio/peripherals and physical timing pending; [limits](cores/dsi/README.md) |
 | Nintendo 3DS | 2 original ROMs; no external catalog | 25,165,824/25,165,824 reversal captures; 36,123,648 component register snapshots; 541,065,300 RAM bus observations; 4,096 HID input combinations; 100-frame TCP host/viewer full states and twelve guest words match baseline/oracle | Experimental supplied ARM11/ARM9 integer profile; native boot, remaining CPU, graphics/audio/peripherals, wireless multiplayer and physical timing pending; full hardware percentage unknown; [limits](cores/3ds/README.md) |
-| GameCube | 9 original ROMs; no external catalog | 49,152/49,152 arithmetic and 74,752/74,752 branch and 42,108,928/42,108,928 condition and 6,324,224/6,324,224 integer logical and 9,437,184/9,437,184 rotate/mask and 4,416,528/4,416,528 shift/unary and 25,168,384/25,168,384 carry arithmetic snapshots and 8,420,320/8,420,320 defined multiply/divide results matched; 1,056 undefined division rows have defined flags/preserved fields checked; 12,586,368/12,586,368 memory-transfer snapshots matched | Experimental supplied integer profile; full hardware completion unknown; [limits](cores/ppc/README.md) |
+| GameCube | 10 original ROMs; no external catalog | 49,152/49,152 arithmetic and 74,752/74,752 branch and 42,108,928/42,108,928 condition and 6,324,224/6,324,224 integer logical and 9,437,184/9,437,184 rotate/mask and 4,416,528/4,416,528 shift/unary and 25,168,384/25,168,384 carry arithmetic snapshots and 8,420,320/8,420,320 defined multiply/divide results matched; 1,056 undefined division rows have defined flags/preserved fields checked; 12,586,368/12,586,368 memory-transfer snapshots matched | Experimental supplied integer profile; full hardware completion unknown; [limits](cores/ppc/README.md) |
 | Wii U | 2 original ROMs; no external catalog | 25,165,824/25,165,824 nine-word immediate captures; 28,311,552 component register snapshots; 8,724,152,428 RAM bus observations and dense/sparse state replay; 4,096 synthetic digital-input latch values; 100-frame production TCP states and twelve guest words match baseline/oracle | Experimental supplied three-context PowerPC integer profile; native boot, remaining CPU, GPU/audio/peripherals, native GamePad, wireless multiplayer and physical timing pending; full hardware percentage unknown; [limits](cores/wiiu/README.md) |
-| Wii | 9 original ROMs; no external catalog | 49,152/49,152 arithmetic and 74,752/74,752 branch and 42,108,928/42,108,928 condition and 6,324,224/6,324,224 integer logical and 9,437,184/9,437,184 rotate/mask and 4,416,528/4,416,528 shift/unary and 25,168,384/25,168,384 carry arithmetic snapshots and 8,420,320/8,420,320 defined multiply/divide results matched; 1,056 undefined division rows have defined flags/preserved fields checked; 12,586,368/12,586,368 memory-transfer snapshots matched | Experimental supplied integer profile; full hardware completion unknown; [limits](cores/ppc/README.md) |
+| Wii | 10 original ROMs; no external catalog | 49,152/49,152 arithmetic and 74,752/74,752 branch and 42,108,928/42,108,928 condition and 6,324,224/6,324,224 integer logical and 9,437,184/9,437,184 rotate/mask and 4,416,528/4,416,528 shift/unary and 25,168,384/25,168,384 carry arithmetic snapshots and 8,420,320/8,420,320 defined multiply/divide results matched; 1,056 undefined division rows have defined flags/preserved fields checked; 12,586,368/12,586,368 memory-transfer snapshots matched | Experimental supplied integer profile; full hardware completion unknown; [limits](cores/ppc/README.md) |
 
 The legacy four-console platform mean reported by `tests/run_all.py` weights each
 console equally; N64, Virtual Boy, DS, GameCube and Wii owned corpora are reported separately.
@@ -309,3 +312,19 @@ All percentages above were measured on `build/bin/veloce` on 2026-06-02. They
 will change as reference hashes are populated, the nestest trace and Mooneye
 breakpoint emitters are added, and the measured failures are fixed; the
 methodology that produces them ([TESTING.md](TESTING.md)) will not.
+
+## GameCube/Wii controller evidence
+
+Each original settled serial-controller ROM matches 4,096/4,096 sixteen-word
+captures (65,536 guest values), all twelve digital button combinations. The
+component gate additionally matches 262,144 port/input/connection snapshots
+and 196,608 transfer-length snapshots. Negative guest command, sixteen altered
+fields and seven malformed stream controls are rejected per profile. Analog,
+polling/timing/interrupt delivery, accessories, four-port frontend routing and
+Wii Remote behavior remain pending. This is 100% of the declared digital domain,
+with no whole-hardware accuracy percentage implied. See [the profile](cores/ppc/README.md).
+
+Super Mario 64 was separately tested with the user's local image: the current
+N64 plugin rejects it at load. That is a pending retail target, not a scored
+pass. The original-ROM ledger contains 54 repository-owned programs; commercial
+ROM bytes are never part of that ledger or git.

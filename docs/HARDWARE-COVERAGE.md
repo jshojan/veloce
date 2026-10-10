@@ -440,7 +440,7 @@ supplied-profile byte checks, not physical chip-control/timing evidence.
 guest words matching the independent oracle. Host owns one keypad; viewer
 replay is supported, DSi wireless multiplayer is pending. DS component and
 production netplay regression gates pass. Local TCP gates require loopback
-socket permission; CI/CD remains disabled. All 52 original ROMs reproduce
+socket permission; CI/CD remains disabled. All 54 original ROMs reproduce
 against the source/image ledger. Firmware/retail boot, full SCFG/MBK and most
 DSi hardware remain pending; full platform completion is unmeasured.
 
@@ -488,7 +488,7 @@ Physical 3DS wireless/link multiplayer, Internet/cross-platform sessions,
 compression/page sharing and sustained real-time performance remain pending.
 A window-8 ring uses about 1.14 GiB per peer plus core/scratch memory. Reports,
 register files and full states stay in `build/artifacts/netplay-3ds/`.
-All 52 original ROMs reproduce from their source/image ledger. CI/CD remains disabled.
+All 54 original ROMs reproduce from their source/image ledger. CI/CD remains disabled.
 
 ### Wii U original integer and full mapped-RAM evidence
 
@@ -516,7 +516,7 @@ proved. Raw files/grades stay in `build/artifacts/owned/wiiu_immediates/`.
 Firmware/native formats, Starbuck/IOSU/Cafe, remaining CPU instructions,
 Latte/GX2 GPU, DSP/audio, native GamePad/KPAD/VPAD, storage, native wireless multiplayer
 and most platform hardware remain pending. Switch still lacks a plugin.
-All 52 original ROMs reproduce from the ledger. No overall hardware percentage
+All 54 original ROMs reproduce from the ledger. No overall hardware percentage
 is inferred. CI/CD remains disabled; use the local gates in the core README.
 
 ### Wii U sparse-state host/viewer netplay
@@ -538,5 +538,31 @@ still cost large states. Native GamePad/VPAD/KPAD, wireless multiplayer, physica
 devices/two machines, Internet/cross-platform and sustained performance remain
 unverified or pending. Reports are in `build/artifacts/netplay-wiiu/`.
 The full Wii U component gate passes undefined-behavior sanitization; all
-seven netplay gates pass. CI/CD stays disabled; all 52 original ROMs reproduce
+seven netplay gates pass. CI/CD stays disabled; all 54 original ROMs reproduce
 against the ledger.
+
+## GameCube/Wii settled digital controller gates
+
+`gc_controller_serial` and `wii_controller_serial` each independently grade
+4,096/4,096 digital combinations, sixteen guest register words per row. The
+actual frontend input schedule and loaded core execute repository-owned ROMs.
+One executed command mutation, sixteen field mutations and seven malformed
+stream controls are rejected per platform. `ppc_serial_test` matches 262,144
+selected-port/input/connection snapshots and 196,608 transfer-length snapshots,
+checks receive preservation/errors, W1C, invalid accesses, legacy/current
+states and actual plugin input replay. `ppc_machine_test` continues to pass.
+These gates passed with undefined-behavior sanitization for the component code.
+
+```bash
+ctest --test-dir build -R '^(ppc_(serial|machine)_test|(gc|wii)_controller_serial|input_hotplug_test)$' --output-on-failure
+python3 tests/roms-src/build.py --original-only --check
+python3 tests/update_completion.py --check
+```
+
+The ledger now includes 54 original ROMs. Controller polling, analog axes,
+origin calibration, VI/wire timing, CPU SI interrupts, accessories, four-port
+frontend input and Wii Remote support remain pending. CI/CD remains disabled.
+The [delivery completion ledger](../docs/CORE-COMPLETION.md) is separate from
+hardware-domain pass fractions and legacy external-suite accuracy scores.
+The optional `tests/n64_retail_probe.py` takes a locally supplied N64 ROM;
+Super Mario 64 currently reports load rejection. Its ROM bytes never enter git.

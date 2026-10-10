@@ -1,5 +1,19 @@
 # Experimental Virtual Boy core plugin
 
+<!-- completion:start -->
+## Completion percentage
+
+| Platform | Delivery checklist completion | Delivered / total |
+|---|---:|---:|
+| Virtual Boy | **20%** | 4/20 |
+
+These percentages count the 20 explicit delivery milestones in [the completion ledger](../../docs/CORE-COMPLETION.md); partial or unverified milestones receive zero credit. Each milestone is worth 5 percentage points. **They are not percentages of native hardware accuracy or retail compatibility.** Bounded profile tests do not complete a whole CPU or hardware subsystem.
+
+Virtual Boy delivered milestones: Repository-owned ROM source and reproducible archived image, Separate core plugin and ABI entry points, Actual guest register-file output independently graded on the host, with negative controls, Complete states for the implemented profile and deterministic replay.
+
+Remaining: Remaining CPU/NVC, VIP/VSU, controllers, native boot and timing remain.
+<!-- completion:end -->
+
 `vb_plugin` builds `vb.so`/`vb.dll`/`vb.dylib` and implements emulator ABI v2.
 The frontend discovers it alongside the other cores and selects it for `.vb`
 images. It executes original V810 integer homebrew with 32-bit registers,
@@ -159,7 +173,7 @@ Raw observations and reports are in `build/artifacts/owned/vb_integer/`,
 `build/artifacts/owned/vb_muldiv/`, `build/artifacts/owned/vb_exceptions/`,
 `build/artifacts/owned/vb_address_traps/`, `build/artifacts/owned/vb_memory_ops/`,
 `build/artifacts/owned/vb_bitstrings/` and `build/artifacts/owned/vb_immediates/`.
-They are uploaded by the owned-hardware CI job. Source/image SHA256 values are recorded
+They remain local while CI/CD is disabled. Source/image SHA256 values are recorded
 in `tests/roms-src/rom_manifest.json`. `VVBS0002` states store explicit big-endian
 scalars for the full CPU, frame/step counters, completion, ROM identity, WRAM
 and pending bit-string buffers. Legacy `VVBS0001` states

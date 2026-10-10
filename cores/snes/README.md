@@ -1,5 +1,19 @@
 # SNES Emulator Core
 
+<!-- completion:start -->
+## Completion percentage
+
+| Platform | Delivery checklist completion | Delivered / total |
+|---|---:|---:|
+| SNES | **40%** | 8/20 |
+
+These percentages count the 20 explicit delivery milestones in [the completion ledger](../../docs/CORE-COMPLETION.md); partial or unverified milestones receive zero credit. Each milestone is worth 5 percentage points. **They are not percentages of native hardware accuracy or retail compatibility.** Bounded profile tests do not complete a whole CPU or hardware subsystem.
+
+SNES delivered milestones: Guest sound produces audio samples, Native digital controller/keypad registers consume frontend input, Guest graphics produce rendered video, Parse a native cartridge/executable format (boot scored separately), Repository-owned ROM source and reproducible archived image, Separate core plugin and ABI entry points, Actual guest register-file output independently graded on the host, with negative controls, Complete states for the implemented profile and deterministic replay.
+
+Remaining: Settled/timed math is graded; visual/audio catalog verdicts, expansion chips and full timing remain incomplete or unverified.
+<!-- completion:end -->
+
 Super Nintendo Entertainment System emulator for Veloce.
 
 ## Overview
@@ -21,7 +35,7 @@ The SNES core provides emulation of the Super Nintendo with support for LoROM an
 
 ## Completion Status
 
-### CPU - 65C816 (95% Complete)
+### CPU - 65C816 (Implemented subset; verification incomplete)
 
 | Feature | Status | Notes |
 |---------|--------|-------|
@@ -38,7 +52,7 @@ The SNES core provides emulation of the Super Nintendo with support for LoROM an
 | Block moves | **Complete** | MVN/MVP instructions |
 | Cycle timing | **Partial** | Per-instruction with FastROM/SlowROM |
 
-### PPU - Picture Processing Unit (95% Complete)
+### PPU - Picture Processing Unit (Implemented subset; verification incomplete)
 
 | Feature | Status | Notes |
 |---------|--------|-------|
@@ -69,7 +83,7 @@ The SNES core provides emulation of the Super Nintendo with support for LoROM an
 | Direct color | **Complete** | 8bpp direct RGB in Modes 3/4/7 |
 | EXTBG (Mode 7) | **Complete** | BG2 layer with bit 7 priority |
 
-### APU - Audio Processing Unit (90% Complete)
+### APU - Audio Processing Unit (Implemented subset; verification incomplete)
 
 #### SPC700 Sound Processor
 
@@ -100,7 +114,7 @@ The SNES core provides emulation of the Super Nintendo with support for LoROM an
 | Voice muting | **Complete** | Per-voice enable |
 | Stereo panning | **Complete** | Per-voice L/R volume |
 
-### DMA Controller (95% Complete)
+### DMA Controller (Implemented subset; verification incomplete)
 
 | Feature | Status | Notes |
 |---------|--------|-------|
@@ -117,7 +131,7 @@ The SNES core provides emulation of the Super Nintendo with support for LoROM an
 | HDMA repeat | **Complete** | Repeat flag handling |
 | Mid-transfer abort | **Partial** | Not fully accurate |
 
-### Cartridge Support (70% Complete)
+### Cartridge Support (Implemented subset; verification incomplete)
 
 | Type | Status | Notes |
 |------|--------|-------|
@@ -502,9 +516,9 @@ CLI, and the JSON scorecard are identical across every Veloce console. For the
 methodology and the platform-wide picture see the top-level
 [TESTING.md](../../TESTING.md) and [COMPLETENESS.md](../../COMPLETENESS.md).
 
-> **Verified accuracy versus implementation status.** The "% Complete" figures in
-> the Completion Status tables above are implementation estimates against hardware
-> documentation. The *verified* accuracy headline is currently **low** because
+> **Verified accuracy versus delivery completion.** The generated checklist above
+> counts delivered milestones. The subsystem tables describe implementation status;
+> former hand-estimated subsystem percentages have been removed. The *verified* accuracy headline is currently **low** because
 > almost every SNES test is a community ROM that draws its result on screen and so
 > needs a `screenshot-crc` reference hash that has not yet been measured; those
 > tests ship `known_fail` and contribute zero. The Blargg SPC `memory`-detected

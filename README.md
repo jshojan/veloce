@@ -1,5 +1,29 @@
 # Veloce
 
+<!-- completion:start -->
+## Core completion percentages
+
+| Platform | Delivery checklist completion | Delivered / total |
+|---|---:|---:|
+| NES/Famicom | **50%** | 10/20 |
+| SNES | **40%** | 8/20 |
+| Game Boy / Game Boy Color | **40%** | 8/20 |
+| Game Boy Advance | **40%** | 8/20 |
+| Nintendo 64 | **25%** | 5/20 |
+| Virtual Boy | **20%** | 4/20 |
+| Nintendo DS | **30%** | 6/20 |
+| Nintendo DSi | **30%** | 6/20 |
+| Nintendo 3DS | **30%** | 6/20 |
+| GameCube | **25%** | 5/20 |
+| Wii | **25%** | 5/20 |
+| Wii U | **25%** | 5/20 |
+| Nintendo Switch | **0%** | 0/20 |
+
+These percentages count the 20 explicit delivery milestones in [the completion ledger](docs/CORE-COMPLETION.md); partial or unverified milestones receive zero credit. Each milestone is worth 5 percentage points. **They are not percentages of native hardware accuracy or retail compatibility.** Bounded profile tests do not complete a whole CPU or hardware subsystem.
+
+Super Mario 64 (USA) was tested locally on 2026-10-10: **rejected at load** by the current N64 homebrew-only core. Boot and playability remain pending. See the [repeatable local probe](cores/n64/README.md#local-retail-regression-target).
+<!-- completion:end -->
+
 A cross-platform, plugin-based emulator framework built for speedrunners and TAS creators.
 
 *Veloce* - Italian for "fast"
@@ -43,11 +67,11 @@ See [Build Instructions](#building) for platform-specific details.
 | Nintendo DSi | [cores/dsi](cores/dsi/README.md) | Experimental | Distinct plugin; dual-CPU integer homebrew, 16 MiB RAM/aliases and RAM-limit controls, digital keypad and TCP host/viewer replay; firmware/retail boot and most DSi peripherals pending |
 | Nintendo 3DS | [cores/3ds](cores/3ds/README.md) | Experimental | Distinct plugin; two ARM11 and one ARM9 integer contexts, 128 MiB shared FCRAM, AXI/private RAM and digital HID; TCP host/viewer replay; native boot and graphics/audio pending |
 | Wii U | [cores/wiiu](cores/wiiu/README.md) | Experimental | Distinct three-context PowerPC integer plugin, 32 MiB MEM1/2 GiB MEM2, sparse states, original input latch and TCP host/viewer replay; native boot, GPU/audio and GamePad hardware pending |
-| GameCube | [cores/ppc](cores/ppc/README.md) | Experimental | Original PowerPC arithmetic/carry, multiply/divide, memory transfers, bitwise, rotate/mask, shift/unary, branch and condition-register programs; no retail boot, graphics/audio, controllers or netplay |
-| Wii | [cores/ppc](cores/ppc/README.md) | Experimental | Original PowerPC arithmetic/carry, multiply/divide, memory transfers, bitwise, rotate/mask, shift/unary, branch and condition-register programs; no retail boot, MEM2, IOS, graphics/audio, controllers or netplay |
+| GameCube | [cores/ppc](cores/ppc/README.md) | Experimental | Original PowerPC arithmetic/carry, multiply/divide, memory transfers, bitwise, rotate/mask, shift/unary, branch and condition-register programs; settled digital GameCube-controller SI reads; no retail boot, graphics/audio, analog/polling or netplay |
+| Wii | [cores/ppc](cores/ppc/README.md) | Experimental | Original PowerPC arithmetic/carry, multiply/divide, memory transfers, bitwise, rotate/mask, shift/unary, branch and condition-register programs; settled digital GameCube-controller SI reads; no retail boot, MEM2, IOS, Wii Remotes, graphics/audio or netplay |
 
-Nintendo Switch still needs a core plugin. DSi enhanced hardware remains partially implemented. Overall completion is not yet
-measured. See the [hardware coverage and remaining work](docs/HARDWARE-COVERAGE.md).
+Nintendo Switch still needs a core plugin. DSi enhanced hardware remains partially implemented. Native hardware accuracy/completion is not yet
+measured; delivery checklist completion is reported above. See the [hardware coverage and remaining work](docs/HARDWARE-COVERAGE.md).
 
 ## Architecture
 
@@ -408,6 +432,8 @@ subset, not whole-core completion.
 | [Wii multiply/divide](tests/roms-src/wii/multiply_registers/README.md) | 8,420,320/8,420,320 defined results matched; 1,056 undefined division rows graded for defined flags/preserved fields; timing pending | `build/artifacts/owned/wii_products/` |
 | [GameCube memory registers](tests/roms-src/gc/memory_registers/README.md) | 12,586,368/12,586,368 ten-word observations matched: every aligned 16-bit displacement on eight patterns/three aliases, indexed/update/signed/reversed forms; timing pending | `build/artifacts/owned/gc_memory/` |
 | [Wii memory registers](tests/roms-src/wii/memory_registers/README.md) | 12,586,368/12,586,368 ten-word observations matched: every aligned 16-bit displacement on eight patterns/three aliases, indexed/update/signed/reversed forms; timing pending | `build/artifacts/owned/wii_memory/` |
+| [GameCube controller serial](tests/roms-src/gc/controller_serial/README.md) | 4,096/4,096 sixteen-word digital captures matched: all twelve-button combinations, idle ID, absent ports, settled completion/errors and acknowledgement; polling/analog/timing pending | `build/artifacts/owned/gc_controller/` |
+| [Wii GameCube-controller serial](tests/roms-src/wii/controller_serial/README.md) | 4,096/4,096 sixteen-word captures matched through Wii SI address; Wii Remotes, polling/analog/timing pending | `build/artifacts/owned/wii_controller/` |
 | [N64 interrupt gates](tests/roms-src/n64/interrupts/README.md) | 65,536/65,536 cases matched; 524,288 guest values for software/SI/timer, MI/CPU masks and IE/EXL/ERL; pipeline and physical timer timing pending | `build/artifacts/owned/n64_interrupts/` |
 | [N64 digital controller](tests/roms-src/n64/controller_serial/README.md) | 16,384/16,384 combinations matched; 131,072 guest values for digital input, identity, absent port and settled SI/MI registers; analog and physical timing pending | `build/artifacts/owned/n64_controller/` |
 | [N64 merge memory](tests/roms-src/n64/merge_memory/README.md) | 3,158,016/3,158,016 observations matched; eight instructions, every byte lane, all repeated-byte pairs and full-width boundaries; full multi-byte domains/timing unverified | `build/artifacts/owned/n64_merge_memory/` |

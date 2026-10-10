@@ -1,5 +1,19 @@
 # Experimental DSi core plugin
 
+<!-- completion:start -->
+## Completion percentage
+
+| Platform | Delivery checklist completion | Delivered / total |
+|---|---:|---:|
+| Nintendo DSi | **30%** | 6/20 |
+
+These percentages count the 20 explicit delivery milestones in [the completion ledger](../../docs/CORE-COMPLETION.md); partial or unverified milestones receive zero credit. Each milestone is worth 5 percentage points. **They are not percentages of native hardware accuracy or retail compatibility.** Bounded profile tests do not complete a whole CPU or hardware subsystem.
+
+Nintendo DSi delivered milestones: Native digital controller/keypad registers consume frontend input, Actual production-plugin TCP peers pass original guest oracle and whole-state comparison, Repository-owned ROM source and reproducible archived image, Separate core plugin and ABI entry points, Actual guest register-file output independently graded on the host, with negative controls, Complete states for the implemented profile and deterministic replay.
+
+Remaining: Enhanced mapping/control, firmware/retail boot, graphics/audio and wireless multiplayer remain.
+<!-- completion:end -->
+
 `dsi_plugin` builds `dsi.so` (or the platform library equivalent), ABI v2,
 version 0.1.0. It is a distinct loadable plugin for repository-owned `.vdsi`
 programs. DS and DSi share the ARM/Thumb interpreter and bus implementation;

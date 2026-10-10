@@ -1,6 +1,7 @@
 #pragma once
 #include "emu/emulator_plugin.hpp"
 #include "cpu.hpp"
+#include "serial.hpp"
 #include <array>
 #include <vector>
 namespace ppc {
@@ -17,6 +18,7 @@ public:
     bool restore(const std::vector<uint8_t>& data);
     bool wii;
     State cpu;
+    Serial serial;
     std::vector<uint8_t> rom,ram;
     emu::ITestSink* sink=nullptr;
     uint32_t crc=0;

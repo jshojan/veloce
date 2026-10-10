@@ -1,5 +1,19 @@
 # Experimental Nintendo 3DS core plugin
 
+<!-- completion:start -->
+## Completion percentage
+
+| Platform | Delivery checklist completion | Delivered / total |
+|---|---:|---:|
+| Nintendo 3DS | **30%** | 6/20 |
+
+These percentages count the 20 explicit delivery milestones in [the completion ledger](../../docs/CORE-COMPLETION.md); partial or unverified milestones receive zero credit. Each milestone is worth 5 percentage points. **They are not percentages of native hardware accuracy or retail compatibility.** Bounded profile tests do not complete a whole CPU or hardware subsystem.
+
+Nintendo 3DS delivered milestones: Native digital controller/keypad registers consume frontend input, Actual production-plugin TCP peers pass original guest oracle and whole-state comparison, Repository-owned ROM source and reproducible archived image, Separate core plugin and ABI entry points, Actual guest register-file output independently graded on the host, with negative controls, Complete states for the implemented profile and deterministic replay.
+
+Remaining: Remaining CPU/MMU, firmware/native formats, graphics/audio, analog/touch and wireless multiplayer remain.
+<!-- completion:end -->
+
 `ctr_plugin` builds `3ds.so` (or the platform library equivalent), ABI v2,
 version 0.2.0. The separately loadable core executes repository-owned `.v3ds`
 integer programs on two ARM11 contexts and one ARM9 context. **Native 3DS
@@ -66,7 +80,7 @@ This is one chosen value per address, not all address/value combinations.
 Loader/state rejection, a three-context RAM-writing guest, dynamic plugin
 lifecycle, digital input and exact replay pass. The full component gate also
 passes undefined-behavior sanitization. Existing DS/DSi component regressions
-pass. All 52 original ROMs reproduce against the source/image ledger. See [testing](../../TESTING.md).
+pass. All 54 original ROMs reproduce against the source/image ledger. See [testing](../../TESTING.md).
 
 ```sh
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
