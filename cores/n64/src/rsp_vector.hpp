@@ -3,8 +3,9 @@
 #include <algorithm>
 #include <cstdint>
 #include "rsp_compare.hpp"
+#include "rsp_alu.hpp"
 namespace n64 {
-// Functional vector storage, transfers, multiply/accumulate and comparison execution.
+// Functional vector storage, transfers, multiply/accumulate, comparison and integer ALU execution.
 // Physical load/pipeline interlocks and remaining arithmetic are pending.
 class RspVector {
 public:
@@ -23,7 +24,7 @@ public:
         const unsigned op=ins>>26,base=(ins>>21)&31,vt=(ins>>16)&31,kind=(ins>>11)&31,e=(ins>>7)&15;
         auto sign16=[](unsigned v){return uint32_t(v)|((v&32768)?0xffff0000u:0u);};
         if(op==18){
-            if(base>=16)return (ins&63)>=32 && (ins&63)<=39?compare(ins):multiply(ins);
+            if(base>=16){const unsigned fn=ins&63;return RspAlu::supported(fn) || (fn>=32 && fn<=39)?lane_math(ins):multiply(ins);}
             if(base==0 || base==4){if(ins&127)return false;auto& v=registers[kind];if(base==0){if(vt)scalar[vt]=sign16(unsigned(v[e])*256+v[(e+1)%16]);}else{v[e]=uint8_t(scalar[vt]>>8);if(e<15)v[e+1]=uint8_t(scalar[vt]);}return true;}
             if(base==2 || base==6){if(ins&2047)return false;const unsigned index=std::min(kind&3,2u);if(base==2){if(vt)scalar[vt]=sign16(flags[index]);}else{flags[index]=uint16_t(scalar[vt]&(index==2?255:65535));}return true;}
             return false;
@@ -65,15 +66,17 @@ private:
     static uint16_t clamp_signed(int64_t v){return v<-32768?0x8000:v>32767?0x7fff:uint16_t(v);}
     unsigned lane(unsigned reg,unsigned at) const{return unsigned(registers[reg][2*at])*256+registers[reg][2*at+1];}
     void set_lane(unsigned reg,unsigned at,uint16_t value){registers[reg][2*at]=uint8_t(value>>8);registers[reg][2*at+1]=uint8_t(value);}
-    bool compare(uint32_t ins){
+    bool lane_math(uint32_t ins){
         const unsigned fn=ins&63,vt=(ins>>16)&31,vs=(ins>>11)&31,vd=(ins>>6)&31,e=(ins>>21)&15;
         std::array<unsigned,8> left{},right{};
         for(unsigned i=0;i<8;++i){const unsigned selected=e<2?i:e<4?(i&6)|(e&1):e<8?(i&4)|(e&3):e&7;left[i]=lane(vs,i);right[i]=lane(vt,selected);}
         std::array<uint16_t,3> next{};
         for(unsigned i=0;i<8;++i){
             const unsigned packed=((flags[0]>>i)&1)|(((flags[0]>>(i+8))&1)<<1)|(((flags[1]>>i)&1)<<2)|(((flags[1]>>(i+8))&1)<<3)|(((flags[2]>>i)&1)<<4);
-            const auto result=RspCompare::evaluate(fn,uint16_t(left[i]),uint16_t(right[i]),packed);
-            set_lane(vd,i,result.word);accumulator[i]=(accumulator[i]&0xffffffff0000ull)|result.word;
+            RspAlu::Result result{};
+            if(RspAlu::supported(fn))result=RspAlu::evaluate(fn,uint16_t(left[i]),uint16_t(right[i]),packed);
+            else{const auto comparison=RspCompare::evaluate(fn,uint16_t(left[i]),uint16_t(right[i]),packed);result={comparison.word,comparison.word,comparison.flags};}
+            set_lane(vd,i,result.word);accumulator[i]=(accumulator[i]&0xffffffff0000ull)|result.low;
             next[0]|=uint16_t(((result.flags&1)|((result.flags&2)<<7))<<i);
             next[1]|=uint16_t((((result.flags>>2)&1)|((result.flags&8)<<5))<<i);
             next[2]|=uint16_t(((result.flags>>4)&1)<<i);

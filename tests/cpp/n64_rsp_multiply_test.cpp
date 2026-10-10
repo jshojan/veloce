@@ -112,7 +112,7 @@ int main(int argc,char** argv){try{
  m.reset();vec.registers=bank;vec.flags={0xa55a,0x5aa5,0xa5};for(unsigned i=0;i<8;++i)vec.accumulator[i]=edges[9+i];m.dp_interface.flags=2;m.rsp_phase=2;opcode(m,0x4a010088);std::vector<uint8_t> saved,after,replay;require(m.save(saved),"S017 save");m.clock();m.save(after);require(m.restore(saved),"S017 restore");m.clock();m.save(replay);require(after==replay,"pending multiply exact replay");
  for(unsigned i=0;i<8;++i){auto bad=saved;bad[bad.size()-96+i*8]=1;require(m.restore(saved) && !m.restore(bad) && m.save(replay) && replay==saved,"invalid accumulator rejected atomically");}
  auto old=saved;old.resize(old.size()-96);old[7]='6';const auto bank_state=vec.snapshot();require(m.restore(old) && vec.accumulator==Acc{} && vec.snapshot()==bank_state && m.dp_interface.flags==2 && m.rsp_phase==2,"S016 neutral accumulator conversion preserves previous fields");
- m.reset();opcode(m,0x4bdfded0);require(!m.rsp.step(m.sp_interface,m.dp_interface,m.sp,m.ram) && m.rsp.blocked && m.sp_interface.pc==0 && m.sp_interface.status==1 && !m.sp_interface.interrupt,"remaining VADD blocks without BREAK/IRQ");
+ m.reset();opcode(m,0x4bdfdef0);require(!m.rsp.step(m.sp_interface,m.dp_interface,m.sp,m.ram) && m.rsp.blocked && m.sp_interface.pc==0 && m.sp_interface.status==1 && !m.sp_interface.interrupt,"remaining VRCP blocks without BREAK/IRQ");
  std::cout<<raw_cases<<" raw-halfword/function/selector cases; "<<aliases<<" register aliases; 524288 VSAR encodings; accumulator boundaries, published observations and S017 replay/rejection/legacy passed\n";
  return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}
