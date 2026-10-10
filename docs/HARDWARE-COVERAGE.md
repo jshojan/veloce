@@ -16,8 +16,8 @@ are not measurements of overall hardware or product completion.
 | Nintendo 64 | `n64_plugin` (experimental homebrew only) | 28,127/28,127 defined integer results matched; 28,160 observations, with 33 undefined divide inputs unscored; doubleword multiply/divide: 262,623/262,623 defined LO/HI pairs matched on exhaustive byte pairs and full-width boundaries; merge memory: 3,158,016/3,158,016 observations matched at every lane on all repeated-byte pairs and selected full-width patterns; digital SI/PIF: 16,384/16,384 button combinations and 131,072 register values matched; interrupt gates: 65,536/65,536 cases and 524,288 register values matched | Not measured; retail boot, graphics/audio, analog/controllers beyond port 1 and most platform hardware remain |
 | Virtual Boy | `vb_plugin` (experimental homebrew only) | 6,512,640/6,512,640 result/PSW pairs matched across ADD/SUB/CMP/OR/AND/XOR repeated-byte pairs and full-width boundaries, plus SHL/SHR/SAR patterns and all low-byte amounts; 4,210,688/4,210,688 multiply/divide snapshots matched with 8,704 divide-zero exception/RETI cases; 4,685,824/4,685,824 TRAP/illegal exception snapshots matched across all writable nonfatal PSW combinations and full reserved low-bit encodings; 4,982,784/4,982,784 address-trap snapshots matched across matching/disabled/aliased addresses and entry/return; 17,055,744/17,055,744 CAXI/port snapshots matched across comparisons/replacements, width/alignment, unsigned input and preserved flags; 14,680,064/14,680,064 arithmetic bit-string snapshots matched across eight operations, byte pairs, all offsets and twelve lengths; 100,712,448/100,712,448 immediate-instruction snapshots matched across all wide/short immediates for twelve instructions on sixteen patterns/all flags | Not measured; remaining CPU/NVC instructions, timing, VIP/VSU, controllers and most platform hardware remain |
 | Nintendo DS | `nds_plugin` (experimental homebrew only) | 44,238,336/44,238,336 dual-CPU result/CPSR/source snapshots matched across all sixteen data-processing operations, repeated-byte pairs and full-width boundaries, every NZCV and both ARM9 Q states; 38,338,560 six-family multiply and 51,426,816 Thumb result/CPSR/source/PC observations matched with undefined ARM7 flags excluded; 49,694,208 nine-word ARM/Thumb memory and 9,437,184 eight-word long-call snapshots matched with every bit graded; 3,720,960 stack/block snapshots matched; 4,096/4,096 digital keypad combinations matched | Not measured; firmware/retail boot, ARM block transfers, interrupts, graphics/audio, peripherals, timing and DSi enhanced mode remain |
-| GameCube | `gc_plugin` (original marked images only) | 49,152/49,152 six-word arithmetic snapshots matched | Not measured; most CPU and console hardware remain; [limits](../cores/ppc/README.md) |
-| Wii | `wii_plugin` (original marked images only) | 49,152/49,152 six-word arithmetic snapshots matched | Not measured; most CPU and console hardware, including MEM2/IOS, remain; [limits](../cores/ppc/README.md) |
+| GameCube | `gc_plugin` (original marked images only) | 49,152/49,152 arithmetic and 74,752/74,752 seven-word branch snapshots matched | Not measured; most CPU and console hardware remain; [limits](../cores/ppc/README.md) |
+| Wii | `wii_plugin` (original marked images only) | 49,152/49,152 arithmetic and 74,752/74,752 seven-word branch snapshots matched | Not measured; most CPU and console hardware, including MEM2/IOS, remain; [limits](../cores/ppc/README.md) |
 
 The experimental N64 plugin now executes original MIPS integer homebrew ROMs.
 It accepts only the documented `V64HB001` entry profile and cannot run retail
@@ -258,3 +258,16 @@ rejection, exact state replay and dynamic plugin lifecycle. Original marked
 images, synthetic output transport and direct payload startup are supplied test
 conditions. Retail boot, graphics/audio, controllers, netplay and most remaining
 hardware are pending; [profile details](../cores/ppc/README.md).
+
+The branch corpora additionally match 74,752 snapshots per profile: 34,816 BC,
+34,816 BCLR and 5,120 defined BCCTR cases with all BI fields and canonical BO
+options, both LK states, CR/CTR boundaries and indirect low-bit alignment. The
+seven captured words include branch marker, LR/CTR/CR/XER, actual PC anchor
+and untouched GPR. Every captured bit is independently graded. Three executed
+mutants must fail 256/144/128 reduced cases respectively; all field mutations
+and seven malformed streams are rejected. Component checks match 4,227,072
+branch snapshots across both profiles, including every displacement field,
+absolute/relative and link states, wrap-around and old LR target semantics.
+An original counted loop retains exact state across frame-boundary replay.
+Noncanonical BO fields and newer BH semantics are outside these hardware
+claims; prediction/timing and most platform hardware remain pending.

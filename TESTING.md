@@ -488,3 +488,26 @@ These are experimental supplied integer profiles. The ROMs contain no expected
 answers or verdicts. Passing these domains does not verify retail startup,
 physical timing, GPU/DSP, controllers, Wii MEM2/IOS or netplay. See the
 [implemented subset and limits](cores/ppc/README.md).
+
+### Conditional branch register corpora
+
+`gc_branch_registers` and `wii_branch_registers` each grade 74,752 seven-word
+BC/BCLR/BCCTR observations through the real frontend. Domains include canonical
+BO, every BI, four CR patterns, CTR boundaries, both LK states and indirect
+low-bit alignment. The host reads actual PC anchor sequences in the image and
+grades branch decisions and captured LR/CTR/CR/XER/PC/sentinel independently.
+Executed result, condition and LK mutations must fail exactly 256, 144 and 128
+reduced cases. Seven field mutations must fail and seven malformed streams
+must return ERROR. Files/reports are retained in
+`build/artifacts/owned/gc_branches/` and `build/artifacts/owned/wii_branches/`.
+
+`ppc_machine_test` now also matches 4,227,072 branch snapshots across both
+profiles, covering every BD field with AA/LK and wrapping targets, all canonical
+BO/BI and selected CR/CTR/LR boundaries. It verifies 256,000 invalid XL forms
+as diagnostics, ignored z-bit behavior separately, and complete replay of an
+original counted loop through both shared plugins. Noncanonical BO, newer BH,
+physical prediction/timing and other console hardware are not hardware-scored.
+
+```sh
+ctest --test-dir build -R '^(ppc_machine_test|(gc|wii)_(integer|branch)_registers)$' --output-on-failure
+```

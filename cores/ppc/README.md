@@ -10,7 +10,10 @@ GameCube/Wii software cannot boot. Full platform completion is unknown.
   XER carry/overflow/sticky summary overflow and CR0 recording.
 - ADDI/ADDIS, ORI/ORIS; big endian LWZ/LHZ/LBZ and STW/STH/STB with signed
   displacement, RA=0 address semantics and alignment diagnostics.
-- B/BL, absolute/relative displacement, BLR/BLRL; XER/LR/CTR MFSpr/MTSpr,
+- B/BL and BC, signed absolute/relative displacement; BCLR/BCCTR including
+  linked forms, CTR decrement/testing, CR bit conditions and aligned targets.
+  LK updates LR even on untaken paths; old LR supplies BCLR targets.
+- XER/LR/CTR MFSpr/MTSpr,
   MFCR and MTCRF field masks.
 - Reset, ROM CRC/identity, complete register/RAM states and exact replay.
   Unknown instructions, invalid accesses and unsupported SPRs stop with an
@@ -26,10 +29,27 @@ profiles and passes with undefined-behavior sanitization. Checks cover every ari
 GPR field encoding and destination/source aliases, loader/state validation,
 memory, branches and both dynamically loaded plugins.
 
+The [GameCube](../../tests/roms-src/gc/branch_registers/README.md) and
+[Wii](../../tests/roms-src/wii/branch_registers/README.md) branch ROMs each match
+74,752 seven-word snapshots: BC/BCLR canonical BO and every BI, four CR seeds,
+eight CTR patterns and both LK states; BCCTR uses only defined options and
+all target low bits. The component gate additionally matches 4,227,072 branch
+snapshots across both profiles, covers every BD field and AA/LK states, and
+checks exact replay of a 100,001-iteration original loop. Invalid XL forms and
+BCCTR decrement options diagnose without changing architectural registers.
+Noncanonical BO z bits are ignored in the supplied profile, separately tested
+but excluded from the ROM hardware score. Original XL fields require all five
+reserved bits zero; newer BH encodings are unsupported. Branch prediction,
+physical timing and specific Gekko/Broadway quirks remain unverified.
+
 Instruction references: [NXP MPC750 manual](https://www.nxp.com/docs/en/reference-manual/MPC750UM.pdf),
 [IBM addc](https://www.ibm.com/docs/en/aix/7.1.0?topic=set-addc-add-carrying-instruction),
 [IBM subfe](https://www.ibm.com/docs/en/aix/7.1.0?topic=set-subfe-sfe-subtract-from-extended-instruction),
 [IBM mtcrf](https://www.ibm.com/docs/en/aix/7.2.0?topic=set-mtcrf-move-condition-register-fields-instruction).
+Branch references: [NXP MPCxxx instruction set](https://www.nxp.com/docs/en/reference-manual/MPC82XINSET.pdf),
+[NXP 32-bit programming-environment errata](https://www.nxp.com/docs/en/reference-manual/MPCFPE32BAD.pdf),
+[IBM BCLR](https://www.ibm.com/docs/el/ssw_aix_72/assembler/idalangref_branch_conditional_link_register.html).
+
 These instruction-level references do not establish Gekko/Broadway hardware
 quirks, timing or console compatibility.
 
@@ -61,7 +81,7 @@ can emit observations again.
 
 ## Pending hardware
 
-Most CPU instructions, conditional branches, exceptions/interrupts, privileged
+Most CPU instructions, exceptions/interrupts, privileged
 state, MMU/caches, floating point and paired-single operations remain absent.
 So do IPL/IOS and firmware startup, disc loading, Flipper/Hollywood graphics,
 DSP/audio, EXI/SI controllers, Wii Bluetooth/Wiimote accessories, memory cards,
@@ -75,6 +95,6 @@ reports attempted instructions and CPU frequency is unspecified.
 ```sh
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --target veloce gc_plugin wii_plugin ppc_machine_test -j4
-ctest --test-dir build -R '^(ppc_machine_test|gc_integer_registers|wii_integer_registers)$' --output-on-failure
+ctest --test-dir build -R '^(ppc_machine_test|(gc|wii)_(integer|branch)_registers)$' --output-on-failure
 python3 tests/roms-src/build.py --original-only --check
 ```

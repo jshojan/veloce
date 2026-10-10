@@ -340,3 +340,10 @@ foreach(profile gc wii)
         --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/${profile}_integer)
     set_tests_properties(${profile}_integer_registers PROPERTIES LABELS "accuracy;owned" TIMEOUT 150)
 endforeach()
+
+foreach(profile gc wii)
+    add_test(NAME ${profile}_branch_registers COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_SOURCE_DIR}/tests/roms-src/${profile}/branch_registers/run.py --emulator $<TARGET_FILE:veloce>
+        --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/${profile}_branches)
+    set_tests_properties(${profile}_branch_registers PROPERTIES LABELS "accuracy;owned" TIMEOUT 150)
+endforeach()

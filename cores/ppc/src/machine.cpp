@@ -63,8 +63,24 @@ void Machine::step() {
         uint32_t delta=ins&0x03fffffc; if(delta&0x02000000) delta|=0xfc000000;
         if(ins&1) s.lr=pc+4;
         s.pc=(ins&2) ? delta:pc+delta; return;
-    } else if(ins==0x4e800020 || ins==0x4e800021) {
-        const auto target=s.lr&~3u; if(ins&1) s.lr=pc+4; s.pc=target; return;
+    } else if(op==16 || (op==19 && (((ins>>1)&1023)==16 || ((ins>>1)&1023)==528))) {
+        const unsigned bo=rt,bi=ra;
+        const bool indirect=op==19,to_count=indirect && ((ins>>1)&1023)==528;
+        // The supplied 750 profile uses the original XL form, without BH.
+        // An invalid form must not decrement CTR or overwrite LR.
+        if((indirect && rb) || (to_count && !(bo&4))) { s.unsupported=true; return; }
+        uint32_t target;
+        if(indirect) target=(to_count ? s.ctr:s.lr)&~3u;
+        else {
+            uint32_t delta=ins&0xfffc; if(delta&0x8000) delta|=0xffff0000u;
+            target=(ins&2) ? delta:pc+delta;
+        }
+        if(!(bo&4)) --s.ctr;
+        const bool count_ok=(bo&4) || ((s.ctr!=0) != bool(bo&2));
+        const bool condition_ok=(bo&16) || (((s.cr>>(31-bi))&1)==unsigned(bool(bo&8)));
+        // LK updates LR on both taken and untaken paths, after reading targets.
+        if(ins&1) s.lr=pc+4;
+        s.pc=count_ok && condition_ok ? target:pc+4; return;
     } else if(op==31) {
         const unsigned xo=(ins>>1)&1023,arithmetic=xo&511;
         if(arithmetic==266 || arithmetic==10 || arithmetic==138 || arithmetic==40 || arithmetic==8 || arithmetic==136) {

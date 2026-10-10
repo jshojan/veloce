@@ -24,6 +24,77 @@ static void execute(ppc::Machine& machine,uint32_t instruction) {
     machine.cpu.pc=0x80002000; machine.cpu.steps=0; machine.cpu.unsupported=false; machine.done=false;
     require(machine.write(machine.cpu.pc,4,instruction),"write instruction"); machine.step();
 }
+static uint64_t branch_checks(ppc::Machine& m) {
+    constexpr unsigned options[]={0,1,2,3,4,5,8,9,10,11,12,13,16,17,18,19,20};
+    constexpr uint32_t counters[]={0,1,2,3,0x7fffffff,0x80000000,0xfffffffe,0xffffffff};
+    constexpr uint32_t links[]={0,3,0x80000101,0xffffffff};
+    uint64_t count=0;
+    auto check=[&](unsigned family,unsigned bo,unsigned bi,uint32_t cr,uint32_t ctr,uint32_t lr,unsigned displacement,unsigned absolute,unsigned link,uint32_t pc) {
+        m.cpu={}; for(unsigned r=0;r<32;++r) m.cpu.r[r]=0x87654321u+r;
+        auto registers=m.cpu.r; m.cpu.cr=cr; m.cpu.xer=0xe000007f; m.cpu.ctr=ctr; m.cpu.lr=lr; m.cpu.pc=pc;
+        const bool changes_count=bo==0 || bo==1 || bo==2 || bo==3 || bo==8 || bo==9 || bo==10 || bo==11 || bo==16 || bo==17 || bo==18 || bo==19;
+        const auto after=changes_count?ctr-1:ctr;
+        const bool zero=bo==2 || bo==3 || bo==10 || bo==11 || bo==18 || bo==19;
+        const bool ctr_ok=!changes_count || (zero ? after==0:after!=0);
+        const auto condition=(cr>>(31-bi))&1;
+        const bool cr_ok=bo>=16 || (bo>=8 ? condition==1:condition==0);
+        const int64_t delta=int64_t(displacement)*4-(displacement>=8192?65536:0);
+        const uint32_t target=family==0?(absolute?uint32_t(delta):uint32_t(int64_t(pc)+delta)):family==1?(lr/4)*4:(ctr/4)*4;
+        const uint32_t ins=family==0?16u<<26|bo<<21|bi<<16|displacement<<2|absolute<<1|link:19u<<26|bo<<21|bi<<16|(family==1?16u:528u)<<1|link;
+        require(m.write(pc,4,ins),"branch test instruction write"); m.done=false; m.step();
+        require(!m.cpu.unsupported && m.cpu.steps==1 && m.cpu.pc==(ctr_ok && cr_ok?target:pc+4),"branch decision/target");
+        require(m.cpu.ctr==after && m.cpu.lr==(link?pc+4:lr) && m.cpu.cr==cr && m.cpu.xer==0xe000007f && m.cpu.r==registers,"branch register preservation"); ++count;
+    };
+    for(unsigned family=0;family<3;++family) for(auto bo:options) {
+        if(family==2 && !(bo&4)) continue;
+        for(unsigned bi=0;bi<32;++bi) for(uint32_t cr:{0u,0xffffffffu,0xa5a5a5a5u,0x5a5a5a5au})
+            for(auto ctr:counters) for(auto lr:links) for(unsigned link=0;link<2;++link) {
+                if(family==0) for(unsigned aa=0;aa<2;++aa) for(unsigned bd:{0u,1u,2u,8191u,8192u,16383u}) check(family,bo,bi,cr,ctr,lr,bd,aa,link,0x80002000);
+                else check(family,bo,bi,cr,ctr,lr,0,0,link,0x80002000);
+            }
+    }
+    // Every BD field in isolation, with both address/link bits and wrapping PCs.
+    for(unsigned bd=0;bd<16384;++bd) for(unsigned aa=0;aa<2;++aa) for(unsigned link=0;link<2;++link)
+        for(uint32_t pc:{4u,0x80002000u}) for(unsigned bo:{12u,20u}) check(0,bo,31,bd&1?0xffffffffu:0u,0,0xffffffff,bd,aa,link,pc);
+    // Unsupported XL fields and invalid BCCTR decrement forms are diagnostics,
+    // not scored hardware exception behavior; reject before modifying LR/CTR.
+    for(unsigned xo:{16u,528u}) for(unsigned bo=0;bo<32;++bo) for(unsigned bi=0;bi<32;++bi)
+        for(unsigned reserved=0;reserved<32;++reserved) for(unsigned link=0;link<2;++link) {
+            if(reserved==0 && (xo!=528 || (bo&4))) continue;
+            m.cpu={}; m.cpu.cr=0xa5a5a5a5; m.cpu.xer=0xe000007f; m.cpu.ctr=1; m.cpu.lr=0x1234567b;
+            execute(m,19u<<26|bo<<21|bi<<16|reserved<<11|xo<<1|link);
+            require(m.cpu.unsupported && m.cpu.pc==0x80002000 && m.cpu.ctr==1 && m.cpu.lr==0x1234567b && m.cpu.cr==0xa5a5a5a5 && m.cpu.xer==0xe000007f,"invalid branch mutated registers");
+        }
+    // Ignored BO z bits are supplied compatibility behavior, excluded from ROM grading.
+    for(unsigned raw=0;raw<32;++raw) {
+        unsigned canonical=raw; if(raw&16) canonical&=~8u; if(raw&4) canonical&=~2u; if((raw&20)==20) canonical&=~1u;
+        for(unsigned bi=0;bi<32;++bi) for(unsigned link=0;link<2;++link) {
+            m.cpu={}; m.cpu.cr=0xa5a5a5a5; m.cpu.ctr=1; m.cpu.lr=0x1234567b;
+            execute(m,16u<<26|canonical<<21|bi<<16|8|link); const auto want=m.cpu;
+            m.cpu={}; m.cpu.cr=0xa5a5a5a5; m.cpu.ctr=1; m.cpu.lr=0x1234567b;
+            execute(m,16u<<26|raw<<21|bi<<16|8|link);
+            require(!m.cpu.unsupported && m.cpu.pc==want.pc && m.cpu.ctr==want.ctr && m.cpu.lr==want.lr,"ignored branch option changed behavior");
+        }
+    }
+    return count;
+}
+static std::vector<uint8_t> branch_loop_image(bool wii) {
+    auto bytes=image(wii); bytes.resize(60); put(bytes,16,28);
+    const uint32_t instructions[]={15u<<26|3<<21|1u,24u<<26|3<<21|3<<16|0x86a1u,spr(3,9,true),14u<<26|4<<21,14u<<26|4<<21|4<<16|1u,16u<<26|16u<<21|0xfffcu,18u<<26};
+    for(unsigned n=0;n<7;++n) put(bytes,32+n*4,instructions[n]); return bytes;
+}
+static uint64_t state_scalar(const std::vector<uint8_t>& bytes,size_t offset) {
+    uint64_t value=0; for(unsigned n=0;n<8;++n) value=value<<8|bytes[offset+n]; return value;
+}
+static void branch_plugin_replay(emu::IEmulatorPlugin& plugin,bool wii) {
+    const auto rom=branch_loop_image(wii); require(plugin.load_rom(rom.data(),rom.size()),"branch loop plugin load");
+    plugin.run_frame({}); std::vector<uint8_t> prefix,final,replayed; require(plugin.save_state(prefix),"branch prefix save");
+    require(state_scalar(prefix,336)==50003 && state_scalar(prefix,80)==49998 && state_scalar(prefix,304)==0x80000010,"branch prefix exact counters");
+    plugin.run_frame({}); plugin.run_frame({}); require(plugin.save_state(final),"branch final save");
+    require(state_scalar(final,336)==0 && state_scalar(final,80)==100001 && state_scalar(final,304)==0x80000018,"guest counted loop incorrect");
+    require(plugin.load_state(prefix),"branch prefix restore"); plugin.run_frame({}); plugin.run_frame({}); require(plugin.save_state(replayed) && replayed==final,"branch plugin exact replay");
+}
+
 static uint64_t arithmetic_checks(ppc::Machine& m) {
     constexpr uint32_t values[]={0,1,2,15,16,127,128,255,0x7fff,0x8000,0x7fffffff,0x80000000,0xfffffffe,0xffffffff,0x55555555,0x89abcdef};
     uint64_t count=0;
@@ -139,17 +210,18 @@ static void loader_states(ppc::Machine& m,bool wii) {
 }
 int main(int argc,char** argv) {
     try {
-        require(argc==3,"two plugin paths required"); uint64_t count=0;
+        require(argc==3,"two plugin paths required"); uint64_t count=0,branches=0;
         for(bool wii:{false,true}) {
-            ppc::Machine m(wii); count+=arithmetic_checks(m); memory_and_control(m); transport(m); loader_states(m,wii);
+            ppc::Machine m(wii); count+=arithmetic_checks(m); branches+=branch_checks(m); memory_and_control(m); transport(m); loader_states(m,wii);
             const auto rom=image(wii); emulator_test::LoadedCore core(argv[wii?2:1],rom); auto& plugin=*core.plugin;
             const auto info=plugin.get_info(); require(std::string(info.name)==(wii?"Wii":"GameCube") && std::string(info.file_extensions[0])==(wii?".vwi":".vgc"),"plugin identity");
             std::vector<uint8_t> before,after,replay; require(plugin.save_state(before),"plugin save");
             plugin.run_frame({}); require(plugin.save_state(after),"plugin frame save"); require(plugin.load_state(before),"plugin restore"); plugin.run_frame({}); require(plugin.save_state(replay) && replay==after,"plugin replay");
             require(plugin.get_frame_count()==1 && plugin.get_cycle_count()==100000 && std::string(plugin.test_channels())=="ppcdebug","plugin counters/channel");
             require(plugin.get_framebuffer().width==640 && plugin.get_audio().sample_count==0,"blank graphics/audio metadata");
+            branch_plugin_replay(plugin,wii);
             plugin.unload_rom(); plugin.run_frame({}); require(!plugin.is_rom_loaded() && plugin.get_rom_crc32()==0 && plugin.get_frame_count()==0 && !plugin.save_state(replay),"plugin unload");
         }
-        std::cout<<count<<" PowerPC arithmetic/register snapshots matched; loader, memory, branches, states and both plugins passed\n";
+        std::cout<<branches<<" conditional branch snapshots and "<<count<<" PowerPC arithmetic/register snapshots matched; loader, memory, branches, states and both plugins passed\n";
     } catch(const std::exception& error) { std::cerr<<error.what()<<'\n'; return 1; }
 }
