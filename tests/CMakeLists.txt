@@ -415,3 +415,17 @@ add_test(NAME dsi_netplay_plugin_test COMMAND ${Python3_EXECUTABLE}
     $<TARGET_FILE:dsi_plugin> ${CMAKE_SOURCE_DIR}/tests/roms-src/dsi/netplay_probe/netplay_probe.vdsi
     ${CMAKE_BINARY_DIR}/artifacts/netplay-dsi --netplay-plugin $<TARGET_FILE:netplay_default> --console dsi)
 set_tests_properties(dsi_netplay_plugin_test PROPERTIES LABELS "integration;netplay;owned" TIMEOUT 120)
+
+add_executable(ctr_machine_test cpp/ctr_machine_test.cpp
+    ${CMAKE_SOURCE_DIR}/cores/3ds/src/machine.cpp ${CMAKE_SOURCE_DIR}/cores/nds/src/arm.cpp)
+target_include_directories(ctr_machine_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/3ds/src ${CMAKE_SOURCE_DIR}/include ${SDL2_INCLUDE_DIRS})
+target_link_libraries(ctr_machine_test PRIVATE ${SDL2_LIBRARIES})
+target_compile_definitions(ctr_machine_test PRIVATE SDL_MAIN_HANDLED)
+add_dependencies(ctr_machine_test ctr_plugin)
+add_test(NAME ctr_machine_test COMMAND ctr_machine_test $<TARGET_FILE:ctr_plugin>
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/3ds/reversal_registers/reversal_registers.v3ds)
+set_tests_properties(ctr_machine_test PROPERTIES LABELS "unit;accuracy;owned" TIMEOUT 180)
+add_test(NAME ctr_reversal_registers COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/3ds/reversal_registers/run.py --emulator $<TARGET_FILE:veloce>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/3ds_reversal)
+set_tests_properties(ctr_reversal_registers PROPERTIES LABELS "accuracy;owned" TIMEOUT 1800)

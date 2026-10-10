@@ -1,5 +1,16 @@
 {
   "roms": {
+    "3ds/reversal_registers/reversal_registers.v3ds": {
+      "build_command": "python3 tests/roms-src/3ds/reversal_registers/build.py",
+      "console": "3ds",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "010db184b85bbc19363c42ce4b35946f4672b0c97acb097db684c1edb1c1e2a6",
+      "source_repo": "tests/roms-src/3ds/reversal_registers/build.py",
+      "source_sha": "89b8e47b9795d9acf7cfa5791ed547a642d03d5128c7388ad41c8d91655e4b44",
+      "source_type": "original",
+      "suite": "reversal_registers"
+    },
     "dsi/netplay_probe/netplay_probe.vdsi": {
       "build_command": "python3 tests/roms-src/dsi/netplay_probe/build.py",
       "console": "dsi",

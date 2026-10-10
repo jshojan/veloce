@@ -747,3 +747,50 @@ DSi hardware remain pending; full platform completion is unmeasured.
 ctest --test-dir build -R '^(dsi_|nds_machine_test|nds_netplay_plugin_test)' --output-on-failure
 python3 tests/roms-src/build.py --original-only --check
 ```
+
+### 3DS plugin, original ARM11 reversal corpus and component evidence
+
+`ctr_plugin` supplies a distinct experimental `.v3ds` core: two ARM11 integer
+contexts and one ARM9, 128 MiB FCRAM, 512 KiB AXI and 1 MiB ARM9 private RAM,
+plus twelve active-low digital HID controls. Native software/firmware boot,
+remaining CPU/hardware, graphics/audio, physical timing and 3DS netplay remain
+pending. Overall hardware completion is not measured.
+
+`ctr_reversal_registers` matches **25,165,824/25,165,824 seven-word original
+ROM captures**: two ARM11s × ARM/Thumb × REV/REV16/REVSH × all 32 NZCVQ × all
+65,536 complemented-half inputs. ARM fields are fixed Rd4/Rm0, condition AL.
+The independent host byte oracle grades result, captured CPSR, source,
+encoding, initial CPSR and two sentinels. Thumb returns through BX before MRS,
+so T is normalized to zero; direct component checks cover Thumb T preservation.
+This domain does not exhaust all 32-bit sources or full platform hardware.
+
+Reduced executed result/width/sign/flag controls fail exactly
+3,072/1,024/1,024/3,072 rows; seven field mutations fail one row each and seven
+invalid streams produce errors. Header/ROM CRC/channel/count/row width,
+ordered block completion, ungraded trailer and EOF are mandatory. Raw output
+(~1.48 GiB), original/control images and JSON grades remain in
+`build/artifacts/owned/3ds_reversal/`.
+
+`ctr_machine_test` matches **36,123,648 reversal register snapshots** and
+**541,065,300 RAM bus observations**. Register aliases, ARM conditions,
+full-width patterns, walking/complemented bits, GE and full flag/GPR/PC
+preservation are separate component evidence. Reserved/R15 forms and ARM9,
+DS/DSi feature isolation are checked. Every supplied RAM byte is written once
+with an address-derived pattern and read through all permitted contexts;
+selected endian widths, boundaries, ownership and atomic rejection pass.
+These checks do not cover every address/value combination or physical chip
+behavior. All 4,096 digital HID inputs, readonly lanes, atomic image/state
+validation, full 135,791,096-byte state replay, a three-context writing guest,
+and the dynamic plugin lifecycle pass. The full component gate passes
+undefined-behavior sanitization; existing DS/DSi component regressions pass.
+All 49 original ROMs reproduce against the source/image ledger.
+
+```sh
+cmake --build build --target veloce ctr_plugin ctr_machine_test -j4
+ctest --test-dir build -R '^ctr_' --output-on-failure
+python3 tests/roms-src/build.py --original-only --check
+```
+
+CI/CD stays disabled. Full corpus timeout is 1,800 seconds. See
+[core implementation and limitations](cores/3ds/README.md) and
+[original domain and controls](tests/roms-src/3ds/reversal_registers/README.md).
