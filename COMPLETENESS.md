@@ -1,6 +1,6 @@
 # Veloce Accuracy Scorecard
 
-Current N64 evidence: [RSP comparison/clipping and current Mario evidence](#rsp-vector-comparison-and-clipping). Earlier increment reports are historical.
+Current N64 evidence: [RSP integer arithmetic/logic and current Mario evidence](#rsp-vector-integer-arithmetic-and-logic). Earlier increment reports are historical.
 
 This is the project's honest, evidence-based statement of how complete and
 cycle-accurate each emulator core is. Legacy headline percentages are produced by the
@@ -1254,3 +1254,72 @@ regression gates** pass in **739.91 seconds**, including the comparison componen
 All **88 original ROM archives** reproduce. The comparison component passes
 undefined-behavior sanitization. Both private retail reports match current
 executable hashes, and completion/whitespace checks pass.
+
+## RSP vector integer arithmetic and logic
+
+The RSP now executes **VADD, VSUB, VABS, VADDC, VSUBC, VAND, VNAND, VOR,
+VNOR, VXOR and VNXOR**. All element encodings and source/destination overlaps
+use captured input lanes. Arithmetic obeys signed saturation, the sign-selected
+VABS special case, unsigned carry/borrow and nonzero flags. VADD/VSUB consume
+VCO-low and clear VCO; VADDC/VSUBC produce carry/borrow flags. VABS and Boolean
+operations retain all comparison flags. VCC/VCE are preserved throughout these
+operations. Accumulator LOW16 receives the unclamped arithmetic residue, which
+can differ from the saturated destination; the upper 32 bits are retained.
+
+Rules follow the hardware-test author's primary
+[nemu64-test arithmetic/Boolean tests](https://github.com/thelemmy/nemu64-test/blob/main/src/tests/rsp/op_vector_arithmetic.rs)
+and [opcode encodings](https://github.com/thelemmy/nemu64-test/blob/main/src/rsp/rsp_assembler.rs).
+The component independently grades **184,549,376 lane cases**: every 16-bit
+VS value, eight boundary/relationship VT partners, all 32 incoming lane-flag
+combinations and all eleven functions. It also checks **112,640 actual vector
+cases** across all selectors, 32 register positions, five alias patterns and
+nonuniform flags. Whole-integer residues and per-bit Boolean truth tables are
+independent of the production lane helper. Literal carry/borrow producer-consumer
+chains, VABS -32768 saturation, untouched registers/scalar/DMEM, actual dispatch,
+BREAK IRQ and exact pending-instruction save replay are covered.
+
+| Original ROM | Cases | Actual 64-bit captures | Domain |
+|---|---:|---:|---|
+| [Integer pairs](tests/roms-src/n64/rsp_integer_pairs/README.md) | 2,883,584 | 51,904,512 | Every repeated-byte operand pair × all 32 incoming lane flags × eleven functions; identity selection |
+| [Integer edges](tests/roms-src/n64/rsp_integer_edges/README.md) | 2,883,584 | 51,904,512 | Every VS halfword × all 32 incoming lane flags × eleven functions; rotating selectors and selected boundary VT lanes |
+
+Each real RSP sequence seeds the accumulator with VMUDH, executes the operation,
+and records destination, every accumulator slice, both sources, VCO/VCC/VCE,
+SP PC/status and MI. The guest computes no verdict. Independent whole-integer
+and per-bit grading checks all eighteen fields. The flag loop runs in guest
+code, keeping each original archive below 1 MiB. An executed capture mutant,
+eighteen field mutations and seven malformed streams must fail. The edge
+corpus collectively covers selectors; it does not enumerate every full-width
+operand pair, selector and VT partner. These originals have not run on a physical
+console. Their artifacts are under `build/artifacts/owned/n64_rsp_integer_pairs/`
+and `n64_rsp_integer_edges/`.
+
+Plugin **0.23.0**, ABI v2, retains **VN64S019**. Existing vector flags and
+48-bit accumulators contain all integer-ALU state. Unsupported reciprocal,
+square-root, move and rare vector operations still block with an explicit
+word/PC diagnostic, without a fake BREAK/interrupt. Physical pipeline timing
+and interlocks remain ungraded. Existing unsupported-instruction controls now
+use the genuinely unsupported VRCP encoding instead of implemented VADD.
+
+The private Mario probe now passes **VADD** and advances another twelve RSP
+instructions to **VRCPH**, word **4B7D5EF2**, SP PC **0**, status **C1**, after
+**215,393 instructions**. At 2,000 scheduling quanta the CPU reaches **200,000,000
+attempts**, with **534 nonterminal exception entries** and no terminal fault.
+RDP **SET_TILE** remains blocked at **F510000007000000**, CURRENT **227128**,
+reason 1. Video remains uniform and **93,572 audio sample pairs** do not establish
+audible game sound. Scheduling quanta are not game frames. **Native boot and
+playability remain unverified**; commercial ROM bytes remain local.
+
+N64 stays **40% = 8/20 fixed delivery milestones**. The complete graphics
+milestone and the full Nintendo-platform goal remain unfinished. Front-page
+and core README percentages are synchronized. CI/CD remains disabled.
+
+Verification: the full build and **66 distinct N64 gates pass**. Both new
+original corpora pass in **759.33 seconds**, grading **5,767,168 cases /
+103,809,024 actual 64-bit words** with zero mismatches and rejecting the executed
+capture mutants, eighteen field mutations and seven malformed streams per suite.
+The remaining **64/64 N64 regression gates** pass in **1,242.24 seconds**,
+including the new integer-ALU component. All **90 original ROM archives**
+reproduce. The component passes undefined-behavior sanitization, both private
+retail reports match current executable hashes, and completion/whitespace
+checks pass.

@@ -70,7 +70,7 @@ int main(int argc,char** argv){try{
  opcode(m,0x40822000);r.gpr[2]=0x400;step(m);require(sp.status==128,"MTC0 status signal command");
 
  sp.reset();opcode(m,0x40043800);step(m);require(r.gpr[4]==0 && sp.semaphore==1,"MFC0 acquires semaphore");opcode(m,0x40843800);r.gpr[4]=123;step(m);require(!sp.semaphore,"MTC0 releases semaphore");
- for(uint32_t bad:{0x40048000u,0x4a000010u,0x70000000u}){opcode(m,bad);const auto before=r.gpr;const auto count=r.instructions;require(!r.step(sp,m.dp_interface,m.sp,m.ram) && r.gpr==before && sp.pc==0 && sp.status==1 && r.blocked && r.blocked_word==bad && r.instructions==count,"unsupported control/vector operation never fabricates BREAK or IRQ");}
+ for(uint32_t bad:{0x40048000u,0x4a000030u,0x70000000u}){opcode(m,bad);const auto before=r.gpr;const auto count=r.instructions;require(!r.step(sp,m.dp_interface,m.sp,m.ram) && r.gpr==before && sp.pc==0 && sp.status==1 && r.blocked && r.blocked_word==bad && r.instructions==count,"unsupported control/vector operation never fabricates BREAK or IRQ");}
  for(unsigned flags=0;flags<8;++flags){opcode(m,13);sp.status=(flags%2)*1+(flags/2%2)*32+(flags/4)*64;sp.interrupt=0;const bool halted=flags%2;r.step(sp,m.dp_interface,m.sp,m.ram);require(sp.pc==(halted?0u:4u) && (sp.status&3)==(halted?1u:3u) && sp.interrupt==(!halted && flags/4),"HALT/BREAK/IOB combinations");}
  opcode(m,0);sp.status=32;step(m);require(sp.pc==4 && sp.status==33,"single NOP step settles HALT");
  // CPU clock and MI see actual RSP BREAK, then CPU ack clears the shared level.
