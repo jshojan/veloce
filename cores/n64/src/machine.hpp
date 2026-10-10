@@ -10,7 +10,7 @@ public:
     Machine() : ram(ram_size), cpu(*this) {}
     bool load(const uint8_t* data, size_t size);
     void reset();
-    uint8_t interrupt_pending() const override { return si_interrupt && (mi_mask & 2) ? 4 : 0; }
+    uint8_t interrupt_pending() const override { return ((si_interrupt && (mi_mask & 2)) || (pi_interrupt && (mi_mask & 16))) ? 4 : 0; }
     bool read(uint64_t address, unsigned bytes, uint64_t& value) override;
     bool write(uint64_t address, unsigned bytes, uint64_t value) override;
     bool write_masked(uint64_t address, unsigned bytes, uint64_t value, uint8_t mask) override;
@@ -28,8 +28,13 @@ public:
     uint32_t si_address = 0, input_buttons = 0;
     bool si_interrupt = false;
     uint8_t mi_mask = 0;
+    enum class BootMode:uint8_t { Homebrew, OriginalIPL, Native6102 };
+    BootMode boot_mode=BootMode::Homebrew;
+    std::array<uint32_t,13> pi{};
+    bool pi_interrupt=false;
     void process_pif();
 private:
     static bool physical(uint64_t address, uint32_t& result);
+    bool write_pi(unsigned reg,uint32_t value);
 };
 }

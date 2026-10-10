@@ -156,12 +156,13 @@
       "readme": "cores/n64/README.md",
       "delivered": [
         "digital",
+        "native_media",
         "original_rom",
         "plugin",
         "register_oracle",
         "states"
       ],
-      "remaining": "Super Mario 64 is rejected at load; retail boot, FPU, RSP/RDP/VI/AI, remaining devices, analog and netplay remain."
+      "remaining": "Super Mario 64 loads but faults at RI initialization after six IPL3 instructions; retail boot, remaining CPU/FPU/devices, RSP/RDP/VI/AI, analog and netplay remain."
     },
     {
       "id": "vb",

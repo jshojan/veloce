@@ -47,7 +47,7 @@ headlines or original-ROM domain pass fractions.
 | [SNES](#snes) | 67 external tests / 19 suites, plus 2 original ROMs | 68,864 settled math cases and 504,832 timing bytes verified | Original multiplication domain is exhaustive; division covers boundaries; timing covers declared patterns/phases; external catalog remains unscored |
 | [Game Boy](#game-boy) | 225 external tests / 31 suites, plus 3 original ROMs | Verified subset only | Blargg serial subset, 2 WRAM checks, 8,388,608 ALU pairs and 73,728 unary pairs verified; Mooneye remains unverified |
 | [GBA](#gba) | 132 external tests / 29 suites, plus 1 original ROM | Partial; 65,536 original ARM shift cases verified | Legacy CPU/memory/BIOS/saves subsets verified; timing/PPU and remaining original hardware corpus pending |
-| N64 | 5 original ROMs; no external catalog | Declared integer/merge/controller/interrupt domains verified | Experimental marked homebrew; full hardware completion unknown; [limits](cores/n64/README.md) |
+| N64 | 7 original ROMs; no external catalog | Declared integer/merge/controller/interrupt domains verified | Experimental homebrew/native handoff; retail boot pending; full hardware completion unknown; [limits](cores/n64/README.md) |
 | Virtual Boy | 7 original ROMs; no external catalog | 6,512,640 result/PSW pairs plus 4,210,688 multiply/divide and 4,685,824 TRAP/illegal and 4,982,784 address-trap snapshots plus 17,055,744 CAXI/port and 14,680,064 arithmetic bit-string and 100,712,448 immediate-instruction snapshots | Experimental marked homebrew; remaining CPU/NVC, VIP/VSU, controllers and timing pending; [limits](cores/vb/README.md) |
 | Nintendo DS | 8 original ROMs; no external catalog | 44,238,336 integer plus 38,338,560 multiply plus 51,426,816 Thumb result/CPSR/source/PC observations matched; 49,694,208 nine-word memory and 9,437,184 eight-word long-call observations matched; 3,720,960 stack/block observations matched; 4,096/4,096 digital keypad combinations matched; 100-frame TCP host/viewer states and eight guest words match baseline/oracle; DS wireless multiplayer pending; ARM7 unpredictable multiply flags excluded | Experimental marked ARM/Thumb integer homebrew; firmware, ARM block transfers, graphics/audio, peripherals pending; DSi has a separate partial plugin; [limits](cores/nds/README.md) |
 | Nintendo DSi | 2 original ROMs; no external catalog | 387,072/387,072 RAM captures; 67,109,008 component bus observations; 100-frame TCP host/viewer states and eight guest register words match oracle | Experimental dual-CPU expanded-memory profile; firmware/retail boot, full SCFG/MBK, graphics/audio/peripherals and physical timing pending; [limits](cores/dsi/README.md) |
@@ -325,6 +325,19 @@ Wii Remote behavior remain pending. This is 100% of the declared digital domain,
 with no whole-hardware accuracy percentage implied. See [the profile](cores/ppc/README.md).
 
 Super Mario 64 was separately tested with the user's local image: the current
-N64 plugin rejects it at load. That is a pending retail target, not a scored
-pass. The original-ROM ledger contains 54 repository-owned programs; commercial
+N64 plugin loads it but faults at RI initialization after six IPL3 instructions. That is a pending retail target, not a scored
+pass. The original-ROM ledger contains 56 repository-owned programs; commercial
 ROM bytes are never part of that ledger or git.
+
+## N64 cartridge DMA and IPL3 handoff
+
+The [PI corpus](tests/roms-src/n64/pi_dma/README.md) matches 524,288 cases and
+8,388,608 guest register values across all even lengths 2–65,536, four cartridge
+offsets, two RDRAM addresses and both PI mask states. The [handoff corpus](tests/roms-src/n64/ipl3_handoff/README.md)
+matches twelve startup captures without bundling firmware. Executed guest mutants,
+all captured-field mutants and seven invalid streams per corpus are rejected.
+All nine N64 CTests pass; the PI component also passes undefined-behavior sanitization.
+Settled aligned ROM reads and explicit HLE startup are implemented; RI/RDRAM
+initialization, native retail boot, PI busy/misalignment/peripheral behavior,
+graphics/audio and physical timing remain pending. The ledger contains 56 original
+ROMs. CI/CD remains disabled.

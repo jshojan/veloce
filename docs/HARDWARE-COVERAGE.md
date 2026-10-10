@@ -13,7 +13,7 @@ are not measurements of overall hardware or product completion.
 | GB/CGB | `gb_plugin` | DMG WRAM/ADD probe: 2/2 checks; byte ALU E-register corpus: 8,388,608/8,388,608 A/F pairs matched (100% of eight operations, every operand pair, and all 16 incoming flag states); unary accumulator instructions: 73,728/73,728 A/F pairs matched (18 instructions × all bytes × all flags) | Not measured; other CPU operands/instructions, timing/PPU/APU/MBC/CGB corpus remains |
 | SNES | `snes_plugin` | Settled multiplication: 65,536/65,536 operand pairs verified (100%); division: 3,328 selected boundary cases verified; math timing: 504,832/504,832 register bytes matched at CPU phases 2–18 (100% of declared patterns/phases) | Not measured; timed full operand domain, refresh/DMA interactions, and remaining hardware corpora pending |
 | GBA | `gba_plugin` | ARM MOVS register shifts: 65,536/65,536 result/CPSR pairs verified; all low-byte amounts and C/V inputs on 16 operands | Not measured; remaining CPU modes/instructions, timing and peripheral corpora pending |
-| Nintendo 64 | `n64_plugin` (experimental homebrew only) | 28,127/28,127 defined integer results matched; 28,160 observations, with 33 undefined divide inputs unscored; doubleword multiply/divide: 262,623/262,623 defined LO/HI pairs matched on exhaustive byte pairs and full-width boundaries; merge memory: 3,158,016/3,158,016 observations matched at every lane on all repeated-byte pairs and selected full-width patterns; digital SI/PIF: 16,384/16,384 button combinations and 131,072 register values matched; interrupt gates: 65,536/65,536 cases and 524,288 register values matched | Not measured; retail boot, graphics/audio, analog/controllers beyond port 1 and most platform hardware remain |
+| Nintendo 64 | `n64_plugin` (experimental homebrew/native handoff) | 28,127/28,127 defined integer results matched; 28,160 observations, with 33 undefined divide inputs unscored; doubleword multiply/divide: 262,623/262,623 defined LO/HI pairs matched on exhaustive byte pairs and full-width boundaries; merge memory: 3,158,016/3,158,016 observations matched at every lane on all repeated-byte pairs and selected full-width patterns; digital SI/PIF: 16,384/16,384 button combinations and 131,072 register values matched; interrupt gates: 65,536/65,536 cases and 524,288 register values matched | Not measured; retail boot, graphics/audio, analog/controllers beyond port 1 and most platform hardware remain |
 | Virtual Boy | `vb_plugin` (experimental homebrew only) | 6,512,640/6,512,640 result/PSW pairs matched across ADD/SUB/CMP/OR/AND/XOR repeated-byte pairs and full-width boundaries, plus SHL/SHR/SAR patterns and all low-byte amounts; 4,210,688/4,210,688 multiply/divide snapshots matched with 8,704 divide-zero exception/RETI cases; 4,685,824/4,685,824 TRAP/illegal exception snapshots matched across all writable nonfatal PSW combinations and full reserved low-bit encodings; 4,982,784/4,982,784 address-trap snapshots matched across matching/disabled/aliased addresses and entry/return; 17,055,744/17,055,744 CAXI/port snapshots matched across comparisons/replacements, width/alignment, unsigned input and preserved flags; 14,680,064/14,680,064 arithmetic bit-string snapshots matched across eight operations, byte pairs, all offsets and twelve lengths; 100,712,448/100,712,448 immediate-instruction snapshots matched across all wide/short immediates for twelve instructions on sixteen patterns/all flags | Not measured; remaining CPU/NVC instructions, timing, VIP/VSU, controllers and most platform hardware remain |
 | Nintendo DS | `nds_plugin` (experimental homebrew only) | 44,238,336/44,238,336 dual-CPU result/CPSR/source snapshots matched across all sixteen data-processing operations, repeated-byte pairs and full-width boundaries, every NZCV and both ARM9 Q states; 38,338,560 six-family multiply and 51,426,816 Thumb result/CPSR/source/PC observations matched with undefined ARM7 flags excluded; 49,694,208 nine-word ARM/Thumb memory and 9,437,184 eight-word long-call snapshots matched with every bit graded; 3,720,960 stack/block snapshots matched; 4,096/4,096 digital keypad combinations matched | Not measured; firmware/retail boot, ARM block transfers, interrupts, graphics/audio, peripherals and timing remain; DSi has a separate partial plugin |
 | Nintendo DSi | `dsi_plugin` (original marked images only) | 387,072/387,072 original RAM captures; 67,109,008 component byte/width observations; 100-frame TCP host/viewer states and eight guest words match oracle | Not measured; firmware/retail boot, full SCFG/MBK, physical timing and most console hardware remain; [limits](../cores/dsi/README.md) |
@@ -23,8 +23,8 @@ are not measurements of overall hardware or product completion.
 | Wii | `wii_plugin` (original marked images only) | 49,152/49,152 arithmetic and 74,752/74,752 branch and 42,108,928/42,108,928 condition and 6,324,224/6,324,224 integer logical and 9,437,184/9,437,184 rotate/mask and 4,416,528/4,416,528 shift/unary and 25,168,384/25,168,384 carry arithmetic snapshots and 8,420,320/8,420,320 defined multiply/divide results matched; 1,056 undefined division rows have defined flags/preserved fields checked; 12,586,368/12,586,368 memory-transfer snapshots matched | Not measured; most CPU and console hardware, including MEM2/IOS, remain; [limits](../cores/ppc/README.md) |
 
 The experimental N64 plugin now executes original MIPS integer homebrew ROMs.
-It accepts only the documented `V64HB001` entry profile and cannot run retail
-images. Its corpus observes 28,160 GPR/HI/LO results across 20 instructions,
+It accepts the documented homebrew and original/native IPL3 handoff profiles;
+Super Mario 64 loads but faults during RI initialization, with retail boot unverified. Its corpus observes 28,160 GPR/HI/LO results across 20 instructions,
 with 28,127/28,127 defined selected-pattern results matching an independent
 oracle. The 33 undefined divide inputs are recorded but unscored. All low-byte
 shift amounts are covered on 16 patterns per width; full operand domains and
@@ -440,7 +440,7 @@ supplied-profile byte checks, not physical chip-control/timing evidence.
 guest words matching the independent oracle. Host owns one keypad; viewer
 replay is supported, DSi wireless multiplayer is pending. DS component and
 production netplay regression gates pass. Local TCP gates require loopback
-socket permission; CI/CD remains disabled. All 54 original ROMs reproduce
+socket permission; CI/CD remains disabled. All 56 original ROMs reproduce
 against the source/image ledger. Firmware/retail boot, full SCFG/MBK and most
 DSi hardware remain pending; full platform completion is unmeasured.
 
@@ -488,7 +488,7 @@ Physical 3DS wireless/link multiplayer, Internet/cross-platform sessions,
 compression/page sharing and sustained real-time performance remain pending.
 A window-8 ring uses about 1.14 GiB per peer plus core/scratch memory. Reports,
 register files and full states stay in `build/artifacts/netplay-3ds/`.
-All 54 original ROMs reproduce from their source/image ledger. CI/CD remains disabled.
+All 56 original ROMs reproduce from their source/image ledger. CI/CD remains disabled.
 
 ### Wii U original integer and full mapped-RAM evidence
 
@@ -516,7 +516,7 @@ proved. Raw files/grades stay in `build/artifacts/owned/wiiu_immediates/`.
 Firmware/native formats, Starbuck/IOSU/Cafe, remaining CPU instructions,
 Latte/GX2 GPU, DSP/audio, native GamePad/KPAD/VPAD, storage, native wireless multiplayer
 and most platform hardware remain pending. Switch still lacks a plugin.
-All 54 original ROMs reproduce from the ledger. No overall hardware percentage
+All 56 original ROMs reproduce from the ledger. No overall hardware percentage
 is inferred. CI/CD remains disabled; use the local gates in the core README.
 
 ### Wii U sparse-state host/viewer netplay
@@ -538,7 +538,7 @@ still cost large states. Native GamePad/VPAD/KPAD, wireless multiplayer, physica
 devices/two machines, Internet/cross-platform and sustained performance remain
 unverified or pending. Reports are in `build/artifacts/netplay-wiiu/`.
 The full Wii U component gate passes undefined-behavior sanitization; all
-seven netplay gates pass. CI/CD stays disabled; all 54 original ROMs reproduce
+seven netplay gates pass. CI/CD stays disabled; all 56 original ROMs reproduce
 against the ledger.
 
 ## GameCube/Wii settled digital controller gates
@@ -559,10 +559,23 @@ python3 tests/roms-src/build.py --original-only --check
 python3 tests/update_completion.py --check
 ```
 
-The ledger now includes 54 original ROMs. Controller polling, analog axes,
+The ledger now includes 56 original ROMs. Controller polling, analog axes,
 origin calibration, VI/wire timing, CPU SI interrupts, accessories, four-port
 frontend input and Wii Remote support remain pending. CI/CD remains disabled.
 The [delivery completion ledger](../docs/CORE-COMPLETION.md) is separate from
 hardware-domain pass fractions and legacy external-suite accuracy scores.
 The optional `tests/n64_retail_probe.py` takes a locally supplied N64 ROM;
-Super Mario 64 currently reports load rejection. Its ROM bytes never enter git.
+Super Mario 64 now loads and attempts six IPL3 instructions, then faults at missing RI register `A470000C`; boot/playability remain unverified. Its ROM bytes never enter git.
+
+## N64 cartridge DMA and IPL3 handoff
+
+The [PI corpus](../tests/roms-src/n64/pi_dma/README.md) matches 524,288 cases and
+8,388,608 guest register values across all even lengths 2–65,536, four cartridge
+offsets, two RDRAM addresses and both PI mask states. The [handoff corpus](../tests/roms-src/n64/ipl3_handoff/README.md)
+matches twelve startup captures without bundling firmware. Executed guest mutants,
+all captured-field mutants and seven invalid streams per corpus are rejected.
+All nine N64 CTests pass; the PI component also passes undefined-behavior sanitization.
+Settled aligned ROM reads and explicit HLE startup are implemented; RI/RDRAM
+initialization, native retail boot, PI busy/misalignment/peripheral behavior,
+graphics/audio and physical timing remain pending. The ledger contains 56 original
+ROMs. CI/CD remains disabled.

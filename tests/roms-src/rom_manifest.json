@@ -231,6 +231,17 @@
       "source_type": "original",
       "suite": "interrupts"
     },
+    "n64/ipl3_handoff/ipl3_handoff.z64": {
+      "build_command": "python3 tests/roms-src/n64/ipl3_handoff/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "da2b4c8b2d8a488ea3f85f261188406b82ef7e6f64b119cd7f42696ade85a6a5",
+      "source_repo": "tests/roms-src/n64/ipl3_handoff/build.py",
+      "source_sha": "883be626017020629e1ec2f99deb284c4fa9f9d78af88afcd4bd81407de313f2",
+      "source_type": "original",
+      "suite": "ipl3_handoff"
+    },
     "n64/merge_memory/merge_memory.z64": {
       "build_command": "python3 tests/roms-src/n64/merge_memory/build.py",
       "console": "n64",
@@ -252,6 +263,17 @@
       "source_sha": "72a036ffcf2dd7febcd72f7a5627b2ab8d7613fc4d3cf4d763f5d8fd99f047c4",
       "source_type": "original",
       "suite": "muldiv64"
+    },
+    "n64/pi_dma/pi_dma.z64": {
+      "build_command": "python3 tests/roms-src/n64/pi_dma/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "1b1cf7ec1f87186faff2fd8115cec8184062774eabd8daf861b5fa76a1bd761f",
+      "source_repo": "tests/roms-src/n64/pi_dma/build.py",
+      "source_sha": "3335cfce93aa6fa3c49ea5cd1ee1ba1cd7ac71244f86a1e51094e8ead020cfc3",
+      "source_type": "original",
+      "suite": "pi_dma"
     },
     "nds/integer_registers/integer_registers.nds": {
       "build_command": "python3 tests/roms-src/nds/integer_registers/build.py",
