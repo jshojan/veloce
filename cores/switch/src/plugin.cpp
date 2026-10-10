@@ -4,7 +4,7 @@ class Plugin final : public emu::IEmulatorPlugin {
 public:
     emu::EmulatorInfo get_info() override {
         static const char* extensions[]={".nso",nullptr};
-        return {"Switch","0.3.0","Veloce","Experimental uncompressed NSO0/AArch64 integer guest core with multiply/divide and conditional select; firmware, full CPU, graphics/audio, native devices, controllers, timing and retail compatibility pending.",extensions,60.0,0,320,240};
+        return {"Switch","0.4.0","Veloce","Experimental uncompressed NSO0/AArch64 integer guest core with multiply/divide, conditional select, variable shifts and bit operations; firmware, full CPU, graphics/audio, native devices, controllers, timing and retail compatibility pending.",extensions,60.0,0,320,240};
     }
     bool load_rom(const uint8_t* data,size_t size) override{return machine.load(data,size);}
     void unload_rom() override{machine.rom.clear();machine.crc=0;machine.identity=0;machine.reset();}

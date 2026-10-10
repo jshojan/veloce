@@ -1725,3 +1725,44 @@ milestones**: full CPU/extensions/exceptions, HOS/native boot, native RAM/MMU,
 GPU/audio/controllers/devices, saves/netplay, physical timing and the complete
 original hardware corpus remain pending. CI/CD remains disabled, no commercial
 bytes are included, and the full Nintendo implementation goal remains active.
+
+
+## AArch64 variable shifts and unary bit operations
+
+Plugin **0.4.0**, emulator ABI v2, implements LSLV/LSRV/ASRV/RORV in both
+widths, RBIT, REV16, REV32 (including W REV), X REV64, CLZ and CLS. Shift
+counts mask to five/six bits; arithmetic shifts sign-fill, and zero rotations
+avoid host shifts by the operand width. Byte reversal is local to the selected
+group, CLS excludes the sign bit, W writes zero-extend, and all forms preserve
+NZCV. Operands/destinations use XZR semantics and leave SP unchanged. Reserved
+unary encodings reject before architectural writes. `VNXS0001`, ABI/state
+layout, fixed process map and scheduling remain unchanged.
+
+The [original guest](tests/roms-src/switch/bitops_registers/README.md) passes **1,120,096 rows / 5,600,480 actual words**:
+272 repeated-byte/full-width boundary operands, all shift counts 0–255, two
+flag seeds and eight variable-shift forms (1,114,112 rows), plus eleven unary
+forms (5,984 rows). Actual source/count/result/MRS NZCV/context are emitted by
+guest STR instructions. Independent unbounded arithmetic, binary strings and
+byte-sequence operations grade these files. The executed result mutant fails
+all **172** short rows; five field and seven malformed-stream controls reject.
+The production ABI gate replays actual register output and complete states.
+Artifacts: `build/artifacts/owned/switch_bitops/`.
+
+The separate per-bit component passes **9,218,304 snapshots**: 9,121,792
+variable-shift cases, 47,872 unary cases, and 48,640 alias/XZR/register-routing
+cases. It covers all sixteen initial NZCV values and six extra count patterns
+with upper bits set. All registers, flags, SP and counters are checked; reserved
+opcode/Rm/S and shift controls reject. The previous production core stopped
+the original guest before any register row, and the component failed before
+implementation. All nineteen original forms match the [pinned LLVM encoding
+reference](tests/reference/switch-bitops/README.md); this does not claim physical execution.
+
+All **twelve Switch gates pass** in **24.92 seconds** after a warning-free full
+build, including nine existing regressions. Component UBSAN passes with clean
+compilation. All **98 original archives** reproduce; actual report identities,
+completion renderer, changed local links and whitespace pass. Switch stays
+**25% = 5/20 fixed delivery milestones**: full CPU/extensions/exceptions, native
+memory/MMU, firmware/HOS/retail boot, GPU/audio/controllers/devices, persistent
+saves/netplay, physical timing and the complete native hardware corpus remain
+pending. These finite operand domains do not claim complete hardware accuracy.
+CI/CD remains disabled. The full Nintendo implementation goal remains active.

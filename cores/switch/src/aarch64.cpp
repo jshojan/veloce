@@ -85,6 +85,32 @@ bool Aarch64::step(){
         put(rd,result);
         if(op==3)state.nzcv=unsigned(bool(result&(uint64_t(1)<<(width-1))))*8+unsigned(!result)*4;
     }
+    else if((w&0x7fe0f000)==0x1ac02000){
+        const unsigned op=(w>>10)&3,amount=unsigned(reg(rm))&(width-1);
+        const uint64_t source=reg(rn)&mask;uint64_t result=source;
+        if(op==0)result=source<<amount;
+        else if(op==1)result=source>>amount;
+        else if(op==2 && amount)result=(source>>amount)|((source&(uint64_t(1)<<(width-1)))?mask^(mask>>amount):0);
+        else if(op==3 && amount)result=(source>>amount)|(source<<(width-amount));
+        put(rd,result&mask);
+    }
+    else if((w&0x7fff0000)==0x5ac00000){
+        const unsigned op=(w>>10)&63;
+        if(op>5 || (op==3 && width==32))return fail(3,pc,w);
+        const uint64_t source=reg(rn)&mask;uint64_t result=0;
+        if(op==0){for(unsigned i=0;i<width;++i)result=(result<<1)|((source>>i)&1);}
+        else if(op<4){
+            const unsigned bytes=1u<<op;
+            for(unsigned offset=0;offset<width/8;offset+=bytes)
+                for(unsigned i=0;i<bytes;++i)result|=((source>>((offset+i)*8))&255)<<((offset+bytes-1-i)*8);
+        }
+        else{
+            const uint64_t normalized=op==5 && (source>>(width-1))?(~source)&mask:source;
+            for(unsigned i=width;i>0 && !((normalized>>(i-1))&1);--i)++result;
+            if(op==5)--result; // CLS excludes the sign bit itself.
+        }
+        put(rd,result);
+    }
     else if((w&0x3fe00800)==0x1a800000){
         // Conditional select: both sources use XZR, never SP; NZCV is preserved.
         uint64_t result=reg(rn);
