@@ -267,7 +267,7 @@ static void append(std::vector<uint8_t>& data, uint64_t value) {
 }
 bool Machine::save(std::vector<uint8_t>& data) const {
     if (rom.empty()) return false;
-    data.assign({'V','N','6','4','S','0','0','9'});
+    data.assign({'V','N','6','4','S','0','1','0'});
     append(data, identity); append(data, crc); append(data, frames); append(data, done);
     const auto& s = cpu.state;
     for (auto value : s.gpr) append(data, value);
@@ -288,6 +288,7 @@ bool Machine::save(std::vector<uint8_t>& data) const {
     for(auto reg:audio_interface.snapshot())append(data,reg);
     for(auto reg:{crystal_phase,output_phase,audio_head,audio_count,audio_dropped})append(data,reg);
     for(auto sample:audio_samples) {data.push_back(uint8_t(sample>>8));data.push_back(uint8_t(sample));}
+    append(data,s.fcr31);
     return true;
 }
 bool Machine::restore(const std::vector<uint8_t>& data) {
@@ -300,7 +301,8 @@ bool Machine::restore(const std::vector<uint8_t>& data) {
     const bool devices_previous=!std::memcmp(data.data(),"VN64S006",8);
     const bool caches_previous=!std::memcmp(data.data(),"VN64S007",8);
     const bool sp_previous=!std::memcmp(data.data(),"VN64S008",8);
-    if((!legacy && !previous && !ri_previous && !mi_previous && !devices_previous && !caches_previous && !sp_previous && std::memcmp(data.data(),"VN64S009",8)) || data.size()!=prefix+ram_size+sp.size()+(legacy?0:previous?120:ri_previous?176:mi_previous?192:devices_previous?480:caches_previous?41440:sp_previous?41512:74440) ||
+    const bool audio_previous=!std::memcmp(data.data(),"VN64S009",8);
+    if((!legacy && !previous && !ri_previous && !mi_previous && !devices_previous && !caches_previous && !sp_previous && !audio_previous && std::memcmp(data.data(),"VN64S010",8)) || data.size()!=prefix+ram_size+sp.size()+(legacy?0:previous?120:ri_previous?176:mi_previous?192:devices_previous?480:caches_previous?41440:sp_previous?41512:audio_previous?74440:74448) ||
         (legacy && boot_mode!=BootMode::Homebrew)) return false;
     size_t position = 8;
     auto take = [&]() { auto v = be(data.data() + position, 8); position += 8; return v; };
@@ -360,6 +362,9 @@ bool Machine::restore(const std::vector<uint8_t>& data) {
         saved_crystal=take();saved_output=take();saved_head=take();saved_count=take();saved_dropped=take();
         if(saved_crystal>=93750000 || saved_output>=93750000 || saved_head>=audio_capacity || saved_count>audio_capacity)return false;
         for(auto& sample:saved_samples) {sample=uint16_t(be(data.data()+position,2));position+=2;}
+    }
+    if(!legacy && !previous && !ri_previous && !mi_previous && !devices_previous && !caches_previous && !sp_previous && !audio_previous) {
+        const auto control=take();if(control & ~uint64_t(0x0183ffff))return false;s.fcr31=uint32_t(control);
     }
     position=memory_position;
     // Validate first; rejected states leave the active machine untouched.

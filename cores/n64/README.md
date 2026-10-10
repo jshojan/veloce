@@ -11,7 +11,7 @@ These percentages count the 20 explicit delivery milestones in [the completion l
 
 Nintendo 64 delivered milestones: Guest sound produces audio samples, Native digital controller/keypad registers consume frontend input, Parse a native cartridge/executable format (boot scored separately), Repository-owned ROM source and reproducible archived image, Separate core plugin and ABI entry points, Actual guest register-file output independently graded on the host, with negative controls, Complete states for the implemented profile and deterministic replay.
 
-Remaining: Super Mario 64 reaches 5,896,277 startup attempts, then faults on FPU CFC1; native boot/playability, RAM remapping/calibration, remaining CPU/FPU/devices, RSP/RDP/VI, RSP audio microcode, physical AI timing, analog and netplay remain.
+Remaining: Super Mario 64 reaches 5,896,601 startup attempts, then faults on TLBWI; native boot/playability, RAM remapping/calibration, remaining CPU/FPU/devices, RSP/RDP/VI, RSP audio microcode, physical AI timing, analog and netplay remain.
 <!-- completion:end -->
 
 `n64_plugin` builds `n64.so`/`n64.dll`/`n64.dylib` and implements emulator ABI v2.
@@ -22,6 +22,9 @@ Full-core completion is unknown; the available corpus measures defined results
 on selected operands, not a percentage of N64 hardware implemented.
 
 ## Implemented execution
+
+- FPU CFC1/CTC1 control transfers and BC1F/BC1T/BC1FL/BC1TL branches;
+  CU1/FPE exception context and persistent FCR31. FPR arithmetic remains pending.
 
 - Word and doubleword add/subtract, trapping and nontrapping forms; logic,
   signed/unsigned comparisons, immediate arithmetic and logic.
@@ -100,7 +103,7 @@ SI re-entry and pending SI/timer save-state continuation also have unit evidence
 Count still advances once per two CPU step attempts, including interrupt entry.
 This is an instruction-clock approximation. Exact PClock/pipeline timing,
 CP0 hazards, Count-write equality timing, privilege checks, other interrupt
-producers and reset/NMI/cache-error paths are unverified. The current `VN64S009` state stores Count, Compare, Cause, Status and pending SI/PI/SP/AI/MI state. Device levels are resampled on the next step.
+producers and reset/NMI/cache-error paths are unverified. The current `VN64S010` state stores Count, Compare, Cause, Status and pending SI/PI/SP/AI/MI state. Device levels are resampled on the next step.
 
 ## Explicit homebrew entry profile
 
@@ -170,10 +173,10 @@ cmake --build build --target veloce n64_plugin n64_machine_test n64_pi_test n64_
 ctest --test-dir build -R '^n64_' --output-on-failure
 ```
 
-`VN64S009` states store explicit big-endian scalars, all GPR/CP0 registers,
+`VN64S010` states store explicit big-endian scalars, all GPR/CP0 registers,
 HI/LO, both PCs, pending delay state, instruction/frame counters, completion,
 RAM and SP storage, PIF RAM, SI address/completion, MI mask, latched digital
-input and debug yield state, plus 13 PI registers, PI IRQ and boot mode (120 bytes), six RI controls and a current-loaded flag (56 bytes), plus MI mode and pending DP (16 bytes) and 36 device-register scalars (288 bytes), plus all cache tags/valid/dirty flags and data (40,960 bytes) and nine SP interface scalars (72 bytes), plus 15 AI scalars, five host-clock/ring scalars and 32,768 bytes of pending PCM storage (32,928 bytes). Legacy `VN64S008` restores neutral AI/host audio; `VN64S007` restores reset SP controls; `VN64S006` restores invalid caches; `VN64S005` restores reset device registers; `VN64S004` states restore with neutral MI mode/DP; `VN64S003` states restore with neutral RI; `VN64S002` loads only for homebrew, with neutral PI/RI; `VN64S001` is rejected. ROM data is immutable and referenced by identity. Size,
+input and debug yield state, plus 13 PI registers, PI IRQ and boot mode (120 bytes), six RI controls and a current-loaded flag (56 bytes), plus MI mode and pending DP (16 bytes) and 36 device-register scalars (288 bytes), plus all cache tags/valid/dirty flags and data (40,960 bytes) and nine SP interface scalars (72 bytes), plus 15 AI scalars, five host-clock/ring scalars and 32,768 bytes of pending PCM storage (32,928 bytes). FCR31 is appended as an 8-byte validated scalar. Legacy `VN64S009` restores neutral FCR31; `VN64S008` restores neutral AI/host audio; `VN64S007` restores reset SP controls; `VN64S006` restores invalid caches; `VN64S005` restores reset device registers; `VN64S004` states restore with neutral MI mode/DP; `VN64S003` states restore with neutral RI; `VN64S002` loads only for homebrew, with neutral PI/RI; `VN64S001` is rejected. ROM data is immutable and referenced by identity. Size,
 version, ROM identity and basic field validation precede restoration. The
 instruction counter counts CPU step attempts including interrupt entry,
 **not actual VR4300 cycles**;
@@ -184,7 +187,7 @@ not an emulated VI field. The nominal metadata rate is NTSC/93.75 MHz only.
 
 PIF/IPL/CIC and retail boot, TLB/address modes, cache errors and pipeline timing,
 full CP0, remaining interrupt producers and timing, LL/SC, traps,
-FPU, RSP/vector instructions, RDP, VI, full AI/DAC physical behavior, full RDRAM initialization and remaining RI/PI behavior, full SI/MI/PIF,
+FPU data transfers/arithmetic/conversion/comparison, RSP/vector instructions, RDP, VI, full AI/DAC physical behavior, full RDRAM initialization and remaining RI/PI behavior, full SI/MI/PIF,
 analog and multiplayer controllers,
 save media, video/audio output, expansion devices and physical hardware
 validation remain. Unimplemented opcodes raise a reserved-instruction exception.
@@ -257,7 +260,7 @@ exact continuation, legacy states, reset and the loaded plugin.
 These are functional controls. Analog current calibration, mode-dependent RAM
 access, refresh scheduling, bus contention/error production, native RAM remapping
 and physical timing remain pending. Native cartridge startup now proceeds past
-RI register configuration and reaches MI control setup; the local target now reaches the unsupported FPU control instruction CFC1.
+RI register configuration and reaches MI control setup; the local target now reaches the unsupported TLB write instruction TLBWI.
 
 ## MI mode and interrupt controls
 
@@ -349,8 +352,8 @@ verified boot. The bounded trace now allows 12,000,000 attempts, matching the
 ## Local retail regression target
 
 Super Mario 64 (USA), supplied locally by the user, was probed on 2026-10-10.
-The plugin **loads it and reaches 5,896,277 startup step attempts**, then faults on
-the unsupported FPU control instruction CFC1 at PC `$80328730` (word `$4442F800`). EPC is `$80328730`, Cause is `$28`,
+The plugin **loads it and reaches 5,896,601 startup step attempts**, then faults on
+the unsupported TLB write instruction TLBWI at PC `$80328818` (word `$42000002`). EPC is `$80328818`, Cause is `$28`,
 and the exception vector is `$80000180`. The production ABI probe runs 120
 frontend scheduling quanta with uniform video and no audio. **Retail boot and
 playability are unverified.** The 8 MiB image has SHA256
@@ -446,7 +449,7 @@ identical samples and leave identical whole states after consumption. Pending
 host output is bounded to 8,192 stereo pairs; a stalled consumer drops the oldest
 host samples without stopping guest DMA, with a stateful drop counter. FIFO,
 partial word position, raw sample latches, clock phases and pending host output
-are included in `VN64S009`. Replay and malformed-state rejection are tested.
+are included in `VN64S010`. Replay and malformed-state rejection are tested.
 
 The [FIFO ROM](../../tests/roms-src/n64/ai_fifo/README.md) matches 2,048 cases /
 22,528 guest register values. The [PCM ROM](../../tests/roms-src/n64/ai_pcm/README.md)
@@ -464,3 +467,26 @@ References: the [AI hardware documentation](https://n64brew.dev/wiki/Audio_Inter
 and the [authors' audio driver](https://github.com/DragonMinded/libdragon/blob/trunk/src/audio.c).
 Implementation and ROM code are original. No external driver code or firmware
 is included.
+
+## FPU control registers and branches
+
+CFC1/CTC1 implement FCR0 and FCR31 with CU1 unusable precedence (CE=1),
+reserved-bit masking and write-before-trap semantics. Enabled IEEE causes or
+unimplemented-operation cause trigger CPU FPE. FCR0 is read-only, implementation
+0x0B/revision zero. BC1F, BC1T, BC1FL and BC1TL use the condition bit with signed
+offsets and ordinary/annulled delay slots. FCR31 persists in `VN64S010`; S009 and
+older states initialize it to zero. Reset-to-zero is a functional convention.
+
+The [original ROM](../../tests/roms-src/n64/fpu_controls/README.md) matches
+8,192 cases / 65,536 actual guest values, including a guest exception handler.
+The component matches 1,048,576 control combinations, 524,288 branch offsets,
+1,024 CU1 cases, transfers, exception contexts and state rejection/replay.
+The profile follows NEC's original VR4300 manual, sections 7.2 and the six
+control/branch instruction entries. Arithmetic, FPR data transfers, comparisons,
+conversions, physical pipeline hazards and NaN/denormal behavior remain pending.
+Unsupported/undefined COP1 encodings raise RI as an emulator limitation.
+No CPU-complete milestone is awarded; N64 remains **35%** on the delivery checklist.
+
+The private Mario 64 probe now passes CFC1 and reaches unsupported TLBWI at
+EPC `80328818`, word `42000002`, Cause `28` hex, after 5,896,601 attempts.
+Boot/playability, retail graphics and retail sound remain unverified.
