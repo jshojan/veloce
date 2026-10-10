@@ -112,11 +112,14 @@ public:
     // Writes the complete emulation state to the provided buffer.
     //
     // buffer: Pre-allocated buffer to write state to
-    // buffer_size: Size of the buffer (must be >= get_max_state_size())
+    // buffer_size: Must fit the current required size queried with nullptr.
+    // Fixed-size cores may require get_max_state_size(); sparse states may be smaller.
     //
     // Returns: Actual size of the saved state, or 0 on failure
     //
-    // If buffer is nullptr, just returns the required size without saving.
+    // If buffer is nullptr, returns the current required size without saving,
+    // or 0 on failure. Query/save run on the same emulator thread without a
+    // intervening frame. The required size must not exceed get_max_state_size().
     virtual size_t save_state_fast(uint8_t* buffer, size_t buffer_size) = 0;
 
     // Fast load state for rollback

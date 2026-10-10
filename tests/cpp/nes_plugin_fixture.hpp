@@ -43,7 +43,9 @@ struct LoadedCore {
 };
 
 inline std::vector<uint8_t> snapshot(emu::INetplayCapable& core) {
-    std::vector<uint8_t> data(core.get_max_state_size());
+    const size_t required=core.save_state_fast(nullptr,0);
+    require(required && required<=core.get_max_state_size(),"invalid current state size");
+    std::vector<uint8_t> data(required);
     auto size = core.save_state_fast(data.data(), data.size());
     require(size > 0 && size <= data.size(), "final state save failed");
     data.resize(size);

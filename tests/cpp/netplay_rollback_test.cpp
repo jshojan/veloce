@@ -25,7 +25,9 @@ public:
     void run_frame_netplay(uint32_t a, uint32_t b) override { state = state * 16777619 ^ (a << 1) ^ b; }
     size_t get_max_state_size() const override { return sizeof(state); }
     size_t save_state_fast(uint8_t* out, size_t size) override {
-        if (fail_save || size < sizeof(state)) return 0;
+        if(fail_save)return 0;
+        if(!out)return sizeof(state);
+        if(size<sizeof(state))return 0;
         std::memcpy(out, &state, sizeof(state));
         return sizeof(state);
     }
@@ -118,12 +120,48 @@ static void run_delayed(emu::INetplayCapable& baseline, emu::INetplayCapable& a,
     require(!peer0.is_replaying() && !peer1.is_replaying(), "replay audio gate stuck active");
 }
 
+class VariableCore final:public emu::INetplayCapable {
+public:
+    std::vector<uint8_t> state=std::vector<uint8_t>(16);
+    bool zero_query=false,oversize_query=false,oversize_save=false,allocation_failure=false;
+    size_t small_saves=0,large_saves=0;
+    uint64_t word(size_t offset) const { uint64_t value=0;for(unsigned n=0;n<8;++n)value|=uint64_t(state[offset+n])<<(8*n);return value; }
+    void word(size_t offset,uint64_t value) { for(unsigned n=0;n<8;++n)state[offset+n]=uint8_t(value>>(8*n)); }
+    void run_frame_netplay(uint32_t a,uint32_t b) override {
+        const auto frame=word(0)+1,checksum=word(8)*16777619^(uint64_t(a)<<32)^b^frame;
+        state.assign((a+b)%3==0?65536:16,uint8_t(checksum));word(0,frame);word(8,checksum);
+    }
+    size_t get_max_state_size() const override { return 2183168992ull; }
+    size_t save_state_fast(uint8_t* out,size_t capacity) override {
+        if(allocation_failure)throw std::bad_alloc();
+        if(!out)return zero_query?0:oversize_query?get_max_state_size()+1:state.size();
+        require(capacity<=65536,"rollback allocated declared dense bound for a compact state");
+        if(capacity<state.size())return 0;
+        std::memcpy(out,state.data(),state.size());(state.size()==16?small_saves:large_saves)++;
+        return state.size()+unsigned(oversize_save);
+    }
+    bool load_state_fast(const uint8_t* in,size_t size) override {
+        if(!in || (size!=16 && size!=65536))return false;
+        state.assign(in,in+size);return true;
+    }
+    uint64_t get_state_hash() const override { uint64_t hash=0xcbf29ce484222325ULL;for(auto b:state)hash=(hash^b)*0x100000001b3ULL;return hash; }
+};
+static void variable_states() {
+    VariableCore baseline,a,b;run_delayed(baseline,a,b);
+    require(a.state==baseline.state && b.state==baseline.state && a.small_saves && a.large_saves && b.small_saves && b.large_saves,"variable-size delayed histories/replay diverged");
+    for(unsigned mode=0;mode<4;++mode) {
+        VariableCore bad;Session session(bad,0,3);const auto before=bad.state;
+        bad.zero_query=mode==0;bad.oversize_query=mode==1;bad.oversize_save=mode==2;bad.allocation_failure=mode==3;
+        require(session.advance(1)==Result::Failed && session.failed() && bad.state==before && session.next_frame()==0,"invalid state query/write/allocation advanced an unsaved frame");
+    }
+}
+
 using emulator_test::LoadedCore;
 using emulator_test::snapshot;
 
 int main(int argc, char** argv) {
     try {
-        edge_cases();
+        edge_cases();variable_states();
         TestCore solo_reference, solo_host, solo_viewer;
         solo_reference.players=solo_host.players=solo_viewer.players=1;
         Session host_session(solo_host,0,8), viewer_session(solo_viewer,1,8);

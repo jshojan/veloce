@@ -448,3 +448,8 @@ add_test(NAME wiiu_immediate_registers COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/roms-src/wiiu/immediate_registers/run.py --emulator $<TARGET_FILE:veloce>
     --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/wiiu_immediates)
 set_tests_properties(wiiu_immediate_registers PROPERTIES LABELS "accuracy;owned" TIMEOUT 1800)
+add_test(NAME wiiu_netplay_plugin_test COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/netplay_network_test.py $<TARGET_FILE:netplay_plugin_peer>
+    $<TARGET_FILE:wiiu_plugin> ${CMAKE_SOURCE_DIR}/tests/roms-src/wiiu/netplay_probe/netplay_probe.vwiiu
+    ${CMAKE_BINARY_DIR}/artifacts/netplay-wiiu --netplay-plugin $<TARGET_FILE:netplay_default> --console wiiu)
+set_tests_properties(wiiu_netplay_plugin_test PROPERTIES LABELS "integration;netplay;owned" TIMEOUT 180)

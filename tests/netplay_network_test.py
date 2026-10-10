@@ -40,6 +40,24 @@ def grade_ctr_registers(path):
     require(lines[2:]==expected,"3DS guest register oracle mismatch")
 
 
+def wiiu_expected():
+    # Original guest publishes independent context triples and high-RAM readbacks.
+    # Arithmetic uses supplied attempt positions; no CPU/builder helper is used.
+    quantum=100000;total=100*quantum;period=11
+    values=[(frame*7+3)&4095 for frame in range(100)]
+    count=lambda store:(total-1-store)//period+1
+    accumulated=sum(values[(10+period*k)//quantum] for k in range(count(12)))&0xffffffff
+    last=values[(10+period*(count(13)-1))//quantum]
+    far=values[(10+period*(count(19)-1))//quantum]&1
+    return (accumulated,last,count(15))*3+(far,far,far)
+
+def grade_wiiu_registers(path):
+    content=path.read_text();lines=content.splitlines()
+    require(content.endswith("\n") and len(lines)==14 and re.fullmatch(r"#VELOCE NETWORK 1 core=Wii U frames=100 role=(baseline|host|client)",lines[0]) and
+            re.fullmatch(r"INFO rollbacks=\d+ replay_audio_chunks=\d+",lines[1]),"invalid Wii U register stream")
+    expected=[f"REG address={4096+n*4} value={value}" for n,value in enumerate(wiiu_expected())]
+    require(lines[2:]==expected,"Wii U guest register oracle mismatch")
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("peer", type=Path)
@@ -67,35 +85,38 @@ def main():
                                   capture_output=True, text=True, timeout=30)
         require(baseline.returncode == 0, baseline.stdout + baseline.stderr)
         (args.artifacts / "baseline.log").write_text(baseline.stdout + baseline.stderr)
-        if args.console=="3ds":
-            grade_ctr_registers(args.artifacts / "baseline.result")
+        if args.console in ("3ds","wiiu"):
+            grade_registers=grade_ctr_registers if args.console=="3ds" else grade_wiiu_registers
+            expected_values=ctr_expected if args.console=="3ds" else wiiu_expected
+            platform="3DS" if args.console=="3ds" else "Wii U"
+            grade_registers(args.artifacts / "baseline.result")
             spec=importlib.util.spec_from_file_location("ctr_probe_builder",args.rom.parent / "build.py")
             builder=importlib.util.module_from_spec(spec);spec.loader.exec_module(builder)
-            require(builder.build()==args.rom.read_bytes(),"3DS probe archive differs")
-            mutant=Path(temporary)/"wrong-input.v3ds";mutant.write_bytes(builder.build(wrong_input=True))
+            require(builder.build()==args.rom.read_bytes(),platform+" probe archive differs")
+            mutant=Path(temporary)/("wrong-input"+args.rom.suffix);mutant.write_bytes(builder.build(wrong_input=True))
             control=subprocess.run(command("baseline",args.artifacts / "wrong-input",port_file,rom_path=mutant),env=env,capture_output=True,text=True,timeout=30)
             require(control.returncode==0,control.stdout+control.stderr)
             (args.artifacts / "wrong-input.log").write_text(control.stdout+control.stderr)
-            try: grade_ctr_registers(args.artifacts / "wrong-input.result")
+            try: grade_registers(args.artifacts / "wrong-input.result")
             except RuntimeError as error:
-                require(str(error)=="3DS guest register oracle mismatch","control failed for unrelated reason")
+                require(str(error)==platform+" guest register oracle mismatch","control failed for unrelated reason")
                 actual=(args.artifacts / "wrong-input.result").read_text().splitlines()[2:]
-                expected=[f"REG address={4096+n*4} value={value}" for n,value in enumerate(ctr_expected())]
+                expected=[f"REG address={4096+n*4} value={value}" for n,value in enumerate(expected_values())]
                 require(len(actual)==12 and sum(a!=b for a,b in zip(actual,expected))==6,"wrong-input control domain changed")
-            else: raise RuntimeError("executed 3DS wrong-input control escaped")
+            else: raise RuntimeError("executed original wrong-input control escaped")
             original=(args.artifacts / "baseline.result").read_text()
             records=original.splitlines()
             for field in range(12):
                 altered=records.copy();line=altered[field+2];value=int(line.split(" value=")[1]);altered[field+2]=line.split(" value=")[0]+f" value={value^1}"
                 path=args.artifacts / f"field-{field}.result";path.write_text("\n".join(altered)+"\n")
-                try:grade_ctr_registers(path)
+                try:grade_registers(path)
                 except RuntimeError:pass
-                else:raise RuntimeError("3DS register field escaped")
+                else:raise RuntimeError("original register field escaped")
             for name,content in (("truncated",original.rsplit("\n",2)[0]+"\n"),("wrong-header",original.replace("frames=100","frames=99")),("trailing",original+"extra\n"),("unterminated",original.rstrip("\n"))):
                 path=args.artifacts / f"stream-{name}.result";path.write_text(content)
-                try:grade_ctr_registers(path)
+                try:grade_registers(path)
                 except RuntimeError:pass
-                else:raise RuntimeError("invalid 3DS register stream escaped")
+                else:raise RuntimeError("invalid original register stream escaped")
         for name, packet, expected in (
                 ("zero-length", struct.pack("!I", 0), "invalid message length"),
                 ("oversized", struct.pack("!I", 65), "invalid message length"),
@@ -191,8 +212,8 @@ def main():
                 records=[line for line in lines if line.startswith("REG address=")]
                 expected=[f"REG address={4096+n*4} value={value}" for n,value in enumerate(want)]
                 require(records==expected,"DS guest register oracle mismatch: "+name)
-        if args.console=="3ds":
-            for name in ("baseline","network-host","network-client"):grade_ctr_registers(args.artifacts / (name+".result"))
+        if args.console in ("3ds","wiiu"):
+            for name in ("baseline","network-host","network-client"):grade_registers(args.artifacts / (name+".result"))
         report = {"status": "pass", "console": args.console, "frames": 100,
                   "independent_processes": 2, "transport": "IPv4 TCP loopback",
                   "full_states_equal": True, "rom_mismatch_rejected": True,
@@ -203,11 +224,12 @@ def main():
             if args.console in ("nds","dsi"): report.update(controller_mode=f"one host-owned {args.console.upper()} keypad, joining viewer",guest_register_words=8,guest_registers_match_independent_oracle=True,wireless_link_emulation=False)
             if args.console in ("nds","dsi"): report["frontend_contract"]="fresh core after different prior histories; poll while paused; host owns keypad; viewer predicts/replays; disconnect on core replacement"
             if args.console not in ("nds","dsi"): report["frontend_contract"] = "fresh core after different prior histories; poll while paused; own one live frame; suppress replay audio; disconnect on core replacement"
-        if args.console=="3ds":
-            report.update(controller_mode="one host-owned 3DS HID keypad, joining viewer",guest_register_words=12,
+        if args.console in ("3ds","wiiu"):
+            report.update(controller_mode="one host-owned "+platform+" digital input latch, joining viewer",guest_register_words=12,
                           guest_registers_match_independent_oracle=True,wireless_link_emulation=False,
                           executed_wrong_input_rejected=True,wrong_input_mismatched_words=6,field_mutations_rejected=12,invalid_register_streams_rejected=4,
                           frontend_contract="fresh core after different prior histories; poll while paused; host owns keypad; viewer predicts/replays; disconnect on core replacement")
+        if args.console=="wiiu":report.update(state_storage="canonical nonzero RAM pages; history slots grow to actual serialized size",native_gamepad_emulation=False)
         (args.artifacts / "network.json").write_text(json.dumps(report, indent=2) + "\n")
         print(f"Network rollback: two independent TCP peers match complete {args.console} baseline; ROM mismatch rejected")
 
