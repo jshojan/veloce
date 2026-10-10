@@ -300,3 +300,8 @@ add_test(NAME nds_thumb_registers COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/roms-src/nds/thumb_registers/run.py --emulator $<TARGET_FILE:veloce>
     --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/nds_thumb)
 set_tests_properties(nds_thumb_registers PROPERTIES LABELS "accuracy;owned" TIMEOUT 2400)
+
+add_test(NAME nds_memory_registers COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/nds/memory_registers/run.py --emulator $<TARGET_FILE:veloce>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/nds_memory)
+set_tests_properties(nds_memory_registers PROPERTIES LABELS "accuracy;owned" TIMEOUT 3600)

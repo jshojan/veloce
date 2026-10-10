@@ -213,7 +213,7 @@ static void thumb_control(nds::Machine& m) {
         if(stop) require(s.r[15]==pc && s.cpsr==psw && s.r[14]==0,"rejected interworking changed state");
         else require(s.r[15]==(lane&1 ? start+0x100+(lane&2):start+0x100) && s.cpsr==((psw&~0x20u)|((lane&1)<<5)) && s.r[14]==(link ? (from_thumb ? (pc+2)|1:pc+4):0),"BX/BLX PC/T/link wrong");
     }
-    for(bool nine:{false,true}) for(uint16_t word:{0x4400,0x4500,0x4600,0x45ff,0x4701,0x47f8,0xde00,0xdf00,0xf000,0x6000,0xb400}) {
+    for(bool nine:{false,true}) for(uint16_t word:{0x4400,0x4500,0x4600,0x45ff,0x4701,0x47f8,0xde00,0xdf00,0xf000,0xc000,0xb400}) {
         thumb_instruction(m,nine,word); auto& cpu=nine ? m.cpu9:m.cpu7; const auto original=cpu.state.r; cpu.step();
         require(cpu.state.unsupported && cpu.state.r==original,"unsupported/unpredictable Thumb encoding retired");
     }
@@ -259,6 +259,88 @@ static void memory(nds::Machine& m) {
     }
     m.write(true,0x02000000,4,0x12345678);
     for(bool nine:{false,true}) for(uint32_t mirror:{0x02000000u,0x02400000u,0x02800000u,0x02c00000u}) { uint32_t v=0; require(m.read(nine,mirror,4,v) && v==0x12345678,"main RAM mirror/coherence wrong"); }
+}
+static uint32_t byte_load(const std::array<uint8_t,12>& bytes,unsigned lane,unsigned width,bool sign) {
+    uint32_t result=0;
+    for(unsigned n=0;n<width;++n) result+=uint32_t(bytes[lane+n])<<(8*n);
+    if(sign && bytes[lane+width-1]>=128) result|=uint32_t(0xffffffffULL<<(width*8));
+    return result;
+}
+static void transfer_case(nds::Machine& m,bool nine,unsigned rd,unsigned rn,bool update,
+                          uint32_t adjusted,uint32_t target,unsigned width,bool load,bool sign,bool thumb) {
+    auto& cpu=nine ? m.cpu9:m.cpu7; auto& s=cpu.state;
+    const auto original=s.r; const auto psw=s.cpsr; const unsigned lane=target&3;
+    const uint32_t word=target-lane,seed=load ? 0x89abcdefu:~original[rd];
+    std::array<uint8_t,12> bytes{};
+    for(unsigned n=0;n<12;++n) bytes[n]=uint8_t((n<4 ? seed:n<8 ? 0xdecafbadu:0x13579bdfu)>>(8*(n%4)));
+    for(unsigned n=0;n<12;++n) require(m.write(nine,word+n,1,bytes[n]),"memory oracle setup failed");
+    const bool odd=width==2 && (target&1);
+    const auto result=load ? byte_load(bytes,lane,width,sign):original[rd];
+    if(!odd && !load) for(unsigned n=0;n<width;++n) bytes[lane+n]=uint8_t(result>>(8*n));
+    cpu.step();
+    require(s.unsupported==odd && s.cpsr==psw,"memory flags/odd-half diagnostic wrong");
+    for(unsigned reg=0;reg<16;++reg) {
+        const auto want=odd ? original[reg]:reg==15 ? original[15]+(thumb ? 2:4):load && reg==rd ? result:update && reg==rn ? adjusted:original[reg];
+        require(s.r[reg]==want,"memory destination/base/source/PC wrong");
+    }
+    for(unsigned n=0;n<12;++n) { uint32_t got=0; require(m.read(nine,word+n,1,got) && got==bytes[n],"memory store width/neighbor/atomicity wrong"); }
+}
+static void memory_instructions(nds::Machine& m) {
+    constexpr uint32_t target=0x02003000;
+    // Every ARM half/signed offset field and six address forms, including odd
+    // halfword diagnostics. Byte arrays supply the load/store reference.
+    for(bool nine:{false,true}) for(unsigned op=0;op<4;++op) for(bool imm:{false,true})
+        for(unsigned index=0;index<3;++index) for(bool up:{false,true}) for(unsigned offset=0;offset<256;++offset)
+        for(unsigned lane=0;lane<4;++lane) for(unsigned flags:{0u,5u,10u,15u}) {
+            const unsigned type=op<2 ? 1:op==2 ? 2:3; const bool load=op!=0;
+            const uint32_t field=imm ? ((offset&240)<<4)|(offset&15):2;
+            instruction(m,nine,0xe0014090|(uint32_t(index!=2)<<24)|(uint32_t(up)<<23)|(uint32_t(imm)<<22)|
+                (uint32_t(index==1)<<21)|(uint32_t(load)<<20)|(type<<5)|field);
+            auto& s=(nine ? m.cpu9:m.cpu7).state;
+            const auto address=target+lane,base=index==2 ? address:up ? address-offset:address+offset;
+            s.r[1]=base; s.r[2]=imm ? offset^0xdead0000u:offset; s.r[4]=patterns[offset%16]; s.cpsr=0xdf|(flags<<28)|(nine ? 0x08000000:0);
+            transfer_case(m,nine,4,1,index!=0,up ? base+offset:base-offset,address,op==2 ? 1:2,load,op>=2,false);
+        }
+    for(bool nine:{false,true}) for(unsigned op=0;op<4;++op) for(unsigned alias=0;alias<4;++alias) for(unsigned flags:{0u,5u,10u,15u}) {
+        const unsigned rd=alias==1 ? 1:alias==2 ? 2:4,rm=alias==3 ? 1:2,type=op<2 ? 1:op==2 ? 2:3;
+        instruction(m,nine,0xe1910090|(rd<<12)|(type<<5)|rm); auto& s=(nine ? m.cpu9:m.cpu7).state;
+        if(op==0) { require(m.write(nine,start,4,0xe1810090|(rd<<12)|(type<<5)|rm),"alias instruction setup failed"); }
+        s.r[4]=0x12348000; s.r[1]=alias==3 ? target/2:target-4; s.r[2]=4;
+        s.cpsr=0xdf|(flags<<28)|(nine ? 0x08000000:0);
+        transfer_case(m,nine,rd,1,false,0,target,op==2 ? 1:2,op!=0,op>=2,false);
+    }
+    // All 512 low-register triples, including destination/base/index aliases.
+    for(bool nine:{false,true}) for(unsigned op=0;op<8;++op) for(unsigned rd=0;rd<8;++rd)
+        for(unsigned rn=0;rn<8;++rn) for(unsigned rm=0;rm<8;++rm) for(auto value:patterns) for(unsigned flags:{0u,5u,10u,15u}) {
+            thumb_instruction(m,nine,uint16_t(0x5000|(op<<9)|(rm<<6)|(rn<<3)|rd)); auto& s=(nine ? m.cpu9:m.cpu7).state;
+            s.r[rd]=value; s.r[rn]=rn==rm ? target/2:target-4; s.r[rm]=rn==rm ? target/2:4;
+            s.cpsr=0xff|(flags<<28)|(nine ? 0x08000000:0);
+            transfer_case(m,nine,rd,rn,false,0,target,op==1 || op==5 || op==7 ? 2:op==2 || op==3 || op==6 ? 1:4,op>=3,op==3 || op==7,true);
+        }
+    // Immediate, SP and PC forms cover every field and destination, including
+    // the halfword PC position used by thumb_instruction.
+    for(bool nine:{false,true}) for(unsigned form=0;form<9;++form) for(unsigned rd=0;rd<8;++rd)
+        for(unsigned offset=0;offset<(form<6 ? 32u:256u);++offset) for(unsigned flags:{0u,15u}) {
+            const unsigned widths[]={4,4,1,1,2,2,4,4,4}; const uint16_t codes[]={0x6000,0x6800,0x7000,0x7800,0x8000,0x8800,0x9000,0x9800,0x4800};
+            const bool load=form%2 || form==8; const unsigned width=widths[form];
+            thumb_instruction(m,nine,uint16_t(codes[form]|(form<6 ? (offset<<6)|(1<<3)|rd:(rd<<8)|offset)));
+            auto& s=(nine ? m.cpu9:m.cpu7).state; s.r[rd]=patterns[offset%16]; s.cpsr=0xff|(flags<<28)|(nine ? 0x08000000:0);
+            const unsigned rn=form<6 ? 1:13; if(form<8) s.r[rn]=target-offset*width;
+            const auto address=form==8 ? ((start+6)&~3u)+offset*4:target;
+            transfer_case(m,nine,rd,rn,false,0,address,width,load,false,true);
+        }
+    // Invalid encodings and unmapped transactions must not write back or
+    // partially update registers. Retired failed conditions skip diagnostics.
+    for(bool nine:{false,true}) for(uint32_t word:{0xe1d1f0b0u,0xe19140bfu,0xe19141b2u,0xe0f140b0u,0xe1f110b0u,0xe1b140b1u,0xe1ff40b0u,0xe1d140d0u,0xe1f140b0u,0xe1e140b0u}) {
+        instruction(m,nine,word); auto& cpu=nine ? m.cpu9:m.cpu7; cpu.state.r[1]=0x05000000; cpu.state.r[2]=2; const auto original=cpu.state.r; const auto psw=cpu.state.cpsr;
+        cpu.step(); require(cpu.state.unsupported && cpu.state.r==original && cpu.state.cpsr==psw,"invalid/unmapped transfer mutated registers");
+    }
+    for(bool nine:{false,true}) {
+        instruction(m,nine,0x01f1f0b0); auto& cpu=nine ? m.cpu9:m.cpu7; cpu.step();
+        require(!cpu.state.unsupported && cpu.state.r[15]==start+4,"failed memory condition diagnosed/executed");
+        instruction(m,nine,0xe1df40b0); require(m.write(nine,start+8,2,0x8001),"PC literal setup failed"); cpu.step();
+        require(!cpu.state.unsupported && cpu.state.r[4]==0x8001,"ARM halfword PC+8 base wrong");
+    }
 }
 static void states(nds::Machine& m,const std::vector<uint8_t>& rom,const char* plugin) {
     require(m.load(rom.data(),rom.size()),"original reload failed"); m.frame(); require(!m.cpu9.state.unsupported && !m.cpu7.state.unsupported,"original execution stopped");
@@ -308,7 +390,7 @@ int main(int argc,char** argv) {
     try {
         require(argc==3,"usage: nds_machine_test plugin original.nds"); std::ifstream in(argv[2],std::ios::binary);
         std::vector<uint8_t> rom((std::istreambuf_iterator<char>(in)),{}); nds::Machine m; require(m.load(rom.data(),rom.size()),"original DS ROM rejected");
-        arithmetic(m); multiplies(m); shifts(m); control(m); thumb_alu(m); thumb_high_registers(m); thumb_control(m); memory(m); states(m,rom,argv[1]);
+        arithmetic(m); multiplies(m); shifts(m); control(m); thumb_alu(m); thumb_high_registers(m); thumb_control(m); memory_instructions(m); memory(m); states(m,rom,argv[1]);
         std::cout<<"DS ARM/Thumb ALU/multiply/shifter/control/memory/state/plugin checks passed\n"; return 0;
     } catch(const std::exception& e) { std::cerr<<e.what()<<'\n'; return 1; }
 }

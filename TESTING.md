@@ -128,7 +128,7 @@ ARM9/ARM7 share main RAM and execute from their loaded main/private segments.
 The host grades both output streams independently; an ADC-to-ADD mutation and
 seven damaged files check failure detection. Component gates cover aliases,
 shifters, WRAM banks, validation and exact plugin state replay. Firmware,
-Thumb memory/stack/long calls, physical timing, graphics/audio/controllers and
+Thumb stack/block transfers and long calls, physical timing, graphics/audio/controllers and
 DSi enhanced mode remain pending.
 The [multiply corpus](tests/roms-src/nds/multiply_registers/README.md) adds
 38,338,560 five-word observations across six multiply/accumulate forms, both S
@@ -146,6 +146,15 @@ independent grader. ARM7 MUL C is captured but unscored in 1,052,672 cases.
 Component checks cover
 high registers, PC/SP address forms, branch offsets, register BLX architecture
 differences, state alignment and actual shared-plugin Thumb replay.
+The [memory corpus](tests/roms-src/nds/memory_registers/README.md) matched
+49,694,208/49,694,208 nine-word observations with zero mismatches for ARM halfword/signed and Thumb transfers;
+every recorded bit is graded. It covers all halfword values, all immediate fields,
+all NZCV/ARM9 Q inputs, addresses/writeback, source, memory guards and SP.
+The reduced 213,504-case ROM passes; executed signed-load, store-width and missing-store mutants
+are rejected. Every missing-store case must fail at both halfword lanes. Components add 393,216 ARM attempts (147,456 odd-half diagnostics),
+128 ARM aliases, 524,288 Thumb register cases and 30,720 immediate/SP/PC cases.
+The byte oracle checks width, sign extension, writeback and failed-transaction
+atomicity. Odd halfwords and unaligned Thumb words are outside the hardware grade.
 Run `ctest --test-dir build -R '^nds_' --output-on-failure`.
 
 All suites retain raw output and reports under `build/artifacts/owned/`, which

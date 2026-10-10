@@ -39,7 +39,7 @@ See [Build Instructions](#building) for platform-specific details.
 | Super Nintendo | [cores/snes](cores/snes/README.md) | In Progress | 65C816, Mode 7, SPC700 |
 | Nintendo 64 | [cores/n64](cores/n64/README.md) | Experimental | Integer homebrew, settled digital SI/PIF and interrupt gates; no retail boot, graphics, audio or analog sticks |
 | Virtual Boy | [cores/vb](cores/vb/README.md) | Experimental | V810 integer homebrew, multiply/divide, exception and arithmetic bit-string corpora; no retail games, video, audio or controller hardware |
-| Nintendo DS | [cores/nds](cores/nds/README.md) | Experimental | Dual-CPU ARM/Thumb integer homebrew and shared/private RAM; no firmware/retail boot, graphics, audio or peripheral hardware |
+| Nintendo DS | [cores/nds](cores/nds/README.md) | Experimental | Dual-CPU ARM/Thumb integer and memory homebrew with shared/private RAM; no firmware/retail boot, graphics, audio or peripheral hardware |
 
 Additional Nintendo families, including DSi enhanced mode, GameCube/Wii,
 3DS, Wii U, and Switch, still need core plugins. Overall completion is not yet
@@ -323,7 +323,7 @@ console. Start here:
 | GBA | partial (CPU/memory/BIOS/saves verified) | [scorecard](COMPLETENESS.md#gba) / [notes](cores/gba/README.md#test-status) |
 | N64 | Experimental integer homebrew: 28,127 integer, 262,623 doubleword multiply/divide and 3,158,016 merge-memory results and all 16,384 digital controller combinations and 65,536 interrupt gates verified; full platform completion unknown | [implementation and limits](cores/n64/README.md) |
 | Virtual Boy | Experimental integer homebrew: 6,512,640 result/PSW pairs plus 4,210,688 multiply/divide and 4,685,824 TRAP/illegal and 4,982,784 address-trap snapshots, plus 17,055,744 CAXI/port and 14,680,064 arithmetic bit-string snapshots, plus 100,712,448 immediate-instruction snapshots; full platform completion unknown | [implementation and limits](cores/vb/README.md) |
-| Nintendo DS | Experimental dual-CPU homebrew: 44,238,336 integer plus 38,338,560 multiply snapshots plus 51,426,816 Thumb result/CPSR/source/PC snapshots matched; full platform completion unknown | [implementation and limits](cores/nds/README.md) |
+| Nintendo DS | Experimental dual-CPU homebrew: 44,238,336 integer plus 38,338,560 multiply snapshots plus 51,426,816 Thumb result/CPSR/source/PC and 49,694,208 memory snapshots matched; full platform completion unknown | [implementation and limits](cores/nds/README.md) |
 
 Run external ROM suites with `python tests/run_all.py`; see [TESTING.md](TESTING.md)
 for per-console and CI usage. The percentages above describe that measured
@@ -350,6 +350,7 @@ subset, not whole-core completion.
 | [Nintendo DS dual-CPU integer registers](tests/roms-src/nds/integer_registers/README.md) | 44,238,336/44,238,336 four-word snapshots matched: all sixteen data-processing operations, repeated-byte pairs and full-width boundaries, all NZCV and ARM9 Q states; firmware, timing and most hardware pending | `build/artifacts/owned/nds_integer/` |
 | [Nintendo DS multiply registers](tests/roms-src/nds/multiply_registers/README.md) | 38,338,560/38,338,560 five-word observations matched: six multiply/accumulate forms, S clear/set, all NZCV/ARM9 Q, byte pairs and boundary/accumulator seeds; unpredictable ARM7 flags unscored, timing pending | `build/artifacts/owned/nds_multiply/` |
 | [Nintendo DS Thumb registers](tests/roms-src/nds/thumb_registers/README.md) | 51,426,816/51,426,816 five-word observations matched: all low ALU operations, register ADD/SUB, all shift and low register ALU immediates, all NZCV/ARM9 Q and observed Thumb PC; ARM7 MUL C unscored, timing pending | `build/artifacts/owned/nds_thumb/` |
+| [Nintendo DS memory registers](tests/roms-src/nds/memory_registers/README.md) | 49,694,208/49,694,208 nine-word snapshots matched: ARM halfword/signed and Thumb transfers, all halfword values and immediate fields; physical timing pending | `build/artifacts/owned/nds_memory/` |
 | [N64 interrupt gates](tests/roms-src/n64/interrupts/README.md) | 65,536/65,536 cases matched; 524,288 guest values for software/SI/timer, MI/CPU masks and IE/EXL/ERL; pipeline and physical timer timing pending | `build/artifacts/owned/n64_interrupts/` |
 | [N64 digital controller](tests/roms-src/n64/controller_serial/README.md) | 16,384/16,384 combinations matched; 131,072 guest values for digital input, identity, absent port and settled SI/MI registers; analog and physical timing pending | `build/artifacts/owned/n64_controller/` |
 | [N64 merge memory](tests/roms-src/n64/merge_memory/README.md) | 3,158,016/3,158,016 observations matched; eight instructions, every byte lane, all repeated-byte pairs and full-width boundaries; full multi-byte domains/timing unverified | `build/artifacts/owned/n64_merge_memory/` |
@@ -380,7 +381,8 @@ emulator debug channel. It runs original reset-vector code; video, audio,
 controllers and retail compatibility remain pending.
 The experimental DS plugin executes separate ARM9/ARM7 guest programs, capturing
 ARM/Thumb integer result/CPSR/source registers, capturing Thumb PC reads and
-using main RAM to order their output. Firmware, Thumb memory/stack/long calls,
+using main RAM to order their output. Memory transfers capture addresses,
+source values, loaded/stored memory and guards alongside CPSR and SP. Firmware, Thumb stack/block transfers and long calls,
 video, audio, peripherals and DSi enhanced mode remain pending.
 Original suites retain raw
 register output and reports; CI builds the actual core plugins, runs these tests,

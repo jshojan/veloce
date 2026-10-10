@@ -32,6 +32,11 @@ Full platform completion is unknown.
   generation word-aligns the PC. Normal BX targets select state with bit zero.
 - LDR/STR word and LDRB/STRB byte forms, immediate/shifted-register offsets,
   pre/post indexing, write-back and unaligned word-load rotation.
+- ARM STRH/LDRH/LDRSB/LDRSH with split immediate/register offsets and
+  offset/pre/post indexing. Thumb register, scaled immediate, SP-relative word
+  and PC-relative literal transfers, including signed byte/halfword loads.
+  Odd halfwords stop diagnostically. Unaligned Thumb word alignment/rotation
+  is a model choice, outside the original ROM hardware grade.
 - 4 MiB main RAM with four mirrors, shared between CPUs; 64 KiB ARM7 private
   WRAM and mirrors; 32 KiB shared WRAM with all four WRAMCNT allocations,
   bank mirrors, ARM9 control and ARM7 status. Missing ARM9 allocation stops
@@ -105,6 +110,11 @@ ADD/SUB, every immediate encoding for shifts and low register ALU operations, al
 Every case switches ARM → Thumb → ARM and captures the Thumb PC read alongside
 result/CPSR/sources. ARM7 MUL's unpredictable C is excluded from scoring.
 
+The original [memory corpus](../../tests/roms-src/nds/memory_registers/README.md)
+matched 49,694,208/49,694,208 nine-word observations with zero mismatches for ARM halfword/signed and Thumb
+memory transfers. It captures destination/CPSR/base/offset/source, the containing
+memory word, two guards and SP. Every recorded bit is graded; no bits are excluded.
+
 `nds_machine_test` separately checks:
 
 - 688,128 ALU cases with destination/source aliases and S set/clear. ARM9 Q
@@ -130,6 +140,15 @@ result/CPSR/sources. ARM7 MUL's unpredictable C is excluded from scoring.
   BX/BLX target states, link addresses, ARM7 rejection, PC-load interworking,
   unsupported Thumb forms, halfword-aligned state replay and odd-PC rejection.
   Actual shared-plugin replay includes both CPUs in a Thumb loop.
+- 393,216 ARM halfword/signed transfer attempts: every eight-bit offset,
+  six addressing forms, distinct immediate/register inputs, four byte lanes
+  and four flag patterns, including
+  147,456 odd-half diagnostics. Another 128 offset-form cases cover aliases.
+- 524,288 Thumb register transfer cases over all 512 register triples and
+  eight operations; 30,720 immediate/SP/PC cases cover every encoded offset
+  and low destination. Byte references check signed extension, store width,
+  neighboring bytes, preserved flags, PC alignment and exact writeback.
+  Reserved/unmapped transfers and failed conditions check rejection atomicity.
 - All 65,536 offsets on each CPU in each of four shared-WRAM modes, private
   fallback, bank mirroring, access rights, main-RAM coherence/mirrors, rejected
   cross-region write atomicity, byte loads and unaligned word-load lanes.
@@ -152,15 +171,16 @@ ctest --test-dir build -R '^nds_' --output-on-failure
 ```
 
 Raw observations/reports remain in `build/artifacts/owned/nds_integer/`,
-`build/artifacts/owned/nds_multiply/` and `build/artifacts/owned/nds_thumb/`,
+`build/artifacts/owned/nds_multiply/`, `build/artifacts/owned/nds_thumb/` and
+`build/artifacts/owned/nds_memory/`,
 and are uploaded by owned-hardware CI. Generator/image SHA256 are recorded
 in the ROM manifest. Component evidence is separate from the original-ROM domain.
 
 ## Remaining hardware and features
 
-Thumb loads/stores/stack/block transfers and long calls, ARM BLX immediate,
+Thumb stack/block transfers and long calls, ARM BLX immediate,
 ARM9 DSP/saturation and other architecture extensions,
-half/signed/block transfers, SWP, privileged modes,
+doubleword/block transfers, SWP, privileged modes,
 banked registers, SPSR, exceptions/interrupts, CP15/MPU/cache/TCM, firmware and
 BIOS, gamecard/secure-area/save protocols, IPC, DMA, timers, KEYINPUT/touchscreen,
 SPI/RTC, Wi-Fi, graphics/VRAM/palette/OAM, 3D, sound and physical timing remain.

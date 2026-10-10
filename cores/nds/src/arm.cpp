@@ -3,6 +3,20 @@ namespace nds {
 static uint32_t rotate(uint32_t value,unsigned count) {
     count&=31; return count ? (value>>count)|(value<<(32-count)):value;
 }
+bool Arm::transfer(uint32_t address,unsigned width,bool load,bool sign,uint32_t& value) {
+    // Odd halfword accesses are architecturally unpredictable before ARMv6.
+    // Stop without a transaction; physical ARM7/ARM9 quirks are not supplied.
+    if(width==2 && (address&1)) { state.unsupported=true; return false; }
+    const auto location=width==4 ? address&~3u:address;
+    uint32_t data=0;
+    if(load) {
+        if(!bus.read(location,width,data)) { state.unsupported=true; return false; }
+        if(width==4) data=rotate(data,(address&3)*8);
+        if(sign && width<4 && (data&(1u<<(width*8-1)))) data|=~0u<<(width*8);
+        value=data;
+    } else if(!bus.write(location,width,value)) { state.unsupported=true; return false; }
+    return true;
+}
 bool Arm::condition(unsigned code,uint32_t psw) {
     const bool n=psw>>31,z=(psw>>30)&1,c=(psw>>29)&1,v=(psw>>28)&1;
     switch(code) {
@@ -93,6 +107,21 @@ void Arm::step() {
         }
         if(!load || rd!=15) s.r[15]=pc+4;
         return;
+    }
+    if((ins&0x0e000090)==0x00000090 && (ins&0x60)) {
+        const bool pre=ins&(1u<<24),up=ins&(1u<<23),immediate=ins&(1u<<22),wb=ins&(1u<<21),load=ins&(1u<<20);
+        const unsigned rn=(ins>>16)&15,rd=(ins>>12)&15,rm=ins&15,type=(ins>>5)&3;
+        const bool update=!pre || wb;
+        if(rd==15 || (!pre && wb) || (!load && type!=1) ||
+            (!immediate && ((ins&0xf00) || rm==15 || (update && rn==rm))) ||
+            (update && (rn==15 || rn==rd))) { s.unsupported=true; return; }
+        const uint32_t offset=immediate ? ((ins>>4)&0xf0)|(ins&15):s.r[rm];
+        const auto base=operand(rn),adjusted=up ? base+offset:base-offset,address=pre ? adjusted:base;
+        uint32_t value=s.r[rd];
+        if(!transfer(address,type==2 ? 1:2,load,type>=2,value)) return;
+        if(update) s.r[rn]=adjusted;
+        if(load) s.r[rd]=value;
+        s.r[15]=pc+4; return;
     }
     const bool multiply=(ins&0x0fc000f0)==0x00000090;
     const bool long_multiply=(ins&0x0f8000f0)==0x00800090;
@@ -220,6 +249,27 @@ void Arm::thumb_step() {
         if(op==1) flags(result);
         else if(rd==15) { s.r[15]=result&~1u; return; }
         else s.r[rd]=result;
+    } else if((ins&0xf800)==0x4800 || (ins&0xf000)==0x5000 || (ins&0xe000)==0x6000 ||
+              (ins&0xf000)==0x8000 || (ins&0xf000)==0x9000) {
+        unsigned rd=ins&7,width=4; bool load=false,sign=false; uint32_t address=0;
+        if((ins&0xf800)==0x4800) {
+            rd=(ins>>8)&7; load=true; address=((pc+4)&~3u)+((ins&255)<<2);
+        } else if((ins&0xf000)==0x5000) {
+            const unsigned op=(ins>>9)&7;
+            address=s.r[(ins>>3)&7]+s.r[(ins>>6)&7];
+            load=op>=3; sign=op==3 || op==7;
+            width=(op==1 || op==5 || op==7) ? 2:(op==2 || op==3 || op==6) ? 1:4;
+        } else if((ins&0xe000)==0x6000) {
+            width=(ins&0x1000) ? 1:4; load=ins&0x800;
+            address=s.r[(ins>>3)&7]+((ins>>6)&31)*width;
+        } else if((ins&0xf000)==0x8000) {
+            width=2; load=ins&0x800; address=s.r[(ins>>3)&7]+(((ins>>6)&31)<<1);
+        } else {
+            rd=(ins>>8)&7; load=ins&0x800; address=s.r[13]+((ins&255)<<2);
+        }
+        uint32_t value=s.r[rd];
+        if(!transfer(address,width,load,sign,value)) return;
+        if(load) s.r[rd]=value;
     } else if((ins&0xf000)==0xa000) {
         s.r[(ins>>8)&7]=((ins&0x800) ? s.r[13]:(pc+4)&~3u)+((ins&255)<<2);
     } else if((ins&0xff00)==0xb000) {

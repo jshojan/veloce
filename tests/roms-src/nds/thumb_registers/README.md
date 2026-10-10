@@ -63,7 +63,9 @@ ctest --test-dir build -R '^nds_thumb_registers$' --output-on-failure
 High-register arithmetic/PC and SP address forms, conditional/unconditional
 branches, BLX register differences and exact Thumb/plugin state replay have
 separate component checks. Full 32-bit operand domains, all aliases, instruction
-latency, physical-hardware comparison, cache coherency, loads/stores, stack/block
+latency, physical-hardware comparison, cache coherency, stack/block
 transfers, long calls, SWI/exceptions and ARM9 DSP extensions remain unverified
 or unimplemented. Retail DS and DSi boot, peripherals, graphics/audio/input and
 DS netplay remain incomplete.
+
+Memory transfers have a separate [original corpus](../memory_registers/README.md).

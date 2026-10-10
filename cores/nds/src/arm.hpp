@@ -23,6 +23,7 @@ public:
     ArmState state;
 private:
     void thumb_step();
+    bool transfer(uint32_t address,unsigned width,bool load,bool sign,uint32_t& value);
     Memory& bus;
     bool v5;
 };
