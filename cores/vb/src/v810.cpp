@@ -17,22 +17,22 @@ bool V810::condition(unsigned code, uint32_t psw) {
     const bool values[] = {ov,cy,z,cy||z,s,true,s!=ov,(s!=ov)||z};
     return (code&8) ? !values[code&7] : values[code&7];
 }
-void V810::divide_zero(uint32_t pc) {
+void V810::exception(uint32_t pc, uint32_t restore_pc, uint16_t code, uint32_t vector) {
     auto& c=state;
     const uint32_t psw=c.sr[5];
     if (psw&0x8000) {
         // Fatal machine-fault writes are visible on the operand bus. A board
         // may reject these addresses; the CPU still halts until reset.
-        bus.write(0,4,0xffffff80); bus.write(4,4,psw); bus.write(8,4,pc);
+        bus.write(0,4,0xffff0000u|code); bus.write(4,4,psw); bus.write(8,4,pc);
         c.pc=pc; c.halted=true;
     } else if (psw&0x4000) {
-        c.sr[2]=pc; c.sr[3]=psw;
-        c.sr[4]=(c.sr[4]&0xffff)|0xff800000;
+        c.sr[2]=restore_pc; c.sr[3]=psw;
+        c.sr[4]=(c.sr[4]&0xffff)|(uint32_t(code)<<16);
         c.sr[5]=(psw|0x9000)&~0x2000u; c.pc=0xffffffd0;
     } else {
-        c.sr[0]=pc; c.sr[1]=psw;
-        c.sr[4]=(c.sr[4]&0xffff0000)|0xff80;
-        c.sr[5]=(psw|0x5000)&~0x2000u; c.pc=0xffffff80;
+        c.sr[0]=restore_pc; c.sr[1]=psw;
+        c.sr[4]=(c.sr[4]&0xffff0000)|code;
+        c.sr[5]=(psw|0x5000)&~0x2000u; c.pc=vector;
     }
 }
 void V810::step() {
@@ -69,6 +69,12 @@ void V810::step() {
     if ((first&0xe000)==0x8000) {
         if (condition((first>>9)&15,c.sr[5])) c.pc=pc+extend(first&0x1fe,9);
         return;
+    }
+    // These major opcodes are unassigned in the board's integer ISA. Other
+    // unimplemented instructions still stop diagnostically rather than being
+    // misreported as illegal guest instructions. Decode before any tail fetch.
+    if (op==0x1b || op==0x32 || op==0x36) {
+        exception(pc,pc,0xff90,0xffffff90); return;
     }
     if (op>=0x28) {
         uint32_t tail=0;
@@ -122,7 +128,7 @@ void V810::step() {
             flags(low,false,overflow,true); break;
         }
         case 9: case 11: {
-            if (!a) { divide_zero(pc); break; }
+            if (!a) { exception(pc,pc,0xff80,0xffffff80); break; }
             uint32_t quotient,remainder; bool overflow=false;
             if (op==9) {
                 const int64_t dividend=b&0x80000000 ? int64_t(b)-0x100000000LL : b;
@@ -145,6 +151,7 @@ void V810::step() {
         case 0x14: shift(b,r1,0); break;
         case 0x15: shift(b,r1,1); break;
         case 0x17: shift(b,r1,2); break;
+        case 0x18: exception(pc,c.pc,uint16_t(0xffa0+r1),r1<16 ? 0xffffffa0:0xffffffb0); break;
         case 0x19: {
             const unsigned saved=(c.sr[5]&0x8000) ? 2 : 0;
             c.pc=c.sr[saved]; c.sr[5]=c.sr[saved+1]; break;

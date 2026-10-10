@@ -12,7 +12,9 @@ little-endian instruction/data memory and an explicit marked cartridge profile.
   register/immediate forms; Z/S/OV/CY flags and immutable r0.
 - MUL/MULU full 64-bit products and DIV/DIVU quotient/remainder, signed overflow,
   carry preservation and r30/destination aliasing.
-- Divide-zero normal/nested exception context, fatal bus writes/halt and RETI.
+- TRAP (all 32 parameters), divide-zero and three reserved major opcode
+  families (`$1B`, `$32`, `$36`): normal/nested context, fatal bus writes/halt and
+  RETI. TRAP saves the next PC; illegal/divide faults save the instruction PC.
   Other exception producers and external interrupts remain pending.
 - MOVEA, MOVHI, ADDI, ORI, ANDI and XORI; sign/zero extension and source aliasing.
 - All 16 branch/SETF conditions, relative JR/JAL, register JMP and link r31.
@@ -66,11 +68,19 @@ ADD-to-SUB mutation fails only the ADD groups; seven damaged files return ERROR.
 The full run exercises actual shared-plugin discovery through the frontend.
 
 The original [multiply/divide corpus](../../tests/roms-src/vb/muldiv/README.md)
-matched **4,210,688/4,210,688 nine-word register snapshots**, zero mismatches, from MUL/MULU/DIV/DIVU,
+matched **4,210,688/4,210,688 nine-word register snapshots**, zero mismatches,
+from MUL/MULU/DIV/DIVU,
 including **8,704 zero-divisor cases** with captured exception registers and
 RETI return. Every signed/unsigned byte pair and full-width boundary pair runs
 with all 16 incoming flag states. Arithmetic and exception-capture mutations
 failed as required, and seven damaged files returned ERROR.
+
+The original [exception corpus](../../tests/roms-src/vb/exceptions/README.md)
+matched **4,685,824/4,685,824 thirteen-word snapshots**, zero mismatches: all 32 TRAP parameters and three
+illegal opcode families across every writable PSW combination with NP clear,
+plus every low-bit illegal encoding with all flags and both EP states. It
+records entry and post-RETI context, both saved-register banks, persistent ECR
+code halves, vector markers and unchanged GPRs.
 
 `vb_machine_test` separately checks reset entry, all branch conditions/flag
 states on signed displacement boundaries, SETF, JR/JAL/JMP/link behavior, r0,
@@ -79,7 +89,10 @@ flag preservation, alignment/extension/byte order, WRAM mirrors, ROM protection,
 system-register masks, HALT/unsupported stops, rejected ROM/state atomicity and
 full state equality after continuation through the actual shared plugin.
 It also checks multiply/divide aliases, nested exception/RETI priority, fatal
-bus writes/halt and full saved exception continuation.
+bus writes/halt and full saved exception continuation. An additional 3,178,496
+TRAP/illegal-instruction component cases include fatal entry and RETI,
+all listed encodings, condition/control combinations, and sticky-flag/interrupt
+level boundaries.
 These component checks are separate from the original-ROM domain.
 
 ```bash
@@ -89,8 +102,9 @@ cmake --build build --target veloce vb_plugin vb_machine_test -j
 ctest --test-dir build -R '^vb_' --output-on-failure
 ```
 
-Raw observations and reports are in `build/artifacts/owned/vb_integer/` and
-`build/artifacts/owned/vb_muldiv/`, and are uploaded by the owned-hardware CI job. Source/image SHA256 values are recorded
+Raw observations and reports are in `build/artifacts/owned/vb_integer/`,
+`build/artifacts/owned/vb_muldiv/` and `build/artifacts/owned/vb_exceptions/`.
+They are uploaded by the owned-hardware CI job. Source/image SHA256 values are recorded
 in `tests/roms-src/rom_manifest.json`. `VVBS0001` states store explicit big-endian
 scalars for the full CPU, frame/step counters, completion, ROM identity and WRAM.
 Size, version, ROM identity and basic field checks precede any mutation.
@@ -101,9 +115,10 @@ Bit strings, FPU/custom NVC instructions, port I/O, complete
 system registers/PIR/TKCW, other exceptions/external interrupts, address traps, caches,
 pipeline/wait-state timing, VIP drawing/display/scanner timing, VSU audio,
 controller serial hardware, link communication, timers and save media remain.
-Unsupported instructions or unmapped transactions stop execution with an
-explicit serialized `unsupported` flag; this is a diagnostic stop, **not a
-hardware illegal-instruction or bus-fault exception implementation**. Register
+Valid but unimplemented instructions and unmapped transactions stop execution
+with an explicit serialized `unsupported` flag. Reserved major opcodes `$1B`,
+`$32` and `$36` generate the implemented illegal-instruction exception; remaining
+encoding validity and physical bus faults are not modeled. Register
 execution and bus storage are functional; timing is not modeled.
 
 Each frontend frame is a bounded 100,000-step scheduling quantum. The counter is

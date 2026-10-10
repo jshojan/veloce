@@ -108,6 +108,57 @@ static void muldiv(vb::Machine& m) {
     require(cpu.state.gpr[2]==123 && cpu.state.gpr[30]==456,"fatal fault changed operands");
     cpu.step(); require(cpu.state.steps==1 && bus.writes.size()==3,"fatal fault did not halt until reset");
 }
+static void exceptions() {
+    struct Bus : vb::Memory {
+        uint16_t word=0; unsigned reads=0;
+        std::vector<std::pair<uint32_t,uint32_t>> writes;
+        bool read(uint32_t address,unsigned bytes,uint32_t& value) override {
+            ++reads; require(bytes==2,"exception fetch width wrong");
+            if(address==start) { value=word; return true; }
+            if(address==start+2) { value=reg(0x19); return true; }
+            return false;
+        }
+        bool write(uint32_t address,unsigned bytes,uint32_t value) override {
+            require(bytes==4,"machine-fault bus width wrong"); writes.emplace_back(address,value); return true;
+        }
+    } bus;
+    vb::V810 cpu(bus);
+    // Every encoding of the three unassigned major opcodes, every TRAP
+    // vector, and all condition flags/control combinations. Sticky FPU flags
+    // and interrupt level boundaries are covered here; the guest corpus
+    // exhausts all their values for nonfatal exception entry.
+    std::vector<uint16_t> words;
+    for(unsigned vector=0;vector<32;++vector) words.push_back(reg(0x18,vector));
+    for(unsigned op:{0x1bu,0x32u,0x36u}) for(unsigned low=0;low<1024;++low) words.push_back(uint16_t(op<<10|low));
+    for(uint16_t word:words) for(unsigned controls=0;controls<64;++controls) for(unsigned flags=0;flags<16;++flags) {
+        const bool np=controls&1,ep=controls&2;
+        const uint32_t psw=flags|(np ? 0x8000:0)|(ep ? 0x4000:0)|(controls&4 ? 0x2000:0)|
+                           (controls&8 ? 0x1000:0)|(controls&16 ? 0x3f0:0)|(controls&32 ? 0xf0000:0);
+        cpu.reset(); auto& s=cpu.state; s.pc=start; s.sr[5]=psw; s.sr[4]=0x12345678;
+        s.sr[0]=start+0x100; s.sr[1]=0x101; s.sr[2]=start+0x200; s.sr[3]=0x202;
+        for(unsigned n=1;n<32;++n) s.gpr[n]=n*0x1234567u;
+        const auto before=s; bus.word=word; bus.reads=0; bus.writes.clear(); cpu.step();
+        const bool trap=(word>>10)==0x18;
+        const uint32_t code=trap ? 0xffa0+(word&31):0xff90;
+        const uint32_t saved_pc=start+(trap ? 2:0);
+        require(!s.unsupported && s.gpr==before.gpr && bus.reads==1,"exception clobbered GPRs or fetched an illegal tail");
+        if(np) {
+            require(s.halted && s.pc==start && s.sr==before.sr,"fatal TRAP/illegal fault changed context");
+            require(bus.writes==std::vector<std::pair<uint32_t,uint32_t>>{{0,0xffff0000|code},{4,psw},{8,start}},
+                    "fatal TRAP/illegal fault bus context/order wrong");
+            cpu.step(); require(s.steps==1,"fatal exception resumed without reset");
+        } else {
+            auto sr=before.sr; const unsigned saved=ep ? 2:0;
+            sr[saved]=saved_pc; sr[saved+1]=psw;
+            sr[4]=ep ? (code<<16)|0x5678 : 0x12340000|code;
+            sr[5]=(psw|(ep ? 0x9000:0x5000))&~0x2000u;
+            const uint32_t vector=ep ? 0xffffffd0 : trap ? ((word&31)<16 ? 0xffffffa0:0xffffffb0) : 0xffffff90;
+            require(!s.halted && s.pc==vector && s.sr==sr && bus.writes.empty(),"TRAP/illegal exception entry wrong");
+            s.pc=start+2; cpu.step();
+            require(s.pc==saved_pc && s.sr[5]==psw && s.gpr==before.gpr,"TRAP/illegal RETI context wrong");
+        }
+    }
+}
 static void immediates(vb::Machine& m) {
     // Decode immediate forms through a different encoding, then compare with the
     // register operations independently graded by the original ROM.
@@ -202,7 +253,7 @@ int main(int argc,char** argv) {
         vb::Machine m; require(m.load(rom.data(),rom.size()),"original cartridge load failed");
         require(m.cpu.state.pc==0xfffffff0 && m.cpu.state.sr[5]==0x8000 && m.cpu.state.sr[4]==0xfff0,"reset state wrong");
         m.cpu.step(); m.cpu.step(); require(m.cpu.state.pc==0x07000000,"reset vector did not reach original entry");
-        control(m); muldiv(m); immediates(m); memory(m); states(m,rom,argv[1]);
+        control(m); muldiv(m); exceptions(); immediates(m); memory(m); states(m,rom,argv[1]);
         std::cout<<"VB control/memory/state/plugin checks passed\n"; return 0;
     } catch(const std::exception& e) { std::cerr<<e.what()<<'\n'; return 1; }
 }

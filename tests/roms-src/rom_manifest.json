@@ -173,6 +173,17 @@
       "source_type": "original",
       "suite": "math_timing"
     },
+    "vb/exceptions/exceptions.vb": {
+      "build_command": "python3 tests/roms-src/vb/exceptions/build.py",
+      "console": "vb",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "66959500d4f66ac393f08b75f7f7e94f73fe1589fb35ffa9e717026dc84690a5",
+      "source_repo": "tests/roms-src/vb/exceptions/build.py",
+      "source_sha": "3cccc2e37ea6ab51370a75e1ce7834e69aa01e0c07784adf1051c604cb1b6a6a",
+      "source_type": "original",
+      "suite": "exceptions"
+    },
     "vb/integer_registers/integer_registers.vb": {
       "build_command": "python3 tests/roms-src/vb/integer_registers/build.py",
       "console": "vb",

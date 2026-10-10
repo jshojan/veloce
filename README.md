@@ -37,9 +37,10 @@ See [Build Instructions](#building) for platform-specific details.
 | Game Boy / Color | [cores/gb](cores/gb/README.md) | In Progress | DMG and CGB, MBC1/3/5; serial register test channel |
 | Game Boy Advance | [cores/gba](cores/gba/README.md) | In Progress | ARM7TDMI, all video modes |
 | Super Nintendo | [cores/snes](cores/snes/README.md) | In Progress | 65C816, Mode 7, SPC700 |
-| Nintendo 64 | [cores/n64](cores/n64/README.md) | Experimental | Integer homebrew execution and register corpus; no retail boot, graphics, audio or controller hardware |
+| Nintendo 64 | [cores/n64](cores/n64/README.md) | Experimental | Integer homebrew, settled digital SI/PIF and interrupt gates; no retail boot, graphics, audio or analog sticks |
+| Virtual Boy | [cores/vb](cores/vb/README.md) | Experimental | V810 integer homebrew, multiply/divide and exception register corpora; no retail games, video, audio or controller hardware |
 
-Additional Nintendo families, including Virtual Boy, DS/DSi, GameCube/Wii,
+Additional Nintendo families, including DS/DSi, GameCube/Wii,
 3DS, Wii U, and Switch, still need core plugins. Overall completion is not yet
 measured. See the [hardware coverage and remaining work](docs/HARDWARE-COVERAGE.md).
 
@@ -319,7 +320,7 @@ console. Start here:
 | Game Boy | Blargg serial subset, original probe, 8,388,608 ALU pairs and 73,728 unary pairs verified; Mooneye unscored | [scorecard](COMPLETENESS.md#game-boy) / [notes](cores/gb/README.md#testing) |
 | GBA | partial (CPU/memory/BIOS/saves verified) | [scorecard](COMPLETENESS.md#gba) / [notes](cores/gba/README.md#test-status) |
 | N64 | Experimental integer homebrew: 28,127 integer, 262,623 doubleword multiply/divide and 3,158,016 merge-memory results and all 16,384 digital controller combinations and 65,536 interrupt gates verified; full platform completion unknown | [implementation and limits](cores/n64/README.md) |
-| Virtual Boy | Experimental integer homebrew: 6,512,640 result/PSW pairs plus 4,210,688 multiply/divide and exception snapshots; full platform completion unknown | [implementation and limits](cores/vb/README.md) |
+| Virtual Boy | Experimental integer homebrew: 6,512,640 result/PSW pairs plus 4,210,688 multiply/divide and 4,685,824 TRAP/illegal exception snapshots; full platform completion unknown | [implementation and limits](cores/vb/README.md) |
 
 Run external ROM suites with `python tests/run_all.py`; see [TESTING.md](TESTING.md)
 for per-console and CI usage. The percentages above describe that measured
@@ -338,6 +339,7 @@ subset, not whole-core completion.
 | [SNES math timing](tests/roms-src/snes/math_timing/README.md) | 504,832/504,832 register bytes matched across CPU phases 2–18 (100% of selected multiplicands/dividends, all 256 second operands, four result registers) | `build/artifacts/owned/snes_math_timing/` |
 | [Virtual Boy integer registers](tests/roms-src/vb/integer_registers/README.md) | 6,512,640/6,512,640 pairs matched; six arithmetic/logic operations on all repeated-byte pairs and boundaries, three register shifts, all incoming flags; platform hardware/timing pending | `build/artifacts/owned/vb_integer/` |
 | [Virtual Boy multiply/divide](tests/roms-src/vb/muldiv/README.md) | 4,210,688 nine-word snapshots, including 8,704 zero-divisor exception/RETI cases; all signed/unsigned byte pairs, full-width boundaries and incoming flags | `build/artifacts/owned/vb_muldiv/` |
+| [Virtual Boy exceptions](tests/roms-src/vb/exceptions/README.md) | 4,685,824/4,685,824 thirteen-word snapshots matched: all TRAP parameters, three illegal opcode families, every writable nonfatal PSW combination and complete low-bit encoding sweeps; entry/RETI context | `build/artifacts/owned/vb_exceptions/` |
 | [N64 interrupt gates](tests/roms-src/n64/interrupts/README.md) | 65,536/65,536 cases matched; 524,288 guest values for software/SI/timer, MI/CPU masks and IE/EXL/ERL; pipeline and physical timer timing pending | `build/artifacts/owned/n64_interrupts/` |
 | [N64 digital controller](tests/roms-src/n64/controller_serial/README.md) | 16,384/16,384 combinations matched; 131,072 guest values for digital input, identity, absent port and settled SI/MI registers; analog and physical timing pending | `build/artifacts/owned/n64_controller/` |
 | [N64 merge memory](tests/roms-src/n64/merge_memory/README.md) | 3,158,016/3,158,016 observations matched; eight instructions, every byte lane, all repeated-byte pairs and full-width boundaries; full multi-byte domains/timing unverified | `build/artifacts/owned/n64_merge_memory/` |
@@ -363,7 +365,7 @@ integer execution and settled digital SI/PIF controller evidence. N64 graphics,
 audio, analog sticks, serial/pipeline timing and other interrupt producers remain
 pending.
 The experimental Virtual Boy ROMs record V810 result/PSW pairs, full
-multiply/divide results and divide-zero exception context through an
+multiply/divide results and divide-zero/TRAP/illegal exception context through an
 emulator debug channel. It runs original reset-vector code; video, audio,
 controllers and retail compatibility remain pending.
 Original suites retain raw

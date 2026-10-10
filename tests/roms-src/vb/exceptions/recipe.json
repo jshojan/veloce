@@ -1,0 +1,4 @@
+{
+  "source_type": "original", "console": "vb", "suite": "exceptions",
+  "build": {"script": "build.py", "artifact": "exceptions.vb"}, "license": "MIT"
+}
