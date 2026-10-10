@@ -24,7 +24,7 @@ bool Machine::load(const uint8_t* data,size_t size) {
 }
 void Machine::reset() {
     std::fill(main.begin(),main.end(),0); std::fill(shared.begin(),shared.end(),0); std::fill(private7.begin(),private7.end(),0);
-    frames=0; done=0; wramcnt=3; cpu9.reset(0); cpu7.reset(0);
+    frames=0; done=0; wramcnt=3; keys=0; cpu9.reset(0); cpu7.reset(0);
     if(rom.empty()) return;
     for(bool nine:{true,false}) {
         const auto s=segment(rom.data()+(nine ? 0x20:0x30));
@@ -45,9 +45,25 @@ uint8_t* Machine::byte(bool arm9,uint32_t address) {
     }
     return nullptr;
 }
+void Machine::set_input(uint32_t buttons) {
+    static constexpr unsigned virtual_bits[]={0,1,7,6,11,10,8,9,5,4,2,3};
+    keys=0;
+    for(unsigned n=0;n<12;++n) if(buttons&(1u<<virtual_bits[n])) keys|=1u<<n;
+}
+static bool keypad(bool arm9,uint32_t address,unsigned bytes,uint16_t keys,uint32_t& value) {
+    const uint32_t base=address&~1u;
+    if((bytes!=1 && bytes!=2) || (bytes==2 && (address&1)) ||
+       (base!=0x04000130 && (arm9 || base!=0x04000136))) return false;
+    // Debug and pen are released, lid open. Reserved bits are model values,
+    // not independently graded hardware observations.
+    const uint16_t input=base==0x04000130 ? (~keys&0x3ff):0x7c|(~(keys>>10)&3);
+    value=bytes==2 ? input:(input>>((address&1)*8))&255;
+    return true;
+}
 bool Machine::read(bool arm9,uint32_t address,unsigned bytes,uint32_t& value) {
     if((bytes!=1 && bytes!=2 && bytes!=4) || uint64_t(address)+bytes>0x100000000ull) return false;
     if(bytes==1 && address==(arm9 ? 0x04000247u:0x04000241u)) { value=wramcnt; return true; }
+    if(keypad(arm9,address,bytes,keys,value)) return true;
     uint32_t result=0;
     for(unsigned n=0;n<bytes;++n) { auto* p=byte(arm9,address+n); if(!p) return false; result|=uint32_t(*p)<<(n*8); }
     value=result; return true;
@@ -67,6 +83,7 @@ bool Machine::write(bool arm9,uint32_t address,unsigned bytes,uint32_t value) {
     }
     if(address==0x04ff0004 && bytes==4) { done|=arm9 ? 1:2; if(done==3 && sink) sink->finish(-1); return true; }
     if(arm9 && address==0x04000247 && bytes==1) { wramcnt=value&3; return true; }
+    uint32_t ignored=0; if(keypad(arm9,address,bytes,keys,ignored)) return true;
     uint8_t* destinations[4]{};
     for(unsigned n=0;n<bytes;++n) { destinations[n]=byte(arm9,address+n); if(!destinations[n]) return false; }
     for(unsigned n=0;n<bytes;++n) *destinations[n]=uint8_t(value>>(n*8));
@@ -85,18 +102,21 @@ void Machine::frame() {
 static void append(std::vector<uint8_t>& out,uint64_t value) { for(unsigned n=0;n<8;++n) out.push_back(uint8_t(value>>(56-n*8))); }
 bool Machine::save(std::vector<uint8_t>& out) const {
     if(rom.empty()) return false;
-    out.assign({'V','N','D','S','0','0','0','1'});
+    out.assign({'V','N','D','S','0','0','0','2'});
     for(auto v:{identity,uint64_t(crc),frames,uint64_t(done),uint64_t(wramcnt)}) append(out,v);
     for(const auto* cpu:{&cpu9,&cpu7}) {
         for(auto v:cpu->state.r) append(out,v);
         append(out,cpu->state.cpsr); append(out,cpu->state.steps); append(out,cpu->state.unsupported);
     }
     for(const auto* memory:{&main,&shared,&private7}) out.insert(out.end(),memory->begin(),memory->end());
+    append(out,keys);
     return true;
 }
 bool Machine::restore(const std::vector<uint8_t>& in) {
     constexpr size_t prefix=8+(5+2*19)*8;
-    if(rom.empty() || in.size()!=prefix+main.size()+shared.size()+private7.size() || std::memcmp(in.data(),"VNDS0001",8)) return false;
+    const size_t legacy_size=prefix+main.size()+shared.size()+private7.size();
+    const bool legacy=in.size()==legacy_size && !std::memcmp(in.data(),"VNDS0001",8);
+    if(rom.empty() || (!legacy && (in.size()!=legacy_size+8 || std::memcmp(in.data(),"VNDS0002",8)))) return false;
     size_t pos=8; const auto take=[&]() { uint64_t v=0; for(unsigned n=0;n<8;++n) v=(v<<8)|in[pos++]; return v; };
     if(take()!=identity || take()!=crc) return false;
     const auto frame=take(),finished=take(),wram=take(); if(finished>3 || wram>3) return false;
@@ -107,7 +127,9 @@ bool Machine::restore(const std::vector<uint8_t>& in) {
         const auto psw=take(); if((psw&~(index==0 ? 0xf8000020ull:0xf0000020ull))!=0xdf || (cpu.r[15]&((psw&0x20) ? 1:3))) return false;
         cpu.cpsr=uint32_t(psw); cpu.steps=take(); const auto stopped=take(); if(stopped>1) return false; cpu.unsupported=stopped;
     }
-    cpu9.state=cpus[0]; cpu7.state=cpus[1]; frames=frame; done=uint8_t(finished); wramcnt=uint8_t(wram);
+    uint64_t input=0;
+    if(!legacy) { for(size_t n=legacy_size;n<legacy_size+8;++n) input=input*256+in[n]; if(input>0xfff) return false; }
+    cpu9.state=cpus[0]; cpu7.state=cpus[1]; frames=frame; done=uint8_t(finished); wramcnt=uint8_t(wram); keys=uint16_t(input);
     for(auto* memory:{&main,&shared,&private7}) { std::copy_n(in.begin()+pos,memory->size(),memory->begin()); pos+=memory->size(); }
     return true;
 }

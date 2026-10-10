@@ -53,6 +53,12 @@ Full platform completion is unknown.
   WRAM and mirrors; 32 KiB shared WRAM with all four WRAMCNT allocations,
   bank mirrors, ARM9 control and ARM7 status. Missing ARM9 allocation stops
   diagnostically; physical undefined/open-bus reads are not supplied.
+- Twelve digital buttons latched from frontend input before each frame.
+  Active-low KEYINPUT halfword/byte reads on both CPUs and ARM7-only EXTKEYIN
+  X/Y reads. Debug/pen are released and lid open in the supplied profile.
+  Legal writes to these read-only lanes are ignored. KEYCNT/IRQ, touch/SPI,
+  lid/debug controls and wider accesses spanning other registers are pending.
+  The plugin provides a twelve-button configuration layout.
 - Validated direct segment loading from original marked cartridges, full
   CPU/RAM save states, bounded dual-CPU scheduling and register-file output.
 
@@ -148,7 +154,14 @@ ARM9 ARM targets and both Thumb halfword positions, including ARM7's even
 Thumb target. Static thunks avoid runtime code patching. The host grades every
 recorded bit; unpredictable lists are excluded from this hardware domain.
 
-The six original ROMs use the word transport for register observations and the
+The original [keypad corpus](../../tests/roms-src/nds/keypad/README.md) supplies
+all 4,096 digital combinations through the frontend input schedule and captures
+ten-word snapshots: both CPUs' KEYINPUT halfword/byte reads, ARM7 EXTKEYIN
+halfword/byte reads and a sequence counter. Unknown/reserved register bits are
+captured but excluded from hardware scoring. All 4,096 snapshots matched with
+zero mismatches.
+
+The seven original ROMs use the word transport for register observations and the
 byte transport for text framing. The four earlier corpora retain their instruction
 domains, snapshot fields and independent grading. The integer builder retains `word_output=False`, which
 reproduces the previously committed byte-output image exactly. Its reduced
@@ -215,16 +228,23 @@ these counts measure test-driver work, not physical DS cycles or latency.
   legacy-byte equivalence, leading zeros/case/order, guest STR preservation,
   rejected widths/addresses, write-only reads and unbound sinks. Actual plugin
   replay emits distinct words from both CPUs and finishes only when both finish.
+- All 4,096 digital masks with irrelevant upper ABI bits ignored, both CPU
+  access rights, byte lanes, ignored read-only writes and invalid-width/range
+  rejection. Input save/restore, malformed input rejection, neutral reset and
+  legacy-state migration are checked. Actual plugin tests verify layout controls,
+  held/released input and exact state restoration.
 - Exact dual-CPU/RAM replay through machine and actual shared-plugin states;
   nine malformed state variants and eight malformed cartridge variants, with
   rejection atomicity. Plugin dimensions and unload behavior are also checked.
 
-`VNDS0001` states contain explicit big-endian scalars for image identity/CRC,
+`VNDS0002` states contain explicit big-endian scalars for image identity/CRC,
 frame count, completion and WRAM mode, both implemented CPU contexts/step counters/
-diagnostic flags, followed by all three RAM banks. Exact size/version/image,
+diagnostic flags, followed by all three RAM banks and the normalized twelve-bit
+pressed-button latch as one eight-byte scalar. Exact size/version/image,
 mode, boolean, PC alignment (word for ARM, halfword for Thumb), and defined
-CPSR/T checks precede mutation. The format remains `VNDS0001`; ARM states from
-the earlier subset remain valid.
+CPSR/T and input-mask checks precede mutation. Exact legacy `VNDS0001` states
+remain accepted with released keys; CPU/RAM scalar offsets are preserved.
+New states use `VNDS0002` and are not accepted by older plugin builds.
 
 ```bash
 python3 tests/roms-src/build.py --original-only --check
@@ -235,8 +255,8 @@ ctest --test-dir build -R '^nds_' --output-on-failure
 
 Raw observations/reports remain in `build/artifacts/owned/nds_integer/`,
 `build/artifacts/owned/nds_multiply/`, `build/artifacts/owned/nds_thumb/`,
-`build/artifacts/owned/nds_memory/`, `build/artifacts/owned/nds_long_calls/` and
-`build/artifacts/owned/nds_multiple/`,
+`build/artifacts/owned/nds_memory/`, `build/artifacts/owned/nds_long_calls/`,
+`build/artifacts/owned/nds_multiple/` and `build/artifacts/owned/nds_keypad/`,
 and are uploaded by owned-hardware CI. Generator/image SHA256 are recorded
 in the ROM manifest. Component evidence is separate from the original-ROM domain.
 
@@ -246,7 +266,7 @@ ARM block transfers, ARM BLX immediate,
 ARM9 DSP/saturation and other architecture extensions,
 ARM doubleword transfers, SWP, privileged modes,
 banked registers, SPSR, exceptions/interrupts, CP15/MPU/cache/TCM, firmware and
-BIOS, gamecard/secure-area/save protocols, IPC, DMA, timers, KEYINPUT/touchscreen,
+BIOS, gamecard/secure-area/save protocols, IPC, DMA, timers, KEYCNT/keypad IRQ and touchscreen,
 SPI/RTC, Wi-Fi, graphics/VRAM/palette/OAM, 3D, sound and physical timing remain.
 Valid unimplemented instructions and unmapped transactions set a serialized
 `unsupported` flag rather than fabricate results or deliver hardware exceptions.
@@ -256,7 +276,8 @@ non-PC registers; the Thumb corpus records PC reads separately. The ARM integer
 corpus uses an unshifted second operand; Thumb includes immediate/register shifts. Physical undefined BX alignment
 and PC-store behavior are not hardware-scored.
 
-Video is a blank 256×384 combined buffer, audio is empty, and input is ignored.
+Video is a blank 256×384 combined buffer and audio is empty. Digital input
+reaches the keypad registers; touchscreen and lid input remain pending.
 Dual-screen presentation, physical controllers/touchscreen, this core's netplay,
 Windows/macOS builds and physical-hardware comparison remain unverified or
 unimplemented. Other cores retain their existing controller/network behavior.

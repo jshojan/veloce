@@ -315,3 +315,8 @@ add_test(NAME nds_multiple_registers COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/roms-src/nds/multiple_registers/run.py --emulator $<TARGET_FILE:veloce>
     --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/nds_multiple)
 set_tests_properties(nds_multiple_registers PROPERTIES LABELS "accuracy;owned" TIMEOUT 1800)
+
+add_test(NAME nds_keypad COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/nds/keypad/run.py --emulator $<TARGET_FILE:veloce>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/nds_keypad)
+set_tests_properties(nds_keypad PROPERTIES LABELS "accuracy;owned" TIMEOUT 240)

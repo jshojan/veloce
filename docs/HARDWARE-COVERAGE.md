@@ -15,7 +15,7 @@ are not measurements of overall hardware or product completion.
 | GBA | `gba_plugin` | ARM MOVS register shifts: 65,536/65,536 result/CPSR pairs verified; all low-byte amounts and C/V inputs on 16 operands | Not measured; remaining CPU modes/instructions, timing and peripheral corpora pending |
 | Nintendo 64 | `n64_plugin` (experimental homebrew only) | 28,127/28,127 defined integer results matched; 28,160 observations, with 33 undefined divide inputs unscored; doubleword multiply/divide: 262,623/262,623 defined LO/HI pairs matched on exhaustive byte pairs and full-width boundaries; merge memory: 3,158,016/3,158,016 observations matched at every lane on all repeated-byte pairs and selected full-width patterns; digital SI/PIF: 16,384/16,384 button combinations and 131,072 register values matched; interrupt gates: 65,536/65,536 cases and 524,288 register values matched | Not measured; retail boot, graphics/audio, analog/controllers beyond port 1 and most platform hardware remain |
 | Virtual Boy | `vb_plugin` (experimental homebrew only) | 6,512,640/6,512,640 result/PSW pairs matched across ADD/SUB/CMP/OR/AND/XOR repeated-byte pairs and full-width boundaries, plus SHL/SHR/SAR patterns and all low-byte amounts; 4,210,688/4,210,688 multiply/divide snapshots matched with 8,704 divide-zero exception/RETI cases; 4,685,824/4,685,824 TRAP/illegal exception snapshots matched across all writable nonfatal PSW combinations and full reserved low-bit encodings; 4,982,784/4,982,784 address-trap snapshots matched across matching/disabled/aliased addresses and entry/return; 17,055,744/17,055,744 CAXI/port snapshots matched across comparisons/replacements, width/alignment, unsigned input and preserved flags; 14,680,064/14,680,064 arithmetic bit-string snapshots matched across eight operations, byte pairs, all offsets and twelve lengths; 100,712,448/100,712,448 immediate-instruction snapshots matched across all wide/short immediates for twelve instructions on sixteen patterns/all flags | Not measured; remaining CPU/NVC instructions, timing, VIP/VSU, controllers and most platform hardware remain |
-| Nintendo DS | `nds_plugin` (experimental homebrew only) | 44,238,336/44,238,336 dual-CPU result/CPSR/source snapshots matched across all sixteen data-processing operations, repeated-byte pairs and full-width boundaries, every NZCV and both ARM9 Q states; 38,338,560 six-family multiply and 51,426,816 Thumb result/CPSR/source/PC observations matched with undefined ARM7 flags excluded; 49,694,208 nine-word ARM/Thumb memory and 9,437,184 eight-word long-call snapshots matched with every bit graded; 3,720,960 stack/block snapshots matched | Not measured; firmware/retail boot, ARM block transfers, interrupts, graphics/audio, peripherals, timing and DSi enhanced mode remain |
+| Nintendo DS | `nds_plugin` (experimental homebrew only) | 44,238,336/44,238,336 dual-CPU result/CPSR/source snapshots matched across all sixteen data-processing operations, repeated-byte pairs and full-width boundaries, every NZCV and both ARM9 Q states; 38,338,560 six-family multiply and 51,426,816 Thumb result/CPSR/source/PC observations matched with undefined ARM7 flags excluded; 49,694,208 nine-word ARM/Thumb memory and 9,437,184 eight-word long-call snapshots matched with every bit graded; 3,720,960 stack/block snapshots matched; 4,096/4,096 digital keypad combinations matched | Not measured; firmware/retail boot, ARM block transfers, interrupts, graphics/audio, peripherals, timing and DSi enhanced mode remain |
 
 The experimental N64 plugin now executes original MIPS integer homebrew ROMs.
 It accepts only the documented `V64HB001` entry profile and cannot run retail
@@ -126,13 +126,21 @@ list encodings including diagnostic stops, unaligned model behavior, injected
 bus failures and actual plugin stack replay. Static instruction thunks avoid
 runtime code patching. Physical abort/alignment/CP15/cache behavior and bus
 ordering/timing remain unverified.
+The [keypad corpus](../tests/roms-src/nds/keypad/README.md) matched all 4,096
+digital combinations, zero mismatches, through the actual frontend schedule. Both CPUs capture
+KEYINPUT halfword/byte reads and ARM7 captures X/Y through EXTKEYIN, with a
+shared-RAM sequence handshake. Reserved/unknown register bits are captured but
+unscored. Components separately check mapping, access rights, ignored writes,
+normalized input state, reset and legacy migration; actual plugin layout and
+held/released state tests pass. Lid/debug/touch/SPI, KEYCNT/keypad IRQ and
+physical controller use remain unverified or unimplemented.
 Native word serialization preserves the same captured fields and independent
 grades; 347,136 reduced integer observations also match the original byte
 transport exactly. Output ports are emulator-only and demonstrate no physical
 bus timing.
 This declares operand/flag coverage, not whole-hardware completion. Shifters,
 WRAM banks and exact saved continuation have separate component checks.
-Firmware, ARM block transfers, exceptions/interrupts, graphics/audio/controllers, most
+Firmware, ARM block transfers, exceptions/interrupts, graphics/audio/touchscreen, physical controllers, most
 peripherals/timing and DSi enhanced mode remain pending.
 
 Run `python3 tests/roms-src/build.py --original-only --check` to reproduce the

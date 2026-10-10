@@ -541,6 +541,45 @@ static void register_output(nds::Machine& m) {
     require(m.write(true,0x04ff0008,4,0) && m.write(false,0x04ff0008,4,0xffffffff),"unbound word port rejected output");
     m.save(after); require(before==after,"unbound word output changed machine state");
 }
+static void keypad(nds::Machine& m) {
+    static constexpr unsigned map[]={0,1,7,6,11,10,8,9,5,4,2,3};
+    for(unsigned pressed=0;pressed<4096;++pressed) {
+        uint32_t buttons=0; for(unsigned n=0;n<12;++n) if(pressed&(1u<<n)) buttons+=1u<<map[n];
+        m.set_input(buttons|0xfffff000u); require(m.keys==pressed,"DS frontend button mapping wrong");
+        for(bool nine:{false,true}) for(uint32_t base:{0x04000130u,0x04000136u}) {
+            if(nine && base==0x04000136) continue;
+            const uint32_t reference=base==0x04000130 ? 1023-(pressed%1024):0x7c|(3-pressed/1024);
+            for(unsigned lane=0;lane<2;++lane) {
+                uint32_t value=0; require(m.read(nine,base+lane,1,value) && value==((reference>>(lane*8))&255),"keypad byte lane wrong");
+                require(m.write(nine,base+lane,1,0xffffffff) && m.keys==pressed,"read-only keypad byte write changed input");
+            }
+            uint32_t value=0; require(m.read(nine,base,2,value) && value==reference,"keypad halfword wrong");
+            require(m.write(nine,base,2,0) && m.keys==pressed,"read-only keypad halfword write changed input");
+        }
+    }
+    for(bool nine:{false,true}) for(unsigned width:{0u,1u,2u,3u,4u,8u})
+        for(uint32_t address=0x0400012f;address<=0x04000138;++address) {
+            const bool valid=(width==1 || (width==2 && !(address&1))) &&
+                ((address&~1u)==0x04000130 || (!nine && (address&~1u)==0x04000136));
+            if(valid) continue;
+            uint32_t value=0xdeadbeef; const auto keys=m.keys;
+            require(!m.read(nine,address,width,value) && value==0xdeadbeef,"unsupported keypad read fabricated value");
+            require(!m.write(nine,address,width,0xffffffff) && m.keys==keys,"unsupported keypad write changed state");
+        }
+    m.set_input(0x555); std::vector<uint8_t> before,after; m.save(before);
+    m.set_input(0xaaa); require(m.restore(before),"latched input state restore failed"); m.save(after);
+    require(before==after,"latched input state replay diverged");
+    auto malformed=before; malformed[malformed.size()-2]=0x10;
+    require(!m.restore(malformed),"invalid keypad state accepted"); m.save(after); require(before==after,"invalid keypad state changed machine");
+    auto legacy=before; legacy.resize(legacy.size()-8); legacy[7]='1';
+    require(m.restore(legacy) && m.keys==0,"legacy DS state did not restore released keys");
+    auto migrated=before; std::fill(migrated.end()-8,migrated.end(),0); m.save(after);
+    require(after==migrated,"legacy DS migration changed CPU/RAM state");
+    auto wrong_version=legacy; wrong_version[7]='2'; require(!m.restore(wrong_version),"new DS version accepted legacy length");
+    wrong_version=before; wrong_version[7]='1'; require(!m.restore(wrong_version),"legacy DS version accepted input extension");
+    m.save(after); require(after==migrated,"version/length rejection changed migrated state");
+    m.set_input(0xfff); m.reset(); require(m.keys==0,"reset retained held keys");
+}
 static void states(nds::Machine& m,const std::vector<uint8_t>& rom,const char* plugin) {
     require(m.load(rom.data(),rom.size()),"original reload failed"); m.frame(); require(!m.cpu9.state.unsupported && !m.cpu7.state.unsupported,"original execution stopped");
     std::vector<uint8_t> before,after,replay; require(m.save(before),"save failed"); m.frame(); m.save(after);
@@ -548,7 +587,7 @@ static void states(nds::Machine& m,const std::vector<uint8_t>& rom,const char* p
     for(unsigned n=0;n<9;++n) {
         auto bad=before;
         if(n==0) bad.pop_back();
-        if(n==1) bad[7]='2';
+        if(n==1) bad[7]='3';
         if(n==2) bad[15]^=1;
         if(n==3) bad[23]^=1;
         if(n==4) bad[39]=4;
@@ -571,6 +610,13 @@ static void states(nds::Machine& m,const std::vector<uint8_t>& rom,const char* p
         require(!m.load(bad.data(),bad.size()),"bad cartridge accepted"); m.save(replay); require(replay==after,"rejected cartridge changed active machine");
     }
     emulator_test::LoadedCore loaded(plugin,rom); auto& core=*loaded.plugin;
+    const auto* layout=core.get_controller_layout(); require(layout && layout->button_count==12 && layout->controller_count==1,"DS controller layout missing");
+    uint32_t layout_mask=0; for(int n=0;n<layout->button_count;++n) layout_mask|=1u<<unsigned(layout->buttons[n].button);
+    require(layout_mask==0xfff,"DS controller layout controls wrong");
+    core.run_frame({0xfff}); require(core.save_state(before),"plugin input state save failed");
+    require(before.back()==0xff && before[before.size()-2]==0x0f,"plugin did not latch all digital controls");
+    core.run_frame({0}); core.save_state(after); require(after.back()==0 && after[after.size()-2]==0,"plugin did not release controls");
+    require(core.load_state(before),"plugin held-input state restore failed"); core.save_state(replay); require(before==replay,"plugin held-input state restore diverged");
     core.run_frame({0}); require(core.save_state(before),"plugin save failed"); core.run_frame({0}); core.save_state(after);
     require(core.load_state(before),"plugin restore failed"); core.run_frame({0}); core.save_state(replay); require(after==replay,"shared-plugin state replay wrong");
     require(core.get_info().screen_width==256 && core.get_info().screen_height==384 && core.get_framebuffer().width==256,"DS plugin dimensions wrong");
@@ -669,7 +715,7 @@ int main(int argc,char** argv) {
     try {
         require(argc==3,"usage: nds_machine_test plugin original.nds"); std::ifstream in(argv[2],std::ios::binary);
         std::vector<uint8_t> rom((std::istreambuf_iterator<char>(in)),{}); nds::Machine m; require(m.load(rom.data(),rom.size()),"original DS ROM rejected");
-        arithmetic(m); multiplies(m); shifts(m); control(m); thumb_alu(m); thumb_high_registers(m); thumb_control(m); thumb_long_calls(m); thumb_multiple(m); memory_instructions(m); memory(m); register_output(m); states(m,rom,argv[1]);
+        arithmetic(m); multiplies(m); shifts(m); control(m); thumb_alu(m); thumb_high_registers(m); thumb_control(m); thumb_long_calls(m); thumb_multiple(m); memory_instructions(m); memory(m); register_output(m); keypad(m); states(m,rom,argv[1]);
         std::cout<<"DS ARM/Thumb ALU/multiply/shifter/control/memory/state/plugin checks passed\n"; return 0;
     } catch(const std::exception& e) { std::cerr<<e.what()<<'\n'; return 1; }
 }

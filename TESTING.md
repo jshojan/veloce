@@ -128,7 +128,7 @@ ARM9/ARM7 share main RAM and execute from their loaded main/private segments.
 The host grades both output streams independently; an ADC-to-ADD mutation and
 seven damaged files check failure detection. Component gates cover aliases,
 shifters, WRAM banks, validation and exact plugin state replay. Firmware,
-ARM block transfers, physical timing, graphics/audio/controllers and
+ARM block transfers, physical timing, graphics/audio/touchscreen, physical controller use and
 DSi enhanced mode remain pending.
 The [multiply corpus](tests/roms-src/nds/multiply_registers/README.md) adds
 38,338,560 five-word observations across six multiply/accumulate forms, both S
@@ -179,7 +179,19 @@ unpredictable-list diagnostics, plus unaligned model/undefined-target checks
 and injected failures. Actual plugin stack loops save/replay whole CPU/RAM
 states exactly. Static thunks avoid code patching; CP15/cache, abort behavior,
 physical ordering and timing remain unverified.
-All six DS corpora serialize register words through emulator-only `$04FF0008`
+The [keypad corpus](tests/roms-src/nds/keypad/README.md) matched all 4,096
+digital combinations with zero mismatches through `INPUT_FILE`, using a Gray sequence with one button
+change per frontend frame. Both CPUs capture KEYINPUT and ARM7 captures EXTKEYIN
+with halfword/byte reads; ARM9 outputs their ten-word snapshots after a shared-RAM
+handshake. The reduced 16-snapshot ROM passes; an executed polarity mutant must
+fail all sixteen. Nine defined-field mutations must FAIL, five reserved-bit
+controls must PASS, and seven malformed files must return ERROR. Unknown bits
+remain visible but unscored. Components check all masks, read lanes/rights,
+ignored writes, normalized saved input, reset and legacy-state migration.
+Actual plugin tests verify the twelve-button layout, held/released input and
+exact restoration. Lid/debug/touch/SPI, KEYCNT/IRQ and physical device testing
+remain pending; this frame schedule establishes no physical polling timing.
+All seven DS corpora serialize register words through emulator-only `$04FF0008`
 while retaining byte framing and the same independent graders. Integer controls
 compare 347,136 independently graded native/legacy observations byte-for-byte;
 `legacy-byte.nds`, `.result` and `.json` remain with the integer artifacts.

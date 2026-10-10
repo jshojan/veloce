@@ -110,6 +110,17 @@
       "source_type": "original",
       "suite": "integer_registers"
     },
+    "nds/keypad/keypad.nds": {
+      "build_command": "python3 tests/roms-src/nds/keypad/build.py",
+      "console": "nds",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "358065bfa9edbba285e29a4c402b43cf91c3ec6a210506859173987beac43ba7",
+      "source_repo": "tests/roms-src/nds/keypad/build.py",
+      "source_sha": "93f1416d645015ae35e26aa688913a4c748ed5c2cc66a9feee9a0a4bbd001d07",
+      "source_type": "original",
+      "suite": "keypad"
+    },
     "nds/long_calls/long_calls.nds": {
       "build_command": "python3 tests/roms-src/nds/long_calls/build.py",
       "console": "nds",

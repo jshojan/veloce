@@ -15,6 +15,7 @@ public:
     bool load(const uint8_t* data,size_t size);
     void reset();
     void frame();
+    void set_input(uint32_t buttons);
     bool read(bool arm9,uint32_t address,unsigned bytes,uint32_t& value);
     bool write(bool arm9,uint32_t address,unsigned bytes,uint32_t value);
     bool save(std::vector<uint8_t>& data) const;
@@ -25,6 +26,7 @@ public:
     uint32_t crc=0;
     uint64_t identity=0,frames=0;
     uint8_t wramcnt=3,done=0;
+    uint16_t keys=0; // Pressed buttons in DS KEYINPUT/X/Y order, latched per frame.
 private:
     uint8_t* byte(bool arm9,uint32_t address);
 };

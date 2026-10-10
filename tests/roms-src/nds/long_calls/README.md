@@ -86,7 +86,8 @@ record width and final completion are checked strictly.
 Component tests save after a prefix and resume the suffix. Actual shared-plugin
 frames also end after a prefix on each CPU; restore/replay produces identical
 whole states for BL and ARM9 BLX. Existing serialized LR, PC and CPSR carry the
-intermediate state; the `VNDS0001` format is unchanged.
+intermediate state; later keypad support saves `VNDS0002` states and accepts legacy `VNDS0001`
+states with released keys.
 
 ```bash
 python3 tests/roms-src/build.py nds/long_calls --original-only --check

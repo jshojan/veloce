@@ -86,8 +86,8 @@ These diagnostic stops do not implement physical Data Abort behavior; earlier
 writes and bus read effects are not rolled back.
 
 Actual shared-plugin PUSH/POP-PC loops run both CPUs on distinct stacks and
-restore/replay identical whole CPU/RAM states. No ABI or `VNDS0001` save-state
-format change is required.
+restore/replay identical whole CPU/RAM states. Transfer support required no ABI/state change. Later keypad support saves
+`VNDS0002` and accepts legacy `VNDS0001` states with released keys.
 
 ```bash
 python3 tests/roms-src/build.py nds/multiple_registers --original-only --check
