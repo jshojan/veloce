@@ -465,3 +465,26 @@ viewer local input; DS fast-state bounds/invalid buffers and ordinary state
 identity are checked. Artifacts remain in `build/artifacts/netplay-nds/`.
 No DS audio is produced or verified. DS wireless multiplayer, physical two-machine
 use, rendered GUI and Internet/cross-platform behavior remain pending.
+
+## Original GameCube and Wii PowerPC programs
+
+`gc_integer_registers` and `wii_integer_registers` execute distinct original
+marked images through the real frontend/plugins and `ppcdebug` file sink. Each
+independent host oracle matches 49,152 six-word observations over the declared
+arithmetic boundary domain. Executed wrong-result controls must fail all 768
+reduced cases; each field mutation must fail and seven malformed streams must
+return ERROR. Raw files and reports are in `build/artifacts/owned/gc_integer/`
+and `build/artifacts/owned/wii_integer/`. `ppc_machine_test` additionally grades
+2,752,512 arithmetic/register snapshots across both profiles plus flags,
+RAM/branch behavior, marked image
+validation, state atomicity/replay and both actual shared plugins.
+
+```sh
+cmake --build build --target veloce gc_plugin wii_plugin ppc_machine_test -j4
+ctest --test-dir build -R '^(ppc_machine_test|gc_integer_registers|wii_integer_registers)$' --output-on-failure
+```
+
+These are experimental supplied integer profiles. The ROMs contain no expected
+answers or verdicts. Passing these domains does not verify retail startup,
+physical timing, GPU/DSP, controllers, Wii MEM2/IOS or netplay. See the
+[implemented subset and limits](cores/ppc/README.md).

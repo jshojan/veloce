@@ -1,0 +1,125 @@
+#include "machine.hpp"
+#include <algorithm>
+#include <cstring>
+namespace ppc {
+static uint32_t be(const uint8_t* p) { return uint32_t(p[0])<<24|uint32_t(p[1])<<16|uint32_t(p[2])<<8|p[3]; }
+static int64_t signed32(uint32_t v) { return v&0x80000000 ? int64_t(v)-0x100000000LL:v; }
+bool Machine::location(uint32_t address,unsigned width,size_t& offset) const {
+    if(width!=1 && width!=2 && width!=4) return false;
+    const uint32_t bank=address&0xe0000000u;
+    if(bank!=0 && bank!=0x80000000 && bank!=0xc0000000) return false;
+    offset=address&0x1fffffffu;
+    return uint64_t(offset)+width<=ram.size();
+}
+bool Machine::load(const uint8_t* data,size_t size) {
+    if(!data || size<36 || size>ram.size()+32 || std::memcmp(data,wii ? "VWIP0001":"VGCP0001",8)) return false;
+    const auto address=be(data+8),entry=be(data+12),length=be(data+16);
+    size_t offset=0;
+    if(address<0x80000000 || address>=0x81800000 || (address&3) || (entry&3) || !length || (length&3) ||
+       uint64_t(length)+32!=size || entry<address || uint64_t(entry)+4>uint64_t(address)+length ||
+       !location(address,4,offset) || uint64_t(offset)+length>ram.size()) return false;
+    for(unsigned n=20;n<32;++n) if(data[n]) return false;
+    uint32_t checksum=0xffffffff; uint64_t hash=0xcbf29ce484222325ULL;
+    for(size_t n=0;n<size;++n) { const auto b=data[n]; hash=(hash^b)*0x100000001b3ULL; checksum^=b; for(unsigned bit=0;bit<8;++bit) checksum=checksum>>1^((checksum&1) ? 0xedb88320u:0); }
+    rom.assign(data,data+size); crc=~checksum; identity=hash; reset(); return true;
+}
+void Machine::reset() {
+    cpu={}; frames=0; done=false; std::fill(ram.begin(),ram.end(),0);
+    if(rom.empty()) return;
+    const auto address=be(rom.data()+8); cpu.pc=be(rom.data()+12);
+    std::copy(rom.begin()+32,rom.end(),ram.begin()+(address-0x80000000));
+}
+bool Machine::read(uint32_t address,unsigned width,uint32_t& value) const {
+    size_t offset=0; if(!location(address,width,offset)) return false;
+    uint32_t result=0; for(unsigned n=0;n<width;++n) result=result<<8|ram[offset+n]; value=result; return true;
+}
+bool Machine::write(uint32_t address,unsigned width,uint32_t value) {
+    if(address==0xfff00000 && width==1) { const char c=char(value); if(sink) sink->write(&c,1); return true; }
+    if(address==0xfff00008 && width==4) {
+        if(sink) { static constexpr char digits[]="0123456789abcdef"; char text[8]; for(unsigned n=0;n<8;++n) text[n]=digits[(value>>(28-n*4))&15]; sink->write(text,8); } return true;
+    }
+    if(address==0xfff00004 && width==4) { done=true; if(sink) sink->finish(-1); return true; }
+    size_t offset=0; if(!location(address,width,offset)) return false;
+    for(unsigned n=0;n<width;++n) ram[offset+n]=uint8_t(value>>(8*(width-n-1)));
+    return true;
+}
+void Machine::step() {
+    auto& s=cpu; if(s.unsupported || done) return; ++s.steps;
+    uint32_t ins=0; const auto pc=s.pc;
+    if((pc&3) || !read(pc,4,ins)) { s.unsupported=true; return; }
+    const unsigned op=ins>>26,rt=(ins>>21)&31,ra=(ins>>16)&31,rb=(ins>>11)&31;
+    const uint32_t immediate=uint32_t(int64_t(int(ins&0xffff))-((ins&0x8000) ? 65536:0));
+    if(op==14 || op==15) s.r[rt]=(ra ? s.r[ra]:0)+(op==15 ? immediate<<16:immediate);
+    else if(op==24 || op==25) s.r[ra]=s.r[rt]|((ins&65535)<<(op==25 ? 16:0));
+    else if(op==32 || op==34 || op==36 || op==38 || op==40 || op==44) {
+        const bool load=op==32 || op==34 || op==40;
+        const unsigned width=op==34 || op==38 ? 1:op==40 || op==44 ? 2:4;
+        const uint32_t address=(ra ? s.r[ra]:0)+immediate;
+        if(address&(width-1)) { s.unsupported=true; return; }
+        uint32_t value=s.r[rt];
+        if(!(load ? read(address,width,value):write(address,width,value))) { s.unsupported=true; return; }
+        if(load) s.r[rt]=value;
+    } else if(op==18) {
+        uint32_t delta=ins&0x03fffffc; if(delta&0x02000000) delta|=0xfc000000;
+        if(ins&1) s.lr=pc+4;
+        s.pc=(ins&2) ? delta:pc+delta; return;
+    } else if(ins==0x4e800020 || ins==0x4e800021) {
+        const auto target=s.lr&~3u; if(ins&1) s.lr=pc+4; s.pc=target; return;
+    } else if(op==31) {
+        const unsigned xo=(ins>>1)&1023,arithmetic=xo&511;
+        if(arithmetic==266 || arithmetic==10 || arithmetic==138 || arithmetic==40 || arithmetic==8 || arithmetic==136) {
+            const bool subtract=arithmetic==40 || arithmetic==8 || arithmetic==136;
+            const bool extended=arithmetic==138 || arithmetic==136;
+            const unsigned carry=(s.xer>>29)&1;
+            const uint32_t a=s.r[ra],b=s.r[rb];
+            // Complemented subtraction exposes the architectural no-borrow carry.
+            const uint64_t wide=uint64_t(subtract ? ~a:a)+b+(extended ? carry:subtract ? 1:0);
+            const uint32_t result=uint32_t(wide);
+            const int64_t math=subtract ? signed32(b)-signed32(a)-(extended ? 1-carry:0):signed32(a)+signed32(b)+(extended ? carry:0);
+            if(arithmetic!=266 && arithmetic!=40) s.xer=(s.xer&~0x20000000u)|(wide>>32 ? 0x20000000u:0);
+            // OE updates OV and only sets sticky SO; Rc observes the new SO.
+            if(ins&0x400) {
+                const bool overflow=math< -0x80000000LL || math>0x7fffffffLL;
+                s.xer=(s.xer&~0x40000000u)|(overflow ? 0xc0000000u:0);
+            }
+            s.r[rt]=result;
+            if(ins&1) s.cr=(s.cr&0x0fffffffu)|((result==0 ? 2u:result&0x80000000 ? 8u:4u)|((s.xer>>31)&1))<<28;
+        } else if(xo==339 || xo==467) {
+            if(ins&1) { s.unsupported=true; return; }
+            const unsigned spr=((ins>>16)&31)|((ins>>6)&992);
+            uint32_t* target=spr==1 ? &s.xer:spr==8 ? &s.lr:spr==9 ? &s.ctr:nullptr;
+            if(!target) { s.unsupported=true; return; }
+            if(xo==339) s.r[rt]=*target;
+            else *target=spr==1 ? s.r[rt]&0xe000007fu:s.r[rt];
+        } else if(xo==19 && !(ins&0x001ff801)) s.r[rt]=s.cr;
+        else if(xo==144 && !(ins&0x00100801)) {
+            const unsigned mask=(ins>>12)&255; for(unsigned field=0;field<8;++field) if(mask&(128>>field)) {
+                const uint32_t bits=0xf0000000u>>(field*4); s.cr=(s.cr&~bits)|(s.r[rt]&bits);
+            }
+        } else { s.unsupported=true; return; }
+    } else { s.unsupported=true; return; }
+    s.pc=pc+4;
+}
+void Machine::frame() { if(rom.empty()) return; for(unsigned n=0;n<100000 && !done && !cpu.unsupported;++n) step(); ++frames; }
+static void append(std::vector<uint8_t>& out,uint64_t value) { for(int n=7;n>=0;--n) out.push_back(uint8_t(value>>(n*8))); }
+bool Machine::save(std::vector<uint8_t>& out) const {
+    if(rom.empty()) return false;
+    out.assign({'V','P','P','C','0','0','0','1'});
+    for(uint64_t value:{uint64_t(wii),identity,uint64_t(crc),frames,uint64_t(done)}) append(out,value);
+    for(auto value:cpu.r) append(out,value);
+    for(uint64_t value:{uint64_t(cpu.pc),uint64_t(cpu.cr),uint64_t(cpu.xer),uint64_t(cpu.lr),uint64_t(cpu.ctr),cpu.steps,uint64_t(cpu.unsupported)}) append(out,value);
+    out.insert(out.end(),ram.begin(),ram.end()); return true;
+}
+bool Machine::restore(const std::vector<uint8_t>& in) {
+    // 44 big endian 64-bit scalars follow the eight-byte state magic.
+    if(rom.empty() || in.size()!=360+ram.size() || std::memcmp(in.data(),"VPPC0001",8)) return false;
+    size_t pos=8; const auto take=[&]() { uint64_t value=0; for(unsigned n=0;n<8;++n) value=value<<8|in[pos++]; return value; };
+    if(take()!=uint64_t(wii) || take()!=identity || take()!=crc) return false;
+    const auto frame=take(),finished=take(); if(finished>1) return false;
+    State state;
+    for(auto& reg:state.r) { const auto value=take(); if(value>0xffffffff) return false; reg=uint32_t(value); }
+    for(auto* reg:{&state.pc,&state.cr,&state.xer,&state.lr,&state.ctr}) { const auto value=take(); if(value>0xffffffff) return false; *reg=uint32_t(value); }
+    state.steps=take(); const auto stopped=take(); if(stopped>1 || (state.pc&3) || (state.xer&~0xe000007fu)) return false; state.unsupported=stopped;
+    cpu=state; frames=frame; done=finished; std::copy(in.begin()+pos,in.end(),ram.begin()); return true;
+}
+}

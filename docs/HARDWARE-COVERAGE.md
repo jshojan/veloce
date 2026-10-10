@@ -16,6 +16,8 @@ are not measurements of overall hardware or product completion.
 | Nintendo 64 | `n64_plugin` (experimental homebrew only) | 28,127/28,127 defined integer results matched; 28,160 observations, with 33 undefined divide inputs unscored; doubleword multiply/divide: 262,623/262,623 defined LO/HI pairs matched on exhaustive byte pairs and full-width boundaries; merge memory: 3,158,016/3,158,016 observations matched at every lane on all repeated-byte pairs and selected full-width patterns; digital SI/PIF: 16,384/16,384 button combinations and 131,072 register values matched; interrupt gates: 65,536/65,536 cases and 524,288 register values matched | Not measured; retail boot, graphics/audio, analog/controllers beyond port 1 and most platform hardware remain |
 | Virtual Boy | `vb_plugin` (experimental homebrew only) | 6,512,640/6,512,640 result/PSW pairs matched across ADD/SUB/CMP/OR/AND/XOR repeated-byte pairs and full-width boundaries, plus SHL/SHR/SAR patterns and all low-byte amounts; 4,210,688/4,210,688 multiply/divide snapshots matched with 8,704 divide-zero exception/RETI cases; 4,685,824/4,685,824 TRAP/illegal exception snapshots matched across all writable nonfatal PSW combinations and full reserved low-bit encodings; 4,982,784/4,982,784 address-trap snapshots matched across matching/disabled/aliased addresses and entry/return; 17,055,744/17,055,744 CAXI/port snapshots matched across comparisons/replacements, width/alignment, unsigned input and preserved flags; 14,680,064/14,680,064 arithmetic bit-string snapshots matched across eight operations, byte pairs, all offsets and twelve lengths; 100,712,448/100,712,448 immediate-instruction snapshots matched across all wide/short immediates for twelve instructions on sixteen patterns/all flags | Not measured; remaining CPU/NVC instructions, timing, VIP/VSU, controllers and most platform hardware remain |
 | Nintendo DS | `nds_plugin` (experimental homebrew only) | 44,238,336/44,238,336 dual-CPU result/CPSR/source snapshots matched across all sixteen data-processing operations, repeated-byte pairs and full-width boundaries, every NZCV and both ARM9 Q states; 38,338,560 six-family multiply and 51,426,816 Thumb result/CPSR/source/PC observations matched with undefined ARM7 flags excluded; 49,694,208 nine-word ARM/Thumb memory and 9,437,184 eight-word long-call snapshots matched with every bit graded; 3,720,960 stack/block snapshots matched; 4,096/4,096 digital keypad combinations matched | Not measured; firmware/retail boot, ARM block transfers, interrupts, graphics/audio, peripherals, timing and DSi enhanced mode remain |
+| GameCube | `gc_plugin` (original marked images only) | 49,152/49,152 six-word arithmetic snapshots matched | Not measured; most CPU and console hardware remain; [limits](../cores/ppc/README.md) |
+| Wii | `wii_plugin` (original marked images only) | 49,152/49,152 six-word arithmetic snapshots matched | Not measured; most CPU and console hardware, including MEM2/IOS, remain; [limits](../cores/ppc/README.md) |
 
 The experimental N64 plugin now executes original MIPS integer homebrew ROMs.
 It accepts only the documented `V64HB001` entry profile and cannot run retail
@@ -155,7 +157,7 @@ original ROM images and verify their source and image SHA256 ledger. Run
 register files and reports remain in `build/artifacts/owned/`, and CI uploads
 them as `owned-hardware-registers`.
 
-The NES, GB ALU/unary, SNES, GBA, N64, Virtual Boy and DS corpora are graded by host integer oracles that read
+The NES, GB ALU/unary, SNES, GBA, N64, Virtual Boy, DS, GameCube and Wii corpora are graded by host integer oracles that read
 every observed register result. The small GB WRAM probe emits its own `CHECK`
 lines alongside observed values. The GB ALU and unary ROMs use the existing SB/SC start
 observation hook without waiting for link delivery; physical serial timing and
@@ -190,7 +192,7 @@ must implement its hardware as a loadable core plugin and execute its own ROMs;
 an empty plugin or declared platform name does not count as implementation.
 
 Additional requested platform families without a core in this worktree include
-DSi enhanced mode, GameCube/Wii, Nintendo 3DS, Wii U,
+DSi enhanced mode, Nintendo 3DS, Wii U,
 and Switch. Famicom Disk System and other Nintendo accessories still need
 separate validation. There is no verified completion percentage for these
 missing implementations.
@@ -242,3 +244,17 @@ ROM identifiers may therefore stop matching; recreate those states. The core
 state serialization formats for those three cores were unchanged by the CRC
 correction. The new SNES `VSNES002` payload is a separate format change described
 above.
+
+## GameCube and Wii integer profiles
+
+Both new plugins execute original PowerPC programs with big endian supplied RAM
+and independent host arithmetic grading. Each 49,152-case corpus covers six
+add/subtract operations, sixteen operand patterns squared, every incoming
+SO/OV/CA state and both OE/Rc forms. Every bit of six captured words is graded.
+The two profiles share CPU code; passing both does not establish physical
+Gekko/Broadway differences. Component checks additionally enumerate every
+arithmetic GPR field encoding and validate aliases, memory, branches, loader
+rejection, exact state replay and dynamic plugin lifecycle. Original marked
+images, synthetic output transport and direct payload startup are supplied test
+conditions. Retail boot, graphics/audio, controllers, netplay and most remaining
+hardware are pending; [profile details](../cores/ppc/README.md).

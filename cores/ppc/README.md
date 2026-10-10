@@ -1,0 +1,80 @@
+# Experimental GameCube and Wii PowerPC cores
+
+`gc_plugin` and `wii_plugin` are ABI v2 plugins sharing a supplied PowerPC
+integer execution profile. They execute repository-owned programs; retail
+GameCube/Wii software cannot boot. Full platform completion is unknown.
+
+## Implemented subset
+
+- ADD/ADDC/ADDE and SUBF/SUBFC/SUBFE, all OE/Rc forms, wrapping results,
+  XER carry/overflow/sticky summary overflow and CR0 recording.
+- ADDI/ADDIS, ORI/ORIS; big endian LWZ/LHZ/LBZ and STW/STH/STB with signed
+  displacement, RA=0 address semantics and alignment diagnostics.
+- B/BL, absolute/relative displacement, BLR/BLRL; XER/LR/CTR MFSpr/MTSpr,
+  MFCR and MTCRF field masks.
+- Reset, ROM CRC/identity, complete register/RAM states and exact replay.
+  Unknown instructions, invalid accesses and unsupported SPRs stop with an
+  internal diagnostic. Hardware exceptions are not modeled.
+
+Each original corpus matches **49,152/49,152 six-word snapshots**: six
+arithmetic operations × sixteen operand patterns squared × all eight incoming
+SO/OV/CA combinations × both OE × both Rc. This is a finite boundary domain;
+32-bit operand pairs are not exhaustive. Host arithmetic grades every captured
+bit of result, CR, XER, both sources and an untouched sentinel. Programs contain
+no expected answers or pass verdicts. The component gate matches 2,752,512 arithmetic/register snapshots across both
+profiles and passes with undefined-behavior sanitization. Checks cover every arithmetic
+GPR field encoding and destination/source aliases, loader/state validation,
+memory, branches and both dynamically loaded plugins.
+
+Instruction references: [NXP MPC750 manual](https://www.nxp.com/docs/en/reference-manual/MPC750UM.pdf),
+[IBM addc](https://www.ibm.com/docs/en/aix/7.1.0?topic=set-addc-add-carrying-instruction),
+[IBM subfe](https://www.ibm.com/docs/en/aix/7.1.0?topic=set-subfe-sfe-subtract-from-extended-instruction),
+[IBM mtcrf](https://www.ibm.com/docs/en/aix/7.2.0?topic=set-mtcrf-move-condition-register-fields-instruction).
+These instruction-level references do not establish Gekko/Broadway hardware
+quirks, timing or console compatibility.
+
+## Original image and state formats
+
+Only `.vgc` (`VGCP0001`) and `.vwi` (`VWIP0001`) marked images load. The 32-byte
+big endian header contains magic at 0, load address at 8, entry at 12, payload
+length at 16 and twelve zero reserved bytes at 20. The word-aligned payload
+starts at 32, fits supplied RAM and contains the aligned entry instruction.
+The canonical load range is `$80000000–$817FFFFF`. These are original test
+formats, not disc, DOL, ELF, firmware or commercial ROM formats.
+
+The supplied 24 MiB RAM accepts byte/halfword/word accesses through physical
+`$00000000`, cached `$80000000` and uncached `$C0000000` aliases. This flat
+mapping does not emulate address translation, cache behavior or hardware bus
+faults. The Wii profile has no MEM2. Reset zeroes RAM/registers and loads the
+payload directly; this is not physical console startup.
+
+The synthetic test transport accepts byte characters at `$FFF00000`, word
+hexadecimal observations at `$FFF00008` and completion at `$FFF00004` through
+`ppcdebug`. These addresses are test conventions, not Nintendo MMIO. The
+application writes `VELOCE_TEST_OUT`; completion remains ungraded (`-1`).
+
+`VPPC0001` states contain profile, full image identity/CRC, frame/completion
+counters, all GPRs, PC/CR/XER/LR/CTR, instruction count/diagnostic and all RAM.
+Malformed states and states from another ROM/profile are rejected before any
+mutation. Output files/sink callbacks are external to state; replaying a state
+can emit observations again.
+
+## Pending hardware
+
+Most CPU instructions, conditional branches, exceptions/interrupts, privileged
+state, MMU/caches, floating point and paired-single operations remain absent.
+So do IPL/IOS and firmware startup, disc loading, Flipper/Hollywood graphics,
+DSP/audio, EXI/SI controllers, Wii Bluetooth/Wiimote accessories, memory cards,
+network hardware and netplay. Input is ignored, video is blank and audio is
+empty. The 100,000-instruction scheduling quantum and 60 Hz frontend metadata
+are not measured physical instruction or video timing; the ABI cycle counter
+reports attempted instructions and CPU frequency is unspecified.
+
+## Build and verify
+
+```sh
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --target veloce gc_plugin wii_plugin ppc_machine_test -j4
+ctest --test-dir build -R '^(ppc_machine_test|gc_integer_registers|wii_integer_registers)$' --output-on-failure
+python3 tests/roms-src/build.py --original-only --check
+```
