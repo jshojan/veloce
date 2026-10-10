@@ -361,3 +361,10 @@ foreach(profile gc wii)
         --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/${profile}_logical)
     set_tests_properties(${profile}_logical_registers PROPERTIES LABELS "accuracy;owned" TIMEOUT 600)
 endforeach()
+
+foreach(profile gc wii)
+    add_test(NAME ${profile}_rotate_registers COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_SOURCE_DIR}/tests/roms-src/${profile}/rotate_registers/run.py --emulator $<TARGET_FILE:veloce>
+        --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/${profile}_rotates)
+    set_tests_properties(${profile}_rotate_registers PROPERTIES LABELS "accuracy;owned" TIMEOUT 600)
+endforeach()
