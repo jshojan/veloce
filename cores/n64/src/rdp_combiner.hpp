@@ -2,9 +2,25 @@
 #include <array>
 #include <cstdint>
 namespace n64 {
-// SGI RDP Command Summary, tables 19, 21 and 22. This is command state,
-// not a color-combiner evaluator or a textured/triangle rasterizer.
+// SGI RDP Command Summary, tables 19, 21 and 22. Command state and
+// fixed-point combiner arithmetic; source routing and draw evaluation remain
+// separate work. No textured/triangle rasterizer is implied by this kernel.
 struct RdpCombiner {
+    // Operands are encoded nine-bit values. A/B/D use the RDP special
+    // extension (only 0x180..0x1ff are negative); C uses ordinary signed nine
+    // bits. RGB retains all seventeen bits for the later key/rounding stages.
+    static uint32_t rgb_equation(unsigned a,unsigned b,unsigned c,unsigned d){
+        const int32_t factor=int32_t(c&511)-((c&256)?512:0);
+        const int32_t fixed=(extend(a)-extend(b))*factor+extend(d)*256+128;
+        return uint32_t(fixed)&131071;
+    }
+    static unsigned alpha_equation(unsigned a,unsigned b,unsigned c,unsigned d){
+        return rgb_equation(a,b,c,d)/256;
+    }
+    static unsigned clamp(unsigned encoded){
+        encoded&=511;
+        return encoded>=384?0:encoded>=256?255:encoded;
+    }
     uint64_t combine=0,primitive=0;
     uint32_t environment=0;
     struct Cycle {
@@ -32,6 +48,7 @@ struct RdpCombiner {
         combine=s[0];primitive=s[1];environment=uint32_t(s[2]);return true;
     }
 private:
+    static int32_t extend(unsigned value){value&=511;return int32_t(value)-(value>=384?512:0);}
     unsigned field(unsigned shift,unsigned mask) const{return unsigned(combine>>shift)&mask;}
 };
 }

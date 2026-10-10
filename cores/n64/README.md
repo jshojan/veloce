@@ -1,6 +1,6 @@
 # Experimental Nintendo 64 core plugin
 
-Current N64 evidence: [RDP texture transfers and current Mario evidence](#rdp-texture-memory-transfers). Earlier increment reports are historical.
+Current N64 evidence: [RDP texture transfers and current Mario evidence](#rdp-texture-memory-transfers) and [scalar combiner arithmetic](#rdp-scalar-combiner-arithmetic). Earlier increment reports are historical.
 
 <!-- completion:start -->
 ## Completion percentage
@@ -1579,3 +1579,27 @@ stay synchronized. CI/CD remains disabled. **72 distinct N64 gates pass**: the 7
 corrections. The full build and undefined-behavior sanitizer pass; all 93
 original archives reproduce. This verifies the stated implemented profiles,
 not the full native hardware or playable retail games.
+
+## RDP scalar combiner arithmetic
+
+The [internal arithmetic kernel](COMBINER-MATH.md) now implements special nine-bit
+A/B/D extension, signed C multiplication, the 128 rounding bias, 17-bit RGB
+residue, nine-bit alpha and the RDP clamp. **262,144 A/B pairs**, **268,173,312
+reduced difference/C/D cases** and **512 clamp encodings** pass the independent
+integer component. The exact finite reduction and limits are documented.
+The reduced RGB/alpha cases and clamp values also pass the actual routines in
+pinned Angrylion RDP Plus; the repeatable optional harness is linked there.
+Undefined-behavior sanitizer and existing command-state/replay checks pass.
+
+This is a kernel for the pending draw pipeline. Guest triangles remain blocked;
+source routing, one-/two-cycle integration, keying, coverage/alpha coupling,
+dithering, texture sampling, blending/depth and rasterization remain unfinished.
+The original command ROM grades command progression, not this arithmetic.
+Physical-console validation and hardware timing remain unverified. Native Mario
+boot/playability remain unverified. ABI v2/plugin 0.26.0 and S022 are unchanged;
+N64 remains **40% = 8/20 fixed delivery milestones**. CI/CD remains disabled.
+
+**73 distinct N64 gates pass cumulatively**: the 72 verified S022/TMEM gates
+plus the scalar arithmetic gate. The production N64 plugin built from this
+branch is byte-identical to the TMEM build, confirming no change to existing
+guest execution or state layout. This kernel is not yet wired to guest draws.
