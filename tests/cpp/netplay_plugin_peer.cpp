@@ -16,7 +16,8 @@ static std::vector<uint8_t> read_bytes(const char* path) {
     require(file.good(), "fixture file missing");
     return {std::istreambuf_iterator<char>(file), {}};
 }
-static uint32_t input(int player, uint64_t frame,bool solo=false) {
+static uint32_t input(int player, uint64_t frame,bool solo=false,bool n64=false) {
+    if(n64)return uint32_t(frame*(player?2654435761u:2246822519u)+(player?0x2468ace1u:0x13579bdfu));
     return static_cast<uint32_t>((frame * (player ? 13 : 7) + (player ? 1 : 3)) & (solo ? 4095:255));
 }
 struct Host final : emu::INetplayHost {
@@ -77,6 +78,7 @@ int main(int argc, char** argv) {
         auto rom = read_bytes(argv[3]);
         emulator_test::LoadedCore fixture(argv[2], rom);
         Host host(fixture, rom, hash_bytes(read_bytes(argv[2])), role == "client" && std::string(argv[7]) == "1");
+        const bool n64=std::string(host.get_platform_name())=="N64";
         const bool solo=fixture.netplay().get_max_players()==1;
         LoadedNetplay loaded(argv[8], host);
         auto& plugin = *loaded.plugin;
@@ -88,7 +90,7 @@ int main(int argc, char** argv) {
         if (role == "baseline") {
             host.prepare_netplay();
             fixture.plugin->set_audio_callback(audio_gate);
-            for (uint64_t frame = 0; frame < 100; ++frame) fixture.netplay().run_frame_netplay(input(0, frame,solo), solo ? 0:input(1, frame));
+            for (uint64_t frame = 0; frame < 100; ++frame) fixture.netplay().run_frame_netplay(input(0, frame,solo,n64), solo ? 0:input(1, frame,false,n64));
         } else {
             // The GUI normally ran frames before opening its connection UI.
             // Different prior histories must be removed by preparation.
@@ -120,7 +122,7 @@ int main(int argc, char** argv) {
                 }
                 if (!host.paused && host.get_frame_count() < 100) {
                     auto frame = host.get_frame_count();
-                    plugin.execute_frame(input(role == "client", frame,solo));
+                    plugin.execute_frame(input(role == "client", frame,solo,n64));
                     require(host.get_frame_count() == frame || host.get_frame_count() == frame + 1,
                             "owned execution advanced twice in one frontend frame");
                 }
@@ -143,7 +145,13 @@ int main(int argc, char** argv) {
         std::ofstream registers(std::string(argv[4]) + ".result");
         registers << "#VELOCE NETWORK 1 core=" << host.get_platform_name() << " frames=100 role=" << role << "\n"
                   << "INFO rollbacks=" << rollbacks << " replay_audio_chunks=" << replay_chunks << "\n";
-        if(!solo) registers<<"REG p0_sum="<<unsigned(fixture.plugin->read_memory(0x12))<<" p1_sum="<<unsigned(fixture.plugin->read_memory(0x13))<<"\n";
+        if(!solo && !n64) registers<<"REG p0_sum="<<unsigned(fixture.plugin->read_memory(0x12))<<" p1_sum="<<unsigned(fixture.plugin->read_memory(0x13))<<"\n";
+        if(n64) {
+            for(unsigned address=0x2000;address<0x2000+100*24;address+=4){
+                uint32_t value=0;for(unsigned n=0;n<4;++n)value=value*256+fixture.plugin->read_memory(address+n);
+                registers<<"REG address="<<address<<" value="<<value<<"\n";
+            }
+        }
         if(solo) {
             for(unsigned address=0x1000;address<((std::string(host.get_platform_name())=="3DS" || std::string(host.get_platform_name())=="Wii U")?0x1030u:0x1020u);address+=4) {
                 uint32_t value=0; for(unsigned n=0;n<4;++n) { const auto byte=fixture.plugin->read_memory(address+n);if(std::string(host.get_platform_name())=="Wii U")value=value*256+byte;else value|=uint32_t(byte)<<(n*8); }
@@ -155,14 +163,16 @@ int main(int argc, char** argv) {
         if (role == "baseline") {
             // Independent lifecycle checks while listening: no remote peer can
             // close first and mask the mutation being tested.
-            require(plugin.host_session(0, "Lifecycle", false), host.error.c_str());
+            const bool listening=plugin.host_session(0, "Lifecycle", false);
+            require(listening, host.error.c_str());
             host.replaced = true;
             plugin.poll_network();
             require(plugin.get_connection_state() == emu::NetplayConnectionState::Disconnected &&
                     host.paused && host.error.find("Core or frame changed") != std::string::npos,
                     "core replacement did not stop session");
             host.replaced = false;
-            require(plugin.host_session(0, "Lifecycle", false), host.error.c_str());
+            const bool listening_again=plugin.host_session(0, "Lifecycle", false);
+            require(listening_again, host.error.c_str());
             fixture.netplay().run_frame_netplay(0, 0);
             plugin.poll_network();
             require(plugin.get_connection_state() == emu::NetplayConnectionState::Disconnected &&

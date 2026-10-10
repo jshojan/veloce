@@ -355,8 +355,8 @@ static void serial(n64::Machine& m) {
         require(read(pif,8)==0x010300050002feaaull + (uint64_t(command) << 40), "controller identity wrong");
         require(read(pif+63,1)==0, "PIF control not cleared");
     }
-    m.pif.fill(0xaa); m.pif[0]=0xff; m.pif[1]=0; m.pif[2]=1; m.pif[3]=4; m.pif[4]=1; m.pif[9]=0xfe;
-    write(pif+63,1,1); require(m.pif[3]==0x84 && m.pif[5]==0xaa, "absent channel overwritten/responded");
+    m.pif.fill(0xaa); m.pif[0]=0xff; m.pif[1]=m.pif[2]=m.pif[3]=m.pif[4]=0; m.pif[5]=1; m.pif[6]=4; m.pif[7]=1; m.pif[12]=0xfe;
+    write(pif+63,1,1); require(m.pif[6]==0x84 && m.pif[8]==0xaa, "absent channel overwritten/responded");
     for (unsigned tx = 1; tx <= 63; ++tx) for (unsigned rx = 0; rx <= 63; ++rx) {
         m.pif.fill(0xaa); m.pif[0]=uint8_t(tx); m.pif[1]=uint8_t(rx); m.pif[2]=1;
         if (2+tx+rx < 63) m.pif[2+tx+rx]=0xfe;

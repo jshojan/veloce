@@ -159,12 +159,13 @@
         "digital",
         "graphics",
         "native_media",
+        "netplay",
         "original_rom",
         "plugin",
         "register_oracle",
         "states"
       ],
-      "remaining": "Super Mario 64 passes SET_Z_IMAGE and real color/depth-buffer clears, then reaches the 200-million-attempt trace bound without a terminal CPU fault. RSP reciprocal/square-root/move now pass; the longer probe reports no unsupported RSP instruction and a real BREAK. RDP TMEM block/tile/palette transfers now pass; shaded/textured/depth-tested triangles remain blocked; video stays uniform. Native boot/playability, full CPU/CP0/devices, FPU physical timing, rare RSP operations and pipeline/interlock timing, complete RDP/audio, hidden coverage/depth bits, analog and netplay remain."
+      "remaining": "Super Mario 64 passes SET_Z_IMAGE and real color/depth-buffer clears, then reaches the 200-million-attempt trace bound without a terminal CPU fault. RSP reciprocal/square-root/move now pass; the longer probe reports no unsupported RSP instruction and a real BREAK. RDP TMEM block/tile/palette transfers now pass; shaded/textured/depth-tested triangles remain blocked; video stays uniform. Native boot/playability, full CPU/CP0/devices, FPU physical timing, rare RSP operations and pipeline/interlock timing, complete RDP/audio, hidden coverage/depth bits, analog/accessories/presence detection, local multiplayer frontend routing and physical timing remain. Production two-player TCP rollback is verified for the implemented digital profile; four virtual PIF ports are supported."
     },
     {
       "id": "vb",

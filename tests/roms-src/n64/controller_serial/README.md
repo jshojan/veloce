@@ -8,12 +8,14 @@ has no expected button values or pass verdict. It yields once per sample through
 emulator-only `$BFF0000C`; this is test instrumentation, not hardware timing.
 
 Each case records eight 64-bit values: the two words containing port 1 digital
-input and port 2's absent response; port 1 identification; SI completion status;
+input and port 2's neutral digital response; port 1 identification; SI completion status;
 MI pending; MI mask; then SI status and MI pending after acknowledgement.
 The independent Python oracle constructs wire bits from the host input schedule.
 All **16,384/16,384 cases** (131,072 values) matched. Analog bytes are zero,
-reserved button bits are clear, controller identity is `05 00 02`, and absent
-ports leave receive bytes unchanged with the no-response flag set.
+reserved button bits are clear, controller identity is `05 00 02`, and the additional idle pad reports zero buttons and axes.
+The earlier single-port profile treated port 2 as absent; the original image
+is unchanged, and the oracle now expects the four-pad profile. The component
+keeps no-response coverage on channel 4, outside the four controller ports.
 
 An executed read-to-identify command mutation fails all 16 negative cases.
 Seven damaged files (missing/malformed row, wrong domain, false pass, missing or
@@ -36,8 +38,10 @@ C-Up/Down/Left/Right append indices 20–24.
 
 This is exhaustive only for digital combinations on one standard controller.
 Settled transfers complete immediately; DMA busy/overlap/error timing, interrupt
-pipeline latency, analog sticks, accessories, four-port input routing,
-PIF boot, retail games, graphics/audio and physical hardware remain pending.
+pipeline latency, analog sticks, accessories, controller connection detection,
+PIF boot, retail games and physical hardware remain pending.
+Four-port routing and two-player rollback are measured separately by the
+[new original guest](../controller_netplay/README.md).
 Packet grammar and error behavior have bounded component tests, not an exhaustive
 original-ROM domain. The source generator and archived image hashes are tracked
 in `tests/roms-src/rom_manifest.json`. Sources are MIT licensed.
