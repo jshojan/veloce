@@ -1888,3 +1888,41 @@ saves, netplay, timing and retail playability remain pending. Original bytes
 are MIT; no firmware/keys/SDK/commercial files are included. Switch is now
 **25% = 5/20 delivery milestones**. CI/CD remains disabled; the full Nintendo
 implementation goal remains active.
+
+
+## AArch64 multiply and divide
+
+Plugin **0.2.0**, emulator ABI v2, now implements MADD/MSUB in both widths,
+SMADDL/SMSUBL and UMADDL/UMSUBL, SMULH/UMULH, and 32/64-bit SDIV/UDIV.
+Aliases with Ra=XZR provide MUL/MNEG and signed/unsigned long multiply/negate.
+Operands use XZR, not SP. W results zero-extend, all forms preserve NZCV,
+zero divisors produce zero, and signed division truncates toward zero with
+MIN/−1 retaining the architectural low-width result. Four 32-bit limbs produce
+the upper product without host 128-bit extensions. Signed division uses
+unsigned magnitudes to avoid host signed overflow. No state layout changes:
+`VNXS0001` and the 4 MiB process profile remain unchanged.
+
+The [new original guest](../tests/roms-src/switch/muldiv_registers/README.md)
+passes **2,071,552 rows / 12,429,312 actual words**: all ordered pairs of 256
+repeated-byte and 16 unique boundary values, two accumulator/NZCV seeds and
+fourteen forms. Its independent unbounded-integer oracle grades source operands,
+accumulator, result, actual NZCV and context. The executed result-bit mutant
+fails all 448 short cases; six field and seven stream controls reject. A
+production ABI gate compares real register output and full states after restore
+while this guest executes. Artifacts: `build/artifacts/owned/switch_muldiv/`.
+
+The bit-serial full-product/long-division component checks **33,147,520 snapshots**:
+**33,144,832** table-pair/form/accumulator cases across all sixteen initial NZCV
+values, plus **2,688** register-routing/alias cases. It checks source, SP,
+unrelated-register, flag and PC/step preservation; reserved base encodings
+reject before architectural writes. All fourteen original opcode forms match
+the [pinned LLVM encoding reference](../tests/reference/switch-muldiv/README.md).
+That is an encoding comparison, not execution on a physical console.
+
+All **six Switch gates pass** in **14.26 seconds**; component UBSAN passes with
+warning-free compilation. The full build passes and all 96 original archives
+reproduce. Completion renderer, changed local documentation links and whitespace
+pass. Switch stays **25% = 5/20 fixed delivery milestones**: the whole CPU,
+firmware/HOS/retail boot, native memory/MMU/devices, GPU/audio, controllers,
+saves/netplay, hardware timing and exhaustive native corpus remain incomplete.
+CI/CD remains disabled. The full Nintendo implementation goal remains active.
