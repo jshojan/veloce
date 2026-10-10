@@ -164,7 +164,7 @@
         "register_oracle",
         "states"
       ],
-      "remaining": "Super Mario 64 reaches 6,212,339 startup attempts, then encounters unsupported DIV.S; native boot/playability, remaining CPU/FPU/devices, RSP/RDP, VI filters and physical timing, RSP audio microcode, analog and netplay remain."
+      "remaining": "Super Mario 64 passes the former DIV.S blocker and reaches the 12-million-attempt trace limit without a terminal CPU fault, but video is uniform; native boot/playability, remaining CPU/FPU/devices, RSP/RDP, VI filters and physical timing, RSP audio microcode, analog and netplay remain."
     },
     {
       "id": "vb",

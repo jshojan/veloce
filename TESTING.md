@@ -1,6 +1,6 @@
 # Veloce Testing and Accuracy Framework
 
-Current N64 evidence: [FPU conversions and current Mario blocker](#fpu-conversion-and-fixed-rounding-family). Earlier increment reports are historical.
+Current N64 evidence: [FPU arithmetic and current Mario evidence](#fpu-arithmetic-family). Earlier increment reports are historical.
 
 This is the entry point for everything about how Veloce's emulator cores are
 tested and how the project derives a defensible "this core is N% accurate"
@@ -1279,3 +1279,51 @@ pairs; boot/playability remain unverified. Commercial ROM bytes are never commit
 Earlier increment reports retain their historical blockers and counts.
 
 Verification: **37/37 N64 CTests passed** in 475.97 seconds, including twenty-two original register-ROM gates, two production audio/video oracles and thirteen component gates. The full build and final conversion undefined-behavior sanitizer passed; all **71 original ROMs** reproduce against the committed image/generator ledger. Completion renderer and whitespace checks pass. CI/CD remains removed and Actions disabled.
+
+## FPU arithmetic family
+
+The core implements ADD/SUB/MUL/DIV/SQRT/ABS/MOV/NEG in single and double
+precision using portable integer significands, guard/sticky rounding, long
+division and a restoring integer square root. It uses no native floating-point
+state or compiler-specific 128-bit type. All four rounding modes, legacy NaNs,
+signed zeros, infinity, invalid, division-by-zero, overflow and FS/enable-dependent
+tiny results are handled. Assist takes precedence over invalid operands. MOV
+copies bits without interpreting NaNs/subnormals or changing existing FCSR causes.
+Traps update causes, preserve sticky flags and suppress destination writes.
+
+The [pair ROM](tests/roms-src/n64/fpu_arithmetic_pairs/README.md) matches
+**131,072 rows / 786,432 captured words**. The
+[edge ROM](tests/roms-src/n64/fpu_arithmetic_edges/README.md) matches
+**215,152 rows / 1,290,912 captured words**. Both stream six actual destination,
+FCSR, handler, CPU exception and unchanged-source observations per row. An
+independent exact-rational oracle grades arithmetic; square roots use integer
+square comparisons, without native FP. Each ROM rejects an executed capture
+mutant, six individual field mutations and seven malformed-stream controls.
+
+The component passes **540,672 register/FR/format/function cases** and **327,680
+rounding/enable/sticky/FS/condition combinations**, including aliased operands,
+MOV preservation of enabled old causes, minimum-normal rounding rescue, CU1
+precedence, reserved formats,
+delay/nested/BEV exceptions and exact pending-arithmetic state replay. A separate
+30,000-case seeded raw-bit differential check matches the rational oracle.
+State stays `VN64S013`; this family adds no serialized fields.
+
+Rules follow the [NEC manual](https://hack64.net/docs/VR43XX.pdf), chapters 7–8
+and arithmetic instruction entries, supplemented by the hardware-test author's
+[raw-bit arithmetic cases](https://github.com/lemmy-64/n64-systemtest/blob/main/src/tests/cop1/mod.rs).
+These original cartridges have not been validated on a physical console. Their
+finite domains do not exhaust all independent operand combinations. Undefined
+odd FR=0 operands use the documented RI convention; nonzero unary ft fields use
+an assist convention whose physical behavior is ungraded. FPU comparisons,
+pipeline/interlock/CPI behavior, precise CE timing and reverse endian remain pending.
+N64 stays **40% (8/20 delivery milestones)**; the whole CPU milestone is incomplete.
+
+Super Mario 64 USA passes the former DIV.S blocker and reaches **12,000,000
+startup attempts**, the bounded trace limit, without a terminal CPU fault.
+It passed 51 nonterminal exception entries and ends at PC `80246DDC`, Status
+`FF01`. The 120-quantum production probe observes uniform video and 480 audio
+sample pairs; audible game sound, boot and playability remain unverified.
+Commercial ROM bytes are never committed. Earlier increment reports retain
+their historical counts and blockers.
+
+Verification: **40/40 N64 CTests passed** in 246.85 seconds, including twenty-four original register-ROM gates, two production audio/video oracles and fourteen component gates. The full build and final arithmetic undefined-behavior sanitizer passed; all **73 original ROMs** reproduce against the committed image/generator ledger. Completion renderer and whitespace checks pass. CI/CD remains removed and Actions disabled.

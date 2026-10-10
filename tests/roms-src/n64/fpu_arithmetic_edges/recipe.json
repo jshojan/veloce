@@ -1,0 +1,1 @@
+{"source_type": "original", "console": "n64", "suite": "fpu_arithmetic_edges", "build": {"script": "build.py", "artifact": "fpu_arithmetic_edges.z64"}, "license": "MIT"}

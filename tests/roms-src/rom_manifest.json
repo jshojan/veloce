@@ -242,6 +242,28 @@
       "source_type": "original",
       "suite": "controller_serial"
     },
+    "n64/fpu_arithmetic_edges/fpu_arithmetic_edges.z64": {
+      "build_command": "python3 tests/roms-src/n64/fpu_arithmetic_edges/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "d57fcab0996964dd27f4959dd18356fa0f7cf6caeef2286bb07052106c2f59d2",
+      "source_repo": "tests/roms-src/n64/fpu_arithmetic_edges/build.py",
+      "source_sha": "2adf9891b1cabc851fb5b0170d0cffeff8f8118443fc9add0814d920707a44e2",
+      "source_type": "original",
+      "suite": "fpu_arithmetic_edges"
+    },
+    "n64/fpu_arithmetic_pairs/fpu_arithmetic_pairs.z64": {
+      "build_command": "python3 tests/roms-src/n64/fpu_arithmetic_pairs/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "c74375adc51f6965b0b5acea9bfba195de8644bb662bd68d08c03ac1b60a04f8",
+      "source_repo": "tests/roms-src/n64/fpu_arithmetic_pairs/build.py",
+      "source_sha": "92cd5821286df3e2adfa2a82e4b0249650eafb5b5ba115100c43416ab089d409",
+      "source_type": "original",
+      "suite": "fpu_arithmetic_pairs"
+    },
     "n64/fpu_controls/fpu_controls.z64": {
       "build_command": "python3 tests/roms-src/n64/fpu_controls/build.py",
       "console": "n64",
