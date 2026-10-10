@@ -24,7 +24,7 @@ are not measurements of overall hardware or product completion.
 
 The experimental N64 plugin now executes original MIPS integer homebrew ROMs.
 It accepts the documented homebrew and original/native IPL3 handoff profiles;
-Super Mario 64 loads but faults at MI mode, with retail boot unverified. Its corpus observes 28,160 GPR/HI/LO results across 20 instructions,
+Super Mario 64 loads but faults at RDRAM chip configuration, with retail boot unverified. Its corpus observes 28,160 GPR/HI/LO results across 20 instructions,
 with 28,127/28,127 defined selected-pattern results matching an independent
 oracle. The 33 undefined divide inputs are recorded but unscored. All low-byte
 shift amounts are covered on 16 patterns per width; full operand domains and
@@ -440,7 +440,7 @@ supplied-profile byte checks, not physical chip-control/timing evidence.
 guest words matching the independent oracle. Host owns one keypad; viewer
 replay is supported, DSi wireless multiplayer is pending. DS component and
 production netplay regression gates pass. Local TCP gates require loopback
-socket permission; CI/CD remains disabled. All 57 original ROMs reproduce
+socket permission; CI/CD remains disabled. All 58 original ROMs reproduce
 against the source/image ledger. Firmware/retail boot, full SCFG/MBK and most
 DSi hardware remain pending; full platform completion is unmeasured.
 
@@ -488,7 +488,7 @@ Physical 3DS wireless/link multiplayer, Internet/cross-platform sessions,
 compression/page sharing and sustained real-time performance remain pending.
 A window-8 ring uses about 1.14 GiB per peer plus core/scratch memory. Reports,
 register files and full states stay in `build/artifacts/netplay-3ds/`.
-All 57 original ROMs reproduce from their source/image ledger. CI/CD remains disabled.
+All 58 original ROMs reproduce from their source/image ledger. CI/CD remains disabled.
 
 ### Wii U original integer and full mapped-RAM evidence
 
@@ -516,7 +516,7 @@ proved. Raw files/grades stay in `build/artifacts/owned/wiiu_immediates/`.
 Firmware/native formats, Starbuck/IOSU/Cafe, remaining CPU instructions,
 Latte/GX2 GPU, DSP/audio, native GamePad/KPAD/VPAD, storage, native wireless multiplayer
 and most platform hardware remain pending. Switch still lacks a plugin.
-All 57 original ROMs reproduce from the ledger. No overall hardware percentage
+All 58 original ROMs reproduce from the ledger. No overall hardware percentage
 is inferred. CI/CD remains disabled; use the local gates in the core README.
 
 ### Wii U sparse-state host/viewer netplay
@@ -538,7 +538,7 @@ still cost large states. Native GamePad/VPAD/KPAD, wireless multiplayer, physica
 devices/two machines, Internet/cross-platform and sustained performance remain
 unverified or pending. Reports are in `build/artifacts/netplay-wiiu/`.
 The full Wii U component gate passes undefined-behavior sanitization; all
-seven netplay gates pass. CI/CD stays disabled; all 57 original ROMs reproduce
+seven netplay gates pass. CI/CD stays disabled; all 58 original ROMs reproduce
 against the ledger.
 
 ## GameCube/Wii settled digital controller gates
@@ -559,13 +559,13 @@ python3 tests/roms-src/build.py --original-only --check
 python3 tests/update_completion.py --check
 ```
 
-The ledger now includes 57 original ROMs. Controller polling, analog axes,
+The ledger now includes 58 original ROMs. Controller polling, analog axes,
 origin calibration, VI/wire timing, CPU SI interrupts, accessories, four-port
 frontend input and Wii Remote support remain pending. CI/CD remains disabled.
 The [delivery completion ledger](../docs/CORE-COMPLETION.md) is separate from
 hardware-domain pass fractions and legacy external-suite accuracy scores.
 The optional `tests/n64_retail_probe.py` takes a locally supplied N64 ROM;
-Super Mario 64 now loads and reaches 32,144 IPL3 step attempts, then faults at missing MI mode register `A4300000`; boot/playability remain unverified. Its ROM bytes never enter git.
+Super Mario 64 now loads and reaches 32,147 IPL3 step attempts, then faults at missing RDRAM device register `A3F80008`; boot/playability remain unverified. Its ROM bytes never enter git.
 
 ## N64 cartridge DMA and IPL3 handoff
 
@@ -574,10 +574,10 @@ The [PI corpus](../tests/roms-src/n64/pi_dma/README.md) matches 524,288 cases an
 offsets, two RDRAM addresses and both PI mask states. The [handoff corpus](../tests/roms-src/n64/ipl3_handoff/README.md)
 matches twelve startup captures without bundling firmware. Executed guest mutants,
 all captured-field mutants and seven invalid streams per corpus are rejected.
-All eleven N64 CTests pass; the PI component also passes undefined-behavior sanitization.
+All thirteen N64 CTests pass; the PI component also passes undefined-behavior sanitization.
 Settled aligned ROM reads and explicit HLE startup are implemented; RI/RDRAM
 initialization, native retail boot, PI busy/misalignment/peripheral behavior,
-graphics/audio and physical timing remain pending. The ledger contains 57 original
+graphics/audio and physical timing remain pending. The ledger contains 58 original
 ROMs. CI/CD remains disabled.
 
 ## N64 RI configuration register evidence
@@ -589,6 +589,21 @@ Executed selection mutation, six field mutants and seven invalid streams reject.
 The component checks current-load latching, access/state failure atomicity,
 legacy conversion, exact replay, reset and loaded-plugin execution. RI refresh
 scheduling, analog calibration, bus-error production, RDRAM chip discovery and
-physical timing remain pending. Super Mario 64 advances to missing MI mode
-(A4300000, EPC A40000E8, Cause 14) after 32,144 startup step attempts; it is
-not bootable/playable. The corpus ledger contains 57 original ROMs.
+physical timing remain pending. Super Mario 64 advances to missing RDRAM device register
+(A3F80008, EPC A40000F4, Cause 14) after 32,147 startup step attempts; it is
+not bootable/playable. The corpus ledger contains 58 original ROMs.
+
+## N64 MI control evidence
+
+The [original MI corpus](../tests/roms-src/n64/mi_controls/README.md) matches
+393,216 rows / 3,145,728 guest captures: mode command words across all eight
+flag states and interrupt-mask commands across all 64 masks, with actual SI/PI
+DMA requests pending. Executed count mutation, eight field mutants and seven
+invalid streams reject. The component checks 16,777,216 mode transitions, all
+mask transitions, injected DP delivery/acknowledgment/ERET, exact replay, legacy
+conversion, atomic rejection and production-plugin execution; it also passes
+undefined-behavior sanitization. All thirteen N64 gates pass. Stored MI bus flags
+do not yet implement repeat/EBus/upper transaction effects or RDRAM chip discovery.
+Super Mario 64 stops at A3F80008 (EPC A40000F4, Cause 14) after 32,147 startup
+step attempts; retail gameplay, graphics/audio and physical timing remain pending.
+All 58 original ROMs reproduce. CI/CD remains disabled.
