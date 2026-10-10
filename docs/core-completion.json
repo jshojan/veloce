@@ -162,7 +162,7 @@
         "register_oracle",
         "states"
       ],
-      "remaining": "Super Mario 64 reaches 5,775,036 startup attempts, then faults at RSP PC; native boot, RAM remapping/calibration, remaining CPU/FPU/devices, RSP/RDP/VI/AI, analog and netplay remain."
+      "remaining": "Super Mario 64 reaches 5,775,051 startup attempts, then faults at AI status; native boot, RAM remapping/calibration, remaining CPU/FPU/devices, RSP/RDP/VI/AI, analog and netplay remain."
     },
     {
       "id": "vb",

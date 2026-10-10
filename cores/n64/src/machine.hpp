@@ -1,6 +1,7 @@
 #pragma once
 #include "vr4300.hpp"
 #include "rdram.hpp"
+#include "sp_interface.hpp"
 #include "emu/emulator_plugin.hpp"
 #include <vector>
 
@@ -11,7 +12,7 @@ public:
     Machine() : ram(ram_size), cpu(*this) {}
     bool load(const uint8_t* data, size_t size);
     void reset();
-    uint8_t interrupt_pending() const override { return ((si_interrupt && (mi_mask & 2)) || (pi_interrupt && (mi_mask & 16)) || (dp_interrupt && (mi_mask & 32))) ? 4 : 0; }
+    uint8_t interrupt_pending() const override { return ((sp_interface.interrupt && (mi_mask & 1)) || (si_interrupt && (mi_mask & 2)) || (pi_interrupt && (mi_mask & 16)) || (dp_interrupt && (mi_mask & 32))) ? 4 : 0; }
     bool read(uint64_t address, unsigned bytes, uint64_t& value) override;
     bool write(uint64_t address, unsigned bytes, uint64_t value) override;
     bool write_masked(uint64_t address, unsigned bytes, uint64_t value, uint8_t mask) override;
@@ -39,6 +40,7 @@ public:
     std::array<uint32_t,6> ri{};
     bool ri_current_loaded=false;
     RdramDevices rdram_devices;
+    SpInterface sp_interface;
     void process_pif();
 private:
     static bool physical(uint64_t address, uint32_t& result);
