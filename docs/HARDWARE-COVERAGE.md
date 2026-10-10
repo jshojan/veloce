@@ -16,8 +16,8 @@ are not measurements of overall hardware or product completion.
 | Nintendo 64 | `n64_plugin` (experimental homebrew only) | 28,127/28,127 defined integer results matched; 28,160 observations, with 33 undefined divide inputs unscored; doubleword multiply/divide: 262,623/262,623 defined LO/HI pairs matched on exhaustive byte pairs and full-width boundaries; merge memory: 3,158,016/3,158,016 observations matched at every lane on all repeated-byte pairs and selected full-width patterns; digital SI/PIF: 16,384/16,384 button combinations and 131,072 register values matched; interrupt gates: 65,536/65,536 cases and 524,288 register values matched | Not measured; retail boot, graphics/audio, analog/controllers beyond port 1 and most platform hardware remain |
 | Virtual Boy | `vb_plugin` (experimental homebrew only) | 6,512,640/6,512,640 result/PSW pairs matched across ADD/SUB/CMP/OR/AND/XOR repeated-byte pairs and full-width boundaries, plus SHL/SHR/SAR patterns and all low-byte amounts; 4,210,688/4,210,688 multiply/divide snapshots matched with 8,704 divide-zero exception/RETI cases; 4,685,824/4,685,824 TRAP/illegal exception snapshots matched across all writable nonfatal PSW combinations and full reserved low-bit encodings; 4,982,784/4,982,784 address-trap snapshots matched across matching/disabled/aliased addresses and entry/return; 17,055,744/17,055,744 CAXI/port snapshots matched across comparisons/replacements, width/alignment, unsigned input and preserved flags; 14,680,064/14,680,064 arithmetic bit-string snapshots matched across eight operations, byte pairs, all offsets and twelve lengths; 100,712,448/100,712,448 immediate-instruction snapshots matched across all wide/short immediates for twelve instructions on sixteen patterns/all flags | Not measured; remaining CPU/NVC instructions, timing, VIP/VSU, controllers and most platform hardware remain |
 | Nintendo DS | `nds_plugin` (experimental homebrew only) | 44,238,336/44,238,336 dual-CPU result/CPSR/source snapshots matched across all sixteen data-processing operations, repeated-byte pairs and full-width boundaries, every NZCV and both ARM9 Q states; 38,338,560 six-family multiply and 51,426,816 Thumb result/CPSR/source/PC observations matched with undefined ARM7 flags excluded; 49,694,208 nine-word ARM/Thumb memory and 9,437,184 eight-word long-call snapshots matched with every bit graded; 3,720,960 stack/block snapshots matched; 4,096/4,096 digital keypad combinations matched | Not measured; firmware/retail boot, ARM block transfers, interrupts, graphics/audio, peripherals, timing and DSi enhanced mode remain |
-| GameCube | `gc_plugin` (original marked images only) | 49,152/49,152 arithmetic and 74,752/74,752 branch and 42,108,928/42,108,928 condition and 6,324,224/6,324,224 integer logical and 9,437,184/9,437,184 rotate/mask snapshots matched | Not measured; most CPU and console hardware remain; [limits](../cores/ppc/README.md) |
-| Wii | `wii_plugin` (original marked images only) | 49,152/49,152 arithmetic and 74,752/74,752 branch and 42,108,928/42,108,928 condition and 6,324,224/6,324,224 integer logical and 9,437,184/9,437,184 rotate/mask snapshots matched | Not measured; most CPU and console hardware, including MEM2/IOS, remain; [limits](../cores/ppc/README.md) |
+| GameCube | `gc_plugin` (original marked images only) | 49,152/49,152 arithmetic and 74,752/74,752 branch and 42,108,928/42,108,928 condition and 6,324,224/6,324,224 integer logical and 9,437,184/9,437,184 rotate/mask and 4,416,528/4,416,528 shift/unary snapshots matched | Not measured; most CPU and console hardware remain; [limits](../cores/ppc/README.md) |
+| Wii | `wii_plugin` (original marked images only) | 49,152/49,152 arithmetic and 74,752/74,752 branch and 42,108,928/42,108,928 condition and 6,324,224/6,324,224 integer logical and 9,437,184/9,437,184 rotate/mask and 4,416,528/4,416,528 shift/unary snapshots matched | Not measured; most CPU and console hardware, including MEM2/IOS, remain; [limits](../cores/ppc/README.md) |
 
 The experimental N64 plugin now executes original MIPS integer homebrew ROMs.
 It accepts only the documented `V64HB001` entry profile and cannot run retail
@@ -320,3 +320,21 @@ flags and boundary byte-count preservation, and exact replay of known captures
 through both plugins. Original fixed-field ROM evidence is separate from
 component alias enumeration. These finite domains do not exhaust 32-bit
 operand pairs or physical cache/timing behavior; [domain details](../tests/roms-src/gc/rotate_registers/README.md).
+
+### PowerPC shift/unary coverage
+
+Each profile additionally matches 4,416,528 original nine-word snapshots:
+196,608 register shifts, 8,192 SRAWI, 16,384 EXTSB, 4,194,304 EXTSH and 1,040
+CNTLZW observations. All byte/halfword input bits and shift counts are covered
+within declared upper/source patterns/all XER flags/both Rc states; leading-zero
+results cover 0–32. The host grades result, CR/XER, sources, instruction/seeds
+and sentinel using separate arithmetic and bit-length references. Executed
+result/carry/count mutants fail 3,856/640/1,280 reduced snapshots; nine field
+mutations fail and seven invalid streams return ERROR. The count mutant uses a
+separate 3,072-case register-shift domain and preserves captured original inputs.
+Component checks match 37,042,208 additional snapshots across both profiles,
+include every GPR/count encoding and alias on boundaries, walking sources,
+all XER byte counts and exact machine/plugin replay, including CA changing
+from zero to one. Reserved unary RB fields reject without register mutation.
+Full 32-bit operand/count pairs, CR/XER words and physical cache/timing/exception
+behavior remain unverified; [declared domain](../tests/roms-src/gc/shift_registers/README.md).

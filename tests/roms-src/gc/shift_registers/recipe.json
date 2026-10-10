@@ -1,0 +1,1 @@
+{"source_type": "original", "console": "gc", "suite": "shift_registers", "build": {"script": "build.py", "artifact": "shift_registers.vgc"}, "license": "MIT"}
