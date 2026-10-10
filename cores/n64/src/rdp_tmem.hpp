@@ -21,21 +21,30 @@ struct RdpTmem {
         if(!source_size || (palette && (last>>2)>(tl>>2)))return 3;
         auto& tile=texture.tiles[(word>>24)&7];
         const unsigned left=block?sl:sl>>2,top=block?tl&1023:tl>>2;
-        const unsigned right=block?sh:sh>>2,bottom=block?top:last>>2;
+        const unsigned bottom=block?top:last>>2;
+        // No valid subpixel in a fraction-three single-row span: the
+        // edge accumulator remains zero, then length still wraps modulo 4096.
+        const unsigned right=!block && tl==(last|3)?0:block?sh:sh>>2;
         const unsigned count=(right-left+1)&4095;
         tile.bounds=word&RdpTexture::bounds_mask;
         if(bottom<top || !count)return 0;
-        const bool replicate=palette && source_size==2;
-        const unsigned advance=replicate?1:16u>>source_size;
+        const bool narrow_palette=palette && source_size==2;
+        const unsigned advance=narrow_palette?1:16u>>source_size;
         for(unsigned row=top;row<=bottom;++row){
             const int32_t source_left=block && (left&2048)?int32_t(left)-4096:int32_t(left);
             uint32_t source=texture.address()+uint32_t(int32_t(row*texture.width())+source_left)*(1u<<(source_size-1));
             for(unsigned x=0,n=0;x<count;x+=advance,++n){
-                const unsigned s=n*(palette?64u>>source_size:16u>>source_size);
+                // The load coordinate accumulator passes through signed 16-bit
+                // normalization before subtracting the raw tile origin.
+                const uint32_t raw_s=(sl*8+n*((block?128u:512u)>>source_size))&65535;
+                const int32_t signed_s=raw_s>=32768?int32_t(raw_s)-65536:int32_t(raw_s);
+                const unsigned s=uint32_t((signed_s-int32_t(sl*8))>>(block || palette?3:5));
                 const unsigned t=block?(n*last)>>11:row-top;
                 std::array<uint8_t,8> data{};
-                if(replicate){const uint8_t a=read(ram,source),b=read(ram,source+1);for(unsigned i=0;i<4;++i){data[2*i]=a;data[2*i+1]=b;}source+=2;}
-                else{for(unsigned i=0;i<8;++i)data[i]=read(ram,source+i);source+=8;}
+                // Alignment selects palette replication independently of size.
+                if(palette && !(source&1)){const uint8_t a=read(ram,source),b=read(ram,source+1);for(unsigned i=0;i<4;++i){data[2*i]=a;data[2*i+1]=b;}}
+                else{for(unsigned i=0;i<8;++i)data[i]=read(ram,source+i);}
+                source+=narrow_palette?2:8;
                 transfer(tile,s,t,data);++groups;
             }
         }

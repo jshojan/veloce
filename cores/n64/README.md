@@ -1177,7 +1177,7 @@ matches the expanded span model.
 Command fields and depth clearing follow the [SGI RDP command summary](https://hcs64.com/files/RDP_COMMANDS.pdf)
 and [Nintendo fill-cycle documentation](https://ultra64.ca/files/documentation/online-manuals/man/pro-man/pro12/12-01.html).
 The quarter-span and hazard details are inferred from the RDP author's primary
-[edge-walker implementation](https://github.com/ata4/angrylion-rdp-plus/blob/master/src/core/n64video/rdp/rasterizer.c).
+[edge-walker implementation](https://github.com/ata4/angrylion-rdp-plus/blob/9c8b9ed3e7d7f00dff8bc872ccdd3fba1a3673fc/src/core/n64video/rdp/rasterizer.c).
 Nintendo gives a broad four-pixel scissor warning; these gates characterize the
 author's detailed span model, **not physical subpixel/scissor accuracy**.
 Image reads, depth compares and stepped depth-update modes are explicit blockers.
@@ -1510,19 +1510,24 @@ use integer S/T and 1.11 DxT; tile/palette commands use raw 10.2 coordinates.
 Loads update the selected tile's bounds while retaining descriptors and neighbors.
 Full eight-byte groups include padding beyond a partial final span. DxT controls
 odd-row longword swapping and line strides. TMEM addresses wrap; RGBA32 and YUV
-split data between banks. Sixteen-bit palette entries replicate across banks.
-Other source/tile-size combinations use the functional bank layout. Source reads
+split data between banks. Even-address palette fetches replicate a halfword;
+odd addresses fetch a full word. Source size controls source/coordinate advance.
+Loads preserve signed 16-bit coordinate wrapping and fractional edge behavior. Source reads
 use the 24-bit RDP memory interface and zero for absent backing. These rules are
 implemented with integer addressing, with no host floating point.
 
 Field and transfer descriptions come from the [SGI RDP Command Summary](https://hcs64.com/files/RDP_COMMANDS.pdf).
 Bank/partial-transfer rules were checked against the reference author's
-[texture loads](https://github.com/ata4/angrylion-rdp-plus/blob/master/src/core/n64video/rdp/tex.c),
-[TMEM indexing](https://github.com/ata4/angrylion-rdp-plus/blob/master/src/core/n64video/rdp/tmem.c)
-and memory-interface source. This is source review, **not a differential run or
-physical-console verification**. The independent test uses inverse bank-address
-algebra and byte scatter, plus literal observations for normal/odd rows, RGBA32
-halves and palette replication. No third-party implementation is vendored.
+[texture loads](https://github.com/ata4/angrylion-rdp-plus/blob/9c8b9ed3e7d7f00dff8bc872ccdd3fba1a3673fc/src/core/n64video/rdp/tex.c),
+[TMEM indexing](https://github.com/ata4/angrylion-rdp-plus/blob/9c8b9ed3e7d7f00dff8bc872ccdd3fba1a3673fc/src/core/n64video/rdp/tmem.c)
+and memory-interface source. An optional comparison against commit
+`9c8b9ed3e7d7f00dff8bc872ccdd3fba1a3673fc` passes **168,192 full-TMEM
+comparisons** across explicit load, coordinate and multirow partner domains.
+The [repeatable reference harness](../../tests/reference/n64-tmem/README.md) records the exact domains.
+This is software-reference evidence, **not physical-console verification**.
+The independent component uses inverse bank-address algebra and byte scatter,
+plus literal normal/odd rows, RGBA32 halves, palette alignment, fractional
+edges and signed coordinate wrapping. No third-party implementation is vendored.
 
 The component grades **665,884 byte cases**: every TMEM word, all source alignments,
 source sizes 8/16/32, all encoded descriptor formats/sizes, all 4,096 DxT values,
@@ -1540,7 +1545,7 @@ pending. TMEM presence does not establish rendered texture correctness.
 
 The [original transfer-command ROM](../../tests/roms-src/n64/rdp_tmem_commands/README.md)
 passes **393,216 cases / 2,752,512 actual 64-bit register/RAM captures** in
-**33.63 seconds**, with zero mismatches and all 48 executed capture mutants,
+**58.73 seconds**, with zero mismatches and all 48 executed capture mutants,
 seven field mutations and seven malformed streams rejected. It checks consumption,
 FullSync IRQ and an untouched RAM guard for all three loads, through both sources.
 **Internal TMEM bytes have no CPU readback in this ROM** and are verified separately

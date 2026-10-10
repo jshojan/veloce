@@ -12,19 +12,23 @@ static void check(bool ok,const char* text){if(!ok)throw std::runtime_error(text
 static uint32_t oracle(unsigned op,uint64_t command,const n64::RdpTexture& texture,const std::vector<uint8_t>& ram,Memory& want){
  const bool block=op==51,palette=op==48;const auto& tile=texture.tiles[(command/16777216)%8];
  const unsigned a=(command/(1ull<<44))%4096,b=(command/(1ull<<32))%4096,c=(command/4096)%4096,d=command%4096;
- const unsigned start_x=block?a:a/4,start_y=block?b%1024:b/4,end_x=block?c:c/4,end_y=block?start_y:d/4;
- const unsigned count=(end_x+4097-start_x)%4096;const bool replicate=palette && texture.size()==2;
- const unsigned step=replicate?1:8/(1u<<(texture.size()-1));uint32_t groups=0;
+ const unsigned start_x=block?a:a/4,start_y=block?b%1024:b/4,end_x=!block && b==((d/4)*4+3)?0:block?c:c/4,end_y=block?start_y:d/4;
+ const unsigned count=(end_x+4097-start_x)%4096;const bool narrow_palette=palette && texture.size()==2;
+ const unsigned step=narrow_palette?1:8/(1u<<(texture.size()-1));uint32_t groups=0;
  auto read=[&](uint64_t at){at%=16777216;return at<ram.size()?ram[size_t(at)]:uint8_t(0);};
  for(unsigned y=start_y;y<=end_y;++y)for(unsigned n=0;n*step<count;++n){
   const int x=block && start_x>=2048?int(start_x)-4096:int(start_x);
-  const uint64_t at=(uint64_t(texture.address())+uint32_t(int(y*texture.width())+x)*(1u<<(texture.size()-1))+(replicate?2:8)*n)%16777216;
-  unsigned t=block?n*d/2048:y-start_y,s=n*(palette?4:1)*(8/(1u<<(texture.size()-1)));
+  const uint64_t at=(uint64_t(texture.address())+uint32_t(int(y*texture.width())+x)*(1u<<(texture.size()-1))+(narrow_palette?2:8)*n)%16777216;
+  const unsigned raw_s=(a*8+n*((block?128:512)/(1u<<texture.size())))%65536;
+  const int signed_s=int(raw_s)-(raw_s>=32768?65536:0)-int(a*8);
+  const int divisor=block || palette?8:32;
+  const unsigned s=unsigned(signed_s>=0?signed_s/divisor:-((-signed_s+divisor-1)/divisor));
+  unsigned t=block?n*d/2048:y-start_y;
   unsigned stride=(tile.line()*t)%512,half_s=tile.format()==1 || tile.size()==1?s/2:tile.size()>=2?s:s/4;
   unsigned q=((tile.address()+stride)*4+half_s%2048)%2048;q-=q/2%2*2;
   auto location=[&](unsigned bank){const unsigned original=bank^(t%2*2);unsigned address=q/4*4+original+(original<q%4?4:0);return (address^(t%2*2))%1024;};
   auto pair=[&](unsigned address,uint8_t hi,uint8_t lo){want[(address%2048)*2]=hi;want[(address%2048)*2+1]=lo;};
-  auto data=[&](unsigned i){return read(at+(replicate?i%2:i));};
+  auto data=[&](unsigned i){return read(at+(palette && at%2==0?i%2:i));};
   if(tile.format()==1 || (tile.format()==0 && tile.size()==3)){
    unsigned first=(half_s/2%2+t%2)%2*2;
    for(unsigned i=0;i<2;++i){unsigned dest=location(first+i);if(tile.format()==1){pair(dest,data(i*4),data(i*4+2));pair(dest+1024,data(i*4+1),data(i*4+3));}else{pair(dest,data(i*4),data(i*4+1));pair(dest+1024,data(i*4+2),data(i*4+3));}}
@@ -61,6 +65,19 @@ int main(int argc,char** argv){try{
  check(!memory.load(51,command(51,0,0,0,7,2048),texture,ram,groups) && groups==2,"literal block");for(unsigned i=0;i<8;++i){check(memory.bytes[i]==i+1,"first literal word");check(memory.bytes[8+i]==((i^4)+9),"odd row swaps longs");}
  texture.tiles[0].descriptor=3ull<<51;memory.bytes.fill(0);texture.image=(3ull<<51)|256;check(!memory.load(51,command(51,0,0,0,1,0),texture,ram,groups),"split literal");check(memory.bytes[0]==1 && memory.bytes[1]==2 && memory.bytes[2]==5 && memory.bytes[3]==6 && memory.bytes[2048]==3 && memory.bytes[2049]==4 && memory.bytes[2050]==7 && memory.bytes[2051]==8,"RGBA split halves");
  texture.image=(2ull<<51)|256;texture.tiles[0].descriptor=256ull<<32;memory.bytes.fill(0);check(!memory.load(48,command(48,0,0,0,4,0),texture,ram,groups) && groups==2,"palette literal");for(unsigned i=0;i<8;++i){check(memory.bytes[2048+i]==(i%2?2:1),"palette replication");check(memory.bytes[2056+i]==(i%2?4:3),"palette entry stride");}
+ // Literal regressions for the external reference comparison findings.
+ texture.image=(1ull<<51)|256;texture.tiles[0].descriptor=2ull<<51;memory.bytes.fill(0);
+ check(!memory.load(48,command(48,0,0,0,0,0),texture,ram,groups) && groups==1,"aligned eight-bit palette group");
+ for(unsigned i=0;i<8;++i)check(memory.bytes[i]==ram[256+i%2],"palette alignment controls replication");
+ texture.image=(2ull<<51)|257;memory.bytes.fill(0);
+ check(!memory.load(48,command(48,0,0,0,0,0),texture,ram,groups) && groups==1,"odd palette group");
+ for(unsigned i=0;i<8;++i)check(memory.bytes[i]==ram[257+i],"odd palette source uses whole word");
+ texture.image=(1ull<<51)|256;texture.tiles[0].descriptor=1ull<<51;memory.bytes.fill(0);
+ check(!memory.load(52,command(52,0,0,3,400,3),texture,ram,groups) && groups==1,"fraction-three empty span resets right edge");
+ for(unsigned i=0;i<8;++i)check(memory.bytes[i]==ram[256+i],"empty fractional span literal");
+ texture.image=(1ull<<51)|(31ull<<32)|256;memory.bytes.fill(0);
+ check(!memory.load(52,command(52,0,8,3,24,3),texture,ram,groups) && groups==512,"fractional span modulo count and signed coordinates");
+ for(unsigned i=0;i<8;++i)check(memory.bytes[4088+i]==ram[4346+i],"signed coordinate wrap changes destination bank");
  const auto guarded_bytes=memory.bytes;const auto state=texture.snapshot();texture.image=0;check(memory.load(51,command(51,0,0,0,3,0),texture,ram,groups)==3 && memory.bytes==guarded_bytes,"four-bit image blocks atomically");texture.restore(state);check(memory.load(48,command(48,0,0,0,4,4),texture,ram,groups)==3 && memory.bytes==guarded_bytes && texture.snapshot()==state,"multirow palette blocks atomically");
  check(argc==2,"original ROM required");std::ifstream file(argv[1],std::ios::binary);std::vector<uint8_t> rom{std::istreambuf_iterator<char>(file),{}};n64::Machine machine;check(machine.load(rom.data(),rom.size()),"machine ROM load");auto& dp=machine.dp_interface;
  auto put=[&](unsigned at,uint64_t word){for(unsigned i=0;i<8;++i)machine.ram[at+i]=uint8_t(word>>(56-8*i));};
