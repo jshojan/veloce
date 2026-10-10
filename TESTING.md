@@ -13,7 +13,7 @@ truth this document summarizes rather than duplicates.
 
 ## Repository-owned register corpora
 
-Original NES, GB, SNES, GBA, N64 and Virtual Boy ROMs are committed with their Python source generators.
+Original NES, GB, SNES, GBA, N64, Virtual Boy and DS ROMs are committed with their Python source generators.
 Build reproducibility and source/image SHA256 are checked with
 `python3 tests/roms-src/build.py --original-only --check`, without a downloaded
 ROM, Docker, or an assembler. Run the suites with
@@ -119,6 +119,17 @@ subdomains; fatal paths are separate component evidence. Frames and cycles
 measure scheduling quanta/step attempts, not VIP or pipeline timing. Retail
 Virtual Boy games, graphics/audio/controllers and remaining hardware are
 unimplemented or unverified. Run `ctest --test-dir build -R '^vb_' --output-on-failure`.
+
+The experimental [DS core](cores/nds/README.md) executes two original ARM guest
+programs in its [integer corpus](tests/roms-src/nds/integer_registers/README.md):
+44,238,336 destination/CPSR/source snapshots across sixteen operations, all
+repeated-byte pairs and full-width boundaries, every NZCV and both ARM9 Q states.
+ARM9/ARM7 share main RAM and execute from their loaded main/private segments.
+The host grades both output streams independently; an ADC-to-ADD mutation and
+seven damaged files check failure detection. Component gates cover aliases,
+shifters, WRAM banks, validation and exact plugin state replay. Firmware, Thumb,
+physical timing, graphics/audio/controllers and DSi enhanced mode remain pending.
+Run `ctest --test-dir build -R '^nds_' --output-on-failure`.
 
 All suites retain raw output and reports under `build/artifacts/owned/`, which
 CI uploads. These results are separate from the existing external-ROM weighted

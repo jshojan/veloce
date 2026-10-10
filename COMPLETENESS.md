@@ -46,9 +46,10 @@ No full-core completion percentage has been established.
 | [GBA](#gba) | 132 external tests / 29 suites, plus 1 original ROM | Partial; 65,536 original ARM shift cases verified | Legacy CPU/memory/BIOS/saves subsets verified; timing/PPU and remaining original hardware corpus pending |
 | N64 | 5 original ROMs; no external catalog | Declared integer/merge/controller/interrupt domains verified | Experimental marked homebrew; full hardware completion unknown; [limits](cores/n64/README.md) |
 | Virtual Boy | 7 original ROMs; no external catalog | 6,512,640 result/PSW pairs plus 4,210,688 multiply/divide and 4,685,824 TRAP/illegal and 4,982,784 address-trap snapshots plus 17,055,744 CAXI/port and 14,680,064 arithmetic bit-string and 100,712,448 immediate-instruction snapshots | Experimental marked homebrew; remaining CPU/NVC, VIP/VSU, controllers and timing pending; [limits](cores/vb/README.md) |
+| Nintendo DS | 1 original ROM; no external catalog | 44,238,336/44,238,336 dual-CPU result/CPSR/source snapshots matched | Experimental marked ARM-state homebrew; firmware, Thumb, graphics/audio, peripherals and DSi enhanced mode pending; [limits](cores/nds/README.md) |
 
 The legacy four-console platform mean reported by `tests/run_all.py` weights each
-console equally; N64 and Virtual Boy owned corpora are reported separately.
+console equally; N64, Virtual Boy and DS owned corpora are reported separately.
 Because three of the four cores have large currently-unverifiable blocks, the
 platform mean understates implemented behavior and overstates nothing; it will
 rise as reference hashes and the missing emitters land, without any code becoming

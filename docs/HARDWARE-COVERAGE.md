@@ -15,6 +15,7 @@ are not measurements of overall hardware or product completion.
 | GBA | `gba_plugin` | ARM MOVS register shifts: 65,536/65,536 result/CPSR pairs verified; all low-byte amounts and C/V inputs on 16 operands | Not measured; remaining CPU modes/instructions, timing and peripheral corpora pending |
 | Nintendo 64 | `n64_plugin` (experimental homebrew only) | 28,127/28,127 defined integer results matched; 28,160 observations, with 33 undefined divide inputs unscored; doubleword multiply/divide: 262,623/262,623 defined LO/HI pairs matched on exhaustive byte pairs and full-width boundaries; merge memory: 3,158,016/3,158,016 observations matched at every lane on all repeated-byte pairs and selected full-width patterns; digital SI/PIF: 16,384/16,384 button combinations and 131,072 register values matched; interrupt gates: 65,536/65,536 cases and 524,288 register values matched | Not measured; retail boot, graphics/audio, analog/controllers beyond port 1 and most platform hardware remain |
 | Virtual Boy | `vb_plugin` (experimental homebrew only) | 6,512,640/6,512,640 result/PSW pairs matched across ADD/SUB/CMP/OR/AND/XOR repeated-byte pairs and full-width boundaries, plus SHL/SHR/SAR patterns and all low-byte amounts; 4,210,688/4,210,688 multiply/divide snapshots matched with 8,704 divide-zero exception/RETI cases; 4,685,824/4,685,824 TRAP/illegal exception snapshots matched across all writable nonfatal PSW combinations and full reserved low-bit encodings; 4,982,784/4,982,784 address-trap snapshots matched across matching/disabled/aliased addresses and entry/return; 17,055,744/17,055,744 CAXI/port snapshots matched across comparisons/replacements, width/alignment, unsigned input and preserved flags; 14,680,064/14,680,064 arithmetic bit-string snapshots matched across eight operations, byte pairs, all offsets and twelve lengths; 100,712,448/100,712,448 immediate-instruction snapshots matched across all wide/short immediates for twelve instructions on sixteen patterns/all flags | Not measured; remaining CPU/NVC instructions, timing, VIP/VSU, controllers and most platform hardware remain |
+| Nintendo DS | `nds_plugin` (experimental homebrew only) | 44,238,336/44,238,336 dual-CPU result/CPSR/source snapshots matched across all sixteen data-processing operations, repeated-byte pairs and full-width boundaries, every NZCV and both ARM9 Q states | Not measured; firmware/retail boot, Thumb, interrupts, graphics/audio, peripherals, timing and DSi enhanced mode remain |
 
 The experimental N64 plugin now executes original MIPS integer homebrew ROMs.
 It accepts only the documented `V64HB001` entry profile and cannot run retail
@@ -84,13 +85,23 @@ It executes changing code in WRAM; physical cache coherency and full operand
 domains remain unverified. Video, sound,
 controller hardware, interrupts/timing and retail compatibility remain pending.
 
+The new [DS plugin](../cores/nds/README.md) loads original ARM9/ARM7 segments
+and executes both CPUs against shared main RAM and CPU-specific WRAM. Its
+[integer corpus](../tests/roms-src/nds/integer_registers/README.md) matched all
+44,238,336 destination/CPSR/source snapshots across sixteen data-processing
+operations, byte pairs/full-width boundaries, all NZCV and ARM9 Q states.
+This declares operand/flag coverage, not whole-hardware completion. Shifters,
+WRAM banks and exact saved continuation have separate component checks.
+Firmware, Thumb, exceptions/interrupts, graphics/audio/controllers, most
+peripherals/timing and DSi enhanced mode remain pending.
+
 Run `python3 tests/roms-src/build.py --original-only --check` to reproduce the
 original ROM images and verify their source and image SHA256 ledger. Run
 `ctest --test-dir build -L owned --output-on-failure` to execute them. Raw
 register files and reports remain in `build/artifacts/owned/`, and CI uploads
 them as `owned-hardware-registers`.
 
-The NES, GB ALU/unary, SNES, GBA, N64 and Virtual Boy corpora are graded by host integer oracles that read
+The NES, GB ALU/unary, SNES, GBA, N64, Virtual Boy and DS corpora are graded by host integer oracles that read
 every observed register result. The small GB WRAM probe emits its own `CHECK`
 lines alongside observed values. The GB ALU and unary ROMs use the existing SB/SC start
 observation hook without waiting for link delivery; physical serial timing and
@@ -125,7 +136,7 @@ must implement its hardware as a loadable core plugin and execute its own ROMs;
 an empty plugin or declared platform name does not count as implementation.
 
 Additional requested platform families without a core in this worktree include
-Nintendo DS/DSi, GameCube/Wii, Nintendo 3DS, Wii U,
+DSi enhanced mode, GameCube/Wii, Nintendo 3DS, Wii U,
 and Switch. Famicom Disk System and other Nintendo accessories still need
 separate validation. There is no verified completion percentage for these
 missing implementations.

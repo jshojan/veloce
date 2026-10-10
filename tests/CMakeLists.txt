@@ -278,3 +278,17 @@ add_test(
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 set_tests_properties(accuracy_all PROPERTIES LABELS "accuracy;slow" TIMEOUT 7200)
+
+add_executable(nds_machine_test cpp/nds_machine_test.cpp
+    ${CMAKE_SOURCE_DIR}/cores/nds/src/machine.cpp ${CMAKE_SOURCE_DIR}/cores/nds/src/arm.cpp)
+target_include_directories(nds_machine_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/nds/src ${CMAKE_SOURCE_DIR}/include ${SDL2_INCLUDE_DIRS})
+target_link_libraries(nds_machine_test PRIVATE ${SDL2_LIBRARIES})
+target_compile_definitions(nds_machine_test PRIVATE SDL_MAIN_HANDLED)
+add_dependencies(nds_machine_test nds_plugin)
+add_test(NAME nds_machine_test COMMAND nds_machine_test $<TARGET_FILE:nds_plugin>
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/nds/integer_registers/integer_registers.nds)
+set_tests_properties(nds_machine_test PROPERTIES LABELS "unit;fast" TIMEOUT 30)
+add_test(NAME nds_integer_registers COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/nds/integer_registers/run.py --emulator $<TARGET_FILE:veloce>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/nds_integer)
+set_tests_properties(nds_integer_registers PROPERTIES LABELS "accuracy;owned" TIMEOUT 1800)

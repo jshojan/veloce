@@ -99,6 +99,17 @@
       "source_type": "original",
       "suite": "muldiv64"
     },
+    "nds/integer_registers/integer_registers.nds": {
+      "build_command": "python3 tests/roms-src/nds/integer_registers/build.py",
+      "console": "nds",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "3198a1ac4baef3d112d125024a04306ff6d96f19a8d0024cb5501969c6898aa6",
+      "source_repo": "tests/roms-src/nds/integer_registers/build.py",
+      "source_sha": "fe0cb58f2ddef006357691f5e9e20bd7a00d77c849f13561c6c8f1ba338d944e",
+      "source_type": "original",
+      "suite": "integer_registers"
+    },
     "nes/alu_exhaustive/alu_exhaustive.nes": {
       "build_command": "python3 tests/roms-src/nes/alu_exhaustive/build.py",
       "console": "nes",

@@ -193,6 +193,7 @@ add_subdirectory(cores/gb)
 add_subdirectory(cores/gba)
 add_subdirectory(cores/n64)
 add_subdirectory(cores/vb)
+add_subdirectory(cores/nds)
 
 # Shared plugin libraries
 add_subdirectory(plugins/game_plugin_common)
