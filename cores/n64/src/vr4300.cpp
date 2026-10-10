@@ -19,32 +19,71 @@ static void multiply_doubleword(uint64_t a, uint64_t b, uint64_t& lo, uint64_t& 
     hi = p11 + (p01 >> 32) + (p10 >> 32) + (middle >> 32);
 }
 void VR4300::reset(uint64_t entry) {
-    state = {};caches.reset();
+    state = {};caches.reset();tlb.reset();exception_taken=instruction_valid=false;instruction_word=0;access_address=0;access_bytes=0;access_store=false;
     state.pc = entry;
     state.next_pc = entry + 4;
     // Explicit homebrew entry in kernel mode with interrupts off. Not a PIF/IPL reset.
     state.cp0[12] = 0;
     state.cp0[16] = 2; // Explicit uncached homebrew entry.
     state.cp0[15] = 0x00000b22;
+    state.cp0[1] = 31;
 }
-void VR4300::exception(unsigned code, uint64_t pc, bool delay, uint64_t bad) {
+void VR4300::exception(unsigned code, uint64_t pc, bool delay, uint64_t bad,bool refill,bool extended) {
+    exception_taken=true;
     auto& s = state;
     if (!(s.cp0[12] & 2)) {
         s.cp0[14] = delay ? pc - 4 : pc;
         s.cp0[13] = (s.cp0[13] & ~0x80000000ull) | (delay ? 0x80000000ull : 0);
     }
     s.cp0[13] = (s.cp0[13] & ~0x7cull) | (code << 2);
-    if (code == 4 || code == 5) s.cp0[8] = bad;
+    if (code>=1 && code<=5) s.cp0[8] = bad;
+    const bool nested=s.cp0[12]&2;
+    if(code>=1 && code<=3) {
+        s.cp0[10]=(bad&Tlb::hi_mask&~uint64_t(255))|(s.cp0[10]&255);
+        s.cp0[4]=(s.cp0[4]&~uint64_t(0x7fffff))|((bad>>9)&0x7ffff0);
+        s.cp0[20]=(s.cp0[20]&0xfffffffe00000000ull)|((bad>>31)&0x180000000ull)|((bad>>9)&0x7ffffff0);
+    }
     s.cp0[12] |= 2;
-    s.pc = (s.cp0[12] & (1u << 22)) ? 0xffffffffbfc00380ull : 0xffffffff80000180ull;
+    const uint64_t base=(s.cp0[12]&(1u<<22))?0xffffffffbfc00200ull:0xffffffff80000000ull;
+    s.pc=base+((refill && !nested)?(extended?128:0):384);
     s.next_pc = s.pc + 4;
     s.delay_slot = false;
 }
+bool VR4300::translate(uint64_t address,bool store,uint64_t pc,bool delay,Tlb::Translation& t) {
+    t=tlb.translate(address,uint32_t(state.cp0[12]),uint8_t(state.cp0[10]),uint32_t(state.cp0[16]),store);
+    if(t.fault==Tlb::Fault::none)return true;
+    unsigned code=store?3:2;
+    if(t.fault==Tlb::Fault::address)code=store?5:4;
+    else if(t.fault==Tlb::Fault::modified)code=1;
+    else if(t.fault==Tlb::Fault::undefined)code=10; // Duplicate matches are architecturally undefined.
+    exception(code,pc,delay,address,t.fault==Tlb::Fault::miss,t.extended);return false;
+}
+bool VR4300::read(uint64_t address,unsigned bytes,uint64_t& value,bool fetch,uint64_t pc,bool delay,uint64_t bad) {
+    access_address=bad;access_bytes=bytes;access_store=false;
+    if(address&(bytes-1)) {exception(4,pc,delay,bad);return false;}
+    Tlb::Translation t;if(!translate(bad,false,pc,delay,t))return false;
+    if(!caches.read_translated(memory,address,t.physical&~uint32_t(bytes-1),t.cached,bytes,value,fetch)) {
+        exception(fetch?6:7,pc,delay);return false;
+    }
+    return true;
+}
+bool VR4300::write(uint64_t address,unsigned bytes,uint64_t value,uint8_t mask,uint64_t pc,bool delay,uint64_t bad) {
+    access_address=bad;access_bytes=bytes;access_store=true;
+    if(address&(bytes-1)) {exception(5,pc,delay,bad);return false;}
+    Tlb::Translation t;if(!translate(bad,true,pc,delay,t))return false;
+    if(!caches.write_translated(memory,address,t.physical&~uint32_t(bytes-1),t.cached,bytes,value,mask)) {
+        exception(7,pc,delay);return false;
+    }
+    return true;
+}
 void VR4300::step() {
+    exception_taken=instruction_valid=false;instruction_word=0;access_address=0;access_bytes=0;access_store=false;
     auto& s = state;
     const uint64_t pc = s.pc;
     const bool delay = s.delay_slot;
     ++s.instructions;memory.clock();
+    const unsigned wired=unsigned(s.cp0[6])&31,random=unsigned(s.cp0[1])&31;
+    s.cp0[1]=(s.cp0[1]&32)|(random<=wired?31:random-1);
     // Count is an instruction-clock approximation; pipeline/bus timing is pending.
     if (!(s.instructions & 1)) {
         s.cp0[9] = uint32_t(s.cp0[9] + 1);
@@ -57,8 +96,8 @@ void VR4300::step() {
         exception(0, pc, delay); return;
     }
     uint64_t fetched = 0;
-    if ((pc & 3) || !caches.read(memory,pc,4,fetched,true,uint32_t(s.cp0[16]))) { exception(4, pc, delay, pc); return; }
-    const uint32_t ins = uint32_t(fetched);
+    if(!read(pc,4,fetched,true,pc,delay,pc))return;
+    const uint32_t ins = uint32_t(fetched);instruction_word=ins;instruction_valid=true;
     const unsigned op = ins >> 26, rs = (ins >> 21) & 31, rt = (ins >> 16) & 31;
     const unsigned rd = (ins >> 11) & 31, sa = (ins >> 6) & 31, fn = ins & 63;
     const uint64_t a = s.gpr[rs], b = s.gpr[rt], imm = sign16(uint16_t(ins));
@@ -83,7 +122,7 @@ void VR4300::step() {
     auto load = [&](unsigned bytes, bool signed_value) {
         const uint64_t address = a + imm;
         uint64_t value = 0;
-        if ((address & (bytes - 1)) || !caches.read(memory,address,bytes,value,false,uint32_t(s.cp0[16]))) { fault(4, address); return; }
+        if(!read(address,bytes,value,false,pc,delay,address))return;
         if (signed_value) {
             if (bytes == 1) value |= (value & 128) ? 0xffffffffffffff00ull : 0;
             else if (bytes == 2) value = sign16(uint16_t(value));
@@ -93,13 +132,13 @@ void VR4300::step() {
     };
     auto store = [&](unsigned bytes) {
         const uint64_t address = a + imm;
-        if ((address & (bytes - 1)) || !caches.write(memory,address,bytes,b,uint8_t((1u<<bytes)-1),uint32_t(s.cp0[16]))) fault(5, address);
+        write(address,bytes,b,uint8_t((1u<<bytes)-1),pc,delay,address);
     };
     auto merge_load = [&](unsigned bytes, bool left) {
         const uint64_t address = a + imm, aligned = address & ~uint64_t(bytes - 1);
         const unsigned lane = address & (bytes - 1);
         uint64_t value = 0;
-        if (!caches.read(memory,aligned,bytes,value,false,uint32_t(s.cp0[16]))) { fault(4, address); return; }
+        if(!read(aligned,bytes,value,false,pc,delay,address))return;
         const uint64_t width_mask = bytes == 8 ? ~uint64_t(0) : 0xffffffffull;
         uint64_t result;
         if (left) {
@@ -120,7 +159,7 @@ void VR4300::step() {
         const uint8_t mask = left ? uint8_t((all_lanes << lane) & all_lanes)
                                   : uint8_t((1u << (lane + 1)) - 1);
         const uint64_t value = left ? b >> (lane * 8) : b << ((bytes - 1 - lane) * 8);
-        if (!caches.write(memory,aligned,bytes,value,mask,uint32_t(s.cp0[16]))) fault(5, address);
+        write(aligned,bytes,value,mask,pc,delay,address);
     };
     if (op == 0) {
         switch (fn) {
@@ -234,20 +273,41 @@ void VR4300::step() {
         case 13: put(rt, a | uint16_t(ins)); break;
         case 14: put(rt, a ^ uint16_t(ins)); break;
         case 15: put(rt, sign32(uint32_t(ins & 0xffff) << 16)); break;
-        case 16:
-            if (rs == 0) put(rt, sign32(uint32_t(s.cp0[rd])));
-            else if (rs == 4) {
-                if (rd == 13) s.cp0[13] = (s.cp0[13] & ~0x300ull) | (b & 0x300);
-                else if (rd == 11) { s.cp0[11] = uint32_t(b); s.cp0[13] &= ~0x8000ull; }
-                else s.cp0[rd] = (rd == 14 || rd == 30) ? sign32(uint32_t(b)) : uint32_t(b);
-            }
-            else if (ins == 0x42000018) {
+        case 16: {
+            const auto status=s.cp0[12];
+            if(!(status&6) && (status&24) && !(status&0x10000000)) {s.cp0[13]&=~0x30000000ull;fault(11);break;}
+            const unsigned mode=(status&6)?0:unsigned(status>>3)&3;
+            if((rs==1 || rs==5) && mode!=0 && !(status&(mode==1?64:32))) {fault(10);break;}
+            if((rs==0 || rs==1) && !(ins&0x7ff))put(rt,rs==0?sign32(uint32_t(s.cp0[rd])):s.cp0[rd]);
+            else if((rs==4 || rs==5) && !(ins&0x7ff)) {
+                const uint64_t value=rs==4?sign32(uint32_t(b)):b;
+                if(rd==0)s.cp0[0]=value&0x8000003f;
+                else if(rd==1)s.cp0[1]=(s.cp0[1]&31)|(value&32);
+                else if(rd==2 || rd==3)s.cp0[rd]=value&Tlb::lo_mask;
+                else if(rd==4)s.cp0[4]=(s.cp0[4]&0x7ffff0)|(value&~uint64_t(0x7fffff));
+                else if(rd==5)s.cp0[5]=value&Tlb::mask_mask;
+                else if(rd==6) {s.cp0[6]=value&63;s.cp0[1]=31;}
+                else if(rd==10)s.cp0[10]=value&Tlb::hi_mask;
+                else if(rd==20)s.cp0[20]=(s.cp0[20]&0x1fffffff0ull)|(value&0xfffffffe00000000ull);
+                else if(rd==13)s.cp0[13]=(s.cp0[13]&~0x300ull)|(value&0x300);
+                else if(rd==11) {s.cp0[11]=uint32_t(value);s.cp0[13]&=~0x8000ull;}
+                else s.cp0[rd]=(rd==14 || rd==30)?value:uint32_t(value);
+            } else if(ins==0x42000001) {
+                const auto& e=tlb.entries[unsigned(s.cp0[0])&31];
+                s.cp0[10]=e.hi;s.cp0[5]=e.mask;s.cp0[2]=e.even;s.cp0[3]=e.odd;
+            } else if(ins==0x42000002 || ins==0x42000006) {
+                if(!tlb.write(unsigned(s.cp0[ins==0x42000002?0:1]),s.cp0[10],uint32_t(s.cp0[5]),uint32_t(s.cp0[2]),uint32_t(s.cp0[3])))fault(10);
+            } else if(ins==0x42000008) {
+                const int index=tlb.probe(s.cp0[10]);
+                s.cp0[0]=index<0?0x80000000u:uint32_t(index);
+            } else if(ins==0x42000018) {
                 // ERET has no delay slot; error level takes priority over EXL.
-                if (s.cp0[12] & 4) { s.cp0[12] &= ~4ull; s.pc = s.cp0[30]; }
-                else { s.cp0[12] &= ~2ull; s.pc = s.cp0[14]; }
-                s.next_pc = s.pc + 4; s.delay_slot = false;
+                if(s.cp0[12]&4) {s.cp0[12]&=~4ull;s.pc=s.cp0[30];}
+                else {s.cp0[12]&=~2ull;s.pc=s.cp0[14];}
+                s.next_pc=s.pc+4;s.delay_slot=false;
             } else fault(10);
             break;
+        }
         case 17:
             if (!(s.cp0[12] & 0x20000000)) {
                 s.cp0[13] = (s.cp0[13] & ~0x30000000ull) | 0x10000000;
@@ -289,7 +349,9 @@ void VR4300::step() {
             if(!(status&6) && (status&24) && !(status&0x10000000)) {s.cp0[13]&=~0x30000000ull;fault(11);break;}
             if(!PrimaryCaches::defined(rt)) {fault(10);break;}
             uint32_t tag=uint32_t(s.cp0[28]);
-            if(!caches.operation(memory,rt,a+imm,tag)) {fault(4,a+imm);break;}
+            Tlb::Translation t;access_address=a+imm;access_bytes=0;access_store=false;
+            if(rt>=13 && !translate(a+imm,false,pc,delay,t))break;
+            if(!caches.operation_translated(memory,rt,a+imm,t.physical,tag)) {fault(7);break;}
             if(rt==4 || rt==5) {s.cp0[28]=tag;s.cp0[29]=0;}
             break;
         }

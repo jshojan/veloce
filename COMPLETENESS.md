@@ -47,7 +47,7 @@ headlines or original-ROM domain pass fractions.
 | [SNES](#snes) | 67 external tests / 19 suites, plus 2 original ROMs | 68,864 settled math cases and 504,832 timing bytes verified | Original multiplication domain is exhaustive; division covers boundaries; timing covers declared patterns/phases; external catalog remains unscored |
 | [Game Boy](#game-boy) | 225 external tests / 31 suites, plus 3 original ROMs | Verified subset only | Blargg serial subset, 2 WRAM checks, 8,388,608 ALU pairs and 73,728 unary pairs verified; Mooneye remains unverified |
 | [GBA](#gba) | 132 external tests / 29 suites, plus 1 original ROM | Partial; 65,536 original ARM shift cases verified | Legacy CPU/memory/BIOS/saves subsets verified; timing/PPU and remaining original hardware corpus pending |
-| N64 | 16 original ROMs; no external catalog | Declared integer/merge/controller/interrupt/PI/RI/MI/device/cache/SP/AI/FPU-control domains verified | Experimental homebrew/native handoff; retail boot pending; full hardware completion unknown; [limits](cores/n64/README.md) |
+| N64 | 17 original ROMs; no external catalog | Declared integer/merge/controller/interrupt/PI/RI/MI/device/cache/SP/AI/FPU-control/TLB domains verified | Experimental homebrew/native handoff; retail boot pending; full hardware completion unknown; [limits](cores/n64/README.md) |
 | Virtual Boy | 7 original ROMs; no external catalog | 6,512,640 result/PSW pairs plus 4,210,688 multiply/divide and 4,685,824 TRAP/illegal and 4,982,784 address-trap snapshots plus 17,055,744 CAXI/port and 14,680,064 arithmetic bit-string and 100,712,448 immediate-instruction snapshots | Experimental marked homebrew; remaining CPU/NVC, VIP/VSU, controllers and timing pending; [limits](cores/vb/README.md) |
 | Nintendo DS | 8 original ROMs; no external catalog | 44,238,336 integer plus 38,338,560 multiply plus 51,426,816 Thumb result/CPSR/source/PC observations matched; 49,694,208 nine-word memory and 9,437,184 eight-word long-call observations matched; 3,720,960 stack/block observations matched; 4,096/4,096 digital keypad combinations matched; 100-frame TCP host/viewer states and eight guest words match baseline/oracle; DS wireless multiplayer pending; ARM7 unpredictable multiply flags excluded | Experimental marked ARM/Thumb integer homebrew; firmware, ARM block transfers, graphics/audio, peripherals pending; DSi has a separate partial plugin; [limits](cores/nds/README.md) |
 | Nintendo DSi | 2 original ROMs; no external catalog | 387,072/387,072 RAM captures; 67,109,008 component bus observations; 100-frame TCP host/viewer states and eight guest register words match oracle | Experimental dual-CPU expanded-memory profile; firmware/retail boot, full SCFG/MBK, graphics/audio/peripherals and physical timing pending; [limits](cores/dsi/README.md) |
@@ -325,7 +325,7 @@ Wii Remote behavior remain pending. This is 100% of the declared digital domain,
 with no whole-hardware accuracy percentage implied. See [the profile](cores/ppc/README.md).
 
 Super Mario 64 was separately tested with the user's local image: the current
-N64 plugin loads it but faults at unsupported TLBWI after 5,896,601 IPL3 step attempts. That is a pending retail target, not a scored
+N64 plugin loads it but faults at unimplemented VI Current register after 5,897,464 IPL3 step attempts. That is a pending retail target, not a scored
 pass. The original-ROM ledger contains 64 repository-owned programs; commercial
 ROM bytes are never part of that ledger or git.
 
@@ -352,7 +352,7 @@ The component checks current-load latching, access/state failure atomicity,
 legacy conversion, exact replay, reset and loaded-plugin execution. RI refresh
 scheduling, analog calibration, bus-error production, native RAM remapping and
 physical timing remain pending. Super Mario 64 advances to an unimplemented register read
-(unsupported TLBWI 80328818, EPC 80328818, Cause 28) after 5,896,601 startup step attempts; it is
+(unimplemented VI Current register 803275F4, EPC 803275F4, Cause 1C) after 5,897,464 startup step attempts; it is
 not bootable/playable. The corpus ledger contains 64 original ROMs.
 
 ## N64 MI control evidence
@@ -366,7 +366,7 @@ mask transitions, injected DP delivery/acknowledgment/ERET, exact replay, legacy
 conversion, atomic rejection and production-plugin execution; it also passes
 undefined-behavior sanitization. All twenty-four N64 gates pass. MI repeat/upper device-register effects exist; RAM-repeat/EBus transactions
 and native RAM remapping remain pending.
-Super Mario 64 stops at unsupported TLBWI (EPC 80328818, Cause 28) after 5,896,601 startup
+Super Mario 64 stops at unimplemented VI Current register (EPC 803275F4, Cause 1C) after 5,897,464 startup
 step attempts; retail gameplay, graphics/audio and physical timing remain pending.
 All 64 original ROMs reproduce. CI/CD remains disabled.
 
@@ -380,8 +380,8 @@ delay/repeat combinations, selectors/register aliases, discovery, MI upper/repea
 state replay and rejection, legacy conversion and loaded-plugin execution.
 All twenty-four N64 gates pass; device components pass undefined-behavior sanitization.
 Native RAM remapping, analog calibration, cache timing/errors, physical bus timing, repeat RAM
-and EBus memory remain pending. Super Mario 64 reaches unsupported TLBWI after
-5,896,601 step attempts (EPC 80328818, Cause 28); gameplay/video/audio are unverified.
+and EBus memory remain pending. Super Mario 64 reaches unimplemented VI Current register after
+5,897,464 step attempts (EPC 803275F4, Cause 1C); gameplay/video/audio are unverified.
 All 64 original ROMs reproduce. CI/CD stays disabled.
 
 ## N64 functional primary cache evidence
@@ -395,8 +395,8 @@ dirty eviction, widths/merged stores, PI DMA staleness, CACHE operations/privile
 exact dirty/stale state replay and legacy conversion. All twenty-four N64 gates
 pass; cache components pass undefined-behavior sanitization. Timing/hazards,
 TLB/address modes, cache errors, native RAM remapping and device bus transactions
-remain incomplete. Super Mario 64 stops at unsupported TLBWI 80328818 after 5,896,601 attempts
-(EPC 80328818, Cause 28); video/audio and gameplay remain unverified. All 64
+remain incomplete. Super Mario 64 stops at unimplemented VI Current register 803275F4 after 5,897,464 attempts
+(EPC 803275F4, Cause 1C); video/audio and gameplay remain unverified. All 64
 original ROMs reproduce; CI/CD remains disabled.
 
 
@@ -416,8 +416,8 @@ ROMs reproduce. CI/CD stays disabled.
 
 RSP scalar/vector execution, DMA queues/clocks, unaligned stride, open-bus DMA,
 IO-full and exact address/length readback physical validation remain pending.
-Super Mario 64 reaches unsupported TLBWI `$80328818` after 5,896,601 startup
-attempts (EPC `$80328818`, Cause `$28` hex). Gameplay/video/audio remain
+Super Mario 64 reaches unimplemented VI Current register `$803275F4` after 5,897,464 startup
+attempts (EPC `$803275F4`, Cause `$1C` hex). Gameplay/video/audio remain
 unverified. N64 is 35% on the delivery checklist; no complete CPU/device
 milestone is claimed.
 
@@ -438,8 +438,8 @@ sanitization. All twenty-four N64 gates pass; all 64 original ROMs reproduce.
 N64 now has functional guest PCM output and **35%** delivery-checklist completion.
 Physical CPU/DAC timing, serial/analog behavior, status clock fields, dynamic rate
 phase behavior, RSP microcode, graphics and native retail playability remain
-unverified. Super Mario 64 reaches unsupported TLBWI after 5,896,601 attempts
-(EPC 80328818, backing word 42000002, Cause 28 hex). No commercial ROM bytes enter
+unverified. Super Mario 64 reaches unimplemented VI Current register after 5,897,464 attempts
+(EPC 803275F4, backing word 8D8D0010, Cause 1C hex). No commercial ROM bytes enter
 git. CI/CD stays disabled.
 
 ## N64 FPU controls and branch corpus (2026-10-10)
@@ -468,11 +468,50 @@ conversions, comparisons, NaN/denormal behavior and physical pipeline timing
 remain pending; no full CPU or hardware-accuracy milestone is awarded.
 This original cartridge has not been validated on physical hardware.
 
-Super Mario 64 now passes CFC1 and reaches unsupported TLBWI after
-**5,896,601** attempts (EPC `80328818`, instruction-cache and backing word
-`42000002`, Cause `28` hex). The production plugin still reports uniform video
+Super Mario 64 now passes CFC1 and reaches unimplemented VI Current register after
+**5,897,464** attempts (EPC `803275F4`, instruction-cache and backing word
+`8D8D0010`, Cause `1C` hex). The production plugin still reports uniform video
 and zero retail PCM pairs. Boot and playability remain unverified. No commercial
 ROM bytes enter the repository. CI/CD remains disabled.
 
 All **26/26 N64 CTests pass** (345.82 seconds); the complete run includes every
 original N64 register ROM, PCM ABI oracle and all nine component tests.
+
+## N64 TLB translation and fault corpus (2026-10-10)
+
+TLBR/TLBWI/TLBWR/TLBP now control a real 32-entry paired-page TLB. The CPU
+translates fetch/load/store/merge/CACHE access with seven page sizes,
+ASID/global/valid/dirty checks, 32/64-bit region privileges, ERL bypass, xkphys
+CCA, masked CP0 fields and DMFC0/DMTC0. Translation faults record
+BadVAddr/EntryHi/Context/XContext and use refill/general/extended vectors.
+Virtually indexed cache aliases retain separate stale data until maintenance.
+
+The [original ROM](tests/roms-src/n64/tlb_translation/README.md) matches
+**114,688/114,688** cases / **1,261,568** guest register values. An executed
+ASID mutation fails all 256 reduced rows; eleven field mutations fail; seven
+malformed streams are rejected. The component checks **3,670,016** ASID/global/
+half cases, **2,097,152** physical frame selections, **79,188** offsets and
+**4,096** mask inputs and **229,376** independent permission/CCA cases, plus
+controls, CPU faults/fetch/cache aliases and state
+continuation. S011 stores 32 entries in 1,024 bytes and accepts S010 with neutral
+TLB entries. Old state conversions preserve their existing fields.
+
+Duplicate-hit shutdown/TS behavior, physical timing and CP0/TLB hazards remain
+pending. Neutral reset tags, rejection of undefined masks and RI on duplicate
+translation matches are explicit emulator conventions. Unsupported physical
+bus access produces IBE/DBE in this bus profile; physical open-bus behavior is
+unverified. This cartridge has not been tested on a physical console.
+N64 remains **35%** on the delivery checklist; full hardware completion is unknown.
+
+Mario 64 now passes TLBWI and reaches unimplemented VI Current at `A4400010`
+after **5,897,464** attempts (EPC `803275F4`, actual decoded/backing word
+`8D8D0010`, Cause `1C` hex / DBE). The tracer distinguishes actual CPU exception
+entry from software EXL writes and permits nonterminal guest-handled exception
+classes. The production probe still sees uniform video and zero retail PCM;
+boot/playability remain unverified. Commercial bytes are kept out of git.
+
+All **28/28 N64 CTests pass** (328.64 seconds), including all original N64
+register ROMs, PCM ABI oracle and ten component tests. The final DMCP0
+32-bit-mode restriction and independent permission checks are verified by the
+affected TLB gates and the updated component sanitizer run. All **66** original
+ROMs reproduce from their source/image ledger. CI/CD remains disabled.
