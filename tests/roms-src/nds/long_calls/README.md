@@ -95,8 +95,7 @@ cmake --build build --target veloce nds_plugin nds_machine_test -j
 ctest --test-dir build -R '^nds_(machine_test|long_calls)$' --output-on-failure
 ```
 
-Raw files and JSON reports remain in `build/artifacts/owned/nds_long_calls/` and
-are uploaded by owned-hardware CI. The manifest records generator/image SHA256.
+Raw files and JSON reports remain in `build/artifacts/owned/nds_long_calls/` and. The manifest records generator/image SHA256.
 The full archived image SHA256 is
 `f968b7b2c19910fb2af4cf76879a2f27f3ecf4baa07f9140d0b81592780e4892`.
 

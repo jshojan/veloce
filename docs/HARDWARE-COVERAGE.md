@@ -154,8 +154,8 @@ peripherals/timing and DSi enhanced mode remain pending.
 Run `python3 tests/roms-src/build.py --original-only --check` to reproduce the
 original ROM images and verify their source and image SHA256 ledger. Run
 `ctest --test-dir build -L owned --output-on-failure` to execute them. Raw
-register files and reports remain in `build/artifacts/owned/`, and CI uploads
-them as `owned-hardware-registers`.
+register files and reports remain locally in `build/artifacts/owned/`.
+CI/CD is disabled for now.
 
 The NES, GB ALU/unary, SNES, GBA, N64, Virtual Boy, DS, GameCube and Wii corpora are graded by host integer oracles that read
 every observed register result. The small GB WRAM probe emits its own `CHECK`

@@ -84,7 +84,7 @@ They must match the same defined domain, not add new unique hardware coverage.
 A separate mutant changes the first ADDU to SUBU. Only that group may fail.
 Missing/malformed rows, reordered groups, false-PASS completion, missing or
 unterminated trailers and trailing data must be measurement errors. Raw files
-and JSON reports for all controls are retained and uploaded by CI.
+and JSON reports for all controls are retained.
 
 Measured 2026-10-09: **28,127/28,127 defined results matched** (100% of this
 selected domain), all 28,160 observations present, 33 unscored undefined inputs,

@@ -83,7 +83,7 @@ divide groups. Exactly those two groups must fail, proving both result paths can
 reject wrong executed instructions. Missing or malformed rows, reordered groups,
 false-PASS completion, missing/unterminated trailers and trailing data must be
 measurement errors. Raw negative files and JSON reports remain with the positive
-artifacts and are uploaded by CI. No external ROM download is required.
+artifacts. No external ROM download is required.
 
 Measured 2026-10-09: **262,623/262,623 defined LO/HI pairs matched**, all
 263,168 observations present, 545 undefined inputs unscored, zero mismatches

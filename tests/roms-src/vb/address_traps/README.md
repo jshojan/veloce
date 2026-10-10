@@ -54,8 +54,7 @@ cmake --build build --target veloce vb_plugin vb_machine_test -j
 ctest --test-dir build -R '^vb_' --output-on-failure
 ```
 
-Raw files and reports are retained in `build/artifacts/owned/vb_address_traps/`
-and uploaded by owned-hardware CI. The manifest records the ROM and standalone
+Raw files and reports are retained in `build/artifacts/owned/vb_address_traps/`. The manifest records the ROM and standalone
 builder SHA256.
 
 ## Limits

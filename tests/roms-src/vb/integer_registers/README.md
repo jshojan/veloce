@@ -26,7 +26,7 @@ is rejected; a guest stdout or screenshot cannot produce a pass.
 An executed ADD-to-SUB mutation on a reduced byte/amount domain changes both ADD
 groups and leaves all other groups matching. Seven damaged result-file controls
 return ERROR. The runner preserves positive/negative raw files and JSON reports
-in `build/artifacts/owned/vb_integer/`. CI runs the test and uploads those files.
+in `build/artifacts/owned/vb_integer/`. Run the test locally to produce those files.
 
 ```bash
 python3 tests/roms-src/build.py --original-only --check

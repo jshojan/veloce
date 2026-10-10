@@ -2,7 +2,7 @@
 
 Every scored verdict comes from a test ROM that writes the values it observed (registers, flags, counters, cycle counts) to a file that the harness reads. Verdicts never come from stdout/stderr scraping, screenshots or CRCs of the framebuffer.
 
-This document covers the whole path: the ROM-facing port on each console, the plugin ABI that carries bytes from the core to the application, the file the application writes, and the rules the testkit uses to turn that file into a verdict. The files in [`transcripts/`](transcripts/) are reference outputs. The testkit selftest uses them as detector fixtures, so the examples here are checked in CI.
+This document covers the whole path: the ROM-facing port on each console, the plugin ABI that carries bytes from the core to the application, the file the application writes, and the rules the testkit uses to turn that file into a verdict. The files in [`transcripts/`](transcripts/) are reference outputs. The testkit selftest uses them as detector fixtures, so the examples here are checked by the local selftest.
 
 ---
 

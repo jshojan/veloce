@@ -93,7 +93,7 @@ It executes LWR in the first LWL group and SWR in the first SWL group. Only
 those two groups may fail. Missing/malformed rows, reordered groups, false-PASS
 completion, missing/unterminated trailers and trailing data must be measurement
 errors. All raw negative files and JSON reports are retained alongside the
-positive artifacts and uploaded by CI.
+positive artifacts.
 
 Measured 2026-10-09: **3,158,016/3,158,016 observations matched**, zero mismatches
 across 96 groups (100% of the declared finite domain). Completion occurred after

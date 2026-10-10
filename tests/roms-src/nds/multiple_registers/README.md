@@ -95,8 +95,7 @@ cmake --build build --target veloce nds_plugin nds_machine_test -j
 ctest --test-dir build -R '^nds_(machine_test|multiple_registers)$' --output-on-failure
 ```
 
-Raw register files and JSON reports remain in `build/artifacts/owned/nds_multiple/`
-and are uploaded by owned-hardware CI. The manifest records generator/image
+Raw register files and JSON reports remain in `build/artifacts/owned/nds_multiple/`. The manifest records generator/image
 SHA256. The full image SHA256 is
 `a463f10277f1b83fd1ac7133e41369b21382d76b2c7c82f21e7fc50a6f23fb2b`.
 

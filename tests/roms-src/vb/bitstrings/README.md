@@ -42,8 +42,7 @@ cmake --build build --target veloce vb_plugin vb_machine_test -j
 ctest --test-dir build -R '^vb_' -j2 --output-on-failure
 ```
 
-Raw output/reports remain in `build/artifacts/owned/vb_bitstrings/` and are
-uploaded by owned-hardware CI. Source/image SHA256 are recorded in the manifest.
+Raw output/reports remain in `build/artifacts/owned/vb_bitstrings/` and are. Source/image SHA256 are recorded in the manifest.
 
 ## Execution, saved state and limits
 

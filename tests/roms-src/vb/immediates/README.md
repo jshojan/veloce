@@ -54,8 +54,7 @@ cmake --build build --target veloce vb_plugin -j
 ctest --test-dir build -R '^vb_immediates$' --output-on-failure
 ```
 
-Raw files/reports remain in `build/artifacts/owned/vb_immediates/` and are uploaded
-by owned-hardware CI. Source/image SHA256 are recorded in the manifest. The full
+Raw files/reports remain in `build/artifacts/owned/vb_immediates/`. Source/image SHA256 are recorded in the manifest. The full
 corpus takes longer than the existing compact domains and emits about 3 GiB.
 
 ## Limits

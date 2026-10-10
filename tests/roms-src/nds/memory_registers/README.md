@@ -62,8 +62,7 @@ that mutation. Seven malformed files must return ERROR: missing or
 malformed row, reordered group, false completion, missing or unterminated trailer,
 and trailing data.
 
-Raw register files and reports remain in `build/artifacts/owned/nds_memory/` and
-are uploaded by owned-hardware CI. The manifest records generator/image SHA256.
+Raw register files and reports remain in `build/artifacts/owned/nds_memory/` and. The manifest records generator/image SHA256.
 
 ```bash
 python3 tests/roms-src/build.py nds/memory_registers --original-only --check

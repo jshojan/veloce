@@ -45,8 +45,7 @@ ctest --test-dir build -R '^(nds_netplay_plugin_test|nds_machine_test)$' --outpu
 ```
 
 Loopback socket permission is required. Raw registers, logs, full states and the
-JSON report remain in `build/artifacts/netplay-nds/`, uploaded by owned-hardware
-CI. The manifest records generator/image SHA256. The current DS core produces
+JSON report remain in `build/artifacts/netplay-nds/`. The manifest records generator/image SHA256. The current DS core produces
 no audio, so this test verifies state rollback without claiming a DS audio replay
 check. It uses the supplied direct-load/cache-free profile and bounded scheduler;
 physical bus/CPU polling timing, rendered frontend/video, physical controller

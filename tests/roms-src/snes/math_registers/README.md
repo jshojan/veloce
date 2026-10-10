@@ -37,7 +37,7 @@ The runner changes the multiplier trigger to the division trigger in a smaller
 ROM and requires FAIL: 256 multiplication mismatches among 464 total cases;
 division still passes. Missing, malformed, reordered, and truncated files must
 be measurement errors. Raw output, control ROMs, and JSON reports remain in
-`build/artifacts/owned/snes_math/`; CI uploads that directory.
+`build/artifacts/owned/snes_math/`.
 
 The additional RDDIV side-effect observation exposed 65,280 mismatches before
 the core fix; all 68,864 cases now match. The before-fix raw file and report

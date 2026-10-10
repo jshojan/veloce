@@ -43,7 +43,7 @@ ctest --test-dir build -R '^vb_' --output-on-failure
 ```
 
 Raw observations and JSON reports are retained in
-`build/artifacts/owned/vb_muldiv/` and uploaded by owned-hardware CI. Image and
+`build/artifacts/owned/vb_muldiv/`. Image and
 standalone generator SHA256 values are in the ROM manifest. The reduced controls
 are generated separately and never substitute for the archived full domain.
 

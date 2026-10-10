@@ -48,7 +48,7 @@ NUL scan rather than appending a terminator past a full buffer. The borrowed
 sink is excluded from save-state serialization.
 
 Raw files, reports, and control ROMs remain in `build/artifacts/owned/gba_shifts/`;
-CI uploads them. The source generator and binary are committed with SHA256
+Inspect them locally. The source generator and binary are committed with SHA256
 ledger entries reproducible using Python 3 alone.
 
 ## Boot and remaining coverage

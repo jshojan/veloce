@@ -200,8 +200,8 @@ preservation and actual dual-CPU plugin output/completion replay. The transport
 reduces printing instruction attempts; it does not establish physical timing.
 Run `ctest --test-dir build -R '^nds_' --output-on-failure`.
 
-All suites retain raw output and reports under `build/artifacts/owned/`, which
-CI uploads. These results are separate from the existing external-ROM weighted
+All suites retain raw output and reports under `build/artifacts/owned/` for
+local inspection. These results are separate from the existing external-ROM weighted
 scorecards; exact domain coverage is documented in
 [HARDWARE-COVERAGE.md](docs/HARDWARE-COVERAGE.md). Other CPU behaviors, timing,
 video, audio, mappers, and remaining platforms still require original corpora.
@@ -285,7 +285,7 @@ tests/
     harness.py           drives the headless `veloce` binary, applies detection
     runner.py            reference per-console CLI (run_console_main)
     selftest.py          pure-logic unit tests (no ROMs, no emulator)
-  run_all.py             root orchestrator -> cross-console roll-up + CI gates
+  run_all.py             root orchestrator -> cross-console roll-up + local gates
   validate_configs.py    schema validation of every test_config.json
   CMakeLists.txt         CTest registration (fast gates + accuracy suites)
 
@@ -299,7 +299,7 @@ variables (`VELOCE_TEST_OUT`, `HEADLESS=1`, `FRAMES`, `SAVE_SCREENSHOT`, `TRACE`
 `DEBUG=1` only for the deprecated `memory`/`serial` stdout fallback),
 applies the correct detector per test, and emits scored data points. The same
 JSON scorecard shape comes out of every console, which is what lets
-`tests/run_all.py` aggregate a platform roll-up and gate CI.
+`tests/run_all.py` aggregate a platform roll-up and provide local regression gates.
 
 The per-test catalog (`test_config.json`, schema v2) tags every test with a
 `subsystem` (cpu / ppu / apu / timing / memory / mapper / misc), an
@@ -352,7 +352,7 @@ Every console exposes the same CLI through its `run_tests.sh` shim.
 python tests/run_all.py                 # run every console, print platform scorecard
 python tests/run_all.py nes snes        # subset
 python tests/run_all.py --json          # machine-readable aggregate
-python tests/run_all.py --min-overall 80          # CI gate: fail under 80%
+python tests/run_all.py --min-overall 80          # local gate: fail under 80%
 python tests/run_all.py --baseline scorecard.json --no-regressions
 ```
 
@@ -364,20 +364,15 @@ Each console's runner clones the public test-ROM repositories declared in its
 
 Testing is wired in two tiers:
 
-- **Fast gates** (`ctest --test-dir build`): the pure-logic testkit selftest and
-  config validation, labelled `unit;fast`. These run on every push and PR and
-  need no ROMs or built emulator.
+- **Fast gates** (`ctest --test-dir build -L fast`): the pure-logic testkit selftest and
+  config validation, plus component and reproducibility checks, labelled `fast`.
+  These are run locally; pure-logic checks need no ROMs or built emulator.
 - **Accuracy suites** (`ctest --test-dir build -L accuracy`): the per-console
   runs, labelled `accuracy;slow`, with timeouts and a `REQUIRED_FILES`
   dependency on the `veloce` binary.
 
-The GitHub Actions workflow (`.github/workflows/accuracy.yml`, self-hosted runner
-only; the project does not use GitHub-hosted runners) mirrors this: a
-`fast-gates` job on every change, a per-console `accuracy` matrix that builds the
-binary and uploads each scorecard JSON plus its `artifacts/` (result files,
-screenshots, traces), and an
-`aggregate` job wired for `run_all.py --baseline --no-regressions` once a
-baseline scorecard is committed.
+CI/CD is disabled for now. The GitHub Actions workflow definitions have been
+removed; verification and artifacts are produced by the local commands above.
 
 A quick local sanity check of the framework itself:
 

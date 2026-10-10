@@ -335,7 +335,7 @@ console. Start here:
 | GameCube / Wii | Each profile: 49,152/49,152 arithmetic and 74,752/74,752 conditional-branch snapshots matched; full platform completion unknown | [implementation and limits](cores/ppc/README.md) |
 
 Run external ROM suites with `python tests/run_all.py`; see [TESTING.md](TESTING.md)
-for per-console and CI usage. The percentages above describe that measured
+for per-console and local usage. The percentages above describe that measured
 subset, not whole-core completion.
 
 ### Original register-output ROMs
@@ -408,8 +408,8 @@ word-output ports serialize the captured values into the same independently
 graded files; legacy byte output remains supported and checked for equivalence. Firmware, ARM block transfers,
 video, audio, peripherals and DSi enhanced mode remain pending.
 Original suites retain raw
-register output and reports; CI builds the actual core plugins, runs these tests,
-and uploads the files. Source generators and ROM images are stored in this repo.
+register output and reports under `build/artifacts/`. Source generators and ROM
+images are stored in this repo. CI/CD is disabled for now; run verification locally.
 
 The repository now includes an original Game Boy ROM at
 [`tests/roms-src/gb/register_probe/register_probe.gb`](tests/roms-src/gb/register_probe/register_probe.gb).
@@ -426,7 +426,7 @@ remaining SNES and GBA hardware still need repository-owned register-output ROMs
 
 ### Headless Mode
 
-For CI/CD integration:
+For local headless execution:
 
 ```bash
 HEADLESS=1 FRAMES=600 veloce test.nes

@@ -52,7 +52,7 @@ ctest --test-dir build -R '^vb_' --output-on-failure
 ```
 
 Raw register files and JSON reports are retained under
-`build/artifacts/owned/vb_exceptions/` and uploaded by owned-hardware CI. The ROM
+`build/artifacts/owned/vb_exceptions/`. The ROM
 manifest records both image and standalone builder SHA256.
 
 ## Limits

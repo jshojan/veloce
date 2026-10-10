@@ -45,7 +45,7 @@ tests/
     runner.py            reference per-console CLI (run_console_main)
     selftest.py          pure-logic unit test (no ROMs/emulator)
   run_all.py             root orchestrator: all cores -> aggregate scorecard
-  validate_configs.py    CI schema validation of every test_config.json
+  validate_configs.py    Local schema validation of every test_config.json
   CMakeLists.txt         CTest registration (fast gates + accuracy suites)
 ```
 
@@ -166,6 +166,6 @@ uncovered-subsystem caveat. `tests/run_all.py` renders the cross-console roll-up
    `veloce_testkit.runner.run_console_main(<console>, Path(__file__).parent,
    rom_provider=...)`.
 3. `run_tests.sh --json` must emit the scorecard JSON last on stdout
-   (`scorecard_to_dict`) so `tests/run_all.py` and CI can aggregate it.
+   (`scorecard_to_dict`) so `tests/run_all.py` can aggregate it locally.
 
 Fast sanity check for the framework itself: `python tests/veloce_testkit/selftest.py`.

@@ -55,8 +55,7 @@ cmake --build build --target veloce vb_plugin vb_machine_test -j
 ctest --test-dir build -R '^vb_' -j2 --output-on-failure
 ```
 
-Raw files/reports remain in `build/artifacts/owned/vb_memory_ops/` and are uploaded
-by owned-hardware CI. ROM and standalone generator SHA256 are in the manifest.
+Raw files/reports remain in `build/artifacts/owned/vb_memory_ops/`. ROM and standalone generator SHA256 are in the manifest.
 
 ## Bus contract and limits
 

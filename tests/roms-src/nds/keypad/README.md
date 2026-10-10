@@ -52,8 +52,7 @@ cmake --build build --target veloce nds_plugin nds_machine_test -j
 ctest --test-dir build -R '^nds_(machine_test|keypad)$' --output-on-failure
 ```
 
-Artifacts remain in `build/artifacts/owned/nds_keypad/` and are uploaded by
-owned-hardware CI. Generator/image SHA256 are recorded in the ROM manifest. Full image SHA256:
+Artifacts remain in `build/artifacts/owned/nds_keypad/` and. Generator/image SHA256 are recorded in the ROM manifest. Full image SHA256:
 `358065bfa9edbba285e29a4c402b43cf91c3ec6a210506859173987beac43ba7`.
 Output travels through emulator-only byte/word ports; the frontend owns the
 register file and trailer. The test uses the supplied `VDSHB001` direct-load,

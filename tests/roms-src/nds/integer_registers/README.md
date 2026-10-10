@@ -57,8 +57,7 @@ cmake --build build --target veloce nds_plugin nds_machine_test -j
 ctest --test-dir build -R '^nds_' --output-on-failure
 ```
 
-Raw output/reports remain in `build/artifacts/owned/nds_integer/`, uploaded by
-owned-hardware CI. Source/image SHA256 are in the manifest. Register aliases,
+Raw output/reports remain in `build/artifacts/owned/nds_integer/`. Source/image SHA256 are in the manifest. Register aliases,
 shifters, WRAM allocations, malformed cartridges and exact state replay have
 separate component evidence and do not enlarge this original-ROM domain.
 Timing, physical cache coherency, CPU extensions, Thumb, interrupts, graphics,

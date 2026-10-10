@@ -52,8 +52,7 @@ incorrect Thumb PC. Seven malformed files must return ERROR: missing/malformed
 row, reordered group, false completion, missing/unterminated trailer and extra
 data. The guest emits observed values only; host grading establishes PASS.
 
-Raw files and JSON reports remain in `build/artifacts/owned/nds_thumb/` and are
-uploaded by owned-hardware CI. The manifest records generator/image SHA256.
+Raw files and JSON reports remain in `build/artifacts/owned/nds_thumb/` and are. The manifest records generator/image SHA256.
 
 ```bash
 python3 tests/roms-src/build.py nds/thumb_registers --original-only --check
