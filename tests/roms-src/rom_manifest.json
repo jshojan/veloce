@@ -866,6 +866,17 @@
       "source_type": "original",
       "suite": "arithmetic_registers"
     },
+    "switch/bitops_registers/bitops_registers.nso": {
+      "build_command": "python3 tests/roms-src/switch/bitops_registers/build.py",
+      "console": "switch",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "f09bd5e3bdffa45b1b9dd42f67b892d6f7944efdc0d36f3d855632c30a22a169",
+      "source_repo": "tests/roms-src/switch/bitops_registers/build.py",
+      "source_sha": "1a2b5efbf674661feefaba6f4993e66134ebf2050d0d847dc11be12babcb79c4",
+      "source_type": "original",
+      "suite": "bitops_registers"
+    },
     "switch/muldiv_registers/muldiv_registers.nso": {
       "build_command": "python3 tests/roms-src/switch/muldiv_registers/build.py",
       "console": "switch",
