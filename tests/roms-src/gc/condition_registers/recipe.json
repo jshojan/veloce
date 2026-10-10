@@ -1,0 +1,1 @@
+{"source_type": "original", "console": "gc", "suite": "condition_registers", "build": {"script": "build.py", "artifact": "condition_registers.vgc"}, "license": "MIT"}
