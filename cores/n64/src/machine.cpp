@@ -272,7 +272,7 @@ static void append(std::vector<uint8_t>& data, uint64_t value) {
 }
 bool Machine::save(std::vector<uint8_t>& data) const {
     if (rom.empty()) return false;
-    data.assign({'V','N','6','4','S','0','1','9'});
+    data.assign({'V','N','6','4','S','0','2','0'});
     append(data, identity); append(data, crc); append(data, frames); append(data, done);
     const auto& s = cpu.state;
     for (auto value : s.gpr) append(data, value);
@@ -304,6 +304,7 @@ bool Machine::save(std::vector<uint8_t>& data) const {
     for(auto value:rsp.vectors.acc_snapshot())append(data,value);
     for(auto value:dp_interface.combiner.snapshot())append(data,value);
     append(data,dp_interface.depth_image);
+    append(data,rsp.vectors.divider.snapshot());
     return true;
 }
 bool Machine::restore(const std::vector<uint8_t>& data) {
@@ -326,7 +327,8 @@ bool Machine::restore(const std::vector<uint8_t>& data) {
     const bool accumulator_previous=!std::memcmp(data.data(),"VN64S016",8);
     const bool combiner_previous=!std::memcmp(data.data(),"VN64S017",8);
     const bool depth_previous=!std::memcmp(data.data(),"VN64S018",8);
-    if((!legacy && !previous && !ri_previous && !mi_previous && !devices_previous && !caches_previous && !sp_previous && !audio_previous && !fpu_previous && !tlb_previous && !video_previous && !scalar_previous && !dp_previous && !vector_previous && !accumulator_previous && !combiner_previous && !depth_previous && std::memcmp(data.data(),"VN64S019",8)) || data.size()!=prefix+ram_size+sp.size()+(legacy?0:previous?120:ri_previous?176:mi_previous?192:devices_previous?480:caches_previous?41440:sp_previous?41512:audio_previous?74440:fpu_previous?74448:tlb_previous?75472:video_previous?75632:scalar_previous?75888:dp_previous?75888+rsp_state_size:vector_previous?75888+rsp_state_size+dp_state_size:accumulator_previous?75888+rsp_state_size+dp_state_size+vector_state_size:combiner_previous?75888+rsp_state_size+dp_state_size+vector_state_size+accumulator_state_size:depth_previous?75888+rsp_state_size+dp_state_size+vector_state_size+accumulator_state_size+combiner_state_size:75888+rsp_state_size+dp_state_size+vector_state_size+accumulator_state_size+combiner_state_size+depth_image_state_size) ||
+    const bool divider_previous=!std::memcmp(data.data(),"VN64S019",8);
+    if((!legacy && !previous && !ri_previous && !mi_previous && !devices_previous && !caches_previous && !sp_previous && !audio_previous && !fpu_previous && !tlb_previous && !video_previous && !scalar_previous && !dp_previous && !vector_previous && !accumulator_previous && !combiner_previous && !depth_previous && !divider_previous && std::memcmp(data.data(),"VN64S020",8)) || data.size()!=prefix+ram_size+sp.size()+(legacy?0:previous?120:ri_previous?176:mi_previous?192:devices_previous?480:caches_previous?41440:sp_previous?41512:audio_previous?74440:fpu_previous?74448:tlb_previous?75472:video_previous?75632:scalar_previous?75888:dp_previous?75888+rsp_state_size:vector_previous?75888+rsp_state_size+dp_state_size:accumulator_previous?75888+rsp_state_size+dp_state_size+vector_state_size:combiner_previous?75888+rsp_state_size+dp_state_size+vector_state_size+accumulator_state_size:depth_previous?75888+rsp_state_size+dp_state_size+vector_state_size+accumulator_state_size+combiner_state_size:75888+rsp_state_size+dp_state_size+vector_state_size+accumulator_state_size+combiner_state_size+depth_image_state_size+(divider_previous?0:divider_state_size)) ||
         (legacy && boot_mode!=BootMode::Homebrew)) return false;
     size_t position = 8;
     auto take = [&]() { auto v = be(data.data() + position, 8); position += 8; return v; };
@@ -422,9 +424,10 @@ bool Machine::restore(const std::vector<uint8_t>& data) {
     if(!legacy && !previous && !ri_previous && !mi_previous && !devices_previous && !caches_previous && !sp_previous && !audio_previous && !fpu_previous && !tlb_previous && !video_previous && !scalar_previous && !dp_previous && !vector_previous && !accumulator_previous && !combiner_previous){
         RdpCombiner::State c{};for(auto& value:c)value=take();if(!saved_dp_interface.combiner.restore(c))return false;
     }
-    if(!std::memcmp(data.data(),"VN64S019",8)){
+    if(divider_previous || !std::memcmp(data.data(),"VN64S020",8)){
         const uint64_t z=take();if(z>0x3ffffff)return false;saved_dp_interface.depth_image=uint32_t(z);
     }
+    if(!std::memcmp(data.data(),"VN64S020",8) && !saved_rsp.vectors.divider.restore(take()))return false;
     position=memory_position;
     // Validate first; rejected states leave the active machine untouched.
     cpu.state = s;cpu.caches=saved_caches;cpu.tlb=saved_tlb; frames = saved_frames; done = saved_done;

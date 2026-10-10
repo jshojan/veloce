@@ -56,6 +56,6 @@ int main(int argc,char** argv){try{
  // from a pending VCL instruction must reproduce the entire serialized state.
  m.rsp.vectors=vec;install(m,ins(36,0,0,1,2));std::vector<uint8_t> saved,final,replay;check(m.save(saved),"save");step(m,ins(36,0,0,1,2));check(m.save(final),"final save");check(m.restore(saved),"comparison restore");step(m,ins(36,0,0,1,2));check(m.save(replay) && replay==final,"comparison replay");
  install(m,13);m.sp_interface.status=64;check(m.rsp.step(m.sp_interface,m.dp_interface,m.sp,m.ram) && m.sp_interface.pc==4 && (m.sp_interface.status&3)==3 && m.sp_interface.interrupt,"actual BREAK IRQ");m.sp_interface.interrupt=false;
- step(m,0x4a000030);check(m.rsp.blocked && m.rsp.blocked_word==0x4a000030 && (m.sp_interface.status&1) && !(m.sp_interface.status&2),"unsupported arithmetic retained");
+ step(m,0x4a000012);check(m.rsp.blocked && m.rsp.blocked_word==0x4a000012 && (m.sp_interface.status&1) && !(m.sp_interface.status&2),"unsupported arithmetic retained");
  std::cout<<"RSP comparison: "<<count<<" lane cases; 81,920 vector alias/selector cases; dispatcher, clipping chain and save replay PASS\n";return 0;
  }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}

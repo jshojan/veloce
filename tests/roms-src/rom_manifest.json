@@ -506,6 +506,17 @@
       "source_type": "original",
       "suite": "rsp_comparison_pairs"
     },
+    "n64/rsp_divider/rsp_divider.z64": {
+      "build_command": "python3 tests/roms-src/n64/rsp_divider/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "0d740dfa2c2df58b66dedcc03e9106b5f5ae6948a0d831d9e83ee57ef703c65b",
+      "source_repo": "tests/roms-src/n64/rsp_divider/build.py",
+      "source_sha": "97ce1b7aaf0063fb0299d5facdafc19ee18cc330fa24a1e288acaec5f26acb11",
+      "source_type": "original",
+      "suite": "rsp_divider"
+    },
     "n64/rsp_integer_edges/rsp_integer_edges.z64": {
       "build_command": "python3 tests/roms-src/n64/rsp_integer_edges/build.py",
       "console": "n64",

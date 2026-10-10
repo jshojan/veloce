@@ -6,7 +6,7 @@ class Plugin : public emu::IEmulatorPlugin {
 public:
     emu::EmulatorInfo get_info() override {
         static const char* extensions[] = {".z64", ".v64", ".n64", nullptr};
-        return {"N64", "0.23.0", "Veloce", "Experimental integer core with TLB translation, FPU register/memory transfers and controls/branches, conversions and S/D arithmetic/comparisons, primary caches, settled PI/SI/SP, SP scalar execution and vector transfers/multiply/accumulate/comparison/integer-ALU/clipping, shared DP controls and RDP raw fill/color-depth clears, scissoring and sync and combiner/color command state and RI/MI/RDRAM device controls and CIC-6102 IPL3 handoff; retail boot/playability, RSP/RDP graphics, RSP audio microcode, exact timing and analog input pending; functional AI PCM and unfiltered VI framebuffer output.",
+        return {"N64", "0.24.0", "Veloce", "Experimental integer core with TLB translation, FPU register/memory transfers and controls/branches, conversions and S/D arithmetic/comparisons, primary caches, settled PI/SI/SP, SP scalar execution and vector transfers/multiply/accumulate/comparison/integer-ALU/reciprocal/square-root/move/clipping, shared DP controls and RDP raw fill/color-depth clears, scissoring and sync and combiner/color command state and RI/MI/RDRAM device controls and CIC-6102 IPL3 handoff; retail boot/playability, RSP/RDP graphics, RSP audio microcode, exact timing and analog input pending; functional AI PCM and unfiltered VI framebuffer output.",
                 extensions, 60.0, 93750000, 320, 240};
     }
     const emu::ControllerLayoutInfo* get_controller_layout() override {
