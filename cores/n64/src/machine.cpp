@@ -60,7 +60,7 @@ void Machine::reset() {
     }
     frames = 0; done = false; yielded = false;
     pif.fill(0); si_address = input_buttons = 0; si_interrupt = false; mi_mask = 0;
-    pi={};pi_interrupt=false;
+    pi={};pi_interrupt=false;ri={};ri_current_loaded=false;
     if(!rom.empty() && boot_mode!=BootMode::Homebrew) {
         const auto config=uint32_t(be(rom.data(),4));
         pi[5]=config&255;pi[6]=(config>>8)&255;pi[7]=(config>>16)&15;pi[8]=(config>>20)&3;
@@ -118,6 +118,11 @@ bool Machine::read(uint64_t address, unsigned bytes, uint64_t& value) {
     if (p >= 0x10000000 && uint64_t(p) + bytes <= 0x10000000 + rom.size()) { value = be(rom.data() + p - 0x10000000, bytes); return true; }
     if (p >= 0x1fc007c0 && uint64_t(p) + bytes <= 0x1fc00800) { value = be(pif.data() + p - 0x1fc007c0, bytes); return true; }
     if (bytes == 4) {
+        if(p>=0x04700000 && p<=0x0470001c && !(p&3)) {
+            const unsigned reg=(p-0x04700000)/4;
+            if(reg==2 || reg==7) return false; // Write-only/undefined reads are not guessed.
+            value=reg==6?0:ri[reg];return true; // No bus error producer yet.
+        }
         if(p>=0x04600000 && p<=0x04600030 && !(p&3)) {
             const unsigned reg=(p-0x04600000)/4;value=reg==4?(pi_interrupt?8:0):pi[reg];return true;
         }
@@ -144,6 +149,7 @@ bool Machine::write(uint64_t address, unsigned bytes, uint64_t value) {
         return true;
     }
     if (bytes == 4) {
+        if(p>=0x04700000 && p<=0x0470001c && !(p&3)) return write_ri((p-0x04700000)/4,uint32_t(value));
         if(p>=0x04600000 && p<=0x04600030 && !(p&3)) return write_pi((p-0x04600000)/4,uint32_t(value));
         if (p == 0x04800000) { si_address = uint32_t(value) & 0xffffff; return true; }
         if (p == 0x04800018) { si_interrupt = false; return true; }
@@ -168,6 +174,13 @@ bool Machine::write(uint64_t address, unsigned bytes, uint64_t value) {
     if (!destination) return false;
     for (unsigned i = 0; i < bytes; ++i) destination[i] = uint8_t(value >> (8 * (bytes - 1 - i)));
     return true;
+}
+bool Machine::write_ri(unsigned reg,uint32_t value) {
+    if(reg==6) return false; // Read-only error indication.
+    if(reg==7) return true; // Any write clears errors; no producer exists yet.
+    if(reg==2) {ri[2]=ri[1];ri_current_loaded=true;return true;}
+    constexpr uint32_t masks[]={15,127,127,0x77,0x7ffff,15};
+    ri[reg]=value&masks[reg];return true;
 }
 bool Machine::write_pi(unsigned reg,uint32_t value) {
     if(reg==0) {pi[0]=value&0xfffffe;return true;}
@@ -208,7 +221,7 @@ static void append(std::vector<uint8_t>& data, uint64_t value) {
 }
 bool Machine::save(std::vector<uint8_t>& data) const {
     if (rom.empty()) return false;
-    data.assign({'V','N','6','4','S','0','0','3'});
+    data.assign({'V','N','6','4','S','0','0','4'});
     append(data, identity); append(data, crc); append(data, frames); append(data, done);
     const auto& s = cpu.state;
     for (auto value : s.gpr) append(data, value);
@@ -220,13 +233,16 @@ bool Machine::save(std::vector<uint8_t>& data) const {
     data.insert(data.end(), sp.begin(), sp.end());
     for(auto reg:pi) append(data,reg);
     append(data,pi_interrupt);append(data,uint64_t(boot_mode));
+    for(auto reg:ri) append(data,reg);
+    append(data,ri_current_loaded);
     return true;
 }
 bool Machine::restore(const std::vector<uint8_t>& data) {
     constexpr size_t prefix = 8 + (4 + 32 + 32 + 6 + 5) * 8 + 64;
     if(rom.empty() || data.size()<8) return false;
     const bool legacy=!std::memcmp(data.data(),"VN64S002",8);
-    if((!legacy && std::memcmp(data.data(),"VN64S003",8)) || data.size()!=prefix+ram_size+sp.size()+(legacy?0:120) ||
+    const bool previous=!std::memcmp(data.data(),"VN64S003",8);
+    if((!legacy && !previous && std::memcmp(data.data(),"VN64S004",8)) || data.size()!=prefix+ram_size+sp.size()+(legacy?0:previous?120:176) ||
         (legacy && boot_mode!=BootMode::Homebrew)) return false;
     size_t position = 8;
     auto take = [&]() { auto v = be(data.data() + position, 8); position += 8; return v; };
@@ -249,12 +265,18 @@ bool Machine::restore(const std::vector<uint8_t>& data) {
         for(unsigned n=0;n<13;++n) {const auto v=take();if(v>0xffffffffu || (v&~uint64_t(masks[n]))) return false;saved_pi[n]=uint32_t(v);}
         saved_pi_irq=take();if(saved_pi_irq>1 || take()!=uint64_t(boot_mode)) return false;
     }
+    std::array<uint32_t,6> saved_ri{};uint64_t saved_current_loaded=0;
+    if(!legacy && !previous) {
+        constexpr uint32_t masks[]={15,127,127,0x77,0x7ffff,15};
+        for(unsigned n=0;n<6;++n) {const auto v=take();if(v&~uint64_t(masks[n])) return false;saved_ri[n]=uint32_t(v);}
+        saved_current_loaded=take();if(saved_current_loaded>1 || (!saved_current_loaded && saved_ri[2])) return false;
+    }
     position=memory_position;
     // Validate first; rejected states leave the active machine untouched.
     cpu.state = s; frames = saved_frames; done = saved_done;
     si_address = uint32_t(saved_si_address); input_buttons = uint32_t(saved_input); si_interrupt = saved_irq;
     mi_mask = uint8_t(saved_mask); yielded = saved_yield;
-    pi=saved_pi;pi_interrupt=saved_pi_irq;
+    pi=saved_pi;pi_interrupt=saved_pi_irq;ri=saved_ri;ri_current_loaded=saved_current_loaded;
     std::copy_n(data.begin() + position, 64, pif.begin()); position += 64;
     std::copy_n(data.begin() + position, ram_size, ram.begin());
     std::copy_n(data.begin() + position + ram_size, sp.size(), sp.begin());

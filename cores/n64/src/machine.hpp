@@ -32,9 +32,13 @@ public:
     BootMode boot_mode=BootMode::Homebrew;
     std::array<uint32_t,13> pi{};
     bool pi_interrupt=false;
+    // mode, config, latched current control, select, refresh, latency.
+    std::array<uint32_t,6> ri{};
+    bool ri_current_loaded=false;
     void process_pif();
 private:
     static bool physical(uint64_t address, uint32_t& result);
     bool write_pi(unsigned reg,uint32_t value);
+    bool write_ri(unsigned reg,uint32_t value);
 };
 }

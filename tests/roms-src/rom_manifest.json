@@ -275,6 +275,17 @@
       "source_type": "original",
       "suite": "pi_dma"
     },
+    "n64/ri_registers/ri_registers.z64": {
+      "build_command": "python3 tests/roms-src/n64/ri_registers/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "2d891924c4eba0bf169f565eb9ce12c155c024f8241233be7b5838ad8e6960a0",
+      "source_repo": "tests/roms-src/n64/ri_registers/build.py",
+      "source_sha": "93082afb3028f75fd2f6f21fc647088cc14dde8bc98a8c3d8dc240e20158bdc4",
+      "source_type": "original",
+      "suite": "ri_registers"
+    },
     "nds/integer_registers/integer_registers.nds": {
       "build_command": "python3 tests/roms-src/nds/integer_registers/build.py",
       "console": "nds",

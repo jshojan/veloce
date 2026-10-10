@@ -491,9 +491,19 @@ add_test(NAME n64_pi_test COMMAND n64_pi_test $<TARGET_FILE:n64_plugin>
     ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/integer_registers/integer_registers.z64
     ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/ipl3_handoff/ipl3_handoff.z64)
 set_tests_properties(n64_pi_test PROPERTIES LABELS "unit;accuracy;owned" TIMEOUT 180)
-foreach(suite pi_dma ipl3_handoff)
+foreach(suite pi_dma ipl3_handoff ri_registers)
     add_test(NAME n64_${suite} COMMAND ${Python3_EXECUTABLE}
         ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/${suite}/run.py --emulator $<TARGET_FILE:veloce>
         --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_${suite})
     set_tests_properties(n64_${suite} PROPERTIES LABELS "accuracy;owned" TIMEOUT 900)
 endforeach()
+
+add_executable(n64_ri_test cpp/n64_ri_test.cpp
+    ${CMAKE_SOURCE_DIR}/cores/n64/src/machine.cpp ${CMAKE_SOURCE_DIR}/cores/n64/src/vr4300.cpp)
+target_include_directories(n64_ri_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src ${CMAKE_SOURCE_DIR}/include ${SDL2_INCLUDE_DIRS})
+target_link_libraries(n64_ri_test PRIVATE ${SDL2_LIBRARIES})
+target_compile_definitions(n64_ri_test PRIVATE SDL_MAIN_HANDLED)
+add_dependencies(n64_ri_test n64_plugin)
+add_test(NAME n64_ri_test COMMAND n64_ri_test $<TARGET_FILE:n64_plugin>
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/ri_registers/ri_registers.z64)
+set_tests_properties(n64_ri_test PROPERTIES LABELS "unit;accuracy;owned" TIMEOUT 180)
