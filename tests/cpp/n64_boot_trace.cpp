@@ -3,14 +3,17 @@
 #include <iostream>
 #include <iterator>
 #include <iomanip>
+#include <string>
 int main(int argc,char** argv) {
-    if(argc!=2)return 2;
+    if(argc!=2 && argc!=3)return 2;
+    uint64_t limit=12000000;
+    if(argc==3){try{size_t used=0;limit=std::stoull(argv[2],&used);if(argv[2][used] || !limit || limit>1000000000)return 2;}catch(...){return 2;}}
     std::ifstream file(argv[1],std::ios::binary);if(!file.good())return 2;
     const std::vector<uint8_t> image{std::istreambuf_iterator<char>(file),{}};
     n64::Machine machine;const bool loaded=machine.load(image.data(),image.size());
     if(!loaded) {std::cout<<"{\"loaded\":false}\n";return 0;}
     bool fault=false;uint64_t handled_exceptions=0;uint32_t last_status=0;
-    for(unsigned n=0;n<12000000 && !machine.done;++n) {
+    for(uint64_t n=0;n<limit && !machine.done;++n) {
         last_status=uint32_t(machine.cpu.state.cp0[12]);machine.cpu.step();
         if(machine.cpu.exception_taken) {
             const unsigned code=(machine.cpu.state.cp0[13]>>2)&31;
@@ -26,7 +29,7 @@ int main(int argc,char** argv) {
         machine.read(0xffffffffa0000000ull|translation.physical,4,instruction);
     const uint64_t fetched=fault?machine.cpu.instruction_word:0;const bool fetched_valid=fault && machine.cpu.instruction_valid;
     std::cout<<"{\"loaded\":true,\"boot_mode\":"<<unsigned(machine.boot_mode)
-             <<",\"attempts\":"<<s.instructions<<",\"nonterminal_exception_entries\":"<<handled_exceptions<<",\"exception_observed\":"<<(fault?"true":"false")
+             <<",\"attempt_limit\":"<<limit<<",\"attempts\":"<<s.instructions<<",\"nonterminal_exception_entries\":"<<handled_exceptions<<",\"exception_observed\":"<<(fault?"true":"false")
              <<",\"fault_backing_readable\":"<<(readable?"true":"false")<<",\"fault_backing_word\":\""<<std::hex<<instruction<<std::dec<<"\""
              <<",\"fault_instruction_valid\":"<<(fetched_valid?"true":"false")<<",\"fault_instruction_word\":\""<<std::hex<<fetched<<std::dec<<"\""
              <<",\"fault_access_address\":\""<<std::hex<<(fault?machine.cpu.access_address:0)<<std::dec<<"\""

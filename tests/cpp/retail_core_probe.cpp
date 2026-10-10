@@ -4,8 +4,11 @@
 #include <iostream>
 #include <iterator>
 #include <memory>
+#include <string>
 int main(int argc,char** argv) {
-    if(argc!=3)return 2;
+    if(argc!=3 && argc!=4)return 2;
+    unsigned limit=120;
+    if(argc==4){try{size_t used=0;const auto value=std::stoul(argv[3],&used);if(argv[3][used] || !value || value>10000)return 2;limit=unsigned(value);}catch(...){return 2;}}
     std::ifstream file(argv[2],std::ios::binary);if(!file.good())return 2;
     std::vector<uint8_t> image{std::istreambuf_iterator<char>(file),{}};
     void* library=SDL_LoadObject(argv[1]);if(!library)return 2;
@@ -17,7 +20,7 @@ int main(int argc,char** argv) {
     const bool loaded=plugin->load_rom(image.data(),image.size());
     bool nonuniform=false;uint64_t audio_samples=0,frames=0;
     if(loaded) {
-        for(unsigned frame=0;frame<120;++frame) {
+        for(unsigned frame=0;frame<limit;++frame) {
             plugin->run_frame({});const auto fb=plugin->get_framebuffer();
             if(fb.pixels && fb.width>0 && fb.height>0) {
                 const auto first=fb.pixels[0];

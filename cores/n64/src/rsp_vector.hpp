@@ -3,10 +3,16 @@
 #include <algorithm>
 #include <cstdint>
 namespace n64 {
-// Functional vector storage/transfers. Arithmetic and physical load interlocks are pending.
+// Functional vector storage, transfers and multiply/accumulate execution.
+// Physical load/pipeline interlocks and remaining arithmetic are pending.
 class RspVector {
 public:
     std::array<std::array<uint8_t,16>,32> registers{};
+    std::array<uint64_t,8> accumulator{}; // Raw 48-bit lanes.
+    using AccState=std::array<uint64_t,8>;
+    static constexpr uint64_t acc_mask=0xffffffffffffull;
+    AccState acc_snapshot() const{return accumulator;}
+    bool acc_restore(const AccState& a){for(auto v:a)if(v&~acc_mask)return false;accumulator=a;return true;}
     std::array<uint16_t,3> flags{}; // VCO, VCC, VCE (8 bits).
     using State=std::array<uint64_t,67>;
     void reset(){*this=RspVector{};}
@@ -16,6 +22,7 @@ public:
         const unsigned op=ins>>26,base=(ins>>21)&31,vt=(ins>>16)&31,kind=(ins>>11)&31,e=(ins>>7)&15;
         auto sign16=[](unsigned v){return uint32_t(v)|((v&32768)?0xffff0000u:0u);};
         if(op==18){
+            if(base>=16)return multiply(ins);
             if(base==0 || base==4){if(ins&127)return false;auto& v=registers[kind];if(base==0){if(vt)scalar[vt]=sign16(unsigned(v[e])*256+v[(e+1)%16]);}else{v[e]=uint8_t(scalar[vt]>>8);if(e<15)v[e+1]=uint8_t(scalar[vt]);}return true;}
             if(base==2 || base==6){if(ins&2047)return false;const unsigned index=std::min(kind&3,2u);if(base==2){if(vt)scalar[vt]=sign16(flags[index]);}else{flags[index]=uint16_t(scalar[vt]&(index==2?255:65535));}return true;}
             return false;
@@ -48,6 +55,45 @@ public:
         if(kind==10){for(unsigned n=0;n<16;++n)write((a&~7u)+((unsigned(a&7)+n)&15),v[(e+n)&15]);return true;}
         const unsigned group=vt&24,element=e&14;
         for(unsigned n=0;n<8;++n)for(unsigned b=0;b<2;++b){const unsigned index=(16+2*n-element+b)&15;write((a&~7u)+((unsigned(a&7)+16+2*n-element+b)&15),registers[group+n][index]);}
+        return true;
+    }
+private:
+    static int64_t signed16(unsigned v){return v<32768?int64_t(v):int64_t(v)-65536;}
+    static int64_t signed48(uint64_t v){return v<(1ull<<47)?int64_t(v):int64_t(v)-int64_t(1ull<<48);}
+    static int64_t floor_shift(int64_t v,unsigned bits){const int64_t divisor=int64_t(1ull<<bits);return v>=0?v/divisor:-((-v+divisor-1)/divisor);}
+    static uint16_t clamp_signed(int64_t v){return v<-32768?0x8000:v>32767?0x7fff:uint16_t(v);}
+    unsigned lane(unsigned reg,unsigned at) const{return unsigned(registers[reg][2*at])*256+registers[reg][2*at+1];}
+    void set_lane(unsigned reg,unsigned at,uint16_t value){registers[reg][2*at]=uint8_t(value>>8);registers[reg][2*at+1]=uint8_t(value);}
+    bool multiply(uint32_t ins){
+        const unsigned fn=ins&63,vt=(ins>>16)&31,vs=(ins>>11)&31,vd=(ins>>6)&31,e=(ins>>21)&15;
+        if(fn==29){for(unsigned i=0;i<8;++i)set_lane(vd,i,e>=8 && e<=10?uint16_t(accumulator[i]>>(16*(10-e))):0);return true;}
+        if(fn>=16)return false;
+        std::array<unsigned,8> left{},right{};
+        for(unsigned i=0;i<8;++i){const unsigned selected=e<2?i:e<4?(i&6)|(e&1):e<8?(i&4)|(e&3):e&7;left[i]=lane(vs,i);right[i]=lane(vt,selected);}
+        for(unsigned i=0;i<8;++i){const int64_t a=signed16(left[i]),b=signed16(right[i]),old=signed48(accumulator[i]);int64_t value=0;
+            switch(fn){
+            case 0:case 1:value=a*b*2+32768;break;
+            case 2:case 10:value=old;if((fn==2 && old>=0) || (fn==10 && old<0))value+=b*((vs&1)?65536:1);break;
+            case 3:value=a*b;if(value<0)value+=31;value*=65536;break;
+            case 4:value=int64_t(uint64_t(left[i])*right[i]/65536);break;
+            case 5:value=int64_t(left[i])*b;break;
+            case 6:value=a*int64_t(right[i]);break;
+            case 7:value=a*b*65536;break;
+            case 8:case 9:value=old+a*b*2;break;
+            case 11:value=old;if(!(accumulator[i]&0x200000)){if(old<0)value+=0x200000;else if(old>=0x400000)value-=0x200000;}break;
+            case 12:value=old+int64_t(uint64_t(left[i])*right[i]/65536);break;
+            case 13:value=old+int64_t(left[i])*b;break;
+            case 14:value=old+a*int64_t(right[i]);break;
+            case 15:value=old+a*b*65536;break;
+            }
+            accumulator[i]=uint64_t(value)&acc_mask;const int64_t wrapped=signed48(accumulator[i]);uint16_t result=0;
+            if(fn==3 || fn==11)result=clamp_signed(floor_shift(wrapped,17))&0xfff0;
+            else if(fn==1 || fn==9)result=wrapped<0?0:wrapped>=0x80000000ll?0xffff:uint16_t(accumulator[i]>>16);
+            else if(fn==4 || fn==6)result=uint16_t(accumulator[i]);
+            else if(fn==12 || fn==14)result=wrapped<-0x80000000ll?0:wrapped>=0x80000000ll?0xffff:uint16_t(accumulator[i]);
+            else result=clamp_signed(floor_shift(wrapped,16));
+            set_lane(vd,i,result);
+        }
         return true;
     }
 };

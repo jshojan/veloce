@@ -1,6 +1,6 @@
 # Experimental Nintendo 64 core plugin
 
-Current N64 evidence: [RSP vector storage, memory transfers and current Mario evidence](#rsp-vector-storage-and-memory). Earlier increment reports are historical.
+Current N64 evidence: [RSP multiply/accumulate and current Mario evidence](#rsp-vector-multiply-and-accumulate). Earlier increment reports are historical.
 
 <!-- completion:start -->
 ## Completion percentage
@@ -13,7 +13,7 @@ These percentages count the 20 explicit delivery milestones in [the completion l
 
 Nintendo 64 delivered milestones: Guest sound produces audio samples, Native digital controller/keypad registers consume frontend input, Guest graphics produce rendered video, Parse a native cartridge/executable format (boot scored separately), Repository-owned ROM source and reproducible archived image, Separate core plugin and ABI entry points, Actual guest register-file output independently graded on the host, with negative controls, Complete states for the implemented profile and deterministic replay.
 
-Remaining: Super Mario 64 reaches the 12-million-attempt CPU trace limit; 683 RSP instructions retire before unsupported VMULF. Scalar/vector memory transfers, shared DP controls and bounded RDP fill/sync work; video stays uniform. Native boot/playability, FPU comparisons/devices, RSP vector arithmetic, complete RDP, physical pipeline timing, RSP audio microcode, analog and netplay remain.
+Remaining: Super Mario 64 passes VMULF and reaches a real RSP BREAK in the short probe. A longer trace retires 145,423 RSP instructions, then encounters unsupported C.LT.S; RDP SET_COMBINE is also blocked. Multiply/accumulate, vector transfers, shared DP controls and bounded fill/sync work; video stays uniform. Native boot/playability, FPU comparisons/devices, remaining RSP arithmetic/reciprocals, complete RDP, physical timing, RSP audio microcode, analog and netplay remain.
 <!-- completion:end -->
 
 `n64_plugin` builds `n64.so`/`n64.dll`/`n64.dylib` and implements emulator ABI v2.
@@ -51,7 +51,7 @@ on selected operands, not a percentage of N64 hardware implemented.
   Full CP0, cache-error/shutdown/reset/NMI paths and pipeline hazards remain incomplete.
 - 8 MiB RDRAM, KSEG0/KSEG1 aliases, read-only cartridge mapping, and 8 KiB SP
   memory, SP PC/status/semaphore controls and settled bidirectional SP DMA.
-  RSP scalar instructions execute through shared SP controls and memory; DP control access and a bounded fill/sync command profile work. Vector
+  RSP scalar instructions execute through shared SP controls and memory; DP control access and a bounded fill/sync command profile work. Vector transfers and multiply/accumulate work; remaining
   arithmetic, complete RDP and physical DMA/pipeline timing remain pending.
 
 Implementation is original C++ and grounded in the
@@ -114,7 +114,7 @@ SI re-entry and pending SI/timer save-state continuation also have unit evidence
 Count still advances once per two CPU step attempts, including interrupt entry.
 This is an instruction-clock approximation. Exact PClock/pipeline timing,
 CP0 hazards, Count-write equality timing, privilege checks, other interrupt
-producers and reset/NMI/cache-error paths are unverified. The current `VN64S016` state stores Count, Compare, Cause, Status and pending SI/PI/SP/AI/VI/MI state. Device levels are resampled on the next step.
+producers and reset/NMI/cache-error paths are unverified. The current `VN64S017` state stores Count, Compare, Cause, Status and pending SI/PI/SP/AI/VI/MI state. Device levels are resampled on the next step.
 
 ## Explicit homebrew entry profile
 
@@ -184,10 +184,10 @@ cmake --build build --target veloce n64_plugin n64_machine_test n64_pi_test n64_
 ctest --test-dir build -R '^n64_' --output-on-failure
 ```
 
-`VN64S016` states store explicit big-endian scalars, all GPR/CP0 registers,
+`VN64S017` states store explicit big-endian scalars, all GPR/CP0 registers,
 HI/LO, both PCs, pending delay state, instruction/frame counters, completion,
 RAM and SP storage, PIF RAM, SI address/completion, MI mask, latched digital
-input and debug yield state, plus 13 PI registers, PI IRQ and boot mode (120 bytes), six RI controls and a current-loaded flag (56 bytes), plus MI mode and pending DP (16 bytes) and 36 device-register scalars (288 bytes), plus all cache tags/valid/dirty flags and data (40,960 bytes) and nine SP interface scalars (72 bytes), plus 15 AI scalars, five host-clock/ring scalars and 32,768 bytes of pending PCM storage (32,928 bytes). FCR31 is stored as an 8-byte validated scalar, followed by 32 TLB entries as four 8-byte scalars each (1,024 bytes). VI adds 20 validated 8-byte scalars (160 bytes), including registers, current line, crystal phase, field count, leap pattern and interrupt latch. FPR data appends 32 raw 64-bit scalars (256 bytes). S016 appends 64 packed vector doublewords and three flags (536 bytes); S015 and earlier restore neutral vector storage/flags. S015 appends 19 DP scalars (152 bytes); S014 and earlier restore reset DP control/counters/pipeline while preserving previously stored IRQ state. S014 appends scalar RSP execution and its clock phase (304 bytes); legacy S013 and earlier restore neutral scalar registers/phase and resume sequentially at SP PC. Legacy `VN64S012` restores zero FPR storage. `VN64S011` restores reset VI; `VN64S010` restores neutral TLB entries; `VN64S009` restores neutral FCR31; `VN64S008` restores neutral AI/host audio; `VN64S007` restores reset SP controls; `VN64S006` restores invalid caches; `VN64S005` restores reset device registers; `VN64S004` states restore with neutral MI mode/DP; `VN64S003` states restore with neutral RI; `VN64S002` loads only for homebrew, with neutral PI/RI; `VN64S001` is rejected. ROM data is immutable and referenced by identity. Size,
+input and debug yield state, plus 13 PI registers, PI IRQ and boot mode (120 bytes), six RI controls and a current-loaded flag (56 bytes), plus MI mode and pending DP (16 bytes) and 36 device-register scalars (288 bytes), plus all cache tags/valid/dirty flags and data (40,960 bytes) and nine SP interface scalars (72 bytes), plus 15 AI scalars, five host-clock/ring scalars and 32,768 bytes of pending PCM storage (32,928 bytes). FCR31 is stored as an 8-byte validated scalar, followed by 32 TLB entries as four 8-byte scalars each (1,024 bytes). VI adds 20 validated 8-byte scalars (160 bytes), including registers, current line, crystal phase, field count, leap pattern and interrupt latch. FPR data appends 32 raw 64-bit scalars (256 bytes). S017 appends eight validated raw 48-bit accumulator lanes in 64-bit slots (64 bytes); S016 and earlier restore neutral accumulators. S016 appends 64 packed vector doublewords and three flags (536 bytes); S015 and earlier restore neutral vector storage/flags. S015 appends 19 DP scalars (152 bytes); S014 and earlier restore reset DP control/counters/pipeline while preserving previously stored IRQ state. S014 appends scalar RSP execution and its clock phase (304 bytes); legacy S013 and earlier restore neutral scalar registers/phase and resume sequentially at SP PC. Legacy `VN64S012` restores zero FPR storage. `VN64S011` restores reset VI; `VN64S010` restores neutral TLB entries; `VN64S009` restores neutral FCR31; `VN64S008` restores neutral AI/host audio; `VN64S007` restores reset SP controls; `VN64S006` restores invalid caches; `VN64S005` restores reset device registers; `VN64S004` states restore with neutral MI mode/DP; `VN64S003` states restore with neutral RI; `VN64S002` loads only for homebrew, with neutral PI/RI; `VN64S001` is rejected. ROM data is immutable and referenced by identity. Size,
 version, ROM identity and basic field validation precede restoration. The
 instruction counter counts CPU step attempts including interrupt entry,
 **not actual VR4300 cycles**;
@@ -198,7 +198,7 @@ not an emulated VI field. The nominal metadata rate is NTSC/93.75 MHz only.
 
 PIF/IPL/CIC and retail boot, TLB multiple-hit/shutdown behavior and remaining address edge cases, cache errors and pipeline timing,
 full CP0, remaining interrupt producers and timing, LL/SC, traps,
-FPU comparisons/pipeline behavior, RSP vector/DP access, RDP, VI filters/diagnostic line buffer/physical timing, full AI/DAC physical behavior, full RDRAM initialization and remaining RI/PI behavior, full SI/MI/PIF,
+FPU comparisons/pipeline behavior, remaining RSP vector arithmetic/reciprocal state, complete RDP, VI filters/diagnostic line buffer/physical timing, full AI/DAC physical behavior, full RDRAM initialization and remaining RI/PI behavior, full SI/MI/PIF,
 analog and multiplayer controllers,
 save media, retail graphics and RSP audio microcode, expansion devices and physical hardware
 validation remain. Unimplemented opcodes raise a reserved-instruction exception.
@@ -364,15 +364,20 @@ verified boot. The bounded trace now allows 12,000,000 attempts, matching the
 ## Local retail regression target
 
 Super Mario 64 (USA), supplied locally by the user, was probed on 2026-10-10.
-The plugin **loads it, passes the former DIV.S blocker and reaches the
-12-million-attempt trace limit without a terminal CPU fault**. There were 51
-nonterminal exception entries; the trace ends at PC `$80246DDC`, Status `$FF01`.
-The production ABI probe runs 120 frontend scheduling quanta with uniform video
-and 480 audio sample pairs. These pairs do not establish audible game sound.
-The RSP passes the former DPC_STATUS and LQV blockers, retires 683 instructions,
-then explicitly blocks on unsupported `VMULF` at SP PC `$E5C`, instruction `$4BDFDEC0`. This stops RSP
-execution without fabricating a BREAK or completion interrupt.
-**Retail boot and playability are unverified.**
+The plugin loads the image and passes the former DIV.S, DPC_STATUS, LQV and
+VMULF blockers. The default 120-quantum probe reaches 12,000,000 CPU attempts
+without a terminal fault, with 52 nonterminal exception entries. The RSP retires
+6,026 instructions and reaches a real BREAK (SP PC `$144`, status `$243`).
+Production output remains uniform video and 480 audio sample pairs.
+
+The longer 2,000-quantum probe retires 145,423 RSP instructions without an
+unsupported RSP operation. The CPU stops at attempt 47,108,562 on unsupported
+`C.LT.S`, word `$4608503C`, EPC `$80248420`, Cause `$10000028`.
+The DP also records unsupported `SET_COMBINE`, word `$FCFFFFFFFFFE793C` at
+CURRENT `$227018`, reason 1. Production output remains uniform video with
+96,646 audio sample pairs. Samples do not establish audible game sound.
+**Retail boot and playability remain unverified.**
+
 The 8 MiB image has SHA256
 `17ce077343c6133f8c9f2d6d6d9a4ab62c8cd2aa57c40aea1f490b4c8bb21d91`.
 It is not included in this repository.
@@ -380,15 +385,18 @@ It is not included in this repository.
 ```bash
 cmake --build build --target retail_core_probe n64_boot_trace n64_plugin
 python3 tests/n64_retail_probe.py /path/to/your/sm64.z64
+python3 tests/n64_retail_probe.py /path/to/your/sm64.z64 --frames 2000 --output build/artifacts/retail/n64-long.json
 ```
 
-The optional probe loads the production shared library, checks ABI, measures
-video/audio and runs a bounded machine trace through interrupts and recoverable TLB/FPU exceptions to the first terminal exception.
-It writes hashes, EPC, Cause, fault address and all 32 GPRs to
-`build/artifacts/retail/n64.json`; no commercial bytes are archived or copied.
-The current verdict is `boot-blocked` because of the RSP operation. A successful probe process is not a
-playability verdict. Next work includes FPU and native RAM mapping, full CPU/CP0/FPU,
-RSP/RDP, VI filtering and device pipeline scheduling, physical AI timing and save media.
+`--frames` selects 1–10,000 frontend scheduling quanta, not completed game
+frames. The separate trace receives 100,000 nominal CPU attempts per quantum
+and stops at its bound or the first terminal exception. The default stays 120.
+The production ABI probe measures output separately. Reports include executable
+and ROM hashes, requested budgets, CPU fault/fetch context, RSP state and DP
+block diagnostics; no commercial bytes are archived or copied. A successful
+probe process is not a playability verdict. Full CPU/CP0/FPU, native devices,
+remaining RSP/RDP, VI filtering, pipeline scheduling, physical AI and save media
+remain unfinished.
 
 
 ## SP controls and settled DMA
@@ -942,3 +950,81 @@ stream at the old execution cap; the full 786,432-case store corpus passed in
 build and undefined-behavior sanitizer passed; all **80 original ROMs** reproduce
 from the committed image/generator ledger. Completion renderer and whitespace
 checks pass. CI/CD remains removed and GitHub Actions disabled.
+
+## RSP vector multiply and accumulate
+
+The RSP vector module now implements all sixteen multiply-family encodings:
+VMULF/U, VMULQ, VMUDL/M/N/H, VMACF/U/Q, VMADL/M/N/H and VRNDP/N.
+Eight raw 48-bit accumulator lanes wrap modulo 2^48. Destination selection uses
+signed or unsigned saturation, raw low/middle slices and quantized masks as
+required by each instruction. VMUDM/VMADM multiply unsigned VS by signed VT;
+VMUDN/VMADN multiply signed VS by unsigned VT. Source lanes are captured before
+any destination writes, including aliases. All element selectors work, and
+VRNDP/N use the VS register index parity for the addend position. VMACQ preserves
+the low accumulator slice. These instructions preserve VCO/VCC/VCE.
+
+VSAR reads accumulator high/middle/low with elements 8/9/10, writes zero for the
+other elements and leaves the accumulator unchanged. Scalar/vector moves and
+memory transfers preserve the accumulator. Other vector operations, including
+VADD, still block explicitly at their PC without a fabricated BREAK or IRQ.
+
+Two new original MIT programs emit actual guest register observations with no
+guest verdict. Their independent host oracle uses unbounded integer arithmetic,
+a literal lane-selection table and separate accumulator slices:
+
+| Original cartridge | Cases | Captured 64-bit words | Declared domain |
+|---|---:|---:|---|
+| [Multiply pairs](../../tests/roms-src/n64/rsp_multiply_pairs/README.md) | 917,504 | 16,515,072 | Seven load-multiply functions × 16 selectors × 256 repeated-byte VS values × 32 groups of eight repeated-byte VT values |
+| [Accumulate edges](../../tests/roms-src/n64/rsp_accumulate_edges/README.md) | 294,912 | 7,372,800 | Nine accumulate/round functions × 8,192 groups of eight raw halfword values × four partner/48-bit accumulator patterns; selectors distributed through the groups |
+
+Each record captures result, all accumulator slices, source registers, flags
+and SP PC/status/MI. The edge ROM additionally captures the accumulator before
+the tested operation and scalar zero. Its six-instruction accumulator setup
+uses VMUDH, four VMADH and VMADM and is independently graded. Ordered REG chunks
+contain at most twelve words. Executed capture mutants must fail every reduced
+case, all fields have individual mutation checks and seven incomplete/malformed
+stream forms must return ERROR. Artifacts are under
+`build/artifacts/owned/n64_rsp_multiply_pairs/` and `n64_rsp_accumulate_edges/`.
+
+The component checks **16,777,216 raw-halfword/function/selector cases**,
+**8,388,608 register/function/selector cases**, **524,288 VSAR encodings** and
+all declared accumulator carry/overflow/sign/quantization boundaries. Whole
+vector banks, flags, GPRs, DMEM and IMEM are guarded. Numeric published hardware
+observations anchor thirteen multiply/accumulate instructions and even/odd VS
+rounding. They caught and corrected the mixed-product signedness during review.
+
+State `VN64S017` appends eight validated raw accumulator doublewords (**64
+bytes**) after the S016 vector bank/flags. Pending multiply replay is exact;
+nonzero upper 16 bits in any accumulator lane are rejected atomically. S016 and
+earlier restore neutral accumulators while preserving previously implemented
+fields. Plugin 0.18.0 continues ABI v2.
+
+Sources are the SGI [RSP programmer guide](https://bukosek.si/hardware/collection/sgi-o2/n64-rsp-programmers-guide.pdf)
+and the hardware-test author's [multiply](https://github.com/thelemmy/nemu64-test/blob/main/src/tests/rsp/op_vmulf.rs),
+[mixed product](https://github.com/thelemmy/nemu64-test/blob/main/src/tests/rsp/op_vmudm.rs),
+[accumulate](https://github.com/thelemmy/nemu64-test/blob/main/src/tests/rsp/op_vmadn.rs),
+[round](https://github.com/thelemmy/nemu64-test/blob/main/src/tests/rsp/op_vrndp.rs),
+[quantization](https://github.com/thelemmy/nemu64-test/blob/main/src/tests/rsp/op_vmacq.rs)
+and [VSAR](https://github.com/thelemmy/nemu64-test/blob/main/src/tests/rsp/op_vsar.rs) tests.
+These original ROMs have not run on a physical console. Their finite operand
+patterns are not the exhaustive full-width pair corpus. Physical pipeline,
+load interlocks/dual issue, remaining arithmetic/flags/reciprocal state, complete
+RDP and RSP audio remain pending. The earlier LFV caveat remains ungraded.
+
+Mario now passes VMULF and reaches a real RSP BREAK in the short probe. A longer
+trace retires **145,423 RSP instructions** without an unsupported RSP operation,
+then encounters unsupported CPU **C.LT.S** (`4608503C`, EPC `80248420`). The DP
+also records unsupported **SET_COMBINE** (`FCFFFFFFFFFE793C`). Video remains
+uniform; production output is 480 sample pairs at 120 quanta and 96,646 at
+2,000 quanta. Native boot, audible game sound and playability stay unverified.
+The private image stays local. N64 remains **40% = 8/20 delivery milestones**.
+
+Verification: **53 distinct N64 gates pass** after one harness correction.
+The 51-gate regression ran in 895.90 seconds: fifty passed and one still expected
+VMULF to be unsupported. Its corrected VADD control passed in 0.42 seconds.
+The two new original-ROM suites passed their full 917,504/294,912-case domains,
+executed mutants, all 18/25 field mutations and seven stream controls each.
+Final vector/multiply components, the full build and undefined-behavior
+sanitizer pass. All **82 original ROMs** reproduce from the committed
+image/generator ledger; completion renderer, probe budget validation and
+whitespace checks pass. CI/CD remains removed and GitHub Actions disabled.

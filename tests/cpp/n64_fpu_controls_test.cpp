@@ -73,15 +73,15 @@ int main(int argc,char** argv) {
     require(m.restore(saved) && s.fcr31==0x183ffff && m.save(replay) && replay==saved,"control state exact restore");
     for(unsigned bit=0;bit<64;++bit) {
         if(bit<32 && (bit<=17 || bit==23 || bit==24))continue;
-        auto bad=saved;bad[bad.size()-2433-bit/8]|=uint8_t(1u<<(bit%8));
+        auto bad=saved;bad[bad.size()-2497-bit/8]|=uint8_t(1u<<(bit%8));
         require(!m.restore(bad) && m.save(replay) && replay==saved,"reserved scalar state rejection atomicity");
     }
-    auto old=saved;old.resize(old.size()-2440);old[6]='0';old[7]='9';
+    auto old=saved;old.resize(old.size()-2504);old[6]='0';old[7]='9';
     require(m.restore(old) && s.fcr31==0 && s.gpr[1]==0x1234,"S009 neutral control conversion");
-    auto converted=saved;std::fill(converted.end()-2440,converted.end()-2432,0);
-    std::fill(converted.end()-696,converted.end()-688,0); // Legacy state starts the new RSP clock phase at zero.
-    std::fill(converted.end()-688,converted.end(),0);
-    converted[converted.size()-688+7*8+7]=1; // Reset DP pipeline state.
+    auto converted=saved;std::fill(converted.end()-2504,converted.end()-2496,0);
+    std::fill(converted.end()-760,converted.end()-752,0); // Legacy state starts the new RSP clock phase at zero.
+    std::fill(converted.end()-752,converted.end(),0);
+    converted[converted.size()-752+7*8+7]=1; // Reset DP pipeline state.
     require(m.save(replay) && replay==converted,"S009 preserves pending AI/host phases and all existing fields");
     // Resume a pending control exception identically after restore.
     require(m.restore(saved),"pending FCR31 restore");instruction(m,0x44c1f800);s.gpr[1]=0x21080;
