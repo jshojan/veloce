@@ -47,7 +47,7 @@ headlines or original-ROM domain pass fractions.
 | [SNES](#snes) | 67 external tests / 19 suites, plus 2 original ROMs | 68,864 settled math cases and 504,832 timing bytes verified | Original multiplication domain is exhaustive; division covers boundaries; timing covers declared patterns/phases; external catalog remains unscored |
 | [Game Boy](#game-boy) | 225 external tests / 31 suites, plus 3 original ROMs | Verified subset only | Blargg serial subset, 2 WRAM checks, 8,388,608 ALU pairs and 73,728 unary pairs verified; Mooneye remains unverified |
 | [GBA](#gba) | 132 external tests / 29 suites, plus 1 original ROM | Partial; 65,536 original ARM shift cases verified | Legacy CPU/memory/BIOS/saves subsets verified; timing/PPU and remaining original hardware corpus pending |
-| N64 | 9 original ROMs; no external catalog | Declared integer/merge/controller/interrupt/PI/RI/MI domains verified | Experimental homebrew/native handoff; retail boot pending; full hardware completion unknown; [limits](cores/n64/README.md) |
+| N64 | 10 original ROMs; no external catalog | Declared integer/merge/controller/interrupt/PI/RI/MI/device domains verified | Experimental homebrew/native handoff; retail boot pending; full hardware completion unknown; [limits](cores/n64/README.md) |
 | Virtual Boy | 7 original ROMs; no external catalog | 6,512,640 result/PSW pairs plus 4,210,688 multiply/divide and 4,685,824 TRAP/illegal and 4,982,784 address-trap snapshots plus 17,055,744 CAXI/port and 14,680,064 arithmetic bit-string and 100,712,448 immediate-instruction snapshots | Experimental marked homebrew; remaining CPU/NVC, VIP/VSU, controllers and timing pending; [limits](cores/vb/README.md) |
 | Nintendo DS | 8 original ROMs; no external catalog | 44,238,336 integer plus 38,338,560 multiply plus 51,426,816 Thumb result/CPSR/source/PC observations matched; 49,694,208 nine-word memory and 9,437,184 eight-word long-call observations matched; 3,720,960 stack/block observations matched; 4,096/4,096 digital keypad combinations matched; 100-frame TCP host/viewer states and eight guest words match baseline/oracle; DS wireless multiplayer pending; ARM7 unpredictable multiply flags excluded | Experimental marked ARM/Thumb integer homebrew; firmware, ARM block transfers, graphics/audio, peripherals pending; DSi has a separate partial plugin; [limits](cores/nds/README.md) |
 | Nintendo DSi | 2 original ROMs; no external catalog | 387,072/387,072 RAM captures; 67,109,008 component bus observations; 100-frame TCP host/viewer states and eight guest register words match oracle | Experimental dual-CPU expanded-memory profile; firmware/retail boot, full SCFG/MBK, graphics/audio/peripherals and physical timing pending; [limits](cores/dsi/README.md) |
@@ -325,8 +325,8 @@ Wii Remote behavior remain pending. This is 100% of the declared digital domain,
 with no whole-hardware accuracy percentage implied. See [the profile](cores/ppc/README.md).
 
 Super Mario 64 was separately tested with the user's local image: the current
-N64 plugin loads it but faults at RDRAM chip configuration after 32,147 IPL3 step attempts. That is a pending retail target, not a scored
-pass. The original-ROM ledger contains 58 repository-owned programs; commercial
+N64 plugin loads it but faults on unsupported CACHE after 35,944 IPL3 step attempts. That is a pending retail target, not a scored
+pass. The original-ROM ledger contains 59 repository-owned programs; commercial
 ROM bytes are never part of that ledger or git.
 
 ## N64 cartridge DMA and IPL3 handoff
@@ -336,10 +336,10 @@ The [PI corpus](tests/roms-src/n64/pi_dma/README.md) matches 524,288 cases and
 offsets, two RDRAM addresses and both PI mask states. The [handoff corpus](tests/roms-src/n64/ipl3_handoff/README.md)
 matches twelve startup captures without bundling firmware. Executed guest mutants,
 all captured-field mutants and seven invalid streams per corpus are rejected.
-All thirteen N64 CTests pass; the PI component also passes undefined-behavior sanitization.
+All fifteen N64 CTests pass; the PI component also passes undefined-behavior sanitization.
 Settled aligned ROM reads and explicit HLE startup are implemented; RI/RDRAM
 initialization, native retail boot, PI busy/misalignment/peripheral behavior,
-graphics/audio and physical timing remain pending. The ledger contains 58 original
+graphics/audio and physical timing remain pending. The ledger contains 59 original
 ROMs. CI/CD remains disabled.
 
 ## N64 RI configuration register evidence
@@ -350,10 +350,10 @@ mode/configuration/selection combination is covered; latency is correlated.
 Executed selection mutation, six field mutants and seven invalid streams reject.
 The component checks current-load latching, access/state failure atomicity,
 legacy conversion, exact replay, reset and loaded-plugin execution. RI refresh
-scheduling, analog calibration, bus-error production, RDRAM chip discovery and
-physical timing remain pending. Super Mario 64 advances to missing RDRAM device register
-(A3F80008, EPC A40000F4, Cause 14) after 32,147 startup step attempts; it is
-not bootable/playable. The corpus ledger contains 58 original ROMs.
+scheduling, analog calibration, bus-error production, native RAM remapping and
+physical timing remain pending. Super Mario 64 advances to unsupported instruction
+(CACHE, EPC A40003D8, Cause 28) after 35,944 startup step attempts; it is
+not bootable/playable. The corpus ledger contains 59 original ROMs.
 
 ## N64 MI control evidence
 
@@ -364,8 +364,22 @@ DMA requests pending. Executed count mutation, eight field mutants and seven
 invalid streams reject. The component checks 16,777,216 mode transitions, all
 mask transitions, injected DP delivery/acknowledgment/ERET, exact replay, legacy
 conversion, atomic rejection and production-plugin execution; it also passes
-undefined-behavior sanitization. All thirteen N64 gates pass. Stored MI bus flags
-do not yet implement repeat/EBus/upper transaction effects or RDRAM chip discovery.
-Super Mario 64 stops at A3F80008 (EPC A40000F4, Cause 14) after 32,147 startup
+undefined-behavior sanitization. All fifteen N64 gates pass. Stored MI bus flags
+do not yet implement repeat/EBus/upper transaction effects or native RAM remapping.
+Super Mario 64 stops on CACHE (EPC A40003D8, Cause 28) after 35,944 startup
 step attempts; retail gameplay, graphics/audio and physical timing remain pending.
-All 58 original ROMs reproduce. CI/CD remains disabled.
+All 59 original ROMs reproduce. CI/CD remains disabled.
+
+## N64 RDRAM device evidence
+
+The [original device corpus](tests/roms-src/n64/rdram_devices/README.md) matches
+14,336 cases / 86,016 guest values across four devices, all writable delay
+fields and repeated-byte storage patterns. Executed mutation, six field mutants
+and seven invalid streams reject. Components check all device ID encodings,
+delay/repeat combinations, selectors/register aliases, discovery, MI upper/repeat,
+state replay and rejection, legacy conversion and loaded-plugin execution.
+All fifteen N64 gates pass; device components pass undefined-behavior sanitization.
+Native RAM remapping, analog calibration, caches, physical bus timing, repeat RAM
+and EBus memory remain pending. Super Mario 64 reaches unsupported CACHE after
+35,944 step attempts (EPC A40003D8, Cause 28); gameplay/video/audio are unverified.
+All 59 original ROMs reproduce. CI/CD stays disabled.

@@ -1,5 +1,6 @@
 #pragma once
 #include "vr4300.hpp"
+#include "rdram.hpp"
 #include "emu/emulator_plugin.hpp"
 #include <vector>
 
@@ -37,6 +38,7 @@ public:
     // mode, config, latched current control, select, refresh, latency.
     std::array<uint32_t,6> ri{};
     bool ri_current_loaded=false;
+    RdramDevices rdram_devices;
     void process_pif();
 private:
     static bool physical(uint64_t address, uint32_t& result);

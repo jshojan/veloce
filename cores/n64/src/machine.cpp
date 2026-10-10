@@ -60,7 +60,7 @@ void Machine::reset() {
     }
     frames = 0; done = false; yielded = false;
     pif.fill(0); si_address = input_buttons = 0; si_interrupt = false; mi_mask = 0;mi_mode=0;dp_interrupt=false;
-    pi={};pi_interrupt=false;ri={};ri_current_loaded=false;
+    pi={};pi_interrupt=false;ri={};ri_current_loaded=false;rdram_devices.reset();
     if(!rom.empty() && boot_mode!=BootMode::Homebrew) {
         const auto config=uint32_t(be(rom.data(),4));
         pi[5]=config&255;pi[6]=(config>>8)&255;pi[7]=(config>>16)&15;pi[8]=(config>>20)&3;
@@ -113,6 +113,12 @@ bool Machine::physical(uint64_t address, uint32_t& result) {
 bool Machine::read(uint64_t address, unsigned bytes, uint64_t& value) {
     uint32_t p = 0;
     if (!physical(address, p) || (bytes != 1 && bytes != 2 && bytes != 4 && bytes != 8)) return false;
+    if(p>=0x03f00000 && p<=0x03ffffff) {
+        if(bytes!=4 || (p&3))return false;
+        value=(uint32_t(address)>=0xa0000000u && !(mi_mode&0x200) && (p&4))?0:
+            rdram_devices.read(p,ri_current_loaded && ri[3]==0x14);
+        return true;
+    }
     if (uint64_t(p) + bytes <= ram.size()) { value = be(ram.data() + p, bytes); return true; }
     if (p >= 0x04000000 && uint64_t(p) + bytes <= 0x04000000 + sp.size()) { value = be(sp.data() + p - 0x04000000, bytes); return true; }
     if (p >= 0x10000000 && uint64_t(p) + bytes <= 0x10000000 + rom.size()) { value = be(rom.data() + p - 0x10000000, bytes); return true; }
@@ -138,6 +144,14 @@ bool Machine::read(uint64_t address, unsigned bytes, uint64_t& value) {
 bool Machine::write(uint64_t address, unsigned bytes, uint64_t value) {
     uint32_t p = 0;
     if (!physical(address, p) || (bytes != 1 && bytes != 2 && bytes != 4 && bytes != 8)) return false;
+    if(p>=0x03f00000 && p<=0x03ffffff) {
+        if(bytes!=4 || (p&3))return false;
+        const bool uncached=uint32_t(address)>=0xa0000000u;
+        const unsigned repeat=uncached && (mi_mode&128)?(mi_mode&127)+1:0;
+        rdram_devices.write(p,uint32_t(value),ri_current_loaded && ri[3]==0x14,repeat);
+        if(repeat)mi_mode&=~128u;
+        return true;
+    }
     if (p == 0x1ff00000 && bytes == 1) {
         const char c = char(value);
         if (sink) sink->write(&c, 1);
@@ -234,7 +248,7 @@ static void append(std::vector<uint8_t>& data, uint64_t value) {
 }
 bool Machine::save(std::vector<uint8_t>& data) const {
     if (rom.empty()) return false;
-    data.assign({'V','N','6','4','S','0','0','5'});
+    data.assign({'V','N','6','4','S','0','0','6'});
     append(data, identity); append(data, crc); append(data, frames); append(data, done);
     const auto& s = cpu.state;
     for (auto value : s.gpr) append(data, value);
@@ -248,6 +262,7 @@ bool Machine::save(std::vector<uint8_t>& data) const {
     append(data,pi_interrupt);append(data,uint64_t(boot_mode));
     for(auto reg:ri) append(data,reg);
     append(data,ri_current_loaded);append(data,mi_mode);append(data,dp_interrupt);
+    for(const auto& chip:rdram_devices.snapshot())for(auto reg:chip)append(data,reg);
     return true;
 }
 bool Machine::restore(const std::vector<uint8_t>& data) {
@@ -256,7 +271,8 @@ bool Machine::restore(const std::vector<uint8_t>& data) {
     const bool legacy=!std::memcmp(data.data(),"VN64S002",8);
     const bool previous=!std::memcmp(data.data(),"VN64S003",8);
     const bool ri_previous=!std::memcmp(data.data(),"VN64S004",8);
-    if((!legacy && !previous && !ri_previous && std::memcmp(data.data(),"VN64S005",8)) || data.size()!=prefix+ram_size+sp.size()+(legacy?0:previous?120:ri_previous?176:192) ||
+    const bool mi_previous=!std::memcmp(data.data(),"VN64S005",8);
+    if((!legacy && !previous && !ri_previous && !mi_previous && std::memcmp(data.data(),"VN64S006",8)) || data.size()!=prefix+ram_size+sp.size()+(legacy?0:previous?120:ri_previous?176:mi_previous?192:480) ||
         (legacy && boot_mode!=BootMode::Homebrew)) return false;
     size_t position = 8;
     auto take = [&]() { auto v = be(data.data() + position, 8); position += 8; return v; };
@@ -287,12 +303,18 @@ bool Machine::restore(const std::vector<uint8_t>& data) {
     }
     uint64_t saved_mode=0,saved_dp=0;
     if(!legacy && !previous && !ri_previous) {saved_mode=take();saved_dp=take();if(saved_mode>1023 || saved_dp>1) return false;}
+    RdramDevices saved_devices;
+    if(!legacy && !previous && !ri_previous && !mi_previous) {
+        RdramDevices::State device_state{};
+        for(auto& chip:device_state)for(auto& reg:chip) {const auto v=take();if(v>0xffffffffu)return false;reg=uint32_t(v);}
+        if(!saved_devices.restore(device_state))return false;
+    }
     position=memory_position;
     // Validate first; rejected states leave the active machine untouched.
     cpu.state = s; frames = saved_frames; done = saved_done;
     si_address = uint32_t(saved_si_address); input_buttons = uint32_t(saved_input); si_interrupt = saved_irq;
     mi_mask = uint8_t(saved_mask); yielded = saved_yield;
-    pi=saved_pi;pi_interrupt=saved_pi_irq;ri=saved_ri;ri_current_loaded=saved_current_loaded;mi_mode=uint16_t(saved_mode);dp_interrupt=saved_dp;
+    pi=saved_pi;pi_interrupt=saved_pi_irq;ri=saved_ri;ri_current_loaded=saved_current_loaded;mi_mode=uint16_t(saved_mode);dp_interrupt=saved_dp;rdram_devices=saved_devices;
     std::copy_n(data.begin() + position, 64, pif.begin()); position += 64;
     std::copy_n(data.begin() + position, ram_size, ram.begin());
     std::copy_n(data.begin() + position + ram_size, sp.size(), sp.begin());

@@ -11,7 +11,7 @@ These percentages count the 20 explicit delivery milestones in [the completion l
 
 Nintendo 64 delivered milestones: Native digital controller/keypad registers consume frontend input, Parse a native cartridge/executable format (boot scored separately), Repository-owned ROM source and reproducible archived image, Separate core plugin and ABI entry points, Actual guest register-file output independently graded on the host, with negative controls, Complete states for the implemented profile and deterministic replay.
 
-Remaining: Super Mario 64 loads but faults at RDRAM chip configuration after 32,147 IPL3 step attempts; native boot, RDRAM chip initialization, remaining CPU/FPU/devices, RSP/RDP/VI/AI, analog and netplay remain.
+Remaining: Super Mario 64 loads but faults on unsupported CACHE after 35,944 IPL3 step attempts; native boot, native RAM remapping/calibration, remaining CPU/FPU/devices, RSP/RDP/VI/AI, analog and netplay remain.
 <!-- completion:end -->
 
 `n64_plugin` builds `n64.so`/`n64.dll`/`n64.dylib` and implements emulator ABI v2.
@@ -99,7 +99,7 @@ SI re-entry and pending SI/timer save-state continuation also have unit evidence
 Count still advances once per two CPU step attempts, including interrupt entry.
 This is an instruction-clock approximation. Exact PClock/pipeline timing,
 CP0 hazards, Count-write equality timing, privilege checks, other interrupt
-producers and reset/NMI/cache-error paths are unverified. The current `VN64S005` state stores Count, Compare, Cause, Status and pending SI/PI/MI state. Device levels are resampled on the next step.
+producers and reset/NMI/cache-error paths are unverified. The current `VN64S006` state stores Count, Compare, Cause, Status and pending SI/PI/MI state. Device levels are resampled on the next step.
 
 ## Explicit homebrew entry profile
 
@@ -165,14 +165,14 @@ executes all three archive formats through actual frontend discovery.
 ```bash
 python3 tests/roms-src/build.py --original-only --check
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build --target veloce n64_plugin n64_machine_test n64_pi_test n64_ri_test n64_mi_test -j
+cmake --build build --target veloce n64_plugin n64_machine_test n64_pi_test n64_ri_test n64_mi_test n64_rdram_test -j
 ctest --test-dir build -R '^n64_' --output-on-failure
 ```
 
-`VN64S005` states store explicit big-endian scalars, all GPR/CP0 registers,
+`VN64S006` states store explicit big-endian scalars, all GPR/CP0 registers,
 HI/LO, both PCs, pending delay state, instruction/frame counters, completion,
 RAM and SP storage, PIF RAM, SI address/completion, MI mask, latched digital
-input and debug yield state, plus 13 PI registers, PI IRQ and boot mode (120 bytes), six RI controls and a current-loaded flag (56 bytes), plus MI mode and pending DP (16 bytes). Legacy `VN64S004` states restore with neutral MI mode/DP; `VN64S003` states restore with neutral RI; `VN64S002` loads only for homebrew, with neutral PI/RI; `VN64S001` is rejected. ROM data is immutable and referenced by identity. Size,
+input and debug yield state, plus 13 PI registers, PI IRQ and boot mode (120 bytes), six RI controls and a current-loaded flag (56 bytes), plus MI mode and pending DP (16 bytes) and 36 device-register scalars (288 bytes). Legacy `VN64S005` restores reset device registers; `VN64S004` states restore with neutral MI mode/DP; `VN64S003` states restore with neutral RI; `VN64S002` loads only for homebrew, with neutral PI/RI; `VN64S001` is rejected. ROM data is immutable and referenced by identity. Size,
 version, ROM identity and basic field validation precede restoration. The
 instruction counter counts CPU step attempts including interrupt entry,
 **not actual VR4300 cycles**;
@@ -231,7 +231,7 @@ all captured-field mutations and seven malformed streams per corpus are rejected
 `n64_pi_test` separately covers 1,048,576 RDRAM destinations, 32,768 even lengths,
 65,536 address masks, every byte of an 8 MiB DMA, all SI/PI/MI combinations,
 actual IRQ/ACK/ERET continuation, atomic rejection, legacy/native states,
-64 MiB formats and the loaded plugin. All thirteen N64 CTests pass; the component
+64 MiB formats and the loaded plugin. All fifteen N64 CTests pass; the component
 also passes undefined-behavior sanitization.
 
 ## RI configuration controls
@@ -254,9 +254,9 @@ current-load latching, 65,536 error-clear inputs, MMIO/state rejection atomicity
 exact continuation, legacy states, reset and the loaded plugin.
 
 These are functional controls. Analog current calibration, mode-dependent RAM
-access, refresh scheduling, bus contention/error production, RDRAM chip discovery
+access, refresh scheduling, bus contention/error production, native RAM remapping
 and physical timing remain pending. Native cartridge startup now proceeds past
-RI register configuration and reaches MI control setup; the local target now stops at RDRAM chip configuration.
+RI register configuration and reaches MI control setup; the local target now reaches an unsupported cache instruction.
 
 ## MI mode and interrupt controls
 
@@ -279,14 +279,43 @@ and legacy conversion. Executed count mutation, eight field mutants and seven
 invalid streams reject. The component passes undefined-behavior sanitization.
 
 Repeat/EBus/upper flags are stored, but their RDRAM transaction effects, ninth-bit
-memory, repeat writes and chip-selection behavior remain pending. SP/AI/VI/DP
+memory, repeat writes and native RAM chip-selection behavior remain pending. SP/AI/VI/DP
 hardware producers and physical bus/interrupt timing remain incomplete.
+
+## RDRAM device register topology
+
+Four 2 MiB devices support selected and broadcast register accesses, disabled
+chain discovery, encoded device IDs, enable/mode readback, write-delay masks,
+refresh/interval/address storage and row aliases. RI selection/current-load gates
+the device bus. Aligned word accesses cover `$03F00000..$03FFFFFF`; inactive,
+absent, reserved and broadcast reads settle at zero. Writes to type/manufacturer
+are ignored. MI upper controls uncached odd-word register reads, and a repeated
+uncached register write consumes repeat mode once. Non-unit initial write delay
+requires at least sixteen repeated bytes and swaps the submitted halfwords.
+The authored [RDRAM model](https://github.com/ares-emulator/ares/blob/master/ares/n64/rdram/rdram.cpp)
+and [MI bus model](https://github.com/ares-emulator/ares/blob/master/ares/n64/mi/bus.hpp)
+ground the functional behavior; implementation is original C++.
+
+The [original RDRAM corpus](../../tests/roms-src/n64/rdram_devices/README.md)
+matches 14,336 cases / 86,016 guest values with selected-device isolation,
+all delay fields and repeated-byte storage operands. Executed mutation, six
+field mutations and seven invalid streams reject. `n64_rdram_test` additionally
+covers 262,144 ID writes, 2,113,536 delay/repeat cases, 131,072 selector/register
+aliases, mode patterns, discovery, broadcast, MI controls, exact state replay,
+atomic rejection and legacy/native state conversion. The component passes
+undefined-behavior sanitization.
+
+Native RAM remapping remains pending; ordinary RAM and PI/SI DMA still use the
+existing direct 8 MiB storage profile. Analog current calibration/degradation,
+refresh scheduling, ordinary-RAM repeat writes, EBus ninth-bit memory, physical
+timing and cached bus transactions remain incomplete. Stored current/mode
+readback is functional and does not establish physical calibration or boot.
 
 ## Local retail regression target
 
 Super Mario 64 (USA), supplied locally by the user, was probed on 2026-10-10.
-The plugin **loads it and reaches 32,147 IPL3 step attempts**, then faults writing
-the missing RDRAM device register `$A3F80008`. EPC is `$A40000F4`, Cause is `$14`,
+The plugin **loads it and reaches 35,944 IPL3 step attempts**, then raises a reserved-instruction
+exception on CACHE. EPC is `$A40003D8`, Cause is `$28`,
 and the exception vector is `$80000180`. The production ABI probe runs 120
 frontend scheduling quanta with uniform video and no audio. **Retail boot and
 playability are unverified.** The 8 MiB image has SHA256
@@ -303,5 +332,5 @@ video/audio and runs a bounded machine trace to the first CPU exception.
 It writes hashes, EPC, Cause, fault address and all 32 GPRs to
 `build/artifacts/retail/n64.json`; no commercial bytes are archived or copied.
 The current verdict is `boot-blocked`. A successful probe process is not a
-playability verdict. Next work includes RDRAM chip startup, full CPU/CP0/FPU,
+playability verdict. Next work includes cache instructions and native RAM mapping, full CPU/CP0/FPU,
 RSP/RDP/VI/device scheduling, AI and save media.
