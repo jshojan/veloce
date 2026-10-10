@@ -20,6 +20,10 @@ struct CpuState {
     uint32_t pc = 0xfffffff0;
     uint64_t steps = 0;
     bool halted = false, unsupported = false;
+    struct BitString {
+        bool active=false, source_valid=false, destination_valid=false;
+        uint32_t operation=0, source_word=0, destination_word=0;
+    } bitstring;
 };
 class V810 {
 public:
@@ -29,6 +33,7 @@ public:
     static bool condition(unsigned code, uint32_t psw);
     CpuState state;
 private:
+    void bitstring(unsigned operation);
     void exception(uint32_t pc, uint32_t restore_pc, uint16_t code, uint32_t vector);
     Memory& bus;
 };

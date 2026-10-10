@@ -50,16 +50,19 @@ static void append(std::vector<uint8_t>& data,uint64_t value) {
 }
 bool Machine::save(std::vector<uint8_t>& data) const {
     if(rom.empty()) return false;
-    data.assign({'V','V','B','S','0','0','0','1'});
+    data.assign({'V','V','B','S','0','0','0','2'});
     for(auto value:{identity,uint64_t(crc),frames,uint64_t(done)}) append(data,value);
     for(auto value:cpu.state.gpr) append(data,value);
     for(auto value:cpu.state.sr) append(data,value);
     for(auto value:{uint64_t(cpu.state.pc),cpu.state.steps,uint64_t(cpu.state.halted),uint64_t(cpu.state.unsupported)}) append(data,value);
+    const auto& bit=cpu.state.bitstring;
+    for(auto value:{uint64_t(bit.active),uint64_t(bit.source_valid),uint64_t(bit.destination_valid),uint64_t(bit.operation),
+                   uint64_t(bit.source_word),uint64_t(bit.destination_word)}) append(data,value);
     data.insert(data.end(),ram.begin(),ram.end()); return true;
 }
 bool Machine::restore(const std::vector<uint8_t>& data) {
-    constexpr size_t prefix=8+(4+32+32+4)*8;
-    if(rom.empty() || data.size()!=prefix+ram.size() || std::memcmp(data.data(),"VVBS0001",8)) return false;
+    constexpr size_t prefix=8+(4+32+32+4+6)*8;
+    if(rom.empty() || data.size()!=prefix+ram.size() || std::memcmp(data.data(),"VVBS0002",8)) return false;
     size_t pos=8;
     auto take=[&]() { uint64_t value=0; for(unsigned n=0;n<8;++n) value=(value<<8)|data[pos++]; return value; };
     if(take()!=identity || take()!=crc) return false;
@@ -68,6 +71,13 @@ bool Machine::restore(const std::vector<uint8_t>& data) {
     for(auto& value:c.gpr) { auto v=take(); valid&=v<=0xffffffff; value=uint32_t(v); }
     for(auto& value:c.sr) { auto v=take(); valid&=v<=0xffffffff; value=uint32_t(v); }
     const auto pc=take(); c.pc=uint32_t(pc); c.steps=take(); const auto halted=take(),unsupported=take();
+    const auto active=take(),source_valid=take(),destination_valid=take(),operation=take(),source_word=take(),destination_word=take();
+    if(active>1 || source_valid>1 || destination_valid>1 || operation>15 || source_word>0xffffffff || destination_word>0xffffffff ||
+       (!source_valid && source_word) || (!destination_valid && destination_word)) return false;
+    if(active) {
+        if(operation<8 || !c.gpr[28] || c.gpr[26]>31 || c.gpr[27]>31 || ((c.gpr[29]|c.gpr[30])&3)) return false;
+    } else if(source_valid || destination_valid || operation || source_word || destination_word) return false;
+    c.bitstring={bool(active),bool(source_valid),bool(destination_valid),uint32_t(operation),uint32_t(source_word),uint32_t(destination_word)};
     if(!valid || pc>0xffffffff || (pc&1) || saved_done>1 || halted>1 || unsupported>1 || c.gpr[0] ||
        (c.sr[5]&~0xff3ffu) || (c.sr[0]&1) || (c.sr[2]&1) || (c.sr[25]&1)) return false;
     c.halted=halted; c.unsupported=unsupported;

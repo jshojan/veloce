@@ -28,6 +28,9 @@ little-endian instruction/data memory and an explicit marked cartridge profile.
 - IN.B/IN.H zero extension, IN.W and OUT.B/H/W; separate port callbacks,
   source truncation, alignment and unchanged PSW. The marked test profile
   shares its storage/debug decoder with ports; physical port wiring is pending.
+- Eight arithmetic bit-string operations (OR/AND/XOR/MOV and complemented
+  forms), low-to-high transfers, preserved PSW and working r26–r30. Execution
+  is bounded at word boundaries with resumable source/destination buffers.
 - Basic LDSR/STSR for saved PC/PSW, ECR, PSW, ADTRE and cache-enable storage.
   ECR is read-only; reserved PSW bits and system-PC low bits are masked.
   Cache commands beyond enable storage stop as unsupported; no cache executes.
@@ -104,6 +107,14 @@ value. All four address low-bit lanes and all incoming flags are included.
 Loaded results, comparison/preserved PSW, stored memory, adjacent guards and
 original source registers are graded independently.
 
+The original [arithmetic bit-string corpus](../../tests/roms-src/vb/bitstrings/README.md)
+matched **14,680,064/14,680,064 fourteen-word snapshots**, zero mismatches,
+across all eight operations,
+every repeated-byte pair, all source/destination offsets and twelve lengths
+through 65 bits, with all incoming flags. It grades destination memory, unchanged
+source/guard words, working registers and PSW. Overlap and physical bus timing
+are outside its declared domain.
+
 `vb_machine_test` separately checks reset entry, all branch conditions/flag
 states on signed displacement boundaries, SETF, JR/JAL/JMP/link behavior, r0,
 source aliasing, immediate/register decoding, wide-immediate reference vectors,
@@ -123,6 +134,10 @@ CAXI/port checks also cover original operands through one atomic callback,
 profile read/write order and mismatch write-back, r0/r30/base/destination aliases,
 every writable PSW for all port widths, all signed displacements/address wrapping,
 rejected callback CPU state and full saved transaction continuation.
+Bit-string checks compare 3,145,728 transfers with a per-bit byte-array oracle,
+preserve every writable PSW in 2,097,152 cases, bound maximum-length execution,
+and replay pending source/destination buffers exactly through saved states.
+Malformed/legacy buffered states and a diagnostic bus stop are also checked.
 These component checks are separate from the original-ROM domain.
 
 ```bash
@@ -133,16 +148,19 @@ ctest --test-dir build -R '^vb_' --output-on-failure
 ```
 
 Raw observations and reports are in `build/artifacts/owned/vb_integer/`,
-`build/artifacts/owned/vb_muldiv/`, `build/artifacts/owned/vb_exceptions/` and
-`build/artifacts/owned/vb_address_traps/` and `build/artifacts/owned/vb_memory_ops/`.
+`build/artifacts/owned/vb_muldiv/`, `build/artifacts/owned/vb_exceptions/`,
+`build/artifacts/owned/vb_address_traps/`, `build/artifacts/owned/vb_memory_ops/`
+and `build/artifacts/owned/vb_bitstrings/`.
 They are uploaded by the owned-hardware CI job. Source/image SHA256 values are recorded
-in `tests/roms-src/rom_manifest.json`. `VVBS0001` states store explicit big-endian
-scalars for the full CPU, frame/step counters, completion, ROM identity and WRAM.
+in `tests/roms-src/rom_manifest.json`. `VVBS0002` states store explicit big-endian
+scalars for the full CPU, frame/step counters, completion, ROM identity, WRAM
+and pending bit-string buffers. Legacy `VVBS0001` states
+are rejected; recreate them with the updated core.
 Size, version, ROM identity and basic field checks precede any mutation.
 
 ## Remaining platform hardware and features
 
-Bit strings, FPU/custom NVC instructions, physical port/peripheral mapping, complete
+Bit-string searches, FPU/custom NVC instructions, physical port/peripheral mapping, complete
 system registers/PIR/TKCW, other exceptions/external interrupts, caches,
 pipeline/wait-state timing, VIP drawing/display/scanner timing, VSU audio,
 controller serial hardware, link communication, timers and save media remain.
@@ -152,7 +170,10 @@ with an explicit serialized `unsupported` flag. Reserved major opcodes `$1B`,
 encoding validity and physical bus faults are not modeled. Register
 execution and bus storage are functional; timing is not modeled. CAXI is
 serialized within one bus callback in the single-CPU profile; external LOCK
-signals and future DMA/multiple-owner arbitration remain pending.
+signals and future DMA/multiple-owner arbitration remain pending. Arithmetic
+bit-string overlap visibility, buffer bus order, invalid working-register fields
+and interrupt abort/resume remain unverified; the measured ROM uses separate
+source/destination banks with canonical aligned addresses and offsets.
 
 Each frontend frame is a bounded 100,000-step scheduling quantum. The counter is
 CPU step attempts, not verified hardware cycles; 20 MHz/50 Hz metadata is nominal.

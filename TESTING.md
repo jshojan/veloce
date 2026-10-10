@@ -97,14 +97,17 @@ operand domain remain unverified. An opcode mutation, damaged files, and a
 channel enable/disable and buffer boundary probe exercise the measurement path.
 It uses direct cartridge-entry boot and contains no retail BIOS logo.
 
-The experimental [Virtual Boy core](cores/vb/README.md) runs five original
+The experimental [Virtual Boy core](cores/vb/README.md) runs six original
 register corpora through frontend plugin discovery: [integer operations](tests/roms-src/vb/integer_registers/README.md)
 (6,512,640 result/PSW pairs), [multiply/divide](tests/roms-src/vb/muldiv/README.md)
 (4,210,688 nine-word snapshots, including divide-zero entry and RETI),
 [TRAP/illegal exceptions](tests/roms-src/vb/exceptions/README.md)
 (4,685,824 thirteen-word snapshots) and [address traps](tests/roms-src/vb/address_traps/README.md)
 (4,982,784 fourteen-word snapshots), plus [CAXI/port transactions](tests/roms-src/vb/memory_ops/README.md)
-(17,055,744 nine-word snapshots). Port callbacks share the marked test
+(17,055,744 nine-word snapshots) and [arithmetic bit strings](tests/roms-src/vb/bitstrings/README.md)
+(14,680,064 fourteen-word snapshots across eight operations, byte pairs, offsets
+and boundary lengths). Bit-string overlap, interrupt abort/resume and buffer
+bus timing remain unverified. Port callbacks share the marked test
 profile's storage decoder; physical wiring/bus-lock timing remains unverified.
 Each has an independent host oracle,
 executed mutations and damaged-file rejection. The exception/address-trap

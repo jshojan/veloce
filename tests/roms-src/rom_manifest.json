@@ -184,6 +184,17 @@
       "source_type": "original",
       "suite": "address_traps"
     },
+    "vb/bitstrings/bitstrings.vb": {
+      "build_command": "python3 tests/roms-src/vb/bitstrings/build.py",
+      "console": "vb",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "1d9355e519239e5a93e8917d6219a870975273b6f9f02d828993447a3d8cc105",
+      "source_repo": "tests/roms-src/vb/bitstrings/build.py",
+      "source_sha": "47f0bdea1a390958aa7d9eebd0539bb691a4c5ccd6737bd295c34d933cde276c",
+      "source_type": "original",
+      "suite": "bitstrings"
+    },
     "vb/exceptions/exceptions.vb": {
       "build_command": "python3 tests/roms-src/vb/exceptions/build.py",
       "console": "vb",

@@ -317,6 +317,83 @@ static void transactions(vb::Machine& m) {
     require(m.restore(initial),"transaction state restore failed"); m.cpu.step(); m.cpu.step(); m.save(replay);
     require(after==replay,"transaction continuation state diverged");
 }
+static void bitstrings(vb::Machine& m) {
+    struct Bus : vb::Memory {
+        std::array<uint8_t,128> bytes{};
+        unsigned opcode=11,fetches=0,reads=0,writes=0;
+        bool read(uint32_t address,unsigned width,uint32_t& value) override {
+            if(address==start && width==2) { ++fetches; value=reg(0x1f,opcode); return true; }
+            ++reads;
+            if(width!=4 || address<start+0x100 || uint64_t(address)+width>uint64_t(start)+0x180) return false;
+            value=0; for(unsigned n=0;n<4;++n) value|=uint32_t(bytes[address-start-0x100+n])<<(8*n); return true;
+        }
+        bool write(uint32_t address,unsigned width,uint32_t value) override {
+            ++writes;
+            if(width!=4 || address<start+0x100 || uint64_t(address)+width>uint64_t(start)+0x180) return false;
+            for(unsigned n=0;n<4;++n) bytes[address-start-0x100+n]=uint8_t(value>>(8*n));
+            return true;
+        }
+        void word(unsigned offset,uint32_t value) { for(unsigned n=0;n<4;++n) bytes[offset+n]=uint8_t(value>>(8*n)); }
+    } bus;
+    vb::V810 cpu(bus);
+    const uint32_t patterns[]={0,0xffffffff,0x55555555,0x89abcdef};
+    for(unsigned op=8;op<16;++op) for(uint32_t source:patterns) for(uint32_t destination:patterns)
+        for(unsigned so=0;so<32;++so) for(unsigned d=0;d<32;++d)
+            for(unsigned length:{0u,1u,7u,8u,15u,16u,31u,32u,33u,63u,64u,65u}) for(unsigned flags:{0u,15u}) {
+                bus.bytes.fill(0xa6); bus.word(0,source); bus.word(4,~source); bus.word(8,source^0x55555555);
+                bus.word(64,destination); bus.word(68,~destination); bus.word(72,destination^0xa5a5a5a5); bus.word(76,destination^0x89abcdef);
+                auto expected=bus.bytes;
+                for(unsigned n=0;n<length;++n) {
+                    const unsigned sb=so+n,db=512+d+n;
+                    const bool s=(bus.bytes[sb/8]>>(sb%8))&1,dest=(expected[db/8]>>(db%8))&1;
+                    const bool results[]={dest||s,dest&&s,dest!=s,s,dest||!s,dest&&!s,dest==s,!s};
+                    const uint8_t mask=uint8_t(1u<<(db%8));
+                    expected[db/8]=uint8_t((expected[db/8]&~mask)|(results[op-8] ? mask:0));
+                }
+                cpu.reset(); auto& c=cpu.state; c.pc=start; c.sr[5]=0x8000|flags;
+                c.gpr[26]=d; c.gpr[27]=so; c.gpr[28]=length; c.gpr[29]=start+0x140; c.gpr[30]=start+0x100;
+                bus.opcode=op; bus.fetches=bus.reads=bus.writes=0;
+                unsigned quanta=0; do { cpu.step(); require(++quanta<=7,"bit string failed bounded progress"); } while(c.bitstring.active);
+                require(!c.unsupported && c.pc==start+2 && bus.bytes==expected && c.sr[5]==(0x8000|flags),"bit-string memory/flags wrong");
+                require(c.gpr[26]==(d+length)%32 && c.gpr[27]==(so+length)%32 && c.gpr[28]==0
+                    && c.gpr[29]==start+0x140+((d+length)/32)*4 && c.gpr[30]==start+0x100+((so+length)/32)*4,"bit-string progress registers wrong");
+                require(bus.fetches==1 && (!length ? bus.reads==0 && bus.writes==0 : true),"bit string refetched opcode or accessed zero-length operands");
+            }
+    // Preserve every writable PSW, including sticky flags and all mode fields.
+    for(unsigned op=8;op<16;++op) for(unsigned index=0;index<262144;++index) {
+        cpu.reset(); auto& c=cpu.state; c.pc=start; c.sr[5]=(index&1023)|((index&0x3fc00)<<2);
+        const auto psw=c.sr[5]; c.gpr[28]=32; c.gpr[29]=start+0x140; c.gpr[30]=start+0x100; bus.opcode=op;
+        cpu.step(); require(!c.bitstring.active && c.sr[5]==psw,"bit-string changed writable PSW");
+    }
+    cpu.reset(); cpu.state.pc=start; cpu.state.gpr[28]=0xffffffff; cpu.state.gpr[29]=start+0x140; cpu.state.gpr[30]=start+0x100;
+    bus.opcode=11; cpu.step(); require(cpu.state.bitstring.active && cpu.state.pc==start && cpu.state.gpr[28]==0xffffffdf,"long bit-string quantum blocked or retired early");
+    // Both an unflushed destination and a retained source word must survive.
+    for(unsigned so:{0u,1u}) for(unsigned d:{0u,1u}) {
+        code(m,{reg(0x1f,11)}); auto& c=m.cpu.state; c.sr[5]=0x800f;
+        for(unsigned n=0;n<3;++n) { m.write(start+0x100+n*4,4,0x89abcdef^(n*0x1234567u)); m.write(start+0x200+n*4,4,0x13579bdf); }
+        c.gpr[26]=d; c.gpr[27]=so; c.gpr[28]=65; c.gpr[29]=start+0x200; c.gpr[30]=start+0x100; m.cpu.step();
+        require(c.bitstring.active,"partial bit string retired early"); std::vector<uint8_t> pending,after,replay;
+        require(m.save(pending),"pending bit-string save failed");
+        while(c.bitstring.active) m.cpu.step();
+        m.save(after);
+        require(m.restore(pending),"pending bit-string restore failed"); while(c.bitstring.active) m.cpu.step(); m.save(replay);
+        require(after==replay,"pending bit-string buffers lost on state continuation");
+        for(unsigned mutation=0;mutation<6;++mutation) {
+            auto bad=pending;
+            if(mutation==0) bad[591]=2;
+            if(mutation==1) bad[599]=2;
+            if(mutation==2) bad[607]=2;
+            if(mutation==3) bad[615]=7;
+            if(mutation==4) bad[616]=1;
+            if(mutation==5) bad[7]='1';
+            require(!m.restore(bad),"invalid/legacy bit-string state accepted"); m.save(replay); require(after==replay,"rejected bit-string state changed machine");
+        }
+    }
+    // A diagnostic bus stop also remains serializable and non-retiring.
+    code(m,{reg(0x1f,11)}); m.cpu.state.gpr[28]=32; m.cpu.state.gpr[29]=start+0x100; m.cpu.state.gpr[30]=0x02000000;
+    m.cpu.step(); std::vector<uint8_t> stopped,replay; require(m.cpu.state.unsupported && m.save(stopped) && m.restore(stopped),"stopped bit-string state was not restorable");
+    m.cpu.step(); m.save(replay); require(stopped==replay,"stopped bit string resumed unexpectedly");
+}
 static void immediates(vb::Machine& m) {
     // Decode immediate forms through a different encoding, then compare with the
     // register operations independently graded by the original ROM.
@@ -411,7 +488,7 @@ int main(int argc,char** argv) {
         vb::Machine m; require(m.load(rom.data(),rom.size()),"original cartridge load failed");
         require(m.cpu.state.pc==0xfffffff0 && m.cpu.state.sr[5]==0x8000 && m.cpu.state.sr[4]==0xfff0,"reset state wrong");
         m.cpu.step(); m.cpu.step(); require(m.cpu.state.pc==0x07000000,"reset vector did not reach original entry");
-        control(m); muldiv(m); exceptions(); address_traps(m); transactions(m); immediates(m); memory(m); states(m,rom,argv[1]);
+        control(m); muldiv(m); exceptions(); address_traps(m); transactions(m); bitstrings(m); immediates(m); memory(m); states(m,rom,argv[1]);
         std::cout<<"VB control/memory/state/plugin checks passed\n"; return 0;
     } catch(const std::exception& e) { std::cerr<<e.what()<<'\n'; return 1; }
 }

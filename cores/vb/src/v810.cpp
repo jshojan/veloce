@@ -1,4 +1,5 @@
 #include "v810.hpp"
+#include <algorithm>
 
 namespace vb {
 uint32_t extend(uint32_t value, unsigned bits) {
@@ -35,10 +36,55 @@ void V810::exception(uint32_t pc, uint32_t restore_pc, uint16_t code, uint32_t v
         c.sr[5]=(psw|0x5000)&~0x2000u; c.pc=vector;
     }
 }
+void V810::bitstring(unsigned operation) {
+    auto& c=state; auto& bit=c.bitstring;
+    if(!c.gpr[28]) { bit={}; c.pc+=2; return; }
+    if(!bit.active) {
+        bit.active=true; bit.operation=operation;
+        c.gpr[26]&=31; c.gpr[27]&=31; c.gpr[29]&=~3u; c.gpr[30]&=~3u;
+    }
+    if(!bit.source_valid) {
+        uint32_t word=0;
+        if(!bus.read(c.gpr[30],4,word)) { c.unsupported=true; return; }
+        bit.source_word=word; bit.source_valid=true;
+    }
+    if(!bit.destination_valid) {
+        uint32_t word=0;
+        if(!bus.read(c.gpr[29],4,word)) { c.unsupported=true; return; }
+        bit.destination_word=word; bit.destination_valid=true;
+    }
+    // A scheduling quantum ends at the first source/destination word boundary.
+    // Buffer words until consumed/flushed; a frontend frame can pause here.
+    const unsigned count=std::min({c.gpr[28],32-c.gpr[26],32-c.gpr[27]});
+    const uint32_t mask=count==32 ? ~0u : (1u<<count)-1;
+    const uint32_t source=(bit.source_word>>c.gpr[27])&mask;
+    const uint32_t destination=(bit.destination_word>>c.gpr[26])&mask;
+    uint32_t value=0;
+    switch(bit.operation) {
+    case 8: value=destination|source; break;
+    case 9: value=destination&source; break;
+    case 10: value=destination^source; break;
+    case 11: value=source; break;
+    case 12: value=destination|~source; break;
+    case 13: value=destination&~source; break;
+    case 14: value=destination^~source; break;
+    case 15: value=~source; break;
+    }
+    const uint32_t output=(bit.destination_word&~(mask<<c.gpr[26]))|((value&mask)<<c.gpr[26]);
+    const bool flush=c.gpr[26]+count==32 || c.gpr[28]==count;
+    if(flush && !bus.write(c.gpr[29],4,output)) { c.unsupported=true; return; }
+    bit.destination_word=output;
+    c.gpr[26]+=count; c.gpr[27]+=count; c.gpr[28]-=count;
+    if(c.gpr[26]==32) { c.gpr[26]=0; c.gpr[29]+=4; }
+    if(c.gpr[27]==32) { c.gpr[27]=0; c.gpr[30]+=4; bit.source_valid=false; bit.source_word=0; }
+    if(flush) { bit.destination_valid=false; bit.destination_word=0; }
+    if(!c.gpr[28]) { bit={}; c.pc+=2; }
+}
 void V810::step() {
     auto& c=state;
     if (c.halted || c.unsupported) return;
     ++c.steps;
+    if(c.bitstring.active) { bitstring(c.bitstring.operation); return; }
     // ADTRE compares the architectural PC, before instruction execution. Board
     // memory aliases must not make different CPU addresses compare equal.
     if ((c.sr[5]&0x2000) && c.pc==c.sr[25]) {
@@ -186,6 +232,10 @@ void V810::step() {
             break;
         case 0x1d:
             if(r1<=5 || r1==24 || r1==25) put(r2,c.sr[r1]); else c.unsupported=true;
+            break;
+        case 0x1f:
+            if(r1>=8 && r1<=15) { c.pc=pc; bitstring(r1); }
+            else c.unsupported=true;
             break;
         default: c.unsupported=true; break;
         }
