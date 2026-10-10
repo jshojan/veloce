@@ -484,6 +484,28 @@
       "source_type": "original",
       "suite": "rsp_accumulate_edges"
     },
+    "n64/rsp_comparison_edges/rsp_comparison_edges.z64": {
+      "build_command": "python3 tests/roms-src/n64/rsp_comparison_edges/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "4a7b8083e93459482f150423f2b79ae504faa8aa593c5921ffa8fd33ba81f728",
+      "source_repo": "tests/roms-src/n64/rsp_comparison_edges/build.py",
+      "source_sha": "e41061f10fdec156b50462d2f791730cdbb1cec194d4e2ea964d68a3868e3703",
+      "source_type": "original",
+      "suite": "rsp_comparison_edges"
+    },
+    "n64/rsp_comparison_pairs/rsp_comparison_pairs.z64": {
+      "build_command": "python3 tests/roms-src/n64/rsp_comparison_pairs/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "3f2d3fef03ba820eaeccacb30c552ca5a804ac8eba74d3b63080af8cf346ae1e",
+      "source_repo": "tests/roms-src/n64/rsp_comparison_pairs/build.py",
+      "source_sha": "6dc858e3af1fa8e5b01db7a011cc71a11f1fffa944629e81a83d6cbc699902a5",
+      "source_type": "original",
+      "suite": "rsp_comparison_pairs"
+    },
     "n64/rsp_multiply_pairs/rsp_multiply_pairs.z64": {
       "build_command": "python3 tests/roms-src/n64/rsp_multiply_pairs/build.py",
       "console": "n64",

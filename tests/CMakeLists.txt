@@ -491,7 +491,7 @@ add_test(NAME n64_pi_test COMMAND n64_pi_test $<TARGET_FILE:n64_plugin>
     ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/integer_registers/integer_registers.z64
     ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/ipl3_handoff/ipl3_handoff.z64)
 set_tests_properties(n64_pi_test PROPERTIES LABELS "unit;accuracy;owned" TIMEOUT 180)
-foreach(suite pi_dma ipl3_handoff ri_registers mi_controls rdram_devices cache_coherence sp_controls sp_dma ai_fifo ai_pcm fpu_controls tlb_translation vi_registers vi_framebuffer fpu_data fpu_integer_conversions fpu_conversion_edges fpu_arithmetic_pairs fpu_arithmetic_edges rsp_scalar_alu rsp_scalar_immediates dp_registers dp_fill_rectangles rdp_combiner_commands rdp_fill_pipeline rsp_vector_loads rsp_vector_stores rsp_vector_transfers rsp_multiply_pairs rsp_accumulate_edges fpu_comparison_pairs fpu_comparison_edges)
+foreach(suite pi_dma ipl3_handoff ri_registers mi_controls rdram_devices cache_coherence sp_controls sp_dma ai_fifo ai_pcm fpu_controls tlb_translation vi_registers vi_framebuffer fpu_data fpu_integer_conversions fpu_conversion_edges fpu_arithmetic_pairs fpu_arithmetic_edges rsp_scalar_alu rsp_scalar_immediates dp_registers dp_fill_rectangles rdp_combiner_commands rdp_fill_pipeline rsp_vector_loads rsp_vector_stores rsp_vector_transfers rsp_multiply_pairs rsp_accumulate_edges rsp_comparison_pairs rsp_comparison_edges fpu_comparison_pairs fpu_comparison_edges)
     add_test(NAME n64_${suite} COMMAND ${Python3_EXECUTABLE}
         ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/${suite}/run.py --emulator $<TARGET_FILE:veloce>
         --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_${suite})
@@ -669,3 +669,10 @@ target_include_directories(n64_rdp_fill_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n
 add_test(NAME n64_rdp_fill_test COMMAND n64_rdp_fill_test
     ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/dp_registers/dp_registers.z64)
 set_tests_properties(n64_rdp_fill_test PROPERTIES LABELS "unit;accuracy;owned" TIMEOUT 180)
+
+add_executable(n64_rsp_compare_test cpp/n64_rsp_compare_test.cpp
+    ${CMAKE_SOURCE_DIR}/cores/n64/src/machine.cpp ${CMAKE_SOURCE_DIR}/cores/n64/src/vr4300.cpp)
+target_include_directories(n64_rsp_compare_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src ${CMAKE_SOURCE_DIR}/include)
+add_test(NAME n64_rsp_compare_test COMMAND n64_rsp_compare_test
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/rsp_comparison_pairs/rsp_comparison_pairs.z64)
+set_tests_properties(n64_rsp_compare_test PROPERTIES LABELS "unit;accuracy;owned" TIMEOUT 180)
