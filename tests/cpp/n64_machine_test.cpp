@@ -110,6 +110,42 @@ static void memory(n64::Machine& m) {
     require(!m.read(0x80002000, 4, value), "noncanonical address accepted");
     require(!m.read(0xffffffff80000000ull + m.ram_size, 4, value), "RAM overrun accepted");
 }
+static void multiply_divide(n64::Machine& m) {
+    constexpr uint64_t max = 0xffffffffffffffffull, min = 0x8000000000000000ull;
+    struct Reference { unsigned fn; uint64_t a, b, lo, hi; };
+    const Reference cases[] = {
+        {0x1c, max, max, 1, 0}, {0x1d, max, max, 1, max - 1},
+        {0x1c, min, 2, 0, max}, {0x1c, min, max, min, 0},
+        {0x1d, 0x100000000ull, 0x100000000ull, 0, 1},
+        {0x1d, max, 2, max - 1, 1},
+        {0x1e, min, 3, 0xd555555555555556ull, max - 1},
+        {0x1e, max - 6, 3, max - 1, max},
+        {0x1e, 7, max - 2, max - 1, 1},
+        {0x1f, max, 2, 0x7fffffffffffffffull, 1},
+        // Deterministic undefined-input conventions; not hardware accuracy scores.
+        {0x1e, min, max, min, 0}, {0x1e, min, 0, 1, min},
+        {0x1e, 7, 0, max, 7}, {0x1f, max, 0, max, max},
+    };
+    for (const auto& test : cases) {
+        program(m, {r(test.fn, 1, 2), r(0x12, 0, 0, 3), r(0x10, 0, 0, 4)});
+        m.cpu.state.gpr[1] = test.a; m.cpu.state.gpr[2] = test.b;
+        m.cpu.state.hi = 0x1234; m.cpu.state.lo = 0x5678;
+        for (unsigned n = 0; n < 3; ++n) m.cpu.step();
+        require(m.cpu.state.gpr[3] == test.lo && m.cpu.state.gpr[4] == test.hi,
+                "doubleword multiply/divide reference failed");
+        require(!(m.cpu.state.cp0[12] & 2), "doubleword multiply/divide raised exception");
+    }
+    program(m, {r(0x1d, 1, 2), r(0x1f, 1, 2)});
+    m.cpu.state.gpr[1] = max; m.cpu.state.gpr[2] = max;
+    m.cpu.step();
+    std::vector<uint8_t> saved, baseline, repeated;
+    require(m.save(saved), "wide product state save failed");
+    m.cpu.step(); m.save(baseline);
+    require(m.restore(saved) && m.cpu.state.hi == max - 1 && m.cpu.state.lo == 1,
+            "128-bit product state lost high bits");
+    m.cpu.step(); m.save(repeated);
+    require(repeated == baseline, "wide product state continuation diverged");
+}
 static void states(n64::Machine& m, const std::vector<uint8_t>& rom, const char* library) {
     program(m, {i(4, 0, 0, 3), i(9, 0, 3, 7)});
     m.cpu.step();
@@ -162,7 +198,7 @@ int main(int argc, char** argv) {
         std::vector<uint8_t> rom((std::istreambuf_iterator<char>(file)), {});
         n64::Machine machine;
         require(machine.load(rom.data(), rom.size()), "original N64 ROM load failed");
-        control(machine); exceptions(machine); memory(machine); states(machine, rom, argv[1]);
+        control(machine); exceptions(machine); memory(machine); multiply_divide(machine); states(machine, rom, argv[1]);
         std::cout << "N64 control/exception/memory/state/plugin checks passed\n";
         return 0;
     } catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }

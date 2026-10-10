@@ -71,6 +71,14 @@ control flow/delay slots, basic exceptions, memory and plugin state continuation
 N64 retail boot, graphics/audio/controllers, peripherals and timing remain
 unimplemented or unverified. Its trailer cycle counter measures instruction
 steps, and frames are scheduling quanta, not VI fields.
+The [N64 doubleword multiply/divide corpus](tests/roms-src/n64/muldiv64/README.md)
+adds 263,168 LO/HI observations for DMULT/DMULTU/DDIV/DDIVU. Its independent
+128-bit integer oracle matches all 262,623 defined results. Every signed or
+unsigned byte pair is exercised as 64-bit input, along with 16×16 full-width
+boundary cases; 545 undefined divide inputs are unscored. Wrong executed
+signed/unsigned instructions and seven damaged-file controls are rejected.
+All three archive byte orders execute through the real frontend. Full 64-bit
+operand enumeration, timing/hazards and physical hardware remain unverified.
 The [GBA ARM shift corpus](tests/roms-src/gba/arm_shifts/README.md) records
 65,536 result/CPSR pairs over the `mgba` channel: four shifts, every low-byte
 amount, all C/V inputs, and 16 operand patterns. Timing and the full source

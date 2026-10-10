@@ -55,6 +55,17 @@
       "source_type": "original",
       "suite": "integer_registers"
     },
+    "n64/muldiv64/muldiv64.z64": {
+      "build_command": "python3 tests/roms-src/n64/muldiv64/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "137c3523e96f543cb64bdd1dd467b1efbdd452888f442f093dd3b40fb3756a7f",
+      "source_repo": "tests/roms-src/n64/muldiv64/build.py",
+      "source_sha": "72a036ffcf2dd7febcd72f7a5627b2ab8d7613fc4d3cf4d763f5d8fd99f047c4",
+      "source_type": "original",
+      "suite": "muldiv64"
+    },
     "nes/alu_exhaustive/alu_exhaustive.nes": {
       "build_command": "python3 tests/roms-src/nes/alu_exhaustive/build.py",
       "console": "nes",

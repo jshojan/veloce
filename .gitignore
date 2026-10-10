@@ -81,6 +81,7 @@ artifacts/
 !tests/roms-src/gb/alu_exhaustive/alu_exhaustive.gb
 !tests/roms-src/gb/unary_exhaustive/unary_exhaustive.gb
 !tests/roms-src/n64/integer_registers/integer_registers.z64
+!tests/roms-src/n64/muldiv64/muldiv64.z64
 !tests/roms-src/nes/alu_exhaustive/alu_exhaustive.nes
 !tests/roms-src/nes/netplay_probe/netplay_probe.nes
 !tests/roms-src/snes/math_registers/math_registers.sfc

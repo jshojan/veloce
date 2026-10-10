@@ -9,6 +9,15 @@ uint64_t arithmetic_right(uint64_t v, unsigned n) {
     return (v >> n) | ((v >> 63) ? (~uint64_t(0) << (64 - n)) : 0);
 }
 static bool signed_less(uint64_t a, uint64_t b) { return (a ^ (1ull << 63)) < (b ^ (1ull << 63)); }
+static void multiply_doubleword(uint64_t a, uint64_t b, uint64_t& lo, uint64_t& hi) {
+    // Four 32-bit products, with carries collected before composing each half.
+    // This needs neither a host signed multiply nor a compiler-specific 128-bit type.
+    const uint64_t a0 = uint32_t(a), a1 = a >> 32, b0 = uint32_t(b), b1 = b >> 32;
+    const uint64_t p00 = a0 * b0, p01 = a0 * b1, p10 = a1 * b0, p11 = a1 * b1;
+    const uint64_t middle = (p00 >> 32) + uint32_t(p01) + uint32_t(p10);
+    lo = (middle << 32) | uint32_t(p00);
+    hi = p11 + (p01 >> 32) + (p10 >> 32) + (middle >> 32);
+}
 void VR4300::reset(uint64_t entry) {
     state = {};
     state.pc = entry;
@@ -116,6 +125,33 @@ void VR4300::step() {
         case 0x1b:
             s.lo = sign32(uint32_t(b) ? uint32_t(a) / uint32_t(b) : 0xffffffffu);
             s.hi = sign32(uint32_t(b) ? uint32_t(a) % uint32_t(b) : uint32_t(a)); break;
+        case 0x1c: case 0x1d:
+            multiply_doubleword(a, b, s.lo, s.hi);
+            if (fn == 0x1c) {
+                // Signed 128-bit product from unsigned limbs. The corrections
+                // affect only the high half; unsigned subtraction wraps safely.
+                if (a >> 63) s.hi -= b;
+                if (b >> 63) s.hi -= a;
+            }
+            break;
+        case 0x1e: {
+            const bool negative_a = a >> 63, negative_b = b >> 63;
+            const uint64_t x = negative_a ? 0ull - a : a;
+            const uint64_t y = negative_b ? 0ull - b : b;
+            if (y) {
+                const uint64_t quotient = x / y, remainder = x % y;
+                s.lo = negative_a != negative_b ? 0ull - quotient : quotient;
+                s.hi = negative_a ? 0ull - remainder : remainder;
+            } else {
+                // Deterministic convention for architecturally undefined /0.
+                s.lo = negative_a ? 1 : ~uint64_t(0); s.hi = a;
+            }
+            break;
+        }
+        case 0x1f:
+            s.lo = b ? a / b : ~uint64_t(0);
+            s.hi = b ? a % b : a;
+            break;
         case 0x20: add(rd, a, b, false, false, true); break;
         case 0x21: add(rd, a, b, false, false, false); break;
         case 0x22: add(rd, a, b, false, true, true); break;

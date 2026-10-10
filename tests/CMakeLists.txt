@@ -29,6 +29,10 @@ add_test(NAME n64_integer_registers COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/integer_registers/run.py --emulator $<TARGET_FILE:veloce>
     --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_integer)
 set_tests_properties(n64_integer_registers PROPERTIES LABELS "accuracy;owned" TIMEOUT 150)
+add_test(NAME n64_muldiv64 COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/muldiv64/run.py --emulator $<TARGET_FILE:veloce>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_muldiv64)
+set_tests_properties(n64_muldiv64 PROPERTIES LABELS "accuracy;owned" TIMEOUT 800)
 
 add_executable(snes_math_pipeline_test cpp/snes_math_pipeline_test.cpp
     ${CMAKE_SOURCE_DIR}/cores/snes/src/bus.cpp ${CMAKE_SOURCE_DIR}/cores/snes/src/cpu.cpp

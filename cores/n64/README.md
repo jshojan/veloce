@@ -12,7 +12,7 @@ on selected operands, not a percentage of N64 hardware implemented.
 - Word and doubleword add/subtract, trapping and nontrapping forms; logic,
   signed/unsigned comparisons, immediate arithmetic and logic.
 - Word and doubleword shifts, immediate/variable forms (including +32 forms).
-- Word signed/unsigned multiplication/division, MFHI/MFLO/MTHI/MTLO.
+- Word and doubleword signed/unsigned multiplication/division, MFHI/MFLO/MTHI/MTLO.
 - J/JAL/JR/JALR, BEQ/BNE/BLEZ/BGTZ, REGIMM sign branches and link forms,
   plus likely variants with an annulled untaken delay slot.
 - Aligned byte/halfword/word/doubleword loads/stores, sign/zero extension.
@@ -59,10 +59,20 @@ are retained but unscored. All low-byte shift amounts are exercised on 16
 patterns per word width, and arithmetic/HI/LO operations use 16×16 patterns.
 This is not exhaustive over all 32-bit/64-bit values or the full ISA.
 
+The original [doubleword multiply/divide ROM](../../tests/roms-src/n64/muldiv64/README.md)
+adds **262,623/262,623 defined LO/HI pairs** for DMULT/DMULTU/DDIV/DDIVU,
+with 263,168 total observations and 545 undefined inputs unscored. It executes
+every signed/unsigned byte pair as 64-bit inputs, plus 16×16 full-width
+boundaries. Products use portable 32-bit limbs in the core and independent
+Python 128-bit arithmetic in the oracle. Signed division uses unsigned
+magnitudes so min/-1 and divisor zero cannot invoke undefined host arithmetic.
+The full 64-bit operand domain and multiply/divide stalls/hazards remain pending.
+
 `n64_machine_test` checks taken/untaken/likely branch paths, delay execution,
 JAL/JALR link/alias cases, $zero, word/doubleword overflow and EPC/BD, nested
 exceptions, ERET, SYSCALL/BREAK/RI, alignment faults, big-endian load/store
-extension, aliases, ROM protection, pending-delay state restore, and actual
+extension, aliases, ROM protection, doubleword multiply/divide references and
+full-width HI/LO state continuation, pending-delay state restore, and actual
 shared-plugin state continuation equality. It also checks all three image byte
 orders, invalid state/load rejection, and unload. The ROM runner separately
 executes all three archive formats through actual frontend discovery.
@@ -85,7 +95,7 @@ not an emulated VI field. The nominal metadata rate is NTSC/93.75 MHz only.
 ## Remaining hardware and modern features
 
 PIF/IPL/CIC and retail boot, TLB/address modes, caches and pipeline timing,
-full CP0/interrupts, unaligned merge loads/stores, LL/SC, traps, DMULT/DDIV,
+full CP0/interrupts, unaligned merge loads/stores, LL/SC, traps,
 FPU, RSP/vector instructions, RDP, VI, AI, PI/SI/MI/RI and DMA, controllers,
 save media, video/audio output, expansion devices and physical hardware
 validation remain. Unimplemented opcodes raise a reserved-instruction exception.
