@@ -1,6 +1,6 @@
 # Experimental Nintendo 64 core plugin
 
-Current N64 evidence: [RDP tile state and current Mario evidence](#rdp-tile-and-texture-image-state). Earlier increment reports are historical.
+Current N64 evidence: [RDP texture transfers and current Mario evidence](#rdp-texture-memory-transfers). Earlier increment reports are historical.
 
 <!-- completion:start -->
 ## Completion percentage
@@ -13,7 +13,7 @@ These percentages count the 20 explicit delivery milestones in [the completion l
 
 Nintendo 64 delivered milestones: Guest sound produces audio samples, Native digital controller/keypad registers consume frontend input, Guest graphics produce rendered video, Parse a native cartridge/executable format (boot scored separately), Repository-owned ROM source and reproducible archived image, Separate core plugin and ABI entry points, Actual guest register-file output independently graded on the host, with negative controls, Complete states for the implemented profile and deterministic replay.
 
-Remaining: Super Mario 64 passes SET_Z_IMAGE and real color/depth-buffer clears, then reaches the 200-million-attempt trace bound without a terminal CPU fault. RSP reciprocal/square-root/move now pass; the longer probe reports no unsupported RSP instruction and a real BREAK. RDP tile/image state now passes; LOAD_BLOCK remains blocked; video stays uniform. Native boot/playability, full CPU/CP0/devices, FPU physical timing, rare RSP operations and pipeline/interlock timing, complete RDP/audio, hidden coverage/depth bits, analog and netplay remain.
+Remaining: Super Mario 64 passes SET_Z_IMAGE and real color/depth-buffer clears, then reaches the 200-million-attempt trace bound without a terminal CPU fault. RSP reciprocal/square-root/move now pass; the longer probe reports no unsupported RSP instruction and a real BREAK. RDP TMEM block/tile/palette transfers now pass; shaded/textured/depth-tested triangles remain blocked; video stays uniform. Native boot/playability, full CPU/CP0/devices, FPU physical timing, rare RSP operations and pipeline/interlock timing, complete RDP/audio, hidden coverage/depth bits, analog and netplay remain.
 <!-- completion:end -->
 
 `n64_plugin` builds `n64.so`/`n64.dll`/`n64.dylib` and implements emulator ABI v2.
@@ -1501,3 +1501,72 @@ mutations and seven malformed streams. The divider regression also passes in
 texture component passes undefined-behavior sanitization without compiler warnings.
 Both private retail reports match current executable hashes. Completion synchronization,
 new evidence links and whitespace checks pass.
+
+## RDP texture-memory transfers
+
+The RDP now executes **LOAD_BLOCK (0x33), LOAD_TILE (0x34) and LOAD_TLUT (0x30)**
+into real **4 KiB TMEM**, stored as canonical big-endian bytes. Block transfers
+use integer S/T and 1.11 DxT; tile/palette commands use raw 10.2 coordinates.
+Loads update the selected tile's bounds while retaining descriptors and neighbors.
+Full eight-byte groups include padding beyond a partial final span. DxT controls
+odd-row longword swapping and line strides. TMEM addresses wrap; RGBA32 and YUV
+split data between banks. Sixteen-bit palette entries replicate across banks.
+Other source/tile-size combinations use the functional bank layout. Source reads
+use the 24-bit RDP memory interface and zero for absent backing. These rules are
+implemented with integer addressing, with no host floating point.
+
+Field and transfer descriptions come from the [SGI RDP Command Summary](https://hcs64.com/files/RDP_COMMANDS.pdf).
+Bank/partial-transfer rules were checked against the reference author's
+[texture loads](https://github.com/ata4/angrylion-rdp-plus/blob/master/src/core/n64video/rdp/tex.c),
+[TMEM indexing](https://github.com/ata4/angrylion-rdp-plus/blob/master/src/core/n64video/rdp/tmem.c)
+and memory-interface source. This is source review, **not a differential run or
+physical-console verification**. The independent test uses inverse bank-address
+algebra and byte scatter, plus literal observations for normal/odd rows, RGBA32
+halves and palette replication. No third-party implementation is vendored.
+
+The component grades **665,884 byte cases**: every TMEM word, all source alignments,
+source sizes 8/16/32, all encoded descriptor formats/sizes, all 4,096 DxT values,
+counts 1..4,095, coordinate encodings, neighboring stride/base partners,
+65,536 halfword-value patterns, and fractional/multirow tile and palette profiles.
+These are explicit sweeps and partner products, **not every Cartesian product**
+or all source addresses. The entire 4 KiB result is compared, including untouched
+bytes. Load progression from RDRAM/XBUS, DMEM command wrapping, END extension,
+nominal transfer-group counters, real FullSync IRQ and no RAM writes are checked.
+Four-bit source images and multirow palette loads are blocked before writes with
+reason 3. Physical crash side effects and timing remain ungraded; this atomic
+blocking is a diagnostic convention. Byte sampling, palette lookup, filtering,
+coordinate processing for draws, triangles, blending/depth and VI filtering remain
+pending. TMEM presence does not establish rendered texture correctness.
+
+The [original transfer-command ROM](../../tests/roms-src/n64/rdp_tmem_commands/README.md)
+passes **393,216 cases / 2,752,512 actual 64-bit register/RAM captures** in
+**33.63 seconds**, with zero mismatches and all 48 executed capture mutants,
+seven field mutations and seven malformed streams rejected. It checks consumption,
+FullSync IRQ and an untouched RAM guard for all three loads, through both sources.
+**Internal TMEM bytes have no CPU readback in this ROM** and are verified separately
+by the component. Counts are four texels/entries with zero origins; its geometry
+is deliberately stated rather than described as the full hardware corpus.
+
+Plugin **0.26.0**, ABI v2, saves **VN64S022**. The appended **4,096 raw bytes**
+store all TMEM contents; all byte values are legal. S021 and previously accepted
+older states restore zero TMEM and preserve preceding fields. Pending frozen loads
+replay exactly; S021 conversion preserves descriptors, bounds, image and a pending
+zero-high divider with nonzero output. Invalid state lengths reject atomically.
+Reset clears TMEM. Existing EOF-relative state/capture checks move 4,096 bytes,
+including the AI test's symbolic offset. TMEM_BUSY counts settled transfer groups
+in this profile; it is not a measurement of physical pipeline clocks.
+
+The private Mario probe passes **LOAD_BLOCK**. At **2,000 scheduling quanta /
+200,000,000 CPU attempts**, it next blocks on **shaded/textured/depth-tested
+triangle opcode 0x0F**, word **CF000FFA0FFAF006**, CURRENT **227160**, reason 1,
+END **227C30**. TMEM's nominal counter is **0x100 groups**. There are **620
+nonterminal exception entries**, no terminal fault, **3,497,074 RSP instructions**,
+no unsupported RSP at this bound and a real BREAK (SP PC **0x144**, status **0x243**).
+Video remains uniform. **93,571 audio sample pairs** do not prove game sound.
+Quanta are not game frames. **Native boot/playability remain unverified.** Commercial
+bytes remain local. Reports: `build/artifacts/retail/n64-tmem.json` and default
+`build/artifacts/retail/n64.json`.
+
+N64 remains **40% = 8/20 fixed delivery milestones**. Full graphics and the full
+Nintendo-platform goal remain unfinished. Front-page and core README percentages
+stay synchronized. CI/CD remains disabled. Full regression verification is pending.

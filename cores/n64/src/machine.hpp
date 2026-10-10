@@ -55,6 +55,7 @@ public:
     static constexpr size_t depth_image_state_size=8;
     static constexpr size_t divider_state_size=8;
     static constexpr size_t texture_state_size=136;
+    static constexpr size_t tmem_state_size=4096;
     uint64_t rsp_phase=0;
     static constexpr size_t rsp_state_size=304;
     AudioInterface audio_interface;
