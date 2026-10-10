@@ -157,13 +157,14 @@
       "delivered": [
         "audio",
         "digital",
+        "graphics",
         "native_media",
         "original_rom",
         "plugin",
         "register_oracle",
         "states"
       ],
-      "remaining": "Super Mario 64 reaches 5,897,464 startup attempts, then faults reading VI Current; native boot/playability, RAM remapping/calibration, remaining CPU/FPU/devices, RSP/RDP/VI, RSP audio microcode, physical AI timing, analog and netplay remain."
+      "remaining": "Super Mario 64 reaches 6,212,303 startup attempts, then encounters unsupported LDC1; native boot/playability, remaining CPU/FPU/devices, RSP/RDP, VI filters and physical timing, RSP audio microcode, analog and netplay remain."
     },
     {
       "id": "vb",

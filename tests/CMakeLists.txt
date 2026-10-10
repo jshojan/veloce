@@ -491,7 +491,7 @@ add_test(NAME n64_pi_test COMMAND n64_pi_test $<TARGET_FILE:n64_plugin>
     ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/integer_registers/integer_registers.z64
     ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/ipl3_handoff/ipl3_handoff.z64)
 set_tests_properties(n64_pi_test PROPERTIES LABELS "unit;accuracy;owned" TIMEOUT 180)
-foreach(suite pi_dma ipl3_handoff ri_registers mi_controls rdram_devices cache_coherence sp_controls sp_dma ai_fifo ai_pcm fpu_controls tlb_translation)
+foreach(suite pi_dma ipl3_handoff ri_registers mi_controls rdram_devices cache_coherence sp_controls sp_dma ai_fifo ai_pcm fpu_controls tlb_translation vi_registers vi_framebuffer)
     add_test(NAME n64_${suite} COMMAND ${Python3_EXECUTABLE}
         ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/${suite}/run.py --emulator $<TARGET_FILE:veloce>
         --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_${suite})
@@ -580,3 +580,22 @@ target_include_directories(n64_tlb_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/sr
 add_test(NAME n64_tlb_test COMMAND n64_tlb_test
     ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/tlb_translation/tlb_translation.z64)
 set_tests_properties(n64_tlb_test PROPERTIES LABELS "unit;accuracy;owned" TIMEOUT 240)
+
+add_executable(n64_video_capture cpp/n64_video_capture.cpp)
+target_include_directories(n64_video_capture PRIVATE ${CMAKE_SOURCE_DIR}/include ${SDL2_INCLUDE_DIRS})
+target_link_libraries(n64_video_capture PRIVATE ${SDL2_LIBRARIES})
+target_compile_definitions(n64_video_capture PRIVATE SDL_MAIN_HANDLED)
+add_dependencies(n64_video_capture n64_plugin)
+add_test(NAME n64_vi_video COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/vi_framebuffer/video.py --capture $<TARGET_FILE:n64_video_capture>
+    --core $<TARGET_FILE:n64_plugin> --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_vi_video)
+set_tests_properties(n64_vi_video PROPERTIES LABELS "accuracy;owned" TIMEOUT 300)
+add_executable(n64_vi_test cpp/n64_vi_test.cpp
+    ${CMAKE_SOURCE_DIR}/cores/n64/src/machine.cpp ${CMAKE_SOURCE_DIR}/cores/n64/src/vr4300.cpp)
+target_include_directories(n64_vi_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src ${CMAKE_SOURCE_DIR}/include ${SDL2_INCLUDE_DIRS})
+target_link_libraries(n64_vi_test PRIVATE ${SDL2_LIBRARIES})
+target_compile_definitions(n64_vi_test PRIVATE SDL_MAIN_HANDLED)
+add_dependencies(n64_vi_test n64_plugin)
+add_test(NAME n64_vi_test COMMAND n64_vi_test $<TARGET_FILE:n64_plugin>
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/vi_framebuffer/vi_framebuffer.z64)
+set_tests_properties(n64_vi_test PROPERTIES LABELS "unit;accuracy;owned" TIMEOUT 240)

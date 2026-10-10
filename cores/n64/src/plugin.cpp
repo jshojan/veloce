@@ -6,7 +6,7 @@ class Plugin : public emu::IEmulatorPlugin {
 public:
     emu::EmulatorInfo get_info() override {
         static const char* extensions[] = {".z64", ".v64", ".n64", nullptr};
-        return {"N64", "0.10.0", "Veloce", "Experimental integer core with TLB translation, FPU controls/branches, primary caches, settled PI/SI/SP, SP controls and RI/MI/RDRAM device controls and CIC-6102 IPL3 handoff; retail boot/playability, graphics, RSP audio microcode, exact timing and analog input pending; functional AI PCM output.",
+        return {"N64", "0.11.0", "Veloce", "Experimental integer core with TLB translation, FPU controls/branches, primary caches, settled PI/SI/SP, SP controls and RI/MI/RDRAM device controls and CIC-6102 IPL3 handoff; retail boot/playability, RSP/RDP graphics, RSP audio microcode, exact timing and analog input pending; functional AI PCM and unfiltered VI framebuffer output.",
                 extensions, 60.0, 93750000, 320, 240};
     }
     const emu::ControllerLayoutInfo* get_controller_layout() override {
@@ -45,7 +45,7 @@ public:
     }
     uint64_t get_cycle_count() const override { return machine.cpu.state.instructions; }
     uint64_t get_frame_count() const override { return machine.frames; }
-    emu::FrameBuffer get_framebuffer() override { return {pixels.data(), 320, 240}; }
+    emu::FrameBuffer get_framebuffer() override {int width=0,height=0;machine.video_interface.render(machine.ram,pixels,width,height);return {pixels.data(),width,height};}
     emu::AudioBuffer get_audio() override {
         audio.resize(size_t(machine.audio_count)*2);
         for(size_t n=0;n<audio.size();++n) {const uint16_t raw=machine.audio_samples[(machine.audio_head*2+n)%(Machine::audio_capacity*2)];const int value=raw<32768?int(raw):int(raw)-65536;audio[n]=float(value)/32768.0f;}
@@ -61,7 +61,7 @@ public:
 private:
     Machine machine;
     std::vector<float> audio;
-    std::array<uint32_t, 320 * 240> pixels{}; // No video emulation yet.
+    std::vector<uint32_t> pixels;
 };
 }
 extern "C" {

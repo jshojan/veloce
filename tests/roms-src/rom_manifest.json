@@ -385,6 +385,28 @@
       "source_type": "original",
       "suite": "tlb_translation"
     },
+    "n64/vi_framebuffer/vi_framebuffer.z64": {
+      "build_command": "python3 tests/roms-src/n64/vi_framebuffer/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "1929f6b9bf5f850571582cb3ec169702180ca2be57a95f612821fe28a6715edb",
+      "source_repo": "tests/roms-src/n64/vi_framebuffer/build.py",
+      "source_sha": "059c6bffb99c258d964d8c1af39e21f30e1e7ba1fce00454028f480b97dbc2cd",
+      "source_type": "original",
+      "suite": "vi_framebuffer"
+    },
+    "n64/vi_registers/vi_registers.z64": {
+      "build_command": "python3 tests/roms-src/n64/vi_registers/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "1cfa78d5581e4dc130ac2b7c1667b6e658ff0bea9ee4ca0aa3f3d1133cd22a10",
+      "source_repo": "tests/roms-src/n64/vi_registers/build.py",
+      "source_sha": "6acf90e72ea698e8c2b91832999638984f2fac6c85ef2413a029c52b6166975f",
+      "source_type": "original",
+      "suite": "vi_registers"
+    },
     "nds/integer_registers/integer_registers.nds": {
       "build_command": "python3 tests/roms-src/nds/integer_registers/build.py",
       "console": "nds",
