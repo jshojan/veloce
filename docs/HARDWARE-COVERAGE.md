@@ -1,6 +1,6 @@
 # Nintendo implementation and hardware test coverage
 
-Current N64 evidence: [RDP texture transfers and current Mario evidence](#rdp-texture-memory-transfers). Earlier increment reports are historical.
+Current N64 evidence: [RDP texture transfers and current Mario evidence](#rdp-texture-memory-transfers) and [scalar combiner arithmetic](#rdp-scalar-combiner-arithmetic). Earlier increment reports are historical.
 
 The goal includes Nintendo core plugins, repository-owned ROMs covering the
 hardware, machine-readable register observations, netplay, seamless controllers,
@@ -1775,7 +1775,11 @@ bytes remain local. Reports: `build/artifacts/retail/n64-tmem.json` and default
 
 N64 remains **40% = 8/20 fixed delivery milestones**. Full graphics and the full
 Nintendo-platform goal remain unfinished. Front-page and core README percentages
-stay synchronized. CI/CD remains disabled. Full regression verification is pending.
+stay synchronized. CI/CD remains disabled. **72 distinct N64 gates pass**: the 70 existing regressions passed in
+**2,149.11 seconds**, and both TMEM gates passed after the reference-driven
+corrections. The full build and undefined-behavior sanitizer pass; all 93
+original archives reproduce. This verifies the stated implemented profiles,
+not the full native hardware or playable retail games.
 
 ## RDP scalar combiner arithmetic
 
@@ -1795,3 +1799,8 @@ The original command ROM grades command progression, not this arithmetic.
 Physical-console validation and hardware timing remain unverified. Native Mario
 boot/playability remain unverified. ABI v2/plugin 0.26.0 and S022 are unchanged;
 N64 remains **40% = 8/20 fixed delivery milestones**. CI/CD remains disabled.
+
+**73 distinct N64 gates pass cumulatively**: the 72 verified S022/TMEM gates
+plus the scalar arithmetic gate. The production N64 plugin built from this
+branch is byte-identical to the TMEM build, confirming no change to existing
+guest execution or state layout. This kernel is not yet wired to guest draws.
