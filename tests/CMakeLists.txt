@@ -110,7 +110,7 @@ add_executable(netplay_plugin_peer cpp/netplay_plugin_peer.cpp)
 target_include_directories(netplay_plugin_peer PRIVATE ${CMAKE_SOURCE_DIR}/include ${SDL2_INCLUDE_DIRS})
 target_link_libraries(netplay_plugin_peer PRIVATE ${SDL2_LIBRARIES})
 target_compile_definitions(netplay_plugin_peer PRIVATE SDL_MAIN_HANDLED)
-add_dependencies(netplay_plugin_peer nes_plugin netplay_default)
+add_dependencies(netplay_plugin_peer nes_plugin nds_plugin netplay_default)
 add_test(NAME netplay_plugin_test COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/netplay_network_test.py $<TARGET_FILE:netplay_plugin_peer>
     $<TARGET_FILE:nes_plugin> ${CMAKE_SOURCE_DIR}/tests/roms-src/nes/netplay_probe/netplay_probe.nes
@@ -320,3 +320,9 @@ add_test(NAME nds_keypad COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/roms-src/nds/keypad/run.py --emulator $<TARGET_FILE:veloce>
     --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/nds_keypad)
 set_tests_properties(nds_keypad PROPERTIES LABELS "accuracy;owned" TIMEOUT 240)
+
+add_test(NAME nds_netplay_plugin_test COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/netplay_network_test.py $<TARGET_FILE:netplay_plugin_peer>
+    $<TARGET_FILE:nds_plugin> ${CMAKE_SOURCE_DIR}/tests/roms-src/nds/netplay_probe/netplay_probe.nds
+    ${CMAKE_BINARY_DIR}/artifacts/netplay-nds --netplay-plugin $<TARGET_FILE:netplay_default> --console nds)
+set_tests_properties(nds_netplay_plugin_test PROPERTIES LABELS "integration;netplay;owned" TIMEOUT 90)

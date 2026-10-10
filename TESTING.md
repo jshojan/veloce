@@ -453,3 +453,15 @@ mirrored as JSON by `scorecard_to_dict()`.
 - Per-console testing notes: [NES](cores/nes/README.md#testing),
   [SNES](cores/snes/README.md#testing), [Game Boy](cores/gb/README.md#testing),
   [GBA](cores/gba/README.md#test-status).
+
+`nds_netplay_plugin_test` uses the same production-plugin harness with an original
+[DS polling probe](tests/roms-src/nds/netplay_probe/README.md). The host owns one
+DS keypad; the joining peer is a viewer. Both 100-frame full states match a
+baseline after fresh-core preparation, and eight guest RAM words match an
+independent load-frame/loop-position arithmetic oracle. Viewer rollback,
+controller ownership, mismatch rejection and lifecycle pause/disconnect pass.
+Single-controller component cases reject nonzero viewer confirmations and ignore
+viewer local input; DS fast-state bounds/invalid buffers and ordinary state
+identity are checked. Artifacts remain in `build/artifacts/netplay-nds/`.
+No DS audio is produced or verified. DS wireless multiplayer, physical two-machine
+use, rendered GUI and Internet/cross-platform behavior remain pending.

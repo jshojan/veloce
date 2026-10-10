@@ -7,10 +7,10 @@ RollbackSession::RollbackSession(INetplayCapable& core, int local_player, size_t
                                  uint64_t first_frame)
     : m_core(core), m_local_player(local_player), m_window(window),
       m_first_frame(first_frame), m_next_frame(first_frame) {
-    if (!core.is_deterministic() || core.get_max_players() < 2 ||
+    if (!core.is_deterministic() || core.get_max_players() < 1 ||
         local_player < 0 || local_player > 1 || window == 0 ||
         window > NETPLAY_MAX_ROLLBACK_FRAMES || core.get_max_state_size() == 0)
-        throw std::invalid_argument("rollback needs deterministic two-player state and a valid window");
+        throw std::invalid_argument("rollback needs deterministic controller state and a valid window");
     m_frames.resize(window + 1);
     for (auto& frame : m_frames) frame.state.resize(core.get_max_state_size());
 }
@@ -35,6 +35,7 @@ void RollbackSession::execute(const Frame& frame) {
 }
 
 RollbackSession::Result RollbackSession::advance(uint32_t local_input) {
+    if (m_core.get_max_players()==1 && m_local_player==1) local_input=0;
     if (m_next_frame == std::numeric_limits<uint64_t>::max()) m_failed = true;
     if (m_failed) return Result::Failed;
     // Never execute more than window speculative frames past an unconfirmed
@@ -64,6 +65,7 @@ RollbackSession::Result RollbackSession::advance(uint32_t local_input) {
 
 RollbackSession::Result RollbackSession::submit_remote(uint64_t id, uint32_t buttons) {
     if (m_failed) return Result::Failed;
+    if (m_core.get_max_players()==1 && m_local_player==0 && buttons) return Result::Conflict;
     if (id >= m_next_frame) {
         if (id - m_next_frame > m_window) return Result::TooFarAhead;
         auto [entry, inserted] = m_pending.emplace(id, buttons);

@@ -18,8 +18,8 @@ uint64_t hash_bytes(const uint8_t* data, size_t size) {
 class DefaultNetplayPlugin final : public emu::INetplayPlugin {
 public:
     emu::NetplayPluginInfo get_info() override {
-        return {"Default Netplay", "2.0.0", "Veloce Team",
-                "Direct IPv4 TCP multiplayer with bounded rollback", emu::NetplayCapabilities::Rollback, 2, 0};
+        return {"Default Netplay", "2.1.0", "Veloce Team",
+                "Direct IPv4 TCP multiplayer with bounded rollback", emu::NetplayCapabilities::Rollback | emu::NetplayCapabilities::Spectators, 2, 0};
     }
     bool initialize(emu::INetplayHost* host) override { m_host = host; return host != nullptr; }
     ~DefaultNetplayPlugin() override { shutdown(); }
@@ -31,12 +31,20 @@ public:
     bool join_session(const char* address, uint16_t port, const char* name) override {
         return start(false, address ? address : "", port, name);
     }
+    bool join_as_spectator(const char* address,uint16_t port,const char* name) override {
+        if(!m_host || !m_host->get_netplay_core() || m_host->get_netplay_core()->get_max_players()!=1)
+            return reject("Viewer mode requires a single-controller core");
+        return join_session(address,port,name);
+    }
+    int get_spectator_count() const override {
+        return is_connected() && m_controller_count==1 ? 1:0;
+    }
     void disconnect() override { stop("Disconnected"); }
     emu::NetplayConnectionState get_connection_state() const override { return m_state; }
     emu::NetplayRole get_role() const override { return m_role; }
     int get_local_player_id() const override { return m_local; }
     int get_player_count() const override { return is_connected() ? 2 : m_peer ? 1 : 0; }
-    int get_active_player_count() const override { return 2; }
+    int get_active_player_count() const override { return m_peer ? m_controller_count : 0; }
     emu::NetplaySessionInfo get_session_info() const override {
         emu::NetplaySessionInfo info{};
         if (m_host) {
@@ -51,7 +59,7 @@ public:
     emu::NetplayPlayer get_player(int id) const override {
         emu::NetplayPlayer player{};
         player.player_id = id;
-        player.role = id == 0 ? emu::NetplayRole::Host : emu::NetplayRole::Client;
+        player.role = id == 0 ? emu::NetplayRole::Host : m_controller_count==1 ? emu::NetplayRole::Spectator : emu::NetplayRole::Client;
         player.is_local = id == m_local;
         player.is_ready = is_playing();
         std::strncpy(player.name, player.is_local ? m_name.c_str() : "Peer", sizeof(player.name) - 1);
@@ -82,7 +90,7 @@ public:
     bool begin_frame() override { return false; } // Use execute_frame(), avoiding a second core frame.
     void end_frame() override {}
     void send_input(int player, uint32_t buttons, uint64_t) override { set_local_input(player, buttons); }
-    void set_local_input(int player, uint32_t buttons) override { if (player == m_local) m_input = buttons; }
+    void set_local_input(int player, uint32_t buttons) override { if (player == m_local) m_input = m_controller_count==1 && m_local==1 ? 0:buttons; }
     bool get_input(int player, uint32_t& buttons, uint64_t) override {
         buttons = player == m_local ? m_input : 0; return false;
     }
@@ -117,6 +125,7 @@ public:
         }
     }
     bool execute_frame(uint32_t buttons) override {
+        if(m_controller_count==1 && m_local==1) buttons=0;
         if (!is_playing() || !m_execution) return false;
         if (m_host->get_netplay_core() != m_core || m_host->get_frame_count() != m_execution->next_frame()) {
             stop("Core or frame changed during netplay"); return false;
@@ -152,6 +161,8 @@ public:
             bool& visible = hosting ? m_show_host : m_show_join;
             if (ImGui::Begin(hosting ? "Host Direct Netplay" : "Join Direct Netplay", &visible)) {
                 ImGui::TextWrapped("Load the same ROM in both apps first. Connecting reloads and pauses the game; matching peers start automatically.");
+                if(m_host && m_host->get_netplay_core() && m_host->get_netplay_core()->get_max_players()==1)
+                    ImGui::TextWrapped("Single controller: the host plays and the joining peer watches.");
                 ImGui::InputText("Player name", m_ui_name, sizeof(m_ui_name));
                 if (!hosting) ImGui::InputText("Host IPv4 address", m_address, sizeof(m_address));
                 ImGui::InputInt("TCP port", &m_port);
@@ -172,9 +183,10 @@ public:
             if (ImGui::Begin("Netplay", &m_show_panel)) {
                 ImGui::TextUnformatted(is_playing() ? "Playing" : m_peer ? "Waiting for compatible peer" : "Disconnected");
                 if (m_peer && m_local == 0) ImGui::Text("Listening on TCP port %u", unsigned(get_listening_port()));
+                if(m_controller_count==1) ImGui::TextUnformatted(m_local==0 ? "Host owns the controller" : "Watching host controller input");
                 ImGui::Text("Local player: %d", m_local + 1);
                 ImGui::Text("Rollbacks: %d", get_stats().rollback_count);
-                ImGui::TextWrapped("Direct IPv4 only. Peer name/chat, relay, session codes, spectators, RTT, reconnect, and desync recovery are unavailable.");
+                ImGui::TextWrapped("Direct IPv4 only. Peer name/chat, relay, session codes, additional spectators, RTT, reconnect, and desync recovery are unavailable.");
                 if (!m_error.empty()) ImGui::TextWrapped("%s", m_error.c_str());
                 if (m_peer && ImGui::Button("Disconnect")) disconnect();
             }
@@ -191,7 +203,7 @@ private:
         if (!m_peer) return;
         m_error = reason;
         m_rollbacks = m_execution ? m_execution->rollback_count() : m_rollbacks;
-        m_execution.reset(); m_core = nullptr; m_peer.reset(); m_pinned.reset();
+        m_execution.reset(); m_core = nullptr; m_peer.reset(); m_pinned.reset(); m_controller_count=0;
         m_state = emu::NetplayConnectionState::Disconnected;
         m_role = emu::NetplayRole::None;
         if (m_host) {
@@ -202,20 +214,23 @@ private:
     bool start(bool hosting, const char* address, uint16_t port, const char* name) {
         if (!m_host || m_peer) return reject("A host is required and an existing session must be disconnected");
         m_core = m_host->get_netplay_core();
-        if (!m_host->is_rom_loaded() || !m_core || !m_core->is_deterministic() || m_core->get_max_players() < 2)
-            return reject("Load a deterministic two-player netplay core first");
+        if (!m_host->is_rom_loaded() || !m_core || !m_core->is_deterministic() || m_core->get_max_players() < 1)
+            return reject("Load a deterministic netplay core first");
         if (!m_host->get_full_rom_hash() || !m_host->get_core_build_hash())
             return reject("Full ROM and core build identities are required");
         try {
             if (!m_host->prepare_netplay()) return reject("Could not prepare a fresh core/ROM");
             m_core = m_host->get_netplay_core();
-            if (!m_core || !m_core->is_deterministic() || m_core->get_max_players() < 2)
-                return reject("Prepared core lacks deterministic two-player support");
+            if (!m_core || !m_core->is_deterministic() || m_core->get_max_players() < 1)
+                return reject("Prepared core lacks deterministic controller support");
+            m_controller_count=std::min(2,m_core->get_max_players());
             std::vector<uint8_t> state;
             if (!m_host->save_state_to_buffer(state) || state.empty()) return reject("Could not save initial state");
             emu::PeerIdentity identity;
             auto platform = m_host->get_platform_name();
             identity.core_id = hash_bytes(reinterpret_cast<const uint8_t*>(platform), std::strlen(platform));
+            // Pin controller ownership mode in the existing core identity.
+            identity.core_id=(identity.core_id^uint64_t(m_controller_count))*0x100000001b3ULL;
             identity.build_id = m_host->get_core_build_hash(); identity.rom_hash = m_host->get_full_rom_hash();
             identity.rom_crc32 = m_host->get_rom_crc32(); identity.core_abi = EMU_PLUGIN_API_VERSION;
             identity.first_frame = m_host->get_frame_count(); identity.state_hash = hash_bytes(state.data(), state.size());
@@ -226,9 +241,9 @@ private:
             if (!(hosting ? m_peer->listen(address, port) : m_peer->connect(address, port))) {
                 auto error = m_peer->error(); stop(error.c_str()); return reject(error.c_str());
             }
-            m_name = name ? name : "Player"; m_error.clear(); m_received = 0;
+            m_name = name ? name : "Player"; m_error.clear(); m_received = 0; m_input = 0;
             m_rollbacks = 0; m_max_depth = 0;
-            m_role = hosting ? emu::NetplayRole::Host : emu::NetplayRole::Client;
+            m_role = hosting ? emu::NetplayRole::Host : m_controller_count==1 ? emu::NetplayRole::Spectator : emu::NetplayRole::Client;
             m_state = emu::NetplayConnectionState::Connecting;
             return true;
         } catch (const std::exception& error) {
@@ -244,7 +259,7 @@ private:
     std::optional<uint32_t> m_pinned;
     emu::NetplayConnectionState m_state = emu::NetplayConnectionState::Disconnected;
     emu::NetplayRole m_role = emu::NetplayRole::None;
-    int m_local = 0, m_window = 8, m_max_depth = 0;
+    int m_local = 0, m_window = 8, m_max_depth = 0, m_controller_count = 0;
     uint64_t m_first = 0, m_received = 0, m_rollbacks = 0;
     uint32_t m_input = 0;
     std::string m_name, m_error;

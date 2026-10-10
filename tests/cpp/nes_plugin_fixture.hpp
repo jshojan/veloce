@@ -37,7 +37,7 @@ struct LoadedCore {
     }
     emu::INetplayCapable& netplay() {
         auto* core = dynamic_cast<emu::INetplayCapable*>(plugin);
-        require(core != nullptr, "NES plugin lacks netplay interface");
+        require(core != nullptr, "core plugin lacks netplay interface");
         return *core;
     }
 };

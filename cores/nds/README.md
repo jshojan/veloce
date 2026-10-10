@@ -161,7 +161,16 @@ halfword/byte reads and a sequence counter. Unknown/reserved register bits are
 captured but excluded from hardware scoring. All 4,096 snapshots matched with
 zero mismatches.
 
-The seven original ROMs use the word transport for register observations and the
+The original [netplay probe](../../tests/roms-src/nds/netplay_probe/README.md)
+passes a 100-frame production-plugin TCP loopback test with a host and joining
+viewer. Both complete 4,292,968-byte states equal a third baseline, and eight
+guest-published keypad words match an independent arithmetic oracle. The host
+owns the one DS keypad; the viewer predicts/replays late host input and cannot
+control another DS console. This is same-instance viewing, not emulated DS Wi-Fi
+multiplayer. Rollback state methods currently allocate/copy full vectors;
+physical timing and cross-platform/Internet behavior remain unverified.
+
+The seven register-output ROMs use the word transport for register observations and the
 byte transport for text framing. The four earlier corpora retain their instruction
 domains, snapshot fields and independent grading. The integer builder retains `word_output=False`, which
 reproduces the previously committed byte-output image exactly. Its reduced
@@ -256,7 +265,8 @@ ctest --test-dir build -R '^nds_' --output-on-failure
 Raw observations/reports remain in `build/artifacts/owned/nds_integer/`,
 `build/artifacts/owned/nds_multiply/`, `build/artifacts/owned/nds_thumb/`,
 `build/artifacts/owned/nds_memory/`, `build/artifacts/owned/nds_long_calls/`,
-`build/artifacts/owned/nds_multiple/` and `build/artifacts/owned/nds_keypad/`,
+`build/artifacts/owned/nds_multiple/`, `build/artifacts/owned/nds_keypad/` and
+`build/artifacts/netplay-nds/`,
 and are uploaded by owned-hardware CI. Generator/image SHA256 are recorded
 in the ROM manifest. Component evidence is separate from the original-ROM domain.
 
@@ -278,7 +288,7 @@ and PC-store behavior are not hardware-scored.
 
 Video is a blank 256×384 combined buffer and audio is empty. Digital input
 reaches the keypad registers; touchscreen and lid input remain pending.
-Dual-screen presentation, physical controllers/touchscreen, this core's netplay,
+Dual-screen presentation, physical controllers/touchscreen, DS wireless multiplayer,
 Windows/macOS builds and physical-hardware comparison remain unverified or
 unimplemented. Other cores retain their existing controller/network behavior.
 DSi enhanced mode requires additional CPU, RAM, boot/security and peripheral

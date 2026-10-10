@@ -102,7 +102,7 @@ The full archived image SHA256 is
 
 Physical-hardware comparison, cache/TCM/MPU, exceptions/interrupts, ARM BLX
 immediate, ARM block transfers, firmware/retail boot, graphics/audio,
-controllers/peripherals, DS netplay and DSi enhanced mode remain unverified or
+controllers/peripherals, DS wireless multiplayer and DSi enhanced mode remain unverified or
 unimplemented. Finite arithmetic coverage establishes no whole-platform
 completion percentage.
 

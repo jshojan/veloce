@@ -1,8 +1,10 @@
 #include "machine.hpp"
+#include "emu/netplay_plugin.hpp"
 #include <array>
+#include <cstring>
 
 namespace nds {
-class Plugin : public emu::IEmulatorPlugin {
+class Plugin : public emu::IEmulatorPlugin, public emu::INetplayCapable {
 public:
     emu::EmulatorInfo get_info() override {
         static const char* extensions[] = {".nds", nullptr};
@@ -47,6 +49,26 @@ public:
     void write_memory(uint16_t address, uint8_t value) override { machine.main[address] = value; }
     bool save_state(std::vector<uint8_t>& data) override { return machine.save(data); }
     bool load_state(const std::vector<uint8_t>& data) override { return machine.restore(data); }
+    int get_max_players() const override { return 1; }
+    void run_frame_netplay(uint32_t host_buttons,uint32_t) override { run_frame({host_buttons}); }
+    size_t get_max_state_size() const override { return 360+machine.main.size()+machine.shared.size()+machine.private7.size(); }
+    size_t save_state_fast(uint8_t* buffer,size_t size) override {
+        if(!is_rom_loaded()) return 0;
+        if(!buffer) return get_max_state_size();
+        if(size<get_max_state_size()) return 0;
+        std::vector<uint8_t> state; if(!machine.save(state)) return 0;
+        std::memcpy(buffer,state.data(),state.size()); return state.size();
+    }
+    bool load_state_fast(const uint8_t* buffer,size_t size) override {
+        if(!buffer || (size!=get_max_state_size() && size!=get_max_state_size()-8)) return false;
+        return machine.restore(std::vector<uint8_t>(buffer,buffer+size));
+    }
+    uint64_t get_state_hash() const override {
+        std::vector<uint8_t> state; if(!machine.save(state)) return 0;
+        uint64_t hash=0xcbf29ce484222325ULL;
+        for(auto byte:state) hash=(hash^byte)*0x100000001b3ULL;
+        return hash;
+    }
     bool set_test_sink(emu::ITestSink* sink) override { machine.sink = sink; return true; }
     const char* test_channels() const override { return "dsdebug"; }
 private:

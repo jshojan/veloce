@@ -610,6 +610,18 @@ static void states(nds::Machine& m,const std::vector<uint8_t>& rom,const char* p
         require(!m.load(bad.data(),bad.size()),"bad cartridge accepted"); m.save(replay); require(replay==after,"rejected cartridge changed active machine");
     }
     emulator_test::LoadedCore loaded(plugin,rom); auto& core=*loaded.plugin;
+    auto& network=loaded.netplay(); require(network.is_deterministic() && network.get_max_players()==1,"DS netplay capability wrong");
+    require(core.save_state(before),"ordinary DS state save failed");
+    require(network.save_state_fast(nullptr,0)==before.size(),"DS rollback state bound wrong");
+    std::vector<uint8_t> fast(before.size(),0xa5);
+    require(network.save_state_fast(fast.data(),fast.size()-1)==0 && fast.front()==0xa5 && fast.back()==0xa5,"short DS rollback buffer was written");
+    require(network.save_state_fast(fast.data(),fast.size())==fast.size() && fast==before,"DS fast state differs from ordinary state");
+    const auto hash=network.get_state_hash();
+    require(!network.load_state_fast(nullptr,0) && !network.load_state_fast(fast.data(),fast.size()-1) && network.get_state_hash()==hash,"invalid fast state changed DS core");
+    network.run_frame_netplay(0x321,0); core.save_state(after);
+    require(network.load_state_fast(before.data(),before.size()),"DS fast restore failed");
+    network.run_frame_netplay(0x321,0xffffffff); core.save_state(replay);
+    require(after==replay,"viewer input changed DS keypad or continuation");
     const auto* layout=core.get_controller_layout(); require(layout && layout->button_count==12 && layout->controller_count==1,"DS controller layout missing");
     uint32_t layout_mask=0; for(int n=0;n<layout->button_count;++n) layout_mask|=1u<<unsigned(layout->buttons[n].button);
     require(layout_mask==0xfff,"DS controller layout controls wrong");

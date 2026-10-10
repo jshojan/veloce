@@ -2,12 +2,14 @@
 
 The plugin provides direct IPv4 TCP multiplayer and owns rollback execution.
 The former simulated lobby has been replaced with a host/join UI using actual
-sockets and a compatibility handshake. Two players are supported; there is no
-public matchmaking, session code, peer-name exchange, chat, or spectator mode.
+sockets and a compatibility handshake. Two peers are supported. Two-controller cores give each peer a controller;
+single-controller cores give the host its keypad and the joining peer viewer
+status. Public matchmaking, session codes, peer-name exchange, chat and additional
+spectators remain pending.
 
 ## Use in the frontend
 
-1. Load the same ROM in both applications using the same NES core binary and
+1. Load the same ROM in both applications using the same compatible core binary and
    matching settings and saved RAM. Connection preparation recreates the core and
    reloads the ROM, preserving battery saves through the normal loader.
 2. Choose **Netplay → Host Game**, select a TCP port, and click **Listen**. Port
@@ -17,7 +19,8 @@ public matchmaking, session code, peer-name exchange, chat, or spectator mode.
    and port, use the same rollback window, and click **Connect**.
 4. Both cores reload and pause during connection. Matching full ROM/build/state
    identities start play automatically, with local input mapped to player 1 on
-   the host and player 2 on the client. Each player's normal keyboard/gamepad
+   the host and player 2 on the client for two-controller cores. For a single-
+   controller core, the host owns the only controller and the client watches. Each player's normal keyboard/gamepad
    binding supplies its local input. Disconnection or failure pauses the app.
 
 The frontend polls even while paused. `execute_frame()` owns the live frame;
@@ -33,7 +36,7 @@ owned-frame execution, and transport inspection. External netplay plugins must
 be rebuilt; the registry rejects ABI v1 before invoking its factory. Emulator
 plugin ABI remains v2. Old simulated-lobby settings are no longer used.
 
-`src/rollback_session.{hpp,cpp}` now implements a separate two-player execution
+`src/rollback_session.{hpp,cpp}` now implements a separate one/two-controller execution
 module for `INetplayCapable` cores:
 
 - Save state before each frame and retain a bounded history.
@@ -114,10 +117,26 @@ not render the application's GUI or establish physical two-machine behavior.
 
 ## Remaining work
 
-Periodic desync checks/recovery, reconnects, spectators, broader core support,
+Periodic desync checks/recovery, reconnects, additional spectators, broader core support,
 rendered GUI tests, and physical two-machine testing remain. Delay-only mode and
 input delay scheduling are unimplemented; `get_input_delay()` reports zero.
 RTT measurement is unimplemented and ping reports zero. State resynchronization
 is rejected with a notification. Network faults beyond the measured malformed
 frames and ROM mismatch are not yet exhaustively tested. Internet latency/loss,
 cross-platform peers, and Windows socket behavior remain unverified.
+
+## Single-controller DS sessions
+
+The DS core advertises one controller and implements deterministic rollback
+states/hash. The production plugin accepts it, identifies the joining peer as a
+viewer and normalizes viewer input to zero. Controller mode is pinned in the
+compatibility identity. The rollback module also rejects nonzero viewer input
+confirmations. `join_as_spectator()` supports this one-controller mode;
+`get_spectator_count()` reports its one connected viewer. Additional viewers and
+spectators alongside two active controllers remain unsupported.
+
+`nds_netplay_plugin_test` verifies two TCP processes over 100 frames against a
+third complete baseline state and an independent eight-word guest-register
+oracle. Viewer rollback and lifecycle checks pass; DS audio is empty and has no
+replay-audio claim. Artifacts remain in `build/artifacts/netplay-nds/`. This mirrors
+one DS instance and does not emulate wireless multiplayer between handhelds.

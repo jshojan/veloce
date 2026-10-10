@@ -59,6 +59,6 @@ Output travels through emulator-only byte/word ports; the frontend owns the
 register file and trailer. The test uses the supplied `VDSHB001` direct-load,
 cache-free profile and bounded frame scheduler, without physical VBlank or
 polling-time evidence. Touchscreen/SPI, lid/debug controls, KEYCNT/keypad IRQ,
-other register widths, retail boot, physical controller use and DS netplay
+other register widths, retail boot, physical controller use and DS wireless multiplayer
 remain unverified or unimplemented. Finite input coverage establishes no
 whole-platform completion percentage.

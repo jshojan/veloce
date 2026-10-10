@@ -75,7 +75,7 @@ PC alignment, odd-half diagnostics, reserved operands and failed-transaction
 atomicity. Full 32-bit operand/offset/address domains, ARM block/doubleword
 transfers, cache/TCM/MPU, exceptions, bus timing and physical
 hardware comparisons remain unverified or unimplemented. Retail DS/DSi boot,
-graphics/audio/input/peripherals and DS netplay remain incomplete. Finite domain
+graphics/audio/input/peripherals and DS wireless multiplayer remain incomplete. Finite domain
 coverage establishes no whole-platform completion percentage.
 
 ## Observation transport

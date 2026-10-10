@@ -102,6 +102,6 @@ SHA256. The full image SHA256 is
 
 Undefined/unpredictable hardware behavior, physical access time order,
 abort/alignment handling, cache/TCM/MPU, ARM block/doubleword transfers,
-firmware/retail boot, graphics/audio/input/peripherals, DS netplay and DSi enhanced
+firmware/retail boot, graphics/audio/input/peripherals, DS wireless multiplayer and DSi enhanced
 mode remain unverified or unimplemented. Finite instruction coverage establishes
 no whole-platform completion percentage.

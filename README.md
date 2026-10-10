@@ -156,7 +156,7 @@ All plugin interfaces are defined in include/emu/:
 ### Netplay Features
 
 The default plugin supports direct IPv4 host/join sessions. A
-[two-player rollback module](plugins/netplay_default/README.md)
+[rollback module](plugins/netplay_default/README.md)
 now saves frame history, predicts input, restores/replays late corrections, and
 stalls at its speculation limit. Two delayed NES sessions match an ordinary
 100-frame run byte-for-byte, including guest register observations in files.
@@ -174,7 +174,12 @@ Reset, ROM/core replacement, and savestate loads disconnect and pause the sessio
 The production shared plugin passes the same two-process comparison, mismatch,
 and malformed-message tests, plus replay-audio and core/frame-change checks;
 results are saved under `build/artifacts/netplay-plugin/`. Netplay ABI is now v2;
-rebuild external netplay plugins. Relay/session codes, chat, spectators, input
+rebuild external netplay plugins. Single-controller cores now support a host
+and one joining viewer. The DS host owns its keypad; the viewer predicts and
+corrects host input, with complete states and eight guest words matching a
+100-frame baseline. This mirrors one DS instance; DS wireless multiplayer
+remains pending. Reports remain in `build/artifacts/netplay-nds/`.
+Relay/session codes, chat, additional spectators, input
 delay scheduling, reconnects, desync recovery, Windows and real two-machine
 verification remain. Internet multiplayer is not validated.
 
@@ -354,6 +359,7 @@ subset, not whole-core completion.
 | [Nintendo DS long calls](tests/roms-src/nds/long_calls/README.md) | 9,437,184/9,437,184 eight-word snapshots matched: adjacent BL/ARM9 BLX pairs, every high and valid low field individually, both halfword positions, all NZCV/ARM9 Q; physical cache coherence/timing pending | `build/artifacts/owned/nds_long_calls/` |
 | [Nintendo DS stack/block registers](tests/roms-src/nds/multiple_registers/README.md) | 3,720,960/3,720,960 twenty-five-word snapshots matched: every defined list/base encoding, sixteen register/memory seeds, all NZCV/ARM9 Q and POP-PC target states; physical abort/timing pending | `build/artifacts/owned/nds_multiple/` |
 | [Nintendo DS keypad](tests/roms-src/nds/keypad/README.md) | 4,096/4,096 digital combinations matched through the actual frontend schedule, both CPU KEYINPUT and ARM7 X/Y halfword/byte captures; unknown/reserved bits unscored; physical timing pending | `build/artifacts/owned/nds_keypad/` |
+| [Nintendo DS netplay probe](tests/roms-src/nds/netplay_probe/README.md) | Production-plugin TCP host/viewer: 100 frames match complete baseline states and eight independently graded guest words; DS wireless link remains pending | `build/artifacts/netplay-nds/` |
 | [N64 interrupt gates](tests/roms-src/n64/interrupts/README.md) | 65,536/65,536 cases matched; 524,288 guest values for software/SI/timer, MI/CPU masks and IE/EXL/ERL; pipeline and physical timer timing pending | `build/artifacts/owned/n64_interrupts/` |
 | [N64 digital controller](tests/roms-src/n64/controller_serial/README.md) | 16,384/16,384 combinations matched; 131,072 guest values for digital input, identity, absent port and settled SI/MI registers; analog and physical timing pending | `build/artifacts/owned/n64_controller/` |
 | [N64 merge memory](tests/roms-src/n64/merge_memory/README.md) | 3,158,016/3,158,016 observations matched; eight instructions, every byte lane, all repeated-byte pairs and full-width boundaries; full multi-byte domains/timing unverified | `build/artifacts/owned/n64_merge_memory/` |

@@ -66,7 +66,7 @@ separate component checks. Full 32-bit operand domains, all aliases, instruction
 latency, physical-hardware comparison, cache coherency, ARM block
 transfers, SWI/exceptions and ARM9 DSP extensions remain unverified
 or unimplemented. Retail DS and DSi boot, peripherals, graphics/audio/input and
-DS netplay remain incomplete.
+DS wireless multiplayer remain incomplete.
 
 Memory transfers have a separate [original corpus](../memory_registers/README.md).
 

@@ -17,6 +17,8 @@ static void require(bool ok, const char* message) {
 
 class TestCore : public emu::INetplayCapable {
 public:
+    int players=2;
+    int get_max_players() const override { return players; }
     uint64_t state = 1;
     int discarded = 0;
     bool fail_save = false, fail_load = false;
@@ -122,6 +124,16 @@ using emulator_test::snapshot;
 int main(int argc, char** argv) {
     try {
         edge_cases();
+        TestCore solo_reference, solo_host, solo_viewer;
+        solo_reference.players=solo_host.players=solo_viewer.players=1;
+        Session host_session(solo_host,0,8), viewer_session(solo_viewer,1,8);
+        for(unsigned frame=0;frame<20;++frame) {
+            solo_reference.run_frame_netplay(frame+1,0);
+            require(host_session.advance(frame+1)==Result::Advanced && host_session.submit_remote(frame,0)==Result::Accepted,"single-controller host execution failed");
+            require(host_session.submit_remote(frame,1)==Result::Conflict,"viewer controlled host keypad");
+            require(viewer_session.advance(0xffffffff)==Result::Advanced && viewer_session.submit_remote(frame,frame+1)==Result::Accepted,"single-controller viewer prediction failed");
+        }
+        require(solo_host.state==solo_reference.state && solo_viewer.state==solo_reference.state && viewer_session.rollback_count()>0 && solo_viewer.discarded>0,"single-controller rollback diverged");
         TestCore reference, a, b;
         run_delayed(reference, a, b);
         require(a.discarded > 0 && b.discarded > 0, "delayed test did not discard replay audio");

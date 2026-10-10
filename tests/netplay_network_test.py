@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Launch independent NES peers over loopback TCP and compare complete states."""
+"""Launch independent core peers over loopback TCP and compare complete states."""
 import argparse
 import json
 import os
@@ -23,6 +23,7 @@ def main():
     parser.add_argument("rom", type=Path)
     parser.add_argument("artifacts", type=Path)
     parser.add_argument("--netplay-plugin", type=Path)
+    parser.add_argument("--console",default="nes")
     args = parser.parse_args()
     args.artifacts.mkdir(parents=True, exist_ok=True)
     env = os.environ.copy()
@@ -115,16 +116,40 @@ def main():
         reference = (args.artifacts / "baseline.state").read_bytes()
         require(reference == (args.artifacts / "network-host.state").read_bytes() ==
                 (args.artifacts / "network-client.state").read_bytes(), "independent TCP peers diverged")
-        report = {"status": "pass", "console": "nes", "frames": 100,
+        if args.console=="nds":
+            # Original probe: eight setup attempts then fixed seven/nine-attempt
+            # loops. Derive each published sum from the load's frame, not the
+            # store's frame, including transfers crossing frame boundaries.
+            keys=[]; xy=[]
+            for frame in range(100):
+                buttons=(frame*7+3)&4095
+                pressed=sum(1<<n for n,bit in enumerate((0,1,7,6,11,10,8,9,5,4)) if buttons&(1<<bit))
+                keys.append(1023-pressed); xy.append(0x7c|(3-((buttons>>2)&3)))
+            def count(total,period,store): return (total-1-store)//period+1
+            def accumulated(values,total,quantum,period,load,store):
+                return sum(values[(load+period*k)//quantum] for k in range(count(total,period,store)))&0xffffffff
+            def last(values,total,quantum,period,load,store):
+                return values[(load+period*(count(total,period,store)-1))//quantum]
+            want=(accumulated(keys,20000000,200000,7,8,10),last(keys,20000000,200000,7,8,11),count(20000000,7,13),0,
+                  accumulated(keys,10000000,100000,9,8,10),last(keys,10000000,100000,9,8,11),
+                  accumulated(xy,10000000,100000,9,12,14),last(xy,10000000,100000,9,12,15))
+            for name in ("baseline","network-host","network-client"):
+                lines=(args.artifacts/(name+".result")).read_text().splitlines()
+                records=[line for line in lines if line.startswith("REG address=")]
+                expected=[f"REG address={4096+n*4} value={value}" for n,value in enumerate(want)]
+                require(records==expected,"DS guest register oracle mismatch: "+name)
+        report = {"status": "pass", "console": args.console, "frames": 100,
                   "independent_processes": 2, "transport": "IPv4 TCP loopback",
                   "full_states_equal": True, "rom_mismatch_rejected": True,
                   "fragmented_invalid_frames_rejected": ["zero-length", "oversized", "unknown-type", "truncated"],
                   "state_size": len(reference)}
         if args.netplay_plugin:
             report["production_netplay_plugin"] = True
-            report["frontend_contract"] = "fresh core after different prior histories; poll while paused; own one live frame; suppress replay audio; disconnect on core replacement"
+            if args.console=="nds": report.update(controller_mode="one host-owned DS keypad, joining viewer",guest_register_words=8,guest_registers_match_independent_oracle=True,wireless_link_emulation=False)
+            if args.console=="nds": report["frontend_contract"]="fresh core after different prior histories; poll while paused; host owns keypad; viewer predicts/replays; disconnect on core replacement"
+            if args.console!="nds": report["frontend_contract"] = "fresh core after different prior histories; poll while paused; own one live frame; suppress replay audio; disconnect on core replacement"
         (args.artifacts / "network.json").write_text(json.dumps(report, indent=2) + "\n")
-        print("Network rollback: two independent TCP peers match complete NES baseline; ROM mismatch rejected")
+        print(f"Network rollback: two independent TCP peers match complete {args.console} baseline; ROM mismatch rejected")
 
 
 if __name__ == "__main__":

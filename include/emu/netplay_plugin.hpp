@@ -84,6 +84,8 @@ public:
         run_frame_netplay(p1, p2);
     }
 
+    // A single-controller core may return 1: direct sessions give the host
+    // its one controller and the other peer mirrors host input as a viewer.
     // Get maximum number of players supported by this core
     // Override in emulator implementations to support more than 2 players.
     // Examples:

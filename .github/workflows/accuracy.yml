@@ -61,6 +61,7 @@ jobs:
             build/artifacts/rollback/
             build/artifacts/network/
             build/artifacts/netplay-plugin/
+            build/artifacts/netplay-nds/
 
   accuracy:
     needs: fast-gates

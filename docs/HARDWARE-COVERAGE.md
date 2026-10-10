@@ -134,6 +134,12 @@ unscored. Components separately check mapping, access rights, ignored writes,
 normalized input state, reset and legacy migration; actual plugin layout and
 held/released state tests pass. Lid/debug/touch/SPI, KEYCNT/keypad IRQ and
 physical controller use remain unverified or unimplemented.
+The [DS netplay probe](../tests/roms-src/nds/netplay_probe/README.md) passes
+100 frames through the actual shared netplay plugin and two independent TCP
+loopback peers: one host-owned keypad and a viewer. Both complete states equal
+a baseline, and eight published guest words match a separate arithmetic oracle.
+This covers one DS instance; DS wireless multiplayer remains pending. Audio is
+empty, and physical timing, devices, Internet and cross-platform peers are unverified.
 Native word serialization preserves the same captured fields and independent
 grades; 347,136 reduced integer observations also match the original byte
 transport exactly. Output ports are emulator-only and demonstrate no physical
@@ -204,8 +210,8 @@ custom mappings, capture mode, disconnect/reconnect, saved identity restoration,
 selection after removal, ambiguous devices, and axis endpoints. Physical devices,
 Bluetooth, cross-platform drivers, and multiplayer routing still need testing.
 
-The frontend has netplay interfaces/UI and the NES core exposes `INetplayCapable`.
-The [two-player rollback module](../plugins/netplay_default/README.md) implements
+The frontend has netplay interfaces/UI and the NES and DS cores expose `INetplayCapable`.
+The [rollback module](../plugins/netplay_default/README.md) implements
 bounded history, prediction, late-input restore/replay, stalls, and confirmation
 validation. Two delayed actual NES sessions converge byte-for-byte on a 100-frame
 baseline running an original controller ROM. Guest RAM observations and states
@@ -226,7 +232,7 @@ states are retained under `build/artifacts/netplay-plugin/`. Reset, ROM/core
 replacement, and savestate loads disconnect before mutating the live core.
 Rendered GUI operation, reconnects, desync detection/recovery, Windows, Internet
 conditions, and physical two-machine play remain unverified. Relay, chat,
-session codes, spectators, and input delay scheduling are not implemented.
+session codes, additional spectators, and input delay scheduling are not implemented.
 Other core families need complete deterministic state and appropriate
 multiplayer/link behavior before their netplay can be claimed as verified.
 

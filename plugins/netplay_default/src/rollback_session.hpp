@@ -6,7 +6,7 @@
 
 namespace emu {
 
-// Owns two-player frame history and deterministic replay. A transport submits
+// Owns two-peer frame history (one host-owned controller or two controllers) and deterministic replay. A transport submits
 // remote inputs; the caller advances local frames and handles stale/conflicting
 // packets or failed core serialization. This class never opens sockets.
 class RollbackSession {
