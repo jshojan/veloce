@@ -16,7 +16,7 @@ int main(int argc,char** argv) {
         if(before[639]) {
             const auto video=core.plugin->get_framebuffer();require(video.pixels && video.width>0 && video.height>0 && video.width<=1023 && video.height<=512,"invalid pixel dimensions");
             require(core.plugin->save_state(after) && after==before,"video observation changed guest state");
-            const unsigned mode=before[before.size()-1496+7]&3;
+            const unsigned mode=before[before.size()-1504+7]&3;
             output<<"FRAME index="<<std::dec<<frames<<" mode="<<mode<<" width="<<video.width<<" height="<<video.height<<"\n";
             const auto* bytes=reinterpret_cast<const uint8_t*>(video.pixels);
             for(size_t n=0;n<size_t(video.width)*video.height;++n) {

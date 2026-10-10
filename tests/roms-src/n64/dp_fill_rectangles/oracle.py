@@ -4,7 +4,7 @@ def expected(case):
     memory=bytearray([0x5a]*64)
     for y in range(4):
         for x in range(4):
-            if layout and (x not in (1,2) or y not in (1,2)):continue
+            if layout and (x not in (1,2,3) or y not in (1,2)):continue
             if size==2:
                 at=2*(y*4+x)
                 value=raw if x%2==0 else 65535-raw

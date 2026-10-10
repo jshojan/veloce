@@ -20,7 +20,7 @@ def main():
     by_file={}
     for row in data['platforms']:by_file.setdefault(row['readme'],[]).append(row)
     legend='These percentages count the 20 explicit delivery milestones in [the completion ledger]({link}); partial or unverified milestones receive zero credit. Each milestone is worth 5 percentage points. **They are not percentages of native hardware accuracy or retail compatibility.** Bounded profile tests do not complete a whole CPU or hardware subsystem.'
-    blocks={'README.md':'## Core completion percentages\n\n'+table(data['platforms'])+'\n\n'+legend.format(link='docs/CORE-COMPLETION.md')+'\n\nSuper Mario 64 (USA) was tested locally on 2026-10-10: **loads and passes the former C.LT.S and SET_COMBINE blockers**. The longer trace reaches 200 million CPU attempts without a terminal fault and retires 728,648 RSP instructions. RDP SET_Z_IMAGE remains unsupported, video stays uniform, and boot/playability are unverified. See the [repeatable local probe](cores/n64/README.md#local-retail-regression-target).'}
+    blocks={'README.md':'## Core completion percentages\n\n'+table(data['platforms'])+'\n\n'+legend.format(link='docs/CORE-COMPLETION.md')+'\n\nSuper Mario 64 (USA) was tested locally on 2026-10-10: **loads and passes SET_Z_IMAGE and actual color/depth-buffer clears**. The longer trace reaches 200 million CPU attempts without a terminal fault. RDP SET_TILE and RSP VCH remain blocked; video stays uniform and boot/playability are unverified. See the [repeatable local probe](cores/n64/README.md#local-retail-regression-target).'}
     for path,rows in by_file.items():
         blocks[path]='## Completion percentage\n\n'+table(rows)+'\n\n'+legend.format(link='../../docs/CORE-COMPLETION.md')
         for row in rows:

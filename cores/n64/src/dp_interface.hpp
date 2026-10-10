@@ -4,6 +4,7 @@
 #include <vector>
 #include <algorithm>
 #include "rdp_combiner.hpp"
+#include "rdp_fill.hpp"
 namespace n64 {
 // Shared CPU/RSP DP interface and bounded, functional RDP fill engine.
 // Command issue/counters are nominal clocks, not DMA FIFO or rasterizer timing.
@@ -14,6 +15,7 @@ public:
     uint32_t clock=0,command_busy=0,pipe_busy=0,tmem_busy=0,blocked_reason=0,fill_color=0;
     uint64_t blocked_word=0,color_image=0,other_mode=0,scissor=0;
     RdpCombiner combiner;
+    uint32_t depth_image=0;
     using State=std::array<uint64_t,19>;
     void reset(){*this=DpInterface{};}
     uint32_t status() const{return flags|128u|(pipeline?40u:0u)|(current!=active_end?64u:0u)|(start_valid?1024u:0u)|(end_valid?512u:0u);}
@@ -55,8 +57,9 @@ public:
         case 47:other_mode=word&0x00ffffffffffffffull;break;
         case 55:fill_color=uint32_t(word);break;
         case 58:case 59:case 60:combiner.command(op,word);break;
+        case 62:depth_image=uint32_t(word)&0x3ffffff;break;
         case 63:color_image=word&0x00ffffffffffffffull;break;
-        case 54:reason=fill(word,ram);supported=!reason;break;
+        case 54:reason=RdpFill::draw(word,color_image,other_mode,scissor,fill_color,ram);supported=!reason;break;
         default:supported=false;break;
         }
         if(!supported){block(word,reason);return;}
@@ -75,23 +78,5 @@ public:
 private:
     void activate(){current=start;active_end=end;start_valid=end_valid=false;pipeline=true;blocked=false;blocked_reason=0;blocked_word=0;}
     void block(uint64_t word,unsigned reason){blocked=true;blocked_word=word;blocked_reason=reason;}
-    unsigned fill(uint64_t word,std::vector<uint8_t>& ram){
-        const unsigned format=unsigned(color_image>>53)&7,size=unsigned(color_image>>51)&3,width=(unsigned(color_image>>32)&1023)+1;
-        const uint32_t origin=uint32_t(color_image)&0x3ffffff;
-        if(format || (size!=2 && size!=3) || other_mode!=(3ull<<52))return 3;
-        constexpr uint64_t fractions=(3ull<<44)|(3ull<<32)|(3ull<<12)|3;
-        if((word&fractions) || (scissor&fractions) || (scissor&0x3000000) || (origin&7))return 4;
-        const unsigned left=unsigned(word>>12)&4095,top=unsigned(word)&4095,right=unsigned(word>>44)&4095,bottom=unsigned(word>>32)&4095;
-        const unsigned sl=unsigned(scissor>>44)&4095,st=unsigned(scissor>>32)&4095,sr=unsigned(scissor>>12)&4095,sb=unsigned(scissor)&4095;
-        const unsigned x0=std::max(left,sl)/4,y0=std::max(top,st)/4,x1=std::min(right/4+1,sr/4),y1=std::min(bottom/4+1,sb/4),bytes=size==2?2:4;
-        if(x0>=x1 || y0>=y1)return 0;
-        if(x1>width)return 4;
-        const uint64_t last=uint64_t(origin)+(uint64_t(y1-1)*width+x1)*bytes;
-        if(last>ram.size())return 5; // Validate entire draw before modifying any byte.
-        for(unsigned y=y0;y<y1;++y)for(unsigned x=x0;x<x1;++x){const size_t at=origin+(size_t(y)*width+x)*bytes;
-            const uint32_t value=bytes==4?fill_color:(at&2)?fill_color&65535:fill_color>>16;
-            for(unsigned n=0;n<bytes;++n)ram[at+n]=uint8_t(value>>(8*(bytes-1-n)));}
-        return 0;
-    }
 };
 }

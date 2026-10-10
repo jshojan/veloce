@@ -1,6 +1,6 @@
 # Experimental Nintendo 64 core plugin
 
-Current N64 evidence: [RDP combiner command state and current Mario evidence](#rdp-combiner-command-state). Earlier increment reports are historical.
+Current N64 evidence: [RDP fill pipeline and current Mario evidence](#rdp-fill-pipeline-and-depth-clears). Earlier increment reports are historical.
 
 <!-- completion:start -->
 ## Completion percentage
@@ -13,7 +13,7 @@ These percentages count the 20 explicit delivery milestones in [the completion l
 
 Nintendo 64 delivered milestones: Guest sound produces audio samples, Native digital controller/keypad registers consume frontend input, Guest graphics produce rendered video, Parse a native cartridge/executable format (boot scored separately), Repository-owned ROM source and reproducible archived image, Separate core plugin and ABI entry points, Actual guest register-file output independently graded on the host, with negative controls, Complete states for the implemented profile and deterministic replay.
 
-Remaining: Super Mario 64 passes C.LT.S and reaches the 200-million-attempt trace bound without a terminal CPU fault; 728,648 RSP instructions retire. RDP SET_COMBINE command state now passes; SET_Z_IMAGE remains blocked and video stays uniform. Native boot/playability, full CPU/CP0/devices, FPU physical timing, remaining RSP arithmetic/reciprocals, complete RDP/audio, analog and netplay remain.
+Remaining: Super Mario 64 passes SET_Z_IMAGE and real color/depth-buffer clears, then reaches the 200-million-attempt trace bound without a terminal CPU fault. RDP SET_TILE and RSP VCH remain blocked; video stays uniform. Native boot/playability, full CPU/CP0/devices, FPU physical timing, remaining RSP arithmetic/reciprocals, complete RDP/audio, hidden coverage/depth bits, analog and netplay remain.
 <!-- completion:end -->
 
 `n64_plugin` builds `n64.so`/`n64.dll`/`n64.dylib` and implements emulator ABI v2.
@@ -114,7 +114,7 @@ SI re-entry and pending SI/timer save-state continuation also have unit evidence
 Count still advances once per two CPU step attempts, including interrupt entry.
 This is an instruction-clock approximation. Exact PClock/pipeline timing,
 CP0 hazards, Count-write equality timing, privilege checks, other interrupt
-producers and reset/NMI/cache-error paths are unverified. The current `VN64S018` state stores Count, Compare, Cause, Status and pending SI/PI/SP/AI/VI/MI state. Device levels are resampled on the next step.
+producers and reset/NMI/cache-error paths are unverified. The current `VN64S019` state stores Count, Compare, Cause, Status and pending SI/PI/SP/AI/VI/MI state. Device levels are resampled on the next step.
 
 ## Explicit homebrew entry profile
 
@@ -184,10 +184,10 @@ cmake --build build --target veloce n64_plugin n64_machine_test n64_pi_test n64_
 ctest --test-dir build -R '^n64_' --output-on-failure
 ```
 
-`VN64S018` states store explicit big-endian scalars, all GPR/CP0 registers,
+`VN64S019` states store explicit big-endian scalars, all GPR/CP0 registers,
 HI/LO, both PCs, pending delay state, instruction/frame counters, completion,
 RAM and SP storage, PIF RAM, SI address/completion, MI mask, latched digital
-input and debug yield state, plus 13 PI registers, PI IRQ and boot mode (120 bytes), six RI controls and a current-loaded flag (56 bytes), plus MI mode and pending DP (16 bytes) and 36 device-register scalars (288 bytes), plus all cache tags/valid/dirty flags and data (40,960 bytes) and nine SP interface scalars (72 bytes), plus 15 AI scalars, five host-clock/ring scalars and 32,768 bytes of pending PCM storage (32,928 bytes). FCR31 is stored as an 8-byte validated scalar, followed by 32 TLB entries as four 8-byte scalars each (1,024 bytes). VI adds 20 validated 8-byte scalars (160 bytes), including registers, current line, crystal phase, field count, leap pattern and interrupt latch. FPR data appends 32 raw 64-bit scalars (256 bytes). S018 appends three combiner/color state scalars (24 bytes); S017 and earlier restore neutral combiner state. S017 appends eight validated raw 48-bit accumulator lanes in 64-bit slots (64 bytes); S016 and earlier restore neutral accumulators. S016 appends 64 packed vector doublewords and three flags (536 bytes); S015 and earlier restore neutral vector storage/flags. S015 appends 19 DP scalars (152 bytes); S014 and earlier restore reset DP control/counters/pipeline while preserving previously stored IRQ state. S014 appends scalar RSP execution and its clock phase (304 bytes); legacy S013 and earlier restore neutral scalar registers/phase and resume sequentially at SP PC. Legacy `VN64S012` restores zero FPR storage. `VN64S011` restores reset VI; `VN64S010` restores neutral TLB entries; `VN64S009` restores neutral FCR31; `VN64S008` restores neutral AI/host audio; `VN64S007` restores reset SP controls; `VN64S006` restores invalid caches; `VN64S005` restores reset device registers; `VN64S004` states restore with neutral MI mode/DP; `VN64S003` states restore with neutral RI; `VN64S002` loads only for homebrew, with neutral PI/RI; `VN64S001` is rejected. ROM data is immutable and referenced by identity. Size,
+input and debug yield state, plus 13 PI registers, PI IRQ and boot mode (120 bytes), six RI controls and a current-loaded flag (56 bytes), plus MI mode and pending DP (16 bytes) and 36 device-register scalars (288 bytes), plus all cache tags/valid/dirty flags and data (40,960 bytes) and nine SP interface scalars (72 bytes), plus 15 AI scalars, five host-clock/ring scalars and 32,768 bytes of pending PCM storage (32,928 bytes). FCR31 is stored as an 8-byte validated scalar, followed by 32 TLB entries as four 8-byte scalars each (1,024 bytes). VI adds 20 validated 8-byte scalars (160 bytes), including registers, current line, crystal phase, field count, leap pattern and interrupt latch. FPR data appends 32 raw 64-bit scalars (256 bytes). S019 appends a validated depth-image address (8 bytes); S018 and earlier restore its neutral value. S018 appends three combiner/color state scalars (24 bytes); S017 and earlier restore neutral combiner state. S017 appends eight validated raw 48-bit accumulator lanes in 64-bit slots (64 bytes); S016 and earlier restore neutral accumulators. S016 appends 64 packed vector doublewords and three flags (536 bytes); S015 and earlier restore neutral vector storage/flags. S015 appends 19 DP scalars (152 bytes); S014 and earlier restore reset DP control/counters/pipeline while preserving previously stored IRQ state. S014 appends scalar RSP execution and its clock phase (304 bytes); legacy S013 and earlier restore neutral scalar registers/phase and resume sequentially at SP PC. Legacy `VN64S012` restores zero FPR storage. `VN64S011` restores reset VI; `VN64S010` restores neutral TLB entries; `VN64S009` restores neutral FCR31; `VN64S008` restores neutral AI/host audio; `VN64S007` restores reset SP controls; `VN64S006` restores invalid caches; `VN64S005` restores reset device registers; `VN64S004` states restore with neutral MI mode/DP; `VN64S003` states restore with neutral RI; `VN64S002` loads only for homebrew, with neutral PI/RI; `VN64S001` is rejected. ROM data is immutable and referenced by identity. Size,
 version, ROM identity and basic field validation precede restoration. The
 instruction counter counts CPU step attempts including interrupt entry,
 **not actual VR4300 cycles**;
@@ -370,12 +370,14 @@ without a terminal fault, with 52 nonterminal exception entries. The RSP retires
 6,026 instructions and reaches a real BREAK (SP PC `$144`, status `$243`).
 Production output remains uniform video and 480 audio sample pairs.
 
-The longer 2,000-quantum probe now reaches its 200,000,000-attempt bound without
-a terminal CPU fault and retires 728,648 RSP instructions without an unsupported
-RSP operation. C.LT.S and SET_COMBINE command state pass. The DP records
-unsupported SET_Z_IMAGE, word `$FE00000000000400` at CURRENT `$227090`, reason 1. Production output stays
-uniform video with 96,646 audio sample pairs. Samples do not establish audible
-game sound. **Retail boot and playability remain unverified.**
+The longer 2,000-quantum probe reaches its 200,000,000-attempt bound without
+a terminal CPU fault, with 534 nonterminal exception entries. SET_Z_IMAGE and
+the actual color/depth clears now pass. The later graphics list blocks at
+SET_TILE (`F510000007000000`, CURRENT `227128`, reason 1); the RSP blocks at
+VCH (`4AFDE8E5`, SP PC `5F4`, status `C1`) after 215,369 instructions.
+Production output stays uniform video with 93,572 audio sample pairs. Samples
+do not establish audible game sound. **Retail boot and playability remain
+unverified.**
 
 The 8 MiB image has SHA256
 `17ce077343c6133f8c9f2d6d6d9a4ab62c8cd2aa57c40aea1f490b4c8bb21d91`.
@@ -1153,3 +1155,76 @@ ROM builder used OR instead of addition for one input address. Both were
 corrected and their targeted gates pass, including the complete original-ROM
 domain and negative controls. All **85 original ROM archives** reproduce;
 completion synchronization and whitespace checks pass. CI/CD remains disabled.
+
+
+## RDP fill pipeline and depth clears
+
+The fill-cycle engine now accepts bypassed texture, combiner, blender and dither
+mode state, including the native clearing path, and writes actual 8-, 16- and
+32-bit framebuffer bytes. Fill pattern selection follows the absolute RAM
+address. SET_Z_IMAGE stores its 26-bit address; clearing depth redirects the
+color image to depth RAM, as documented by Nintendo, rather than performing
+depth compares. The original corpus clears separate color and depth buffers.
+
+Fractional rectangle/scissor bounds, field-even/field-odd selection and odd row
+strides are supported. Width is a memory stride: X spans can extend beyond it
+and overlap the next row. The detailed span model includes the truncated high
+X scissor pixel, while Y clipping tests quarter scanlines before writing a row.
+This corrects the older inset-scissor oracle, whose high X endpoint was excluded.
+The original archived integer fill cartridge is unchanged; its oracle now
+matches the expanded span model.
+
+Command fields and depth clearing follow the [SGI RDP command summary](https://hcs64.com/files/RDP_COMMANDS.pdf)
+and [Nintendo fill-cycle documentation](https://ultra64.ca/files/documentation/online-manuals/man/pro-man/pro12/12-01.html).
+The quarter-span and hazard details are inferred from the RDP author's primary
+[edge-walker implementation](https://github.com/ata4/angrylion-rdp-plus/blob/master/src/core/n64video/rdp/rasterizer.c).
+Nintendo gives a broad four-pixel scissor warning; these gates characterize the
+author's detailed span model, **not physical subpixel/scissor accuracy**.
+Image reads, depth compares and stepped depth-update modes are explicit blockers.
+Hardware crash timing and partial crash writes are ungraded; the functional
+engine rejects these profiles before any write. Four-bit fills are blocked.
+
+The new original `rdp_fill_pipeline` corpus enumerates **294,912 input patterns**
+and grades **589,824 rows / 6,488,064 actual 64-bit words**. All 12,288 safe low
+16-bit modes, CI8/RGBA16/RGBA32, RDRAM/wrapping DMEM and four geometry profiles
+are covered. Two ordered 11-word rows per pattern contain color/depth pixels,
+three guards and actual CURRENT/STATUS/MI state. An independently executed
+capture mutant, 22 field mutations and seven malformed streams must fail.
+The two rows fit the result channel's 255-byte line limit.
+
+The component passes **1,572,864 fractional/scissor/field/stride cases**,
+**196,608 mode cases**, **196,608 raw fill-code cases**, all **1,024 widths**
+and all **67,108,864 depth-image address values**, plus guards, selected-row
+bounds, actual depth clears, FullSync IRQ, frozen-list replay, rejected state
+fields and legacy conversion. Address enumeration proves command retention;
+it is not a depth-comparison or physical-register readback test. The component
+also passes undefined-behavior sanitization.
+
+State **VN64S019** appends a validated 8-byte depth-image scalar. S018 and
+previously accepted older states restore a neutral depth pointer and preserve
+previous fields. Plugin **0.21.0** retains ABI v2. Earlier component state-tail
+offsets move by eight bytes. Hidden coverage/depth bits, exact bus/DMA/raster
+timing, texture loads/sampling, triangles, blending, combiner arithmetic and
+actual depth comparisons remain missing or ungraded. Reserved image formats
+and input bits receive no accuracy credit.
+
+The private Mario probe now passes SET_Z_IMAGE and the real buffer clears.
+At **2,000 scheduling quanta**, the CPU reaches **200,000,000 attempts** with
+**534 nonterminal exception entries** and no terminal fault. The later graphics
+list blocks at **SET_TILE**, word **F510000007000000**, CURRENT **227128**,
+reason 1. The RSP blocks at **VCH**, word **4AFDE8E5**, SP PC **5F4**, status
+**C1**, after **215,369 instructions**. Production video remains uniform with
+**93,572 audio sample pairs**; sample counts do not prove audible game sound.
+The default 120-quantum probe remains at 12,000,000 CPU attempts, 6,026 RSP
+instructions and 480 sample pairs. **Retail boot/playability remain unverified.**
+No commercial bytes are committed.
+
+Delivery completion remains **40% (8/20 milestones)**. The complete graphics
+milestone and the overall Nintendo-platform goal remain unfinished. Root and
+core README percentages are synchronized from the fixed completion ledger.
+CI/CD remains disabled.
+
+Verification: the full build and **60/60 N64 gates pass** in one regression
+run (**676.76 seconds**). All **86 original ROM archives** reproduce. The new
+component passes undefined-behavior sanitization, both private retail reports
+match current executable hashes, and completion/whitespace checks pass.
