@@ -264,8 +264,14 @@
       "id": "switch",
       "name": "Nintendo Switch",
       "readme": "cores/switch/README.md",
-      "delivered": [],
-      "remaining": "Core plugin, native CPU/memory/devices, firmware, graphics/audio, input, states, netplay and original corpus remain."
+      "delivered": [
+        "native_media",
+        "original_rom",
+        "plugin",
+        "register_oracle",
+        "states"
+      ],
+      "remaining": "Full AArch64 CPU/extensions/exceptions, native RAM/MMU/processes, compressed/hash-checked NSO and other formats, firmware/HOS/retail boot, graphics/audio, native controllers/devices, saves/netplay, physical timing and complete original hardware corpus remain. Current execution is an original uncompressed NSO0 integer process profile; retail playability is unverified."
     }
   ]
 }

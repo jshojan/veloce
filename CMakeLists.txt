@@ -198,6 +198,7 @@ add_subdirectory(cores/dsi)
 add_subdirectory(cores/3ds)
 add_subdirectory(cores/ppc)
 add_subdirectory(cores/wiiu)
+add_subdirectory(cores/switch)
 
 # Shared plugin libraries
 add_subdirectory(plugins/game_plugin_common)

@@ -72,20 +72,27 @@ void DebugPanel::render_timing_info(IEmulatorPlugin* plugin) {
 
     ImGui::Text("System: %s", info.name);
     ImGui::Text("Native FPS: %.4f", info.native_fps);
-    ImGui::Text("CPU Clock: %lu Hz", static_cast<unsigned long>(info.cycles_per_second));
+    if (info.cycles_per_second)
+        ImGui::Text("CPU Clock: %lu Hz", static_cast<unsigned long>(info.cycles_per_second));
+    else
+        ImGui::TextUnformatted("CPU Clock: not measured");
     ImGui::Separator();
 
     ImGui::Text("Frame Count: %lu", static_cast<unsigned long>(plugin->get_frame_count()));
     ImGui::Text("Cycle Count: %lu", static_cast<unsigned long>(plugin->get_cycle_count()));
 
-    // Calculate emulated time
-    double seconds = static_cast<double>(plugin->get_cycle_count()) / info.cycles_per_second;
-    int hours = static_cast<int>(seconds / 3600);
-    int minutes = static_cast<int>((seconds - hours * 3600) / 60);
-    int secs = static_cast<int>(seconds) % 60;
-    int ms = static_cast<int>((seconds - static_cast<int>(seconds)) * 1000);
+    if (info.cycles_per_second) {
+        // Calculate emulated time
+        double seconds = static_cast<double>(plugin->get_cycle_count()) / info.cycles_per_second;
+        int hours = static_cast<int>(seconds / 3600);
+        int minutes = static_cast<int>((seconds - hours * 3600) / 60);
+        int secs = static_cast<int>(seconds) % 60;
+        int ms = static_cast<int>((seconds - static_cast<int>(seconds)) * 1000);
 
-    ImGui::Text("Emulated Time: %02d:%02d:%02d.%03d", hours, minutes, secs, ms);
+        ImGui::Text("Emulated Time: %02d:%02d:%02d.%03d", hours, minutes, secs, ms);
+    } else {
+        ImGui::TextUnformatted("Emulated Time: not measured");
+    }
 }
 
 void DebugPanel::render_memory_viewer(IEmulatorPlugin* plugin) {

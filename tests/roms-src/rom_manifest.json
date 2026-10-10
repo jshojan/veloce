@@ -855,6 +855,17 @@
       "source_type": "original",
       "suite": "math_timing"
     },
+    "switch/arithmetic_registers/arithmetic_registers.nso": {
+      "build_command": "python3 tests/roms-src/switch/arithmetic_registers/build.py",
+      "console": "switch",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "3d5a7dc2c8e289d0be88028cc05ad611cb3b96d215050c310799313bdcaa33bf",
+      "source_repo": "tests/roms-src/switch/arithmetic_registers/build.py",
+      "source_sha": "5ac8304b3ea0ddc096af207affab8cb1009b1d9ca3b5fec73aa361602def86b3",
+      "source_type": "original",
+      "suite": "arithmetic_registers"
+    },
     "vb/address_traps/address_traps.vb": {
       "build_command": "python3 tests/roms-src/vb/address_traps/build.py",
       "console": "vb",

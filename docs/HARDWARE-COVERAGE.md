@@ -23,6 +23,7 @@ are not measurements of overall hardware or product completion.
 | GameCube | `gc_plugin` (original marked images only) | 49,152/49,152 arithmetic and 74,752/74,752 branch and 42,108,928/42,108,928 condition and 6,324,224/6,324,224 integer logical and 9,437,184/9,437,184 rotate/mask and 4,416,528/4,416,528 shift/unary and 25,168,384/25,168,384 carry arithmetic snapshots and 8,420,320/8,420,320 defined multiply/divide results matched; 1,056 undefined division rows have defined flags/preserved fields checked; 12,586,368/12,586,368 memory-transfer snapshots matched | Not measured; most CPU and console hardware remain; [limits](../cores/ppc/README.md) |
 | Wii U | `wiiu_plugin` (original `.vwiiu` only) | 25,165,824 original immediate captures; 28,311,552 component register snapshots and 8,724,152,428 RAM bus observations; dense/sparse replay and synthetic digital input; 100-frame production TCP states/twelve guest words match baseline/oracle | Not measured; native boot, remaining CPU/peripherals, GPU/audio, GamePad, physical timing and wireless multiplayer pending; [limits](../cores/wiiu/README.md) |
 | Wii | `wii_plugin` (original marked images only) | 49,152/49,152 arithmetic and 74,752/74,752 branch and 42,108,928/42,108,928 condition and 6,324,224/6,324,224 integer logical and 9,437,184/9,437,184 rotate/mask and 4,416,528/4,416,528 shift/unary and 25,168,384/25,168,384 carry arithmetic snapshots and 8,420,320/8,420,320 defined multiply/divide results matched; 1,056 undefined division rows have defined flags/preserved fields checked; 12,586,368/12,586,368 memory-transfer snapshots matched | Not measured; most CPU and console hardware, including MEM2/IOS, remain; [limits](../cores/ppc/README.md) |
+| Nintendo Switch | `switch_plugin` (uncompressed NSO0 integer profile) | 1,572,864 original observations / 7,864,320 actual register words; 13,877,248 independent component integer cases; full state/register-stream replay | Not measured; full CPU/MMU/HOS, firmware, compressed/hash-checked images, GPU/audio, devices/controllers, saves/netplay, timing and retail compatibility pending; [limits](../cores/switch/README.md) |
 
 The experimental N64 plugin now executes original MIPS integer homebrew ROMs.
 It accepts the documented homebrew and original/native IPL3 handoff profiles;
@@ -196,10 +197,9 @@ and deliberate failure controls are required for each corpus. A new platform
 must implement its hardware as a loadable core plugin and execute its own ROMs;
 an empty plugin or declared platform name does not count as implementation.
 
-Additional requested platform families without a core in this worktree include
-Nintendo Switch. Famicom Disk System and other Nintendo accessories still need
-separate validation. There is no verified completion percentage for these
-missing implementations.
+Nintendo Switch now has an experimental original AArch64/NSO0 process core;
+its native hardware implementation remains incomplete. Famicom Disk System and
+other Nintendo accessories still need separate validation.
 
 The [SNES math timing corpus](../tests/roms-src/snes/math_timing/README.md) measures
 intermediate registers and completion boundaries for selected operand patterns.
@@ -1866,3 +1866,25 @@ new controller/netplay gates pass. All six production core network gates pass
 in **57.15 seconds**. The full build, sanitizer, completion renderer, changed
 local documentation links and whitespace checks pass. All 94 original archives
 reproduce. Production binaries were unchanged by the fixture corrections.
+
+## Switch AArch64 and native executable profile
+
+The new emulator ABI v2 [Switch plugin](../cores/switch/README.md) executes an
+[original NSO0 guest](../tests/roms-src/switch/arithmetic_registers/README.md).
+**1,572,864 arithmetic observations / 7,864,320 actual register words** match
+an independent unbounded-integer oracle. Its executed mutant fails all 384 short
+cases; five field and seven malformed-stream controls reject. The component
+passes **13,877,248 integer cases**, all 256 condition/NZCV combinations, SP/XZR,
+loader/map guards and complete state replay. Counts cover explicitly stated
+finite domains; they do not establish full CPU/hardware accuracy.
+
+The loader accepts a checked uncompressed NSO0 subset, rejects compression/hash
+flags, and maps text/RO/data/BSS with permissions into a fixed 4 MiB process
+profile and test stack. `VNXS0001` captures **4,194,648 bytes**, pinned to the
+image. Production ABI replay checks actual register streams and complete states.
+Firmware/HOS, compressed/hash-checked images and other formats, MMU/native RAM,
+full CPU/extensions/exceptions, GPU/audio, native devices/controllers, persistent
+saves, netplay, timing and retail playability remain pending. Original bytes
+are MIT; no firmware/keys/SDK/commercial files are included. Switch is now
+**25% = 5/20 delivery milestones**. CI/CD remains disabled; the full Nintendo
+implementation goal remains active.
