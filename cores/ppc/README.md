@@ -219,3 +219,14 @@ cmake --build build --target veloce gc_plugin wii_plugin ppc_machine_test -j4
 ctest --test-dir build -R '^(ppc_machine_test|(gc|wii)_(integer|branch|condition|logical|rotate|shift|carry|multiply|memory)_registers)$' --output-on-failure
 python3 tests/roms-src/build.py --original-only --check
 ```
+
+## Shared instruction module
+
+`src/cpu.{hpp,cpp}` now exposes `ppc::execute(State&, Memory&)`, separating
+instruction behavior from each console's bus and completion/scheduling policy.
+The original GC/Wii `Machine` retains its maps, loader and state format.
+The separate [Wii U plugin](../wiiu/README.md) supplies three CPU contexts and
+a 32 MiB MEM1/2 GiB MEM2 physical profile. The extraction changes bus routing
+and caller-owned completion only; GC/Wii component regression passes. Espresso
+privileged state, MMU/cache/coherency, timing and remaining instructions are
+pending. GC/Wii coverage counts are not evidence of all Wii U hardware.

@@ -19,6 +19,7 @@ are not measurements of overall hardware or product completion.
 | Nintendo DSi | `dsi_plugin` (original marked images only) | 387,072/387,072 original RAM captures; 67,109,008 component byte/width observations; 100-frame TCP host/viewer states and eight guest words match oracle | Not measured; firmware/retail boot, full SCFG/MBK, physical timing and most console hardware remain; [limits](../cores/dsi/README.md) |
 | Nintendo 3DS | `ctr_plugin` (original `.v3ds` only) | 25,165,824 original reversal captures; 36,123,648 component register snapshots and 541,065,300 RAM bus observations; 4,096 digital inputs; 100-frame production TCP host/viewer states and twelve guest words match baseline/oracle | Not measured; native boot, remaining CPU/peripherals, GPU/audio, physical timing and wireless multiplayer pending; [limits](../cores/3ds/README.md) |
 | GameCube | `gc_plugin` (original marked images only) | 49,152/49,152 arithmetic and 74,752/74,752 branch and 42,108,928/42,108,928 condition and 6,324,224/6,324,224 integer logical and 9,437,184/9,437,184 rotate/mask and 4,416,528/4,416,528 shift/unary and 25,168,384/25,168,384 carry arithmetic snapshots and 8,420,320/8,420,320 defined multiply/divide results matched; 1,056 undefined division rows have defined flags/preserved fields checked; 12,586,368/12,586,368 memory-transfer snapshots matched | Not measured; most CPU and console hardware remain; [limits](../cores/ppc/README.md) |
+| Wii U | `wiiu_plugin` (original `.vwiiu` only) | 25,165,824 original immediate captures; 28,311,552 component register snapshots and 8,724,152,428 RAM bus observations; dense/sparse replay and synthetic digital input | Not measured; native boot, remaining CPU/peripherals, GPU/audio, GamePad, physical timing and netplay pending; [limits](../cores/wiiu/README.md) |
 | Wii | `wii_plugin` (original marked images only) | 49,152/49,152 arithmetic and 74,752/74,752 branch and 42,108,928/42,108,928 condition and 6,324,224/6,324,224 integer logical and 9,437,184/9,437,184 rotate/mask and 4,416,528/4,416,528 shift/unary and 25,168,384/25,168,384 carry arithmetic snapshots and 8,420,320/8,420,320 defined multiply/divide results matched; 1,056 undefined division rows have defined flags/preserved fields checked; 12,586,368/12,586,368 memory-transfer snapshots matched | Not measured; most CPU and console hardware, including MEM2/IOS, remain; [limits](../cores/ppc/README.md) |
 
 The experimental N64 plugin now executes original MIPS integer homebrew ROMs.
@@ -194,8 +195,7 @@ must implement its hardware as a loadable core plugin and execute its own ROMs;
 an empty plugin or declared platform name does not count as implementation.
 
 Additional requested platform families without a core in this worktree include
-Nintendo Wii U
-and Switch. Famicom Disk System and other Nintendo accessories still need
+Nintendo Switch. Famicom Disk System and other Nintendo accessories still need
 separate validation. There is no verified completion percentage for these
 missing implementations.
 
@@ -440,7 +440,7 @@ supplied-profile byte checks, not physical chip-control/timing evidence.
 guest words matching the independent oracle. Host owns one keypad; viewer
 replay is supported, DSi wireless multiplayer is pending. DS component and
 production netplay regression gates pass. Local TCP gates require loopback
-socket permission; CI/CD remains disabled. All 50 original ROMs reproduce
+socket permission; CI/CD remains disabled. All 51 original ROMs reproduce
 against the source/image ledger. Firmware/retail boot, full SCFG/MBK and most
 DSi hardware remain pending; full platform completion is unmeasured.
 
@@ -467,7 +467,7 @@ boundary atomicity, 4,096 digital HID combinations, loader/state rejection,
 a three-context guest and exact full-state replay. The original fixed-field
 ROM and component alias enumeration are separate evidence. Physical timing,
 MMU/cache/coherency, firmware/native boot, GPU/audio, most peripherals and
-3DS wireless/link multiplayer remain pending. Wii U and Switch still lack plugins. No overall
+3DS wireless/link multiplayer remain pending. Switch still lacks a plugin. No overall
 completion percentage follows from these finite domains. Raw output and
 JSON grades stay in `build/artifacts/owned/3ds_reversal/`; CI/CD stays disabled.
 
@@ -488,4 +488,33 @@ Physical 3DS wireless/link multiplayer, Internet/cross-platform sessions,
 compression/page sharing and sustained real-time performance remain pending.
 A window-8 ring uses about 1.14 GiB per peer plus core/scratch memory. Reports,
 register files and full states stay in `build/artifacts/netplay-3ds/`.
-All 50 original ROMs reproduce from their source/image ledger. CI/CD remains disabled.
+All 51 original ROMs reproduce from their source/image ledger. CI/CD remains disabled.
+
+### Wii U original integer and full mapped-RAM evidence
+
+The separate [Wii U plugin](../cores/wiiu/README.md) now executes original
+three-context PowerPC programs, sharing the instruction module with GC/Wii
+through an explicit bus interface. GC/Wii loader/maps/state remain intact.
+The full 32 MiB MEM1/2 GiB MEM2 physical profile uses sparse 4 KiB pages;
+missing pages represent zero bytes, without shrinking mapped address ranges.
+Canonical states omit zero pages and retain every nonzero byte.
+
+The original ADDI/ADDIS ROM matches 25,165,824 nine-word register captures:
+all three contexts, full 16-bit immediates, four source values, zero/ordinary
+bases and all incoming XER flag combinations. Independent host arithmetic
+checks result, preserved flags and every captured stimulus/tag. Executed
+result/width/CR controls, nine field mutations and seven invalid streams fail.
+The component gate matches 28,311,552 register snapshots and 8,724,152,428 RAM
+bus observations, with all RT/RA aliases on selected values and every RAM byte
+written once/read through three contexts. Full dense and sparse replay, page
+boundaries, atomic rejection, high-end code, a synthetic 4,096-value digital
+input latch and plugin lifecycle pass. The full component gate passes
+undefined-behavior sanitization and GC/Wii regression passes. These are finite supplied-profile
+checks; full 32-bit operands, cache/MMU/coherency and physical timing are not
+proved. Raw files/grades stay in `build/artifacts/owned/wiiu_immediates/`.
+
+Firmware/native formats, Starbuck/IOSU/Cafe, remaining CPU instructions,
+Latte/GX2 GPU, DSP/audio, native GamePad/KPAD/VPAD, storage, wireless, netplay
+and most platform hardware remain pending. Switch still lacks a plugin.
+All 51 original ROMs reproduce from the ledger. No overall hardware percentage
+is inferred. CI/CD remains disabled; use the local gates in the core README.

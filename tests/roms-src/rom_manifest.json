@@ -579,6 +579,17 @@
       "source_sha": "4c122758bf9bff69a709dee8ea39f9992ee85a8c12e86cde3eac76f4713c2667",
       "source_type": "original",
       "suite": "shift_registers"
+    },
+    "wiiu/immediate_registers/immediate_registers.vwiiu": {
+      "build_command": "python3 tests/roms-src/wiiu/immediate_registers/build.py",
+      "console": "wiiu",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "3909d9beda1a7ce430e3f20c327c00819350b5d6c3e88698de98c987c7a55925",
+      "source_repo": "tests/roms-src/wiiu/immediate_registers/build.py",
+      "source_sha": "4a7208b7a78ec3f8a82cf3e7a2710a215afe422d529d64075a97623c250a8445",
+      "source_type": "original",
+      "suite": "immediate_registers"
     }
   },
   "tool_versions": {

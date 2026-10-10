@@ -327,7 +327,7 @@ add_test(NAME nds_netplay_plugin_test COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_BINARY_DIR}/artifacts/netplay-nds --netplay-plugin $<TARGET_FILE:netplay_default> --console nds)
 set_tests_properties(nds_netplay_plugin_test PROPERTIES LABELS "integration;netplay;owned" TIMEOUT 90)
 
-add_executable(ppc_machine_test cpp/ppc_machine_test.cpp ${CMAKE_SOURCE_DIR}/cores/ppc/src/machine.cpp)
+add_executable(ppc_machine_test cpp/ppc_machine_test.cpp ${CMAKE_SOURCE_DIR}/cores/ppc/src/machine.cpp ${CMAKE_SOURCE_DIR}/cores/ppc/src/cpu.cpp)
 target_include_directories(ppc_machine_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/ppc/src ${CMAKE_SOURCE_DIR}/include ${SDL2_INCLUDE_DIRS})
 target_link_libraries(ppc_machine_test PRIVATE ${SDL2_LIBRARIES})
 target_compile_definitions(ppc_machine_test PRIVATE SDL_MAIN_HANDLED)
@@ -434,3 +434,17 @@ add_test(NAME ctr_netplay_plugin_test COMMAND ${Python3_EXECUTABLE}
     $<TARGET_FILE:ctr_plugin> ${CMAKE_SOURCE_DIR}/tests/roms-src/3ds/netplay_probe/netplay_probe.v3ds
     ${CMAKE_BINARY_DIR}/artifacts/netplay-3ds --netplay-plugin $<TARGET_FILE:netplay_default> --console 3ds)
 set_tests_properties(ctr_netplay_plugin_test PROPERTIES LABELS "integration;netplay;owned" TIMEOUT 180)
+
+add_executable(wiiu_machine_test cpp/wiiu_machine_test.cpp
+    ${CMAKE_SOURCE_DIR}/cores/wiiu/src/machine.cpp ${CMAKE_SOURCE_DIR}/cores/ppc/src/cpu.cpp)
+target_include_directories(wiiu_machine_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/wiiu/src ${CMAKE_SOURCE_DIR}/include ${SDL2_INCLUDE_DIRS})
+target_link_libraries(wiiu_machine_test PRIVATE ${SDL2_LIBRARIES})
+target_compile_definitions(wiiu_machine_test PRIVATE SDL_MAIN_HANDLED)
+add_dependencies(wiiu_machine_test wiiu_plugin)
+add_test(NAME wiiu_machine_test COMMAND wiiu_machine_test $<TARGET_FILE:wiiu_plugin>
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/wiiu/immediate_registers/immediate_registers.vwiiu)
+set_tests_properties(wiiu_machine_test PROPERTIES LABELS "unit;accuracy;owned" TIMEOUT 1200)
+add_test(NAME wiiu_immediate_registers COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/wiiu/immediate_registers/run.py --emulator $<TARGET_FILE:veloce>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/wiiu_immediates)
+set_tests_properties(wiiu_immediate_registers PROPERTIES LABELS "accuracy;owned" TIMEOUT 1800)
