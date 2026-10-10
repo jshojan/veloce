@@ -96,7 +96,7 @@ remaining CPU instructions and privileged/banked/interrupt state, TCM/caches,
 physical timing and exceptions, new WRAM/MBK allocation, DMA/NDMA, full SCFG,
 chip memory control, graphics/audio/DSP, touch/microphone/cameras, SD/NAND,
 wireless, accessories and real hardware traces remain pending. No full
-hardware percentage is claimed. Nintendo 3DS, Wii U and Switch plugins remain
+hardware percentage is claimed. Nintendo 3DS now has a separate partial integer plugin; Wii U and Switch plugins remain
 missing; see [coverage and remaining work](../../docs/HARDWARE-COVERAGE.md).
 
 RAM-limit/mirror and SCFG definitions follow [GBATEK's DSi control register

@@ -195,6 +195,7 @@ add_subdirectory(cores/n64)
 add_subdirectory(cores/vb)
 add_subdirectory(cores/nds)
 add_subdirectory(cores/dsi)
+add_subdirectory(cores/3ds)
 add_subdirectory(cores/ppc)
 
 # Shared plugin libraries

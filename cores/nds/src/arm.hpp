@@ -15,7 +15,7 @@ struct ArmState {
 };
 class Arm {
 public:
-    Arm(Memory& memory,bool arm9):bus(memory),v5(arm9) {}
+    Arm(Memory& memory,bool arm9,bool arm11=false):bus(memory),v5(arm9 || arm11),v6(arm11) {}
     void reset(uint32_t entry) { state={}; state.r[15]=entry; }
     void step();
     static bool condition(unsigned code,uint32_t cpsr);
@@ -25,6 +25,6 @@ private:
     void thumb_step();
     bool transfer(uint32_t address,unsigned width,bool load,bool sign,uint32_t& value);
     Memory& bus;
-    bool v5;
+    bool v5,v6;
 };
 }

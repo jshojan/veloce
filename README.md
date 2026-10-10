@@ -41,10 +41,11 @@ See [Build Instructions](#building) for platform-specific details.
 | Virtual Boy | [cores/vb](cores/vb/README.md) | Experimental | V810 integer homebrew, multiply/divide, exception and arithmetic bit-string corpora; no retail games, video, audio or controller hardware |
 | Nintendo DS | [cores/nds](cores/nds/README.md) | Experimental | Dual-CPU ARM/Thumb integer, memory, long-call and stack/block homebrew with digital keypad input with shared/private RAM; no firmware/retail boot, graphics, audio or peripheral hardware |
 | Nintendo DSi | [cores/dsi](cores/dsi/README.md) | Experimental | Distinct plugin; dual-CPU integer homebrew, 16 MiB RAM/aliases and RAM-limit controls, digital keypad and TCP host/viewer replay; firmware/retail boot and most DSi peripherals pending |
+| Nintendo 3DS | [cores/3ds](cores/3ds/README.md) | Experimental | Distinct plugin; two ARM11 and one ARM9 integer contexts, 128 MiB shared FCRAM, AXI/private RAM and digital HID; native boot, graphics/audio and netplay pending |
 | GameCube | [cores/ppc](cores/ppc/README.md) | Experimental | Original PowerPC arithmetic/carry, multiply/divide, memory transfers, bitwise, rotate/mask, shift/unary, branch and condition-register programs; no retail boot, graphics/audio, controllers or netplay |
 | Wii | [cores/ppc](cores/ppc/README.md) | Experimental | Original PowerPC arithmetic/carry, multiply/divide, memory transfers, bitwise, rotate/mask, shift/unary, branch and condition-register programs; no retail boot, MEM2, IOS, graphics/audio, controllers or netplay |
 
-Additional Nintendo families, including 3DS, Wii U, and Switch, still need
+Additional Nintendo families, including Wii U and Switch, still need
 core plugins. DSi enhanced hardware remains partially implemented. Overall completion is not yet
 measured. See the [hardware coverage and remaining work](docs/HARDWARE-COVERAGE.md).
 
@@ -58,7 +59,7 @@ veloce (application)
     +-- Plugin Manager
     |       |
     |       +-- Emulator Cores (IEmulatorPlugin)
-    |       |       NES, GB, GBA, SNES, N64, VB
+    |       |       NES, GB, GBA, SNES, N64, VB, DS, DSi, 3DS, GC, Wii
     |       |
     |       +-- Audio Plugin (IAudioPlugin)
     |       |       Volume, muting, processing
@@ -110,6 +111,7 @@ Game plugin selection is configurable in Settings > Plugins.
 - [SNES Core](cores/snes/README.md) - Super Nintendo Entertainment System
 - [N64 Core](cores/n64/README.md) - Experimental Nintendo 64 integer homebrew core
 - [Nintendo DS Core](cores/nds/README.md) - Experimental dual-CPU ARM homebrew core
+- [Nintendo 3DS Core](cores/3ds/README.md) - Experimental ARM11/ARM9 integer profile
 - [Nintendo DSi Core](cores/dsi/README.md) - Experimental expanded-RAM dual-CPU homebrew plugin
 - [GameCube/Wii Cores](cores/ppc/README.md) - Experimental shared PowerPC integer profiles
 - [Virtual Boy Core](cores/vb/README.md) - Experimental V810 integer homebrew core
@@ -335,6 +337,7 @@ console. Start here:
 | Virtual Boy | Experimental integer homebrew: 6,512,640 result/PSW pairs plus 4,210,688 multiply/divide and 4,685,824 TRAP/illegal and 4,982,784 address-trap snapshots, plus 17,055,744 CAXI/port and 14,680,064 arithmetic bit-string snapshots, plus 100,712,448 immediate-instruction snapshots; full platform completion unknown | [implementation and limits](cores/vb/README.md) |
 | Nintendo DS | Experimental dual-CPU homebrew: 44,238,336 integer plus 38,338,560 multiply snapshots plus 51,426,816 Thumb result/CPSR/source/PC and 49,694,208 memory plus 9,437,184 long-call snapshots matched; 3,720,960 stack/block snapshots matched; 4,096/4,096 digital keypad combinations matched; full platform completion unknown | [implementation and limits](cores/nds/README.md) |
 | Nintendo DSi | 387,072/387,072 original RAM observations matched; 67,109,008 component bus observations; 100-frame TCP host/viewer states and eight guest register words match oracle; full hardware completion unknown | [implementation and limits](cores/dsi/README.md) |
+| Nintendo 3DS | 25,165,824/25,165,824 original reversal captures matched; 36,123,648 component register snapshots and 541,065,300 RAM bus observations; 4,096 digital HID inputs; full hardware completion unknown | [implementation and limits](cores/3ds/README.md) |
 | GameCube / Wii | Each profile: 49,152/49,152 arithmetic, 74,752/74,752 branch and 42,108,928/42,108,928 condition-register and 6,324,224/6,324,224 integer logical and 9,437,184/9,437,184 rotate/mask and 4,416,528/4,416,528 shift/unary and 25,168,384/25,168,384 carry arithmetic snapshots and 8,420,320/8,420,320 defined multiply/divide results matched; 1,056 undefined division rows have defined flags/preserved fields checked; 12,586,368/12,586,368 memory-transfer snapshots matched; full platform completion unknown | [implementation and limits](cores/ppc/README.md) |
 
 Run external ROM suites with `python tests/run_all.py`; see [TESTING.md](TESTING.md)
@@ -364,6 +367,7 @@ subset, not whole-core completion.
 | [Nintendo DS Thumb registers](tests/roms-src/nds/thumb_registers/README.md) | 51,426,816/51,426,816 five-word observations matched: all low ALU operations, register ADD/SUB, all shift and low register ALU immediates, all NZCV/ARM9 Q and observed Thumb PC; ARM7 MUL C unscored, timing pending | `build/artifacts/owned/nds_thumb/` |
 | [Nintendo DS memory registers](tests/roms-src/nds/memory_registers/README.md) | 49,694,208/49,694,208 nine-word snapshots matched: ARM halfword/signed and Thumb transfers, all halfword values and immediate fields; physical timing pending | `build/artifacts/owned/nds_memory/` |
 | [DSi RAM registers](tests/roms-src/dsi/ram_registers/README.md) | 387,072/387,072 fourteen-word captures matched: RAM modes/banks/CPU writers/aliases/widths/lanes/byte-complement patterns; timing pending | `build/artifacts/owned/dsi_ram/` |
+| [3DS ARM11 reversals](tests/roms-src/3ds/reversal_registers/README.md) | 25,165,824/25,165,824 seven-word captures matched: both ARM11s, ARM/Thumb REV/REV16/REVSH, all NZCVQ and complemented-half values; full operands/timing pending | `build/artifacts/owned/3ds_reversal/` |
 | [DSi netplay probe](tests/roms-src/dsi/netplay_probe/README.md) | 100-frame independent TCP peers match full baseline states and eight guest register words; host keypad/viewer, wireless multiplayer pending | `build/artifacts/netplay-dsi/` |
 | [Nintendo DS long calls](tests/roms-src/nds/long_calls/README.md) | 9,437,184/9,437,184 eight-word snapshots matched: adjacent BL/ARM9 BLX pairs, every high and valid low field individually, both halfword positions, all NZCV/ARM9 Q; physical cache coherence/timing pending | `build/artifacts/owned/nds_long_calls/` |
 | [Nintendo DS stack/block registers](tests/roms-src/nds/multiple_registers/README.md) | 3,720,960/3,720,960 twenty-five-word snapshots matched: every defined list/base encoding, sixteen register/memory seeds, all NZCV/ARM9 Q and POP-PC target states; physical abort/timing pending | `build/artifacts/owned/nds_multiple/` |

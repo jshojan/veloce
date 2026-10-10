@@ -60,6 +60,16 @@ void Arm::step() {
     if(cond==15 && v5) { s.unsupported=true; return; }
     if(!condition(cond,s.cpsr)) { s.r[15]=pc+4; return; }
     const auto operand=[&](unsigned reg,bool late=false) { return reg==15 ? pc+(late ? 12:8):s.r[reg]; };
+    const uint32_t reversal=ins&0x0fff0ff0u;
+    if(reversal==0x06bf0f30 || reversal==0x06bf0fb0 || reversal==0x06ff0fb0) {
+        const unsigned rd=(ins>>12)&15,rm=ins&15;
+        if(!v6 || rd==15 || rm==15) { s.unsupported=true; return; }
+        const uint32_t source=s.r[rm];
+        const uint32_t pairs=((source&0x00ff00ffu)<<8)|((source&0xff00ff00u)>>8);
+        s.r[rd]=reversal==0x06bf0f30 ? (pairs<<16)|(pairs>>16):
+            reversal==0x06bf0fb0 ? pairs:(pairs&0xffffu)|((pairs&0x8000u)?0xffff0000u:0);
+        s.r[15]=pc+4; return;
+    }
     if((ins&0x0ffffff0)==0x012fff10 || (ins&0x0ffffff0)==0x012fff30) {
         const bool link=ins&0x20;
         if(link && (!v5 || (ins&15)==15)) { s.unsupported=true; return; }
@@ -200,7 +210,14 @@ void Arm::thumb_step() {
         overflow=((subtract ? a^b:~(a^b))&(a^result)&0x80000000)!=0;
         return result;
     };
-    if((ins&0xf800)==0x1800) {
+    if((ins&0xff00)==0xba00) {
+        const unsigned op=(ins>>6)&3,rd=ins&7,rm=(ins>>3)&7;
+        if(!v6 || op==2) { s.unsupported=true; return; }
+        const uint32_t source=s.r[rm];
+        const uint32_t pairs=((source&0x00ff00ffu)<<8)|((source&0xff00ff00u)>>8);
+        s.r[rd]=op==0 ? (pairs<<16)|(pairs>>16):op==1 ? pairs:
+            (pairs&0xffffu)|((pairs&0x8000u)?0xffff0000u:0);
+    } else if((ins&0xf800)==0x1800) {
         const bool immediate=ins&0x400,subtract=ins&0x200;
         const unsigned rd=ins&7,rn=(ins>>3)&7,third=(ins>>6)&7;
         const auto result=arithmetic(s.r[rn],immediate ? third:s.r[third],subtract);
