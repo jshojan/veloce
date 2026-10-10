@@ -286,6 +286,28 @@
       "source_type": "original",
       "suite": "fpu_arithmetic_pairs"
     },
+    "n64/fpu_comparison_edges/fpu_comparison_edges.z64": {
+      "build_command": "python3 tests/roms-src/n64/fpu_comparison_edges/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "ecb8edaa4e732a949ca286662c6bcc703e129691fa8ae8fea77c7fbdeefc5d41",
+      "source_repo": "tests/roms-src/n64/fpu_comparison_edges/build.py",
+      "source_sha": "3d48d2cac48289caf6076354ef89c4a7723bde21f3d8c23d1167d0341000a654",
+      "source_type": "original",
+      "suite": "fpu_comparison_edges"
+    },
+    "n64/fpu_comparison_pairs/fpu_comparison_pairs.z64": {
+      "build_command": "python3 tests/roms-src/n64/fpu_comparison_pairs/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "ed576bdb9e6f9a0e0c6a92859d95071ec097f699c25cc9f835629da492ece7cf",
+      "source_repo": "tests/roms-src/n64/fpu_comparison_pairs/build.py",
+      "source_sha": "132c30beef90447b67b859d9f4b1ec8ba427d80099e0054c83163ead90c32c40",
+      "source_type": "original",
+      "suite": "fpu_comparison_pairs"
+    },
     "n64/fpu_controls/fpu_controls.z64": {
       "build_command": "python3 tests/roms-src/n64/fpu_controls/build.py",
       "console": "n64",

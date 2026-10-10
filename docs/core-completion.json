@@ -164,7 +164,7 @@
         "register_oracle",
         "states"
       ],
-      "remaining": "Super Mario 64 passes VMULF and reaches a real RSP BREAK in the short probe. A longer trace retires 145,423 RSP instructions, then encounters unsupported C.LT.S; RDP SET_COMBINE is also blocked. Multiply/accumulate, vector transfers, shared DP controls and bounded fill/sync work; video stays uniform. Native boot/playability, FPU comparisons/devices, remaining RSP arithmetic/reciprocals, complete RDP, physical timing, RSP audio microcode, analog and netplay remain."
+      "remaining": "Super Mario 64 passes C.LT.S and reaches the 200-million-attempt trace bound without a terminal CPU fault; 728,648 RSP instructions retire. RDP SET_COMBINE remains blocked and video stays uniform. Native boot/playability, full CPU/CP0/devices, FPU physical timing, remaining RSP arithmetic/reciprocals, complete RDP/audio, analog and netplay remain."
     },
     {
       "id": "vb",
