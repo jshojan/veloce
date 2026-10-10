@@ -1,5 +1,6 @@
 #include "vr4300.hpp"
 #include "fpu_conversions.hpp"
+#include "fpu_arithmetic.hpp"
 
 namespace n64 {
 uint64_t sign32(uint32_t v) { return uint64_t(v) | ((v & 0x80000000u) ? 0xffffffff00000000ull : 0); }
@@ -354,6 +355,16 @@ void VR4300::step() {
                 }
             } else if (rs == 8 && rt < 4) {
                 branch(bool(s.fcr31 & 0x800000) == bool(rt & 1), rt & 2);
+            } else if(rs>=16 && fn<=7) {
+                if(!fr() && ((rd|sa|(fn<4?rt:0))&1)) {fault(10);break;}
+                const uint64_t left=rs==16?fp_word(rd):s.fpr[rd],right=rs==16?fp_word(rt):s.fpr[rt];
+                const auto result=fn>=4 && rt?FpuArithmetic::Result{0,32}:FpuArithmetic::calculate(rs,fn,left,right,s.fcr31&3,s.fcr31&0x1000000,(s.fcr31>>7)&31);
+                if(fn!=6 || result.causes) {
+                    s.fcr31=(s.fcr31&~0x3f000u)|(result.causes<<12);
+                    if((result.causes&32) || (result.causes&((s.fcr31>>7)&31))) {fault(15);break;}
+                    s.fcr31|=(result.causes&31)<<2;
+                }
+                if(rs==16)fp_put_word(sa,uint32_t(result.bits));else s.fpr[sa]=result.bits;
             } else if(rs>=16 && ((fn>=8 && fn<=15) || fn==32 || fn==33 || fn==36 || fn==37)) {
                 const unsigned target=fn==32?16:fn==33?17:fn==36 || (fn>=12 && fn<=15)?20:21;
                 const unsigned mode=(s.cp0[12]&6)?0:unsigned(s.cp0[12]>>3)&3;

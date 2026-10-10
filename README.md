@@ -21,7 +21,7 @@
 
 These percentages count the 20 explicit delivery milestones in [the completion ledger](docs/CORE-COMPLETION.md); partial or unverified milestones receive zero credit. Each milestone is worth 5 percentage points. **They are not percentages of native hardware accuracy or retail compatibility.** Bounded profile tests do not complete a whole CPU or hardware subsystem.
 
-Super Mario 64 (USA) was tested locally on 2026-10-10: **loads and reaches 6,212,339 startup step attempts**, then encounters unsupported DIV.S at EPC `803259A0` (actual instruction-cache word `460A3483`). Boot and playability remain pending. See the [repeatable local probe](cores/n64/README.md#local-retail-regression-target).
+Super Mario 64 (USA) was tested locally on 2026-10-10: **loads, passes the former DIV.S blocker and reaches the 12-million-attempt trace limit without a terminal CPU fault**. The production probe records uniform video and 480 audio sample pairs; boot and playability remain unverified. See the [repeatable local probe](cores/n64/README.md#local-retail-regression-target).
 <!-- completion:end -->
 
 A cross-platform, plugin-based emulator framework built for speedrunners and TAS creators.
@@ -370,7 +370,7 @@ console. Start here:
 | SNES | Original settled math: 68,864 cases and 504,832 selected timing observations verified; external visual catalog unscored | [scorecard](COMPLETENESS.md#snes) / [notes](cores/snes/README.md#testing) |
 | Game Boy | Blargg serial subset, original probe, 8,388,608 ALU pairs and 73,728 unary pairs verified; Mooneye unscored | [scorecard](COMPLETENESS.md#game-boy) / [notes](cores/gb/README.md#testing) |
 | GBA | partial (CPU/memory/BIOS/saves verified) | [scorecard](COMPLETENESS.md#gba) / [notes](cores/gba/README.md#test-status) |
-| N64 | Experimental integer/PI/native handoff: 524,288 cartridge-DMA cases and twelve startup captures, plus 524,288 RI cases and 393,216 MI transitions and 14,336 device cases plus 2,097,152 cache cases, 196,608 SP control and 65,536 SP DMA cases, 2,048 AI FIFO cases and 65,536 signed PCM codes per channel; 28,127 integer, 262,623 doubleword multiply/divide and 3,158,016 merge-memory results and all 16,384 digital controller combinations and 65,536 interrupt gates verified; full platform completion unknown | [implementation and limits](cores/n64/README.md) |
+| N64 | Experimental integer/PI/native handoff: 524,288 cartridge-DMA cases and twelve startup captures, plus 524,288 RI cases and 393,216 MI transitions and 14,336 device cases plus 2,097,152 cache cases, 196,608 SP control and 65,536 SP DMA cases, 2,048 AI FIFO cases and 65,536 signed PCM codes per channel; 28,127 integer, 262,623 doubleword multiply/divide and 3,158,016 merge-memory results and all 16,384 digital controller combinations and 65,536 interrupt gates verified; FPU data/control/conversion and 346,224 arithmetic capture rows also pass, with unfiltered VI video and AI PCM; full platform completion unknown | [implementation and limits](cores/n64/README.md) |
 | Virtual Boy | Experimental integer homebrew: 6,512,640 result/PSW pairs plus 4,210,688 multiply/divide and 4,685,824 TRAP/illegal and 4,982,784 address-trap snapshots, plus 17,055,744 CAXI/port and 14,680,064 arithmetic bit-string snapshots, plus 100,712,448 immediate-instruction snapshots; full platform completion unknown | [implementation and limits](cores/vb/README.md) |
 | Nintendo DS | Experimental dual-CPU homebrew: 44,238,336 integer plus 38,338,560 multiply snapshots plus 51,426,816 Thumb result/CPSR/source/PC and 49,694,208 memory plus 9,437,184 long-call snapshots matched; 3,720,960 stack/block snapshots matched; 4,096/4,096 digital keypad combinations matched; full platform completion unknown | [implementation and limits](cores/nds/README.md) |
 | Nintendo DSi | 387,072/387,072 original RAM observations matched; 67,109,008 component bus observations; 100-frame TCP host/viewer states and eight guest register words match oracle; full hardware completion unknown | [implementation and limits](cores/dsi/README.md) |
@@ -450,7 +450,9 @@ subset, not whole-core completion.
 | [N64 FPU data](tests/roms-src/n64/fpu_data/README.md) | 131,072 rows / 1,179,648 actual values matched for all eight register/memory transfer instructions in both FR modes; arithmetic and physical timing pending | `build/artifacts/owned/n64_fpu_data/` |
 | [N64 integer conversions](tests/roms-src/n64/fpu_integer_conversions/README.md) | 524,288 rows / 2,621,440 captured words matched across CVT.S.W/CVT.D.W and all rounding modes; defined result bits graded | `build/artifacts/owned/n64_fpu_integer_conversions/` |
 | [N64 conversion edges](tests/roms-src/n64/fpu_conversion_edges/README.md) | 289,536 rows / 1,447,680 captured words matched across conversion/fixed-rounding functions, exponent/enable/FS/format domains; physical timing pending | `build/artifacts/owned/n64_fpu_conversion_edges/` |
-| [N64 IPL3 handoff](tests/roms-src/n64/ipl3_handoff/README.md) | 12/12 original startup captures; native retail boot remains blocked at unsupported DIV.S | `build/artifacts/owned/n64_ipl3_handoff/` |
+| [N64 arithmetic pairs](tests/roms-src/n64/fpu_arithmetic_pairs/README.md) | 131,072 rows / 786,432 captured words matched across all signed six-bit operand pairs, four binary S/D functions and four rounding modes | `build/artifacts/owned/n64_fpu_arithmetic_pairs/` |
+| [N64 arithmetic edges](tests/roms-src/n64/fpu_arithmetic_edges/README.md) | 215,152 rows / 1,290,912 captured words matched across all S/D exponent fields, eight arithmetic/unary functions, special operand pairs and selected full enable/FS products | `build/artifacts/owned/n64_fpu_arithmetic_edges/` |
+| [N64 IPL3 handoff](tests/roms-src/n64/ipl3_handoff/README.md) | 12/12 original startup captures; native retail boot remains unverified after passing DIV.S | `build/artifacts/owned/n64_ipl3_handoff/` |
 | [N64 interrupt gates](tests/roms-src/n64/interrupts/README.md) | 65,536/65,536 cases matched; 524,288 guest values for software/SI/timer, MI/CPU masks and IE/EXL/ERL; pipeline and physical timer timing pending | `build/artifacts/owned/n64_interrupts/` |
 | [N64 digital controller](tests/roms-src/n64/controller_serial/README.md) | 16,384/16,384 combinations matched; 131,072 guest values for digital input, identity, absent port and settled SI/MI registers; analog and physical timing pending | `build/artifacts/owned/n64_controller/` |
 | [N64 merge memory](tests/roms-src/n64/merge_memory/README.md) | 3,158,016/3,158,016 observations matched; eight instructions, every byte lane, all repeated-byte pairs and full-width boundaries; full multi-byte domains/timing unverified | `build/artifacts/owned/n64_merge_memory/` |
@@ -472,9 +474,10 @@ The GBA ROM records ARM shift results and CPSR flags through mGBA debug
 registers, with an independent host oracle and file-channel boundary controls.
 The experimental N64 ROM outputs observed GPR/HI/LO values through an emulator
 debug register. Its marked homebrew loader bypasses retail boot; it provides
-integer execution and settled digital SI/PIF controller evidence. N64 graphics,
-audio, analog sticks, serial/pipeline timing and other interrupt producers remain
-pending.
+integer/FPU execution and settled digital SI/PIF controller evidence. Additional
+original ROMs grade AI PCM, VI framebuffer and device registers. RSP/RDP game
+graphics, RSP audio microcode, analog sticks, serial/pipeline timing and other
+interrupt producers remain pending.
 The experimental Virtual Boy ROMs record V810 result/PSW pairs, full
 multiply/divide results and divide-zero/TRAP/illegal/address-trap exception context and CAXI/port and arithmetic bit-string results through an
 emulator debug channel. It runs original reset-vector code; video, audio,

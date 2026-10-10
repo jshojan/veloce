@@ -1,6 +1,6 @@
 # Experimental Nintendo 64 core plugin
 
-Current N64 evidence: [FPU conversions and current Mario blocker](#fpu-conversion-and-fixed-rounding-family). Earlier increment reports are historical.
+Current N64 evidence: [FPU arithmetic and current Mario evidence](#fpu-arithmetic-family). Earlier increment reports are historical.
 
 <!-- completion:start -->
 ## Completion percentage
@@ -13,7 +13,7 @@ These percentages count the 20 explicit delivery milestones in [the completion l
 
 Nintendo 64 delivered milestones: Guest sound produces audio samples, Native digital controller/keypad registers consume frontend input, Guest graphics produce rendered video, Parse a native cartridge/executable format (boot scored separately), Repository-owned ROM source and reproducible archived image, Separate core plugin and ABI entry points, Actual guest register-file output independently graded on the host, with negative controls, Complete states for the implemented profile and deterministic replay.
 
-Remaining: Super Mario 64 reaches 6,212,339 startup attempts, then encounters unsupported DIV.S; native boot/playability, remaining CPU/FPU/devices, RSP/RDP, VI filters and physical timing, RSP audio microcode, analog and netplay remain.
+Remaining: Super Mario 64 passes the former DIV.S blocker and reaches the 12-million-attempt trace limit without a terminal CPU fault, but video is uniform; native boot/playability, remaining CPU/FPU/devices, RSP/RDP, VI filters and physical timing, RSP audio microcode, analog and netplay remain.
 <!-- completion:end -->
 
 `n64_plugin` builds `n64.so`/`n64.dll`/`n64.dylib` and implements emulator ABI v2.
@@ -35,7 +35,7 @@ on selected operands, not a percentage of N64 hardware implemented.
   Translated instruction/data/cache access, 32/64-bit segments and privilege checks.
 
 - FPU MFC1/MTC1/DMFC1/DMTC1 and LWC1/LDC1/SWC1/SDC1 data transfers in both FR modes; CFC1/CTC1 control transfers and BC1F/BC1T/BC1FL/BC1TL branches;
-  CU1/FPE exception context and persistent FCR31. CVT.S/D/W/L and ROUND/TRUNC/CEIL/FLOOR W/L conversion families are implemented; arithmetic and comparison remain pending.
+  CU1/FPE exception context and persistent FCR31. CVT.S/D/W/L and ROUND/TRUNC/CEIL/FLOOR W/L conversion families and ADD/SUB/MUL/DIV/SQRT/ABS/MOV/NEG S/D are implemented; comparison and physical pipeline behavior remain pending.
 
 - Word and doubleword add/subtract, trapping and nontrapping forms; logic,
   signed/unsigned comparisons, immediate arithmetic and logic.
@@ -270,7 +270,7 @@ exact continuation, legacy states, reset and the loaded plugin.
 These are functional controls. Analog current calibration, mode-dependent RAM
 access, refresh scheduling, bus contention/error production, native RAM remapping
 and physical timing remain pending. Native cartridge startup now proceeds past
-RI register configuration and reaches MI control setup; the local target now reaches unsupported DIV.S (see the retail probe above).
+RI register configuration and reaches MI control setup; the local target now passes DIV.S and reaches the bounded trace limit (see the retail probe below).
 
 ## MI mode and interrupt controls
 
@@ -362,11 +362,11 @@ verified boot. The bounded trace now allows 12,000,000 attempts, matching the
 ## Local retail regression target
 
 Super Mario 64 (USA), supplied locally by the user, was probed on 2026-10-10.
-The plugin **loads it and reaches 6,212,339 startup step attempts**, then
-encounters unsupported `DIV.S` at EPC `$803259A0`, actual instruction-cache
-and backing word `$460A3483`, Cause `$10000028` (RI code 10). There were 22
-earlier nonterminal exception entries. The production ABI probe runs 120
-frontend scheduling quanta with uniform video and zero audio pairs.
+The plugin **loads it, passes the former DIV.S blocker and reaches the
+12-million-attempt trace limit without a terminal CPU fault**. There were 51
+nonterminal exception entries; the trace ends at PC `$80246DDC`, Status `$FF01`.
+The production ABI probe runs 120 frontend scheduling quanta with uniform video
+and 480 audio sample pairs. These pairs do not establish audible game sound.
 **Retail boot and playability are unverified.**
 The 8 MiB image has SHA256
 `17ce077343c6133f8c9f2d6d6d9a4ab62c8cd2aa57c40aea1f490b4c8bb21d91`.
@@ -381,7 +381,7 @@ The optional probe loads the production shared library, checks ABI, measures
 video/audio and runs a bounded machine trace through interrupts and recoverable TLB/FPU exceptions to the first terminal exception.
 It writes hashes, EPC, Cause, fault address and all 32 GPRs to
 `build/artifacts/retail/n64.json`; no commercial bytes are archived or copied.
-The current verdict is `boot-blocked`. A successful probe process is not a
+The current verdict is `execution-smoke`. A successful probe process is not a
 playability verdict. Next work includes FPU and native RAM mapping, full CPU/CP0/FPU,
 RSP/RDP, VI filtering and device pipeline scheduling, physical AI timing and save media.
 
@@ -687,3 +687,51 @@ pairs; boot/playability remain unverified. Commercial ROM bytes are never commit
 Earlier increment reports retain their historical blockers and counts.
 
 Verification: **37/37 N64 CTests passed** in 475.97 seconds, including twenty-two original register-ROM gates, two production audio/video oracles and thirteen component gates. The full build and final conversion undefined-behavior sanitizer passed; all **71 original ROMs** reproduce against the committed image/generator ledger. Completion renderer and whitespace checks pass. CI/CD remains removed and Actions disabled.
+
+## FPU arithmetic family
+
+The core implements ADD/SUB/MUL/DIV/SQRT/ABS/MOV/NEG in single and double
+precision using portable integer significands, guard/sticky rounding, long
+division and a restoring integer square root. It uses no native floating-point
+state or compiler-specific 128-bit type. All four rounding modes, legacy NaNs,
+signed zeros, infinity, invalid, division-by-zero, overflow and FS/enable-dependent
+tiny results are handled. Assist takes precedence over invalid operands. MOV
+copies bits without interpreting NaNs/subnormals or changing existing FCSR causes.
+Traps update causes, preserve sticky flags and suppress destination writes.
+
+The [pair ROM](../../tests/roms-src/n64/fpu_arithmetic_pairs/README.md) matches
+**131,072 rows / 786,432 captured words**. The
+[edge ROM](../../tests/roms-src/n64/fpu_arithmetic_edges/README.md) matches
+**215,152 rows / 1,290,912 captured words**. Both stream six actual destination,
+FCSR, handler, CPU exception and unchanged-source observations per row. An
+independent exact-rational oracle grades arithmetic; square roots use integer
+square comparisons, without native FP. Each ROM rejects an executed capture
+mutant, six individual field mutations and seven malformed-stream controls.
+
+The component passes **540,672 register/FR/format/function cases** and **327,680
+rounding/enable/sticky/FS/condition combinations**, including aliased operands,
+MOV preservation of enabled old causes, minimum-normal rounding rescue, CU1
+precedence, reserved formats,
+delay/nested/BEV exceptions and exact pending-arithmetic state replay. A separate
+30,000-case seeded raw-bit differential check matches the rational oracle.
+State stays `VN64S013`; this family adds no serialized fields.
+
+Rules follow the [NEC manual](https://hack64.net/docs/VR43XX.pdf), chapters 7–8
+and arithmetic instruction entries, supplemented by the hardware-test author's
+[raw-bit arithmetic cases](https://github.com/lemmy-64/n64-systemtest/blob/main/src/tests/cop1/mod.rs).
+These original cartridges have not been validated on a physical console. Their
+finite domains do not exhaust all independent operand combinations. Undefined
+odd FR=0 operands use the documented RI convention; nonzero unary ft fields use
+an assist convention whose physical behavior is ungraded. FPU comparisons,
+pipeline/interlock/CPI behavior, precise CE timing and reverse endian remain pending.
+N64 stays **40% (8/20 delivery milestones)**; the whole CPU milestone is incomplete.
+
+Super Mario 64 USA passes the former DIV.S blocker and reaches **12,000,000
+startup attempts**, the bounded trace limit, without a terminal CPU fault.
+It passed 51 nonterminal exception entries and ends at PC `80246DDC`, Status
+`FF01`. The 120-quantum production probe observes uniform video and 480 audio
+sample pairs; audible game sound, boot and playability remain unverified.
+Commercial ROM bytes are never committed. Earlier increment reports retain
+their historical counts and blockers.
+
+Verification: **40/40 N64 CTests passed** in 246.85 seconds, including twenty-four original register-ROM gates, two production audio/video oracles and fourteen component gates. The full build and final arithmetic undefined-behavior sanitizer passed; all **73 original ROMs** reproduce against the committed image/generator ledger. Completion renderer and whitespace checks pass. CI/CD remains removed and Actions disabled.
