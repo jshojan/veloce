@@ -55,6 +55,17 @@
       "source_type": "original",
       "suite": "integer_registers"
     },
+    "n64/merge_memory/merge_memory.z64": {
+      "build_command": "python3 tests/roms-src/n64/merge_memory/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "e1195a2dc4988b7b059c0cce63f9398a2ef56d5b63e9f750e37f26d969a862fc",
+      "source_repo": "tests/roms-src/n64/merge_memory/build.py",
+      "source_sha": "6b9f346c09f30c8af8c57e51fd97db4a72d9b808237b000e06165ed42df4ac81",
+      "source_type": "original",
+      "suite": "merge_memory"
+    },
     "n64/muldiv64/muldiv64.z64": {
       "build_command": "python3 tests/roms-src/n64/muldiv64/build.py",
       "console": "n64",

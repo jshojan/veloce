@@ -16,6 +16,8 @@ on selected operands, not a percentage of N64 hardware implemented.
 - J/JAL/JR/JALR, BEQ/BNE/BLEZ/BGTZ, REGIMM sign branches and link forms,
   plus likely variants with an annulled untaken delay slot.
 - Aligned byte/halfword/word/doubleword loads/stores, sign/zero extension.
+- Big-endian LWL/LWR/LDL/LDR merge loads and SWL/SWR/SDL/SDR merge stores.
+  Masked stores preserve untouched bytes without a bus read-modify-write read.
 - Basic MFC0/MTC0, ERET from EXL, integer overflow, SYSCALL/BREAK, reserved
   instruction, alignment/address exception EPC/BD context. CP0 is partial;
   register masks, privilege modes, interrupt delivery and precise bus/TLB
@@ -68,11 +70,21 @@ Python 128-bit arithmetic in the oracle. Signed division uses unsigned
 magnitudes so min/-1 and divisor zero cannot invoke undefined host arithmetic.
 The full 64-bit operand domain and multiply/divide stalls/hazards remain pending.
 
+The original [merge-memory ROM](../../tests/roms-src/n64/merge_memory/README.md)
+adds **3,158,016/3,158,016 observations** for eight merge instructions, every
+word/doubleword lane, all pairs of repeated-byte values and 16×16 full-width
+boundaries. Its independent byte-array oracle checks loaded GPRs and stored
+memory, including sign extension and an adjacent word-store sentinel. This is
+not exhaustive over independently varying multi-byte operands.
+
 `n64_machine_test` checks taken/untaken/likely branch paths, delay execution,
 JAL/JALR link/alias cases, $zero, word/doubleword overflow and EPC/BD, nested
 exceptions, ERET, SYSCALL/BREAK/RI, alignment faults, big-endian load/store
 extension, aliases, ROM protection, doubleword multiply/divide references and
-full-width HI/LO state continuation, pending-delay state restore, and actual
+full-width HI/LO state continuation, paired merge accesses in both orders,
+unaligned cross-block results, guard bytes, base/target aliasing, $zero, negative
+offsets, protected/masked stores and partial-merge state continuation,
+pending-delay state restore, and actual
 shared-plugin state continuation equality. It also checks all three image byte
 orders, invalid state/load rejection, and unload. The ROM runner separately
 executes all three archive formats through actual frontend discovery.
@@ -95,11 +107,13 @@ not an emulated VI field. The nominal metadata rate is NTSC/93.75 MHz only.
 ## Remaining hardware and modern features
 
 PIF/IPL/CIC and retail boot, TLB/address modes, caches and pipeline timing,
-full CP0/interrupts, unaligned merge loads/stores, LL/SC, traps,
+full CP0/interrupts, LL/SC, traps,
 FPU, RSP/vector instructions, RDP, VI, AI, PI/SI/MI/RI and DMA, controllers,
 save media, video/audio output, expansion devices and physical hardware
 validation remain. Unimplemented opcodes raise a reserved-instruction exception.
 Unsupported memory access currently uses an address exception approximation.
+Merge memory supports big-endian unmapped RAM/SP storage; TLB, reverse-endian
+modes, MMIO partial writes and precise transaction timing remain pending.
 There is no N64 netplay capability yet. Video is a blank buffer, audio is empty,
 and input is not routed to SI/PIF. Windows/macOS builds and rendered GUI usage
 remain unverified. The external four-platform suite matrix does not yet include

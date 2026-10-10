@@ -110,6 +110,92 @@ static void memory(n64::Machine& m) {
     require(!m.read(0x80002000, 4, value), "noncanonical address accepted");
     require(!m.read(0xffffffff80000000ull + m.ram_size, 4, value), "RAM overrun accepted");
 }
+static void merge_memory(n64::Machine& m) {
+    const uint8_t original[] = {0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef,
+                                0xfe, 0xdc, 0xba, 0x98, 0x76, 0x54, 0x32, 0x10};
+    for (const uint64_t base : {0xffffffff80003000ull, 0xffffffffa4001000ull}) {
+        for (unsigned width : {4u, 8u}) {
+            for (unsigned lane = 0; lane < width; ++lane) {
+                for (bool reverse : {false, true}) {
+                    const unsigned left_load = width == 4 ? 0x22 : 0x1a, right_load = width == 4 ? 0x26 : 0x1b;
+                    const unsigned left_store = width == 4 ? 0x2a : 0x2c, right_store = width == 4 ? 0x2e : 0x2d;
+                    const auto load_left = i(left_load, 1, 2, lane), load_right = i(right_load, 1, 2, lane + width - 1);
+                    program(m, {reverse ? load_right : load_left, reverse ? load_left : load_right});
+                    for (unsigned n = 0; n < 16; ++n) require(m.write(base + n, 1, original[n]), "merge fixture failed");
+                    m.cpu.state.gpr[1] = base; m.cpu.state.gpr[2] = 0xa5a5a5a5a5a5a5a5ull;
+                    uint64_t expected = 0;
+                    for (unsigned n = 0; n < width; ++n) expected = expected * 256 + original[lane + n];
+                    if (width == 4) expected = sign32(uint32_t(expected));
+                    m.cpu.step(); m.cpu.step();
+                    require(m.cpu.state.gpr[2] == expected && !(m.cpu.state.cp0[12] & 2), "paired merge load/order failed");
+                    const auto store_left = i(left_store, 1, 2, lane), store_right = i(right_store, 1, 2, lane + width - 1);
+                    program(m, {reverse ? store_right : store_left, reverse ? store_left : store_right});
+                    for (unsigned n = 0; n < 16; ++n) m.write(base + n, 1, original[n]);
+                    const uint64_t reg = 0x8badf00dfedcba98ull;
+                    m.cpu.state.gpr[1] = base; m.cpu.state.gpr[2] = reg;
+                    m.cpu.step(); m.cpu.step();
+                    for (unsigned n = 0; n < 16; ++n) {
+                        uint64_t got = 0;
+                        require(m.read(base + n, 1, got), "paired store readback failed");
+                        const uint8_t want = n >= lane && n < lane + width ? uint8_t(reg >> (8 * (width - 1 - (n - lane)))) : original[n];
+                        require(got == want, "paired merge store damaged bytes or order failed");
+                    }
+                    require(m.cpu.state.gpr[2] == reg && !(m.cpu.state.cp0[12] & 2), "merge store changed source or faulted");
+                }
+            }
+        }
+    }
+    const uint64_t base = 0xffffffff80003000ull;
+    program(m, {i(0x1a, 1, 1, 1)}); // base and target alias: use old base.
+    m.write(base, 8, 0x0123456789abcdefull); m.cpu.state.gpr[1] = base;
+    m.cpu.step(); require(m.cpu.state.gpr[1] == 0x23456789abcdef00ull, "merge base/target alias failed");
+    program(m, {i(0x1b, 1, 0, 2)}); m.cpu.state.gpr[1] = base;
+    m.cpu.step(); require(m.cpu.state.gpr[0] == 0 && !(m.cpu.state.cp0[12] & 2), "$zero merge load failed");
+    program(m, {i(0x1a, 1, 2, uint16_t(-1))});
+    m.write(base, 8, 0x0123456789abcdefull); m.cpu.state.gpr[1] = base + 1;
+    m.cpu.step(); require(m.cpu.state.gpr[2] == 0x0123456789abcdefull, "negative merge offset failed");
+    program(m, {i(0x2c, 1, 2, 3)}); m.cpu.state.gpr[1] = 0xffffffffb0000000ull;
+    auto rom = m.rom; m.cpu.step();
+    require(m.rom == rom && (m.cpu.state.cp0[13] & 0x7c) == 20 && m.cpu.state.cp0[8] == 0xffffffffb0000003ull,
+            "protected merge store/fault address wrong");
+    m.write(base, 8, 0x0123456789abcdefull);
+    require(!m.write_masked(base, 4, 0, 0x80) && !m.write_masked(base + 1, 8, 0, 0xff), "invalid mask/alignment accepted");
+    uint64_t unchanged = 0; m.read(base, 8, unchanged);
+    require(unchanged == 0x0123456789abcdefull, "rejected masked store changed storage");
+    // Saving between two dependent merge loads retains the partially merged GPR.
+    program(m, {i(0x1a, 1, 2, 3), i(0x1b, 1, 2, 10)});
+    m.write(base, 8, 0x0123456789abcdefull); m.write(base + 8, 8, 0xfedcba9876543210ull);
+    m.cpu.state.gpr[1] = base; m.cpu.state.gpr[2] = 0xa5a5a5a5a5a5a5a5ull;
+    m.cpu.step();
+    std::vector<uint8_t> partial, baseline, repeated;
+    m.save(partial); m.cpu.step(); m.save(baseline);
+    require(m.restore(partial), "partial merge state rejected");
+    m.cpu.step(); m.save(repeated);
+    require(repeated == baseline && m.cpu.state.gpr[2] == 0x6789abcdeffedcbaull, "merge state continuation failed");
+}
+struct StoreTrace : n64::Memory {
+    n64::Machine& m;
+    unsigned data_reads = 0, masked_writes = 0;
+    StoreTrace(n64::Machine& machine) : m(machine) {}
+    bool read(uint64_t address, unsigned bytes, uint64_t& value) override {
+        if (address == 0xffffffff80003000ull) ++data_reads;
+        return m.read(address, bytes, value);
+    }
+    bool write(uint64_t address, unsigned bytes, uint64_t value) override { return m.write(address, bytes, value); }
+    bool write_masked(uint64_t address, unsigned bytes, uint64_t value, uint8_t mask) override {
+        ++masked_writes; return m.write_masked(address, bytes, value, mask);
+    }
+};
+static void masked_store_transaction(n64::Machine& m) {
+    program(m, {i(0x2d, 1, 2, 2)});
+    StoreTrace trace(m); n64::VR4300 cpu(trace); cpu.reset(start);
+    m.write(0xffffffff80003000ull, 8, 0x0123456789abcdefull);
+    cpu.state.gpr[1] = 0xffffffff80003000ull; cpu.state.gpr[2] = 0xfedcba9876543210ull;
+    cpu.step();
+    uint64_t value = 0; m.read(0xffffffff80003000ull, 8, value);
+    require(trace.data_reads == 0 && trace.masked_writes == 1 && value == 0x5432106789abcdefull,
+            "merge store performed RMW read or incorrect transaction");
+}
 static void multiply_divide(n64::Machine& m) {
     constexpr uint64_t max = 0xffffffffffffffffull, min = 0x8000000000000000ull;
     struct Reference { unsigned fn; uint64_t a, b, lo, hi; };
@@ -198,7 +284,7 @@ int main(int argc, char** argv) {
         std::vector<uint8_t> rom((std::istreambuf_iterator<char>(file)), {});
         n64::Machine machine;
         require(machine.load(rom.data(), rom.size()), "original N64 ROM load failed");
-        control(machine); exceptions(machine); memory(machine); multiply_divide(machine); states(machine, rom, argv[1]);
+        control(machine); exceptions(machine); memory(machine); merge_memory(machine); masked_store_transaction(machine); multiply_divide(machine); states(machine, rom, argv[1]);
         std::cout << "N64 control/exception/memory/state/plugin checks passed\n";
         return 0;
     } catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }

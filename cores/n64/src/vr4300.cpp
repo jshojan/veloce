@@ -85,6 +85,33 @@ void VR4300::step() {
         const uint64_t address = a + imm;
         if ((address & (bytes - 1)) || !memory.write(address, bytes, b)) fault(5, address);
     };
+    auto merge_load = [&](unsigned bytes, bool left) {
+        const uint64_t address = a + imm, aligned = address & ~uint64_t(bytes - 1);
+        const unsigned lane = address & (bytes - 1);
+        uint64_t value = 0;
+        if (!memory.read(aligned, bytes, value)) { fault(4, address); return; }
+        const uint64_t width_mask = bytes == 8 ? ~uint64_t(0) : 0xffffffffull;
+        uint64_t result;
+        if (left) {
+            const unsigned shift = lane * 8;
+            const uint64_t preserve = (uint64_t(1) << shift) - 1;
+            result = (value << shift) | (b & preserve);
+        } else {
+            const unsigned shift = (bytes - 1 - lane) * 8;
+            const uint64_t replace = width_mask >> shift;
+            result = (value >> shift) | (b & (width_mask ^ replace));
+        }
+        put(rt, bytes == 4 ? sign32(uint32_t(result)) : result);
+    };
+    auto merge_store = [&](unsigned bytes, bool left) {
+        const uint64_t address = a + imm, aligned = address & ~uint64_t(bytes - 1);
+        const unsigned lane = address & (bytes - 1);
+        const unsigned all_lanes = (1u << bytes) - 1;
+        const uint8_t mask = left ? uint8_t((all_lanes << lane) & all_lanes)
+                                  : uint8_t((1u << (lane + 1)) - 1);
+        const uint64_t value = left ? b >> (lane * 8) : b << ((bytes - 1 - lane) * 8);
+        if (!memory.write_masked(aligned, bytes, value, mask)) fault(5, address);
+    };
     if (op == 0) {
         switch (fn) {
         case 0x00: put(rd, sign32(uint32_t(b) << sa)); break;
@@ -207,15 +234,23 @@ void VR4300::step() {
             break;
         case 24: add(rt, a, imm, true, false, true); break;
         case 25: add(rt, a, imm, true, false, false); break;
+        case 26: merge_load(8, true); break;
+        case 27: merge_load(8, false); break;
         case 32: load(1, true); break;
         case 33: load(2, true); break;
+        case 34: merge_load(4, true); break;
         case 35: load(4, true); break;
         case 36: load(1, false); break;
         case 37: load(2, false); break;
+        case 38: merge_load(4, false); break;
         case 39: load(4, false); break;
         case 40: store(1); break;
         case 41: store(2); break;
+        case 42: merge_store(4, true); break;
         case 43: store(4); break;
+        case 44: merge_store(8, true); break;
+        case 45: merge_store(8, false); break;
+        case 46: merge_store(4, false); break;
         case 55: load(8, false); break;
         case 63: store(8); break;
         default: fault(10); break;

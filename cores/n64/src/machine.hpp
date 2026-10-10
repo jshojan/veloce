@@ -12,6 +12,7 @@ public:
     void reset();
     bool read(uint64_t address, unsigned bytes, uint64_t& value) override;
     bool write(uint64_t address, unsigned bytes, uint64_t value) override;
+    bool write_masked(uint64_t address, unsigned bytes, uint64_t value, uint8_t mask) override;
     bool save(std::vector<uint8_t>& data) const;
     bool restore(const std::vector<uint8_t>& data);
     std::vector<uint8_t> ram, rom;

@@ -13,7 +13,7 @@ are not measurements of overall hardware or product completion.
 | GB/CGB | `gb_plugin` | DMG WRAM/ADD probe: 2/2 checks; byte ALU E-register corpus: 8,388,608/8,388,608 A/F pairs matched (100% of eight operations, every operand pair, and all 16 incoming flag states); unary accumulator instructions: 73,728/73,728 A/F pairs matched (18 instructions × all bytes × all flags) | Not measured; other CPU operands/instructions, timing/PPU/APU/MBC/CGB corpus remains |
 | SNES | `snes_plugin` | Settled multiplication: 65,536/65,536 operand pairs verified (100%); division: 3,328 selected boundary cases verified; math timing: 504,832/504,832 register bytes matched at CPU phases 2–18 (100% of declared patterns/phases) | Not measured; timed full operand domain, refresh/DMA interactions, and remaining hardware corpora pending |
 | GBA | `gba_plugin` | ARM MOVS register shifts: 65,536/65,536 result/CPSR pairs verified; all low-byte amounts and C/V inputs on 16 operands | Not measured; remaining CPU modes/instructions, timing and peripheral corpora pending |
-| Nintendo 64 | `n64_plugin` (experimental homebrew only) | 28,127/28,127 defined integer results matched; 28,160 observations, with 33 undefined divide inputs unscored; doubleword multiply/divide: 262,623/262,623 defined LO/HI pairs matched on exhaustive byte pairs and full-width boundaries | Not measured; retail boot, graphics/audio/controllers and most platform hardware remain |
+| Nintendo 64 | `n64_plugin` (experimental homebrew only) | 28,127/28,127 defined integer results matched; 28,160 observations, with 33 undefined divide inputs unscored; doubleword multiply/divide: 262,623/262,623 defined LO/HI pairs matched on exhaustive byte pairs and full-width boundaries; merge memory: 3,158,016/3,158,016 observations matched at every lane on all repeated-byte pairs and selected full-width patterns | Not measured; retail boot, graphics/audio/controllers and most platform hardware remain |
 
 The experimental N64 plugin now executes original MIPS integer homebrew ROMs.
 It accepts only the documented `V64HB001` entry profile and cannot run retail
@@ -31,6 +31,14 @@ now verifies DMULT/DMULTU/DDIV/DDIVU with every signed/unsigned byte pair
 embedded in 64-bit operands, plus 16×16 full-width boundaries. All 262,623
 defined LO/HI pairs matched; 545 undefined inputs were retained but unscored.
 Full 64-bit operand enumeration, pipeline stalls and HI/LO hazards remain.
+
+The original [N64 merge-memory corpus](../tests/roms-src/n64/merge_memory/README.md)
+now verifies LWL/LWR/LDL/LDR/SWL/SWR/SDL/SDR at every byte lane. All
+3,158,016 loaded-register/stored-memory observations matched the independent
+byte-array oracle, covering every repeated-byte pair plus 16×16 full-width
+patterns. Independent multi-byte operand combinations, transaction timing,
+TLB/privilege/reverse-endian modes, MMIO partial writes and physical hardware
+remain. Paired access/order and partial-state checks are separate unit evidence.
 
 Run `python3 tests/roms-src/build.py --original-only --check` to reproduce the
 original ROM images and verify their source and image SHA256 ledger. Run

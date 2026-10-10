@@ -76,6 +76,18 @@ bool Machine::write(uint64_t address, unsigned bytes, uint64_t value) {
     for (unsigned i = 0; i < bytes; ++i) destination[i] = uint8_t(value >> (8 * (bytes - 1 - i)));
     return true;
 }
+bool Machine::write_masked(uint64_t address, unsigned bytes, uint64_t value, uint8_t mask) {
+    uint32_t p = 0;
+    if ((bytes != 4 && bytes != 8) || (address & (bytes - 1)) || !mask ||
+        (unsigned(mask) >> bytes) || !physical(address, p)) return false;
+    uint8_t* destination = nullptr;
+    if (uint64_t(p) + bytes <= ram.size()) destination = ram.data() + p;
+    else if (p >= 0x04000000 && uint64_t(p) + bytes <= 0x04000000 + sp.size()) destination = sp.data() + p - 0x04000000;
+    if (!destination) return false;
+    for (unsigned i = 0; i < bytes; ++i)
+        if (mask & (1u << i)) destination[i] = uint8_t(value >> (8 * (bytes - 1 - i)));
+    return true;
+}
 static void append(std::vector<uint8_t>& data, uint64_t value) {
     for (unsigned i = 0; i < 8; ++i) data.push_back(uint8_t(value >> (56 - 8 * i)));
 }

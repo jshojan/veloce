@@ -79,6 +79,17 @@ boundary cases; 545 undefined divide inputs are unscored. Wrong executed
 signed/unsigned instructions and seven damaged-file controls are rejected.
 All three archive byte orders execute through the real frontend. Full 64-bit
 operand enumeration, timing/hazards and physical hardware remain unverified.
+The [N64 merge-memory corpus](tests/roms-src/n64/merge_memory/README.md)
+checks 3,158,016 loaded-GPR/stored-memory observations for all eight merge
+instructions, every byte lane, every repeated-byte value pair and full-width
+boundaries. Its independent oracle uses byte-array copies; word sign extension,
+preserved bytes and the adjacent word-store sentinel are graded. A two-opcode
+mutation and seven damaged-file controls verify rejection. Unit tests separately
+cover paired accesses in both orders, cross-block results, SP storage, masked
+transactions without RMW reads, guard bytes, offsets/aliasing and partial-state
+continuation. Timing, MMIO, other addressing modes and physical hardware remain
+unverified. Run the `n64_merge_memory` CTest gate for the complete declared ROM
+domain; the runner records files under `build/artifacts/owned/n64_merge_memory/`.
 The [GBA ARM shift corpus](tests/roms-src/gba/arm_shifts/README.md) records
 65,536 result/CPSR pairs over the `mgba` channel: four shifts, every low-byte
 amount, all C/V inputs, and 16 operand patterns. Timing and the full source
