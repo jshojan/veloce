@@ -1,0 +1,267 @@
+{
+  "schema": 1,
+  "method": "Equal-weight delivery milestones: 100 * delivered / 20. Partial or unverified milestones count zero. These are delivery checklist percentages, not hardware accuracy, exhaustive domain coverage or retail compatibility.",
+  "milestones": [
+    {
+      "id": "plugin",
+      "acceptance": "Separate core plugin and ABI entry points"
+    },
+    {
+      "id": "native_media",
+      "acceptance": "Parse a native cartridge/executable format (boot scored separately)"
+    },
+    {
+      "id": "cpu",
+      "acceptance": "Complete CPU instruction families, including architectural extensions"
+    },
+    {
+      "id": "memory",
+      "acceptance": "Complete native RAM/ROM map and ownership rules"
+    },
+    {
+      "id": "exceptions",
+      "acceptance": "Complete exceptions, privilege and address translation"
+    },
+    {
+      "id": "devices",
+      "acceptance": "Complete peripheral registers, interrupt producers and DMA"
+    },
+    {
+      "id": "boot",
+      "acceptance": "Native firmware/retail boot procedure"
+    },
+    {
+      "id": "retail",
+      "acceptance": "At least one locally tested retail title verified playable"
+    },
+    {
+      "id": "graphics",
+      "acceptance": "Guest graphics produce rendered video"
+    },
+    {
+      "id": "audio",
+      "acceptance": "Guest sound produces audio samples"
+    },
+    {
+      "id": "timing",
+      "acceptance": "Hardware-referenced CPU/device/display/audio timing"
+    },
+    {
+      "id": "digital",
+      "acceptance": "Native digital controller/keypad registers consume frontend input"
+    },
+    {
+      "id": "controller",
+      "acceptance": "Complete native controller/touch/motion/analog peripheral behavior"
+    },
+    {
+      "id": "multiplayer",
+      "acceptance": "Native local multiplayer/link input routing"
+    },
+    {
+      "id": "netplay",
+      "acceptance": "Actual production-plugin TCP peers pass original guest oracle and whole-state comparison"
+    },
+    {
+      "id": "saves",
+      "acceptance": "Complete native persistent media types and persistence"
+    },
+    {
+      "id": "states",
+      "acceptance": "Complete states for the implemented profile and deterministic replay"
+    },
+    {
+      "id": "original_rom",
+      "acceptance": "Repository-owned ROM source and reproducible archived image"
+    },
+    {
+      "id": "register_oracle",
+      "acceptance": "Actual guest register-file output independently graded on the host, with negative controls"
+    },
+    {
+      "id": "full_corpus",
+      "acceptance": "Original corpus covers the full native hardware, with physical reference validation"
+    }
+  ],
+  "platforms": [
+    {
+      "id": "nes",
+      "name": "NES/Famicom",
+      "readme": "cores/nes/README.md",
+      "delivered": [
+        "audio",
+        "digital",
+        "graphics",
+        "native_media",
+        "netplay",
+        "original_rom",
+        "plugin",
+        "register_oracle",
+        "saves",
+        "states"
+      ],
+      "remaining": "Remaining mapper/open-bus/timing edges, full original hardware corpus and wider retail verification."
+    },
+    {
+      "id": "snes",
+      "name": "SNES",
+      "readme": "cores/snes/README.md",
+      "delivered": [
+        "audio",
+        "digital",
+        "graphics",
+        "native_media",
+        "original_rom",
+        "plugin",
+        "register_oracle",
+        "states"
+      ],
+      "remaining": "Settled/timed math is graded; visual/audio catalog verdicts, expansion chips and full timing remain incomplete or unverified."
+    },
+    {
+      "id": "gb",
+      "name": "Game Boy / Game Boy Color",
+      "readme": "cores/gb/README.md",
+      "delivered": [
+        "audio",
+        "digital",
+        "graphics",
+        "native_media",
+        "original_rom",
+        "plugin",
+        "register_oracle",
+        "states"
+      ],
+      "remaining": "Mooneye result detection, interrupt/timing edges, link, additional media and full hardware corpus remain."
+    },
+    {
+      "id": "gba",
+      "name": "Game Boy Advance",
+      "readme": "cores/gba/README.md",
+      "delivered": [
+        "audio",
+        "digital",
+        "graphics",
+        "native_media",
+        "original_rom",
+        "plugin",
+        "register_oracle",
+        "states"
+      ],
+      "remaining": "PSR banking, Flash128, scheduler/DMA/IRQ/timing and graphics accuracy gaps remain."
+    },
+    {
+      "id": "n64",
+      "name": "Nintendo 64",
+      "readme": "cores/n64/README.md",
+      "delivered": [
+        "digital",
+        "original_rom",
+        "plugin",
+        "register_oracle",
+        "states"
+      ],
+      "remaining": "Super Mario 64 is rejected at load; retail boot, FPU, RSP/RDP/VI/AI, remaining devices, analog and netplay remain."
+    },
+    {
+      "id": "vb",
+      "name": "Virtual Boy",
+      "readme": "cores/vb/README.md",
+      "delivered": [
+        "original_rom",
+        "plugin",
+        "register_oracle",
+        "states"
+      ],
+      "remaining": "Remaining CPU/NVC, VIP/VSU, controllers, native boot and timing remain."
+    },
+    {
+      "id": "nds",
+      "name": "Nintendo DS",
+      "readme": "cores/nds/README.md",
+      "delivered": [
+        "digital",
+        "netplay",
+        "original_rom",
+        "plugin",
+        "register_oracle",
+        "states"
+      ],
+      "remaining": "Remaining CPU, native firmware/boot, graphics/audio, touch and wireless multiplayer remain."
+    },
+    {
+      "id": "dsi",
+      "name": "Nintendo DSi",
+      "readme": "cores/dsi/README.md",
+      "delivered": [
+        "digital",
+        "netplay",
+        "original_rom",
+        "plugin",
+        "register_oracle",
+        "states"
+      ],
+      "remaining": "Enhanced mapping/control, firmware/retail boot, graphics/audio and wireless multiplayer remain."
+    },
+    {
+      "id": "3ds",
+      "name": "Nintendo 3DS",
+      "readme": "cores/3ds/README.md",
+      "delivered": [
+        "digital",
+        "netplay",
+        "original_rom",
+        "plugin",
+        "register_oracle",
+        "states"
+      ],
+      "remaining": "Remaining CPU/MMU, firmware/native formats, graphics/audio, analog/touch and wireless multiplayer remain."
+    },
+    {
+      "id": "gc",
+      "name": "GameCube",
+      "readme": "cores/ppc/README.md",
+      "delivered": [
+        "digital",
+        "original_rom",
+        "plugin",
+        "register_oracle",
+        "states"
+      ],
+      "remaining": "Remaining CPU, firmware/retail boot, polling/timing/analog/multiplayer, graphics/audio and netplay remain."
+    },
+    {
+      "id": "wii",
+      "name": "Wii",
+      "readme": "cores/ppc/README.md",
+      "delivered": [
+        "digital",
+        "original_rom",
+        "plugin",
+        "register_oracle",
+        "states"
+      ],
+      "remaining": "Remaining CPU, MEM2/IOS/retail boot, GameCube polling, Wii Remote, graphics/audio and netplay remain."
+    },
+    {
+      "id": "wiiu",
+      "name": "Wii U",
+      "readme": "cores/wiiu/README.md",
+      "delivered": [
+        "netplay",
+        "original_rom",
+        "plugin",
+        "register_oracle",
+        "states"
+      ],
+      "remaining": "Remaining CPU/MMU, firmware/native formats, graphics/audio, native GamePad and wireless multiplayer remain."
+    },
+    {
+      "id": "switch",
+      "name": "Nintendo Switch",
+      "readme": "cores/switch/README.md",
+      "delivered": [],
+      "remaining": "Core plugin, native CPU/memory/devices, firmware, graphics/audio, input, states, netplay and original corpus remain."
+    }
+  ]
+}

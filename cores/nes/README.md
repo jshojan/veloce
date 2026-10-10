@@ -1,5 +1,19 @@
 # NES Emulator Core
 
+<!-- completion:start -->
+## Completion percentage
+
+| Platform | Delivery checklist completion | Delivered / total |
+|---|---:|---:|
+| NES/Famicom | **50%** | 10/20 |
+
+These percentages count the 20 explicit delivery milestones in [the completion ledger](../../docs/CORE-COMPLETION.md); partial or unverified milestones receive zero credit. Each milestone is worth 5 percentage points. **They are not percentages of native hardware accuracy or retail compatibility.** Bounded profile tests do not complete a whole CPU or hardware subsystem.
+
+NES/Famicom delivered milestones: Guest sound produces audio samples, Native digital controller/keypad registers consume frontend input, Guest graphics produce rendered video, Parse a native cartridge/executable format (boot scored separately), Actual production-plugin TCP peers pass original guest oracle and whole-state comparison, Repository-owned ROM source and reproducible archived image, Separate core plugin and ABI entry points, Actual guest register-file output independently graded on the host, with negative controls, Complete native persistent media types and persistence, Complete states for the implemented profile and deterministic replay.
+
+Remaining: Remaining mapper/open-bus/timing edges, full original hardware corpus and wider retail verification.
+<!-- completion:end -->
+
 Cycle-accurate NES/Famicom emulator for Veloce with dot-by-dot PPU rendering.
 
 ## Overview

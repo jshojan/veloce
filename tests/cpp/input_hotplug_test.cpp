@@ -134,6 +134,21 @@ int main() {
         require(input.get_binding(emu::VirtualButton::CRight)->code==SDL_CONTROLLER_BUTTON_Y &&
                 emu::InputManager::get_button_name(emu::VirtualButton::CRight)=="CRight", "N64 binding lost");
         input.shutdown();
+        input.initialize();
+        for(const std::string platform:{"GameCube","Wii"}) {
+            input.set_current_platform(platform);
+            require(emu::InputManager::get_platform_buttons(platform).size()==12,"GameCube digital controls missing");
+            require(input.get_binding(emu::VirtualButton::Z)->code==SDL_SCANCODE_C &&
+                    input.get_binding(emu::VirtualButton::X)->code==SDL_SCANCODE_A &&
+                    input.get_binding(emu::VirtualButton::Y)->code==SDL_SCANCODE_S &&
+                    !input.get_binding(emu::VirtualButton::Select),"GameCube keyboard defaults wrong");
+            input.set_binding(emu::VirtualButton::Z,
+                {emu::InputSourceType::Keyboard,-1,SDL_SCANCODE_V,0,false});
+            require(input.save_platform_config(platform),"GameCube input persistence failed");
+            input.set_current_platform("NES");input.set_current_platform(platform);
+            require(input.get_binding(emu::VirtualButton::Z)->code==SDL_SCANCODE_V,"GameCube Z binding lost");
+        }
+        input.shutdown();
         SDL_JoystickClose(joystick);
         std::cout << "Input hotplug: identical pads, custom bindings, reconnect, persistence, "
                      "capture, axis endpoints and ambiguity verified\n";

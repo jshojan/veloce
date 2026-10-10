@@ -121,6 +121,17 @@
       "source_type": "original",
       "suite": "condition_registers"
     },
+    "gc/controller_serial/controller_serial.vgc": {
+      "build_command": "python3 tests/roms-src/gc/controller_serial/build.py",
+      "console": "gc",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "5cd0b4b341f2c50ed8e721165e8e0c3a396ceaae263adcc012c3e98de6df0a93",
+      "source_repo": "tests/roms-src/gc/controller_serial/build.py",
+      "source_sha": "9db2d77063720692ce3213865d49d60c4606ab1b7c192dba63bf711fa81b7793",
+      "source_type": "original",
+      "suite": "controller_serial"
+    },
     "gc/integer_registers/integer_registers.vgc": {
       "build_command": "python3 tests/roms-src/gc/integer_registers/build.py",
       "console": "gc",
@@ -513,6 +524,17 @@
       "source_sha": "a1dfc844beda8f7e332069e0801c31735741fac1bb5b182f7378a7ecdf4dc241",
       "source_type": "original",
       "suite": "condition_registers"
+    },
+    "wii/controller_serial/controller_serial.vwi": {
+      "build_command": "python3 tests/roms-src/wii/controller_serial/build.py",
+      "console": "wii",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "60dac08d8a0f462bf1a3677e8c2420ae799b30b1f0dd673220c48715c2e9b516",
+      "source_repo": "tests/roms-src/wii/controller_serial/build.py",
+      "source_sha": "4d96c5407f5df2da30a634d787ea7a0fd6bfb428cb273d48530d86d24e5537cc",
+      "source_type": "original",
+      "suite": "controller_serial"
     },
     "wii/integer_registers/integer_registers.vwi": {
       "build_command": "python3 tests/roms-src/wii/integer_registers/build.py",

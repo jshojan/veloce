@@ -13,14 +13,33 @@ class Plugin final:public emu::IEmulatorPlugin {
 public:
     emu::EmulatorInfo get_info() override {
         static const char* extensions[]={extension,nullptr};
-        return {name,"0.9.0","Veloce","Experimental original PowerPC integer programs; retail boot and console peripherals pending.",extensions,60,0,640,480};
+        return {name,"0.10.0","Veloce","Experimental original PowerPC integer programs and settled GameCube controller transactions; retail boot and most peripherals pending.",extensions,60,0,640,480};
+    }
+    const emu::ControllerLayoutInfo* get_controller_layout() override {
+        using emu::VirtualButton;
+        static const emu::ButtonLayout buttons[]={
+            {VirtualButton::Up,"Up",.14f,.30f,.08f,.12f,true},
+            {VirtualButton::Down,"Down",.14f,.55f,.08f,.12f,true},
+            {VirtualButton::Left,"Left",.05f,.42f,.08f,.12f,true},
+            {VirtualButton::Right,"Right",.23f,.42f,.08f,.12f,true},
+            {VirtualButton::A,"A",.82f,.38f,.12f,.16f,false},
+            {VirtualButton::B,"B",.70f,.52f,.08f,.12f,false},
+            {VirtualButton::X,"X",.94f,.30f,.06f,.12f,false},
+            {VirtualButton::Y,"Y",.74f,.24f,.10f,.06f,false},
+            {VirtualButton::L,"L",.06f,.06f,.16f,.10f,false},
+            {VirtualButton::R,"R",.78f,.06f,.16f,.10f,false},
+            {VirtualButton::Z,"Z",.78f,.18f,.16f,.06f,false},
+            {VirtualButton::Start,"Start",.45f,.42f,.10f,.06f,false}};
+        static const emu::ControllerLayoutInfo layout={name,"GameCube digital controller (analog axes pending)",
+            emu::ControllerShape::Modern,2.0f,buttons,12,1};
+        return &layout;
     }
     bool load_rom(const uint8_t* data,size_t size) override { return machine.load(data,size); }
     void unload_rom() override { machine.rom.clear(); machine.identity=0; machine.crc=0; machine.reset(); }
     bool is_rom_loaded() const override { return !machine.rom.empty(); }
     uint32_t get_rom_crc32() const override { return machine.crc; }
     void reset() override { machine.reset(); }
-    void run_frame(const emu::InputState&) override { machine.frame(); }
+    void run_frame(const emu::InputState& input) override { machine.serial.input(0,input.buttons,true);machine.frame(); }
     uint64_t get_cycle_count() const override { return machine.cpu.steps; }
     uint64_t get_frame_count() const override { return machine.frames; }
     emu::FrameBuffer get_framebuffer() override { return {pixels.data(),640,480}; }

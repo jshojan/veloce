@@ -1,5 +1,19 @@
 # Experimental Nintendo 64 core plugin
 
+<!-- completion:start -->
+## Completion percentage
+
+| Platform | Delivery checklist completion | Delivered / total |
+|---|---:|---:|
+| Nintendo 64 | **25%** | 5/20 |
+
+These percentages count the 20 explicit delivery milestones in [the completion ledger](../../docs/CORE-COMPLETION.md); partial or unverified milestones receive zero credit. Each milestone is worth 5 percentage points. **They are not percentages of native hardware accuracy or retail compatibility.** Bounded profile tests do not complete a whole CPU or hardware subsystem.
+
+Nintendo 64 delivered milestones: Native digital controller/keypad registers consume frontend input, Repository-owned ROM source and reproducible archived image, Separate core plugin and ABI entry points, Actual guest register-file output independently graded on the host, with negative controls, Complete states for the implemented profile and deterministic replay.
+
+Remaining: Super Mario 64 is rejected at load; retail boot, FPU, RSP/RDP/VI/AI, remaining devices, analog and netplay remain.
+<!-- completion:end -->
+
 `n64_plugin` builds `n64.so`/`n64.dll`/`n64.dylib` and implements emulator ABI v2.
 The frontend discovers it alongside the other core plugins. It executes original
 MIPS III integer homebrew ROMs with 64-bit GPRs, big-endian memory, delay slots,
@@ -181,4 +195,30 @@ modes, MMIO partial writes and precise transaction timing remain pending.
 There is no N64 netplay capability yet. Video is a blank buffer, audio is empty,
 and digital input is routed to the first SI/PIF controller. Windows/macOS builds and rendered GUI usage
 remain unverified. The external four-platform suite matrix does not yet include
-N64; its original ROM and component gates run in the owned-hardware CI job.
+N64; its original ROM and component gates run locally with CTest; CI/CD is disabled.
+
+## Local retail regression target
+
+Super Mario 64 (USA), supplied locally by the user, was probed on 2026-10-10.
+The current plugin **rejects it before execution**: zero frames, no video/audio
+observations, playability unverified. The 8 MiB image has SHA256
+`17ce077343c6133f8c9f2d6d6d9a4ab62c8cd2aa57c40aea1f490b4c8bb21d91`.
+It is not included in this repository. Its reported state is distinct from
+passing original integer/controller ROMs.
+
+```bash
+cmake --build build --target retail_core_probe n64_plugin
+python3 tests/n64_retail_probe.py /path/to/your/sm64.z64
+```
+
+The optional probe loads the actual core shared library, checks ABI, attempts
+load and, if accepted, runs 120 frames while measuring video variation and
+audio sample counts. It writes hashes and observations to
+`build/artifacts/retail/n64.json`; no commercial bytes are archived or copied.
+A successful probe process can report `status: blocked`; read the JSON verdict.
+A future `execution-smoke` verdict will establish execution signals only, not
+playability. Boot correctness and gameplay need additional explicit validation.
+
+The next retail-enabling work includes native boot state/cartridge transfer,
+full CPU/CP0/FPU, RSP/RDP/VI and device scheduling/interrupts, AI and save media.
+Accepting an image by itself does not make Super Mario 64 work.

@@ -739,7 +739,7 @@ supplied-profile byte checks, not physical chip-control/timing evidence.
 guest words matching the independent oracle. Host owns one keypad; viewer
 replay is supported, DSi wireless multiplayer is pending. DS component and
 production netplay regression gates pass. Local TCP gates require loopback
-socket permission; CI/CD remains disabled. All 52 original ROMs reproduce
+socket permission; CI/CD remains disabled. All 54 original ROMs reproduce
 against the source/image ledger. Firmware/retail boot, full SCFG/MBK and most
 DSi hardware remain pending; full platform completion is unmeasured.
 
@@ -783,7 +783,7 @@ behavior. All 4,096 digital HID inputs, readonly lanes, atomic image/state
 validation, full 135,791,096-byte state replay, a three-context writing guest,
 and the dynamic plugin lifecycle pass. The full component gate passes
 undefined-behavior sanitization; existing DS/DSi component regressions pass.
-All 52 original ROMs reproduce against the source/image ledger.
+All 54 original ROMs reproduce against the source/image ledger.
 
 ```sh
 cmake --build build --target veloce ctr_plugin ctr_machine_test -j4
@@ -910,10 +910,36 @@ python3 tests/roms-src/build.py --original-only --check
 The variable-state rollback gate also passes undefined-behavior sanitization.
 The full Wii U component gate passes undefined-behavior sanitization, including
 dense/sparse canonical fast bytes/hash, guard checks and replay. All seven
-netplay gates pass; all 52 original ROMs reproduce against the ledger.
+netplay gates pass; all 54 original ROMs reproduce against the ledger.
 
 Native GamePad/KPAD/VPAD, wireless multiplayer, retail boot, Internet, physical
 devices/two machines, cross-platform peers and sustained performance remain
 pending or unverified. High-water capacity is retained in each history slot;
 dense workloads still require large states. Page sharing/delta histories are
 pending. TCP gates need loopback socket permission. CI/CD remains disabled.
+
+## GameCube/Wii settled digital controller gates
+
+`gc_controller_serial` and `wii_controller_serial` each independently grade
+4,096/4,096 digital combinations, sixteen guest register words per row. The
+actual frontend input schedule and loaded core execute repository-owned ROMs.
+One executed command mutation, sixteen field mutations and seven malformed
+stream controls are rejected per platform. `ppc_serial_test` matches 262,144
+selected-port/input/connection snapshots and 196,608 transfer-length snapshots,
+checks receive preservation/errors, W1C, invalid accesses, legacy/current
+states and actual plugin input replay. `ppc_machine_test` continues to pass.
+These gates passed with undefined-behavior sanitization for the component code.
+
+```bash
+ctest --test-dir build -R '^(ppc_(serial|machine)_test|(gc|wii)_controller_serial|input_hotplug_test)$' --output-on-failure
+python3 tests/roms-src/build.py --original-only --check
+python3 tests/update_completion.py --check
+```
+
+The ledger now includes 54 original ROMs. Controller polling, analog axes,
+origin calibration, VI/wire timing, CPU SI interrupts, accessories, four-port
+frontend input and Wii Remote support remain pending. CI/CD remains disabled.
+The [delivery completion ledger](docs/CORE-COMPLETION.md) is separate from
+hardware-domain pass fractions and legacy external-suite accuracy scores.
+The optional `tests/n64_retail_probe.py` takes a locally supplied N64 ROM;
+Super Mario 64 currently reports load rejection. Its ROM bytes never enter git.
