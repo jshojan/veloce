@@ -23,6 +23,11 @@ little-endian instruction/data memory and an explicit marked cartridge profile.
   There are no MIPS-style branch delay slots.
 - LD.B/LD.H sign extension, LD.W, ST.B/ST.H/ST.W, architectural alignment
   masking, 64 KiB WRAM storage/aliases and read-only cartridge storage.
+- CAXI compare/exchange through one word transaction, comparison flags,
+  unconditional mismatch write-back, word alignment and captured r30 operands.
+- IN.B/IN.H zero extension, IN.W and OUT.B/H/W; separate port callbacks,
+  source truncation, alignment and unchanged PSW. The marked test profile
+  shares its storage/debug decoder with ports; physical port wiring is pending.
 - Basic LDSR/STSR for saved PC/PSW, ECR, PSW, ADTRE and cache-enable storage.
   ECR is read-only; reserved PSW bits and system-PC low bits are masked.
   Cache commands beyond enable storage stop as unsupported; no cache executes.
@@ -92,6 +97,13 @@ single-bit PC flips and all low-half offsets. Raw ADTRE low-bit masking,
 normal/nested entry, saved AE clearing, RETI retry and nonmatching execution
 are graded from actual guest registers.
 
+The original [memory transaction corpus](../../tests/roms-src/vb/memory_ops/README.md)
+matched **17,055,744/17,055,744 nine-word snapshots**, zero mismatches: CAXI repeated-byte comparisons and
+replacements/full-width triples, and OUT/IN pairs on every byte or repeated-half
+value. All four address low-bit lanes and all incoming flags are included.
+Loaded results, comparison/preserved PSW, stored memory, adjacent guards and
+original source registers are graded independently.
+
 `vb_machine_test` separately checks reset entry, all branch conditions/flag
 states on signed displacement boundaries, SETF, JR/JAL/JMP/link behavior, r0,
 source aliasing, immediate/register decoding, wide-immediate reference vectors,
@@ -107,6 +119,10 @@ Another 12,582,912 address-trap cases cover every writable PSW, six address
 relationships at eight full-PC boundaries, fatal state/bus writes, pre-fetch
 delivery and ordinary nonmatching execution. Armed-breakpoint and handler
 save-state replay also match exactly.
+CAXI/port checks also cover original operands through one atomic callback,
+profile read/write order and mismatch write-back, r0/r30/base/destination aliases,
+every writable PSW for all port widths, all signed displacements/address wrapping,
+rejected callback CPU state and full saved transaction continuation.
 These component checks are separate from the original-ROM domain.
 
 ```bash
@@ -118,7 +134,7 @@ ctest --test-dir build -R '^vb_' --output-on-failure
 
 Raw observations and reports are in `build/artifacts/owned/vb_integer/`,
 `build/artifacts/owned/vb_muldiv/`, `build/artifacts/owned/vb_exceptions/` and
-`build/artifacts/owned/vb_address_traps/`.
+`build/artifacts/owned/vb_address_traps/` and `build/artifacts/owned/vb_memory_ops/`.
 They are uploaded by the owned-hardware CI job. Source/image SHA256 values are recorded
 in `tests/roms-src/rom_manifest.json`. `VVBS0001` states store explicit big-endian
 scalars for the full CPU, frame/step counters, completion, ROM identity and WRAM.
@@ -126,7 +142,7 @@ Size, version, ROM identity and basic field checks precede any mutation.
 
 ## Remaining platform hardware and features
 
-Bit strings, FPU/custom NVC instructions, port I/O, complete
+Bit strings, FPU/custom NVC instructions, physical port/peripheral mapping, complete
 system registers/PIR/TKCW, other exceptions/external interrupts, caches,
 pipeline/wait-state timing, VIP drawing/display/scanner timing, VSU audio,
 controller serial hardware, link communication, timers and save media remain.
@@ -134,7 +150,9 @@ Valid but unimplemented instructions and unmapped transactions stop execution
 with an explicit serialized `unsupported` flag. Reserved major opcodes `$1B`,
 `$32` and `$36` generate the implemented illegal-instruction exception; remaining
 encoding validity and physical bus faults are not modeled. Register
-execution and bus storage are functional; timing is not modeled.
+execution and bus storage are functional; timing is not modeled. CAXI is
+serialized within one bus callback in the single-CPU profile; external LOCK
+signals and future DMA/multiple-owner arbitration remain pending.
 
 Each frontend frame is a bounded 100,000-step scheduling quantum. The counter is
 CPU step attempts, not verified hardware cycles; 20 MHz/50 Hz metadata is nominal.

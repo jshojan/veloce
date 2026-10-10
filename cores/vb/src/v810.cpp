@@ -109,6 +109,22 @@ void V810::step() {
             if (!bus.write(address&~uint32_t(bytes-1),bytes,b)) c.unsupported=true;
             break;
         }
+        case 0x38: case 0x39: case 0x3b: {
+            const unsigned bytes=op==0x38 ? 1 : op==0x39 ? 2 : 4;
+            if(!bus.read_port(address&~uint32_t(bytes-1),bytes,value)) c.unsupported=true;
+            else put(r2,bytes==4 ? value : value&((1u<<(bytes*8))-1));
+            break;
+        }
+        case 0x3c: case 0x3d: case 0x3f: {
+            const unsigned bytes=op==0x3c ? 1 : op==0x3d ? 2 : 4;
+            const uint32_t output=bytes==4 ? b : b&((1u<<(bytes*8))-1);
+            if(!bus.write_port(address&~uint32_t(bytes-1),bytes,output)) c.unsupported=true;
+            break;
+        }
+        case 0x3a:
+            if(!bus.compare_exchange(address&~3u,b,c.gpr[30],value)) c.unsupported=true;
+            else { add(b,value,true,true); put(r2,value); }
+            break;
         default: c.unsupported=true; break;
         }
     } else {

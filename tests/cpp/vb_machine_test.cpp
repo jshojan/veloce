@@ -212,6 +212,111 @@ static void address_traps(vb::Machine& m) {
     require(m.restore(entered),"entered address trap restore failed"); m.cpu.step(); m.save(replay);
     require(after==replay,"address trap handler state replay diverged");
 }
+static void transactions(vb::Machine& m) {
+    struct Bus : vb::Memory {
+        uint16_t first=0,tail=0xffef;
+        uint32_t old=0,address=0,compare=0,replacement=0,output=0;
+        unsigned width=0,ports=0,atomics=0,data=0;
+        bool allowed=true;
+        void clear() { ports=atomics=data=0; allowed=true; }
+        bool read(uint32_t addr,unsigned bytes,uint32_t& value) override {
+            if(bytes==2 && (addr==start || addr==start+2)) { value=addr==start ? first:tail; return true; }
+            ++data; return false;
+        }
+        bool write(uint32_t,unsigned,uint32_t) override { ++data; return false; }
+        bool read_port(uint32_t addr,unsigned bytes,uint32_t& value) override {
+            ++ports; address=addr; width=bytes; value=0xffffffff; return allowed;
+        }
+        bool write_port(uint32_t addr,unsigned bytes,uint32_t value) override {
+            ++ports; address=addr; width=bytes; output=value; return allowed;
+        }
+        bool compare_exchange(uint32_t addr,uint32_t expected,uint32_t next,uint32_t& previous) override {
+            ++atomics; address=addr; compare=expected; replacement=next; previous=old;
+            output=expected==old ? next:old; return allowed;
+        }
+    } bus;
+    vb::V810 cpu(bus);
+    const uint32_t values[]={0,1,2,15,16,127,128,255,0x7fff,0x8000,0x7fffffff,0x80000000,
+                            0xfffffffe,0xffffffff,0x55555555,0x89abcdef};
+    const auto signed_word=[](uint32_t word) -> int64_t { return word<0x80000000 ? word:int64_t(word)-0x100000000LL; };
+    for(auto pair:{std::pair<unsigned,unsigned>{1,2},{2,2},{30,2},{1,30},{1,0}}) {
+        for(uint32_t old:values) for(uint32_t compare:values) for(uint32_t replacement:values)
+            for(unsigned lane=0;lane<4;++lane) for(unsigned flags=0;flags<16;++flags) {
+                cpu.reset(); auto& s=cpu.state; s.pc=start; s.sr[5]=0x8000|flags;
+                s.gpr[1]=start+0x103+lane; s.gpr[2]=compare; s.gpr[30]=replacement;
+                const auto before=s; bus.clear(); bus.first=reg(0x3a,pair.first,pair.second); bus.old=old;
+                const uint32_t cmp=before.gpr[pair.second],next=before.gpr[30];
+                const uint32_t expected_address=(before.gpr[pair.first]-17)&~3u;
+                cpu.step(); const uint32_t difference=cmp-old;
+                const int64_t mathematical=signed_word(cmp)-signed_word(old);
+                const uint32_t psw=0x8000|(difference==0 ? 1:0)|(difference&0x80000000 ? 2:0)|
+                    (mathematical<-0x80000000LL || mathematical>0x7fffffffLL ? 4:0)|(cmp<old ? 8:0);
+                auto regs=before.gpr; if(pair.second) regs[pair.second]=old;
+                require(!s.unsupported && s.gpr==regs && s.sr[5]==psw && s.pc==start+4,"CAXI flags/result/alias wrong");
+                require(bus.atomics==1 && bus.ports==0 && bus.data==0 && bus.address==expected_address
+                        && bus.compare==cmp && bus.replacement==next && bus.output==(cmp==old ? next:old),
+                        "CAXI did not issue one aligned transaction with original operands");
+            }
+    }
+    for(unsigned op:{0x38u,0x39u,0x3bu,0x3cu,0x3du,0x3fu}) for(unsigned lane=0;lane<4;++lane)
+        for(unsigned index=0;index<262144;++index) {
+            cpu.reset(); auto& s=cpu.state; s.pc=start; s.sr[5]=(index&1023)|((index&0x3fc00)<<2);
+            s.gpr[1]=start+0x100+lane; s.gpr[2]=0x89abcdef;
+            const auto before=s; bus.clear(); bus.first=reg(op,1,2); cpu.step();
+            const bool input=op<0x3c; const unsigned bytes=(op&3)==0 ? 1:(op&3)==1 ? 2:4;
+            const uint32_t mask=bytes==4 ? 0xffffffff:(1u<<(bytes*8))-1;
+            auto regs=before.gpr; if(input) regs[2]=mask;
+            require(!s.unsupported && s.gpr==regs && s.sr==before.sr && s.pc==start+4,"port extension/PSW preservation wrong");
+            require(bus.ports==1 && bus.atomics==0 && bus.data==0 && bus.width==bytes
+                    && bus.address==((before.gpr[1]-17)&~uint32_t(bytes-1)) && (input || bus.output==(0x89abcdef&mask)),
+                    "port transaction used wrong space/address/width/output");
+        }
+    // Every displacement, with a wrapping full-PC-independent port address.
+    for(unsigned immediate=0;immediate<65536;++immediate) for(unsigned op:{0x38u,0x39u,0x3bu,0x3cu,0x3du,0x3fu}) {
+        cpu.reset(); auto& s=cpu.state; s.pc=start; s.gpr[1]=0xfffffff0; s.gpr[2]=0x89abcdef;
+        bus.clear(); bus.first=reg(op,1,2); bus.tail=uint16_t(immediate); cpu.step();
+        const int64_t displacement=immediate<32768 ? immediate:int64_t(immediate)-65536;
+        const unsigned bytes=(op&3)==0 ? 1:(op&3)==1 ? 2:4;
+        require(bus.address==(uint32_t(int64_t(0xfffffff0u)+displacement)&~uint32_t(bytes-1)),"port displacement/wrap wrong");
+    }
+    bus.tail=0xffef;
+    for(unsigned op:{0x38u,0x39u,0x3bu}) for(unsigned destination:{0u,1u}) {
+        cpu.reset(); auto& s=cpu.state; s.pc=start; s.gpr[1]=start+0x100; s.sr[5]=0x800f;
+        bus.clear(); bus.first=reg(op,1,destination); cpu.step();
+        const unsigned bytes=(op&3)==0 ? 1:(op&3)==1 ? 2:4;
+        require(bus.ports==1 && bus.address==((start+0x100-17)&~uint32_t(bytes-1)) && s.gpr[0]==0 && s.sr[5]==0x800f,
+                "r0/base-aliased port read skipped transaction or changed flags");
+        if(destination) require(s.gpr[1]==(bytes==4 ? 0xffffffff:(1u<<(bytes*8))-1),"port base alias clobbered address before read");
+    }
+    for(unsigned op:{0x38u,0x3cu,0x3au}) {
+        cpu.reset(); auto& s=cpu.state; s.pc=start; s.sr[5]=0x800f; s.gpr[1]=start+0x100; s.gpr[2]=123; s.gpr[30]=456;
+        const auto before=s; bus.clear(); bus.allowed=false; bus.first=reg(op,1,2); cpu.step();
+        require(s.unsupported && s.gpr==before.gpr && s.sr==before.sr,"failed transaction committed CPU output");
+    }
+    struct TraceMachine : vb::Machine {
+        std::vector<char> events;
+        bool read(uint32_t address,unsigned bytes,uint32_t& value) override {
+            if(bytes==4) events.push_back('R');
+            return vb::Machine::read(address,bytes,value);
+        }
+        bool write(uint32_t address,unsigned bytes,uint32_t value) override {
+            if(bytes==4) events.push_back('W');
+            return vb::Machine::write(address,bytes,value);
+        }
+    } traced;
+    for(uint32_t compare:{123u,124u}) {
+        traced.write(start,4,123); traced.events.clear(); uint32_t previous=0;
+        require(traced.compare_exchange(start,compare,456,previous) && previous==123
+                && traced.events==std::vector<char>{'R','W'},"CAXI profile skipped mismatch write-back or reversed bus order");
+        uint32_t stored=0; traced.read(start,4,stored); require(stored==(compare==123 ? 456u:123u),"CAXI profile stored wrong word");
+    }
+    code(m,{reg(0x3a,1,2),0,reg(0x39,1,3),0}); m.cpu.state.gpr[1]=start+0x101; m.cpu.state.gpr[2]=0x12348000;
+    m.cpu.state.gpr[30]=0xabcd8001; m.write(start+0x100,4,0x12348000);
+    std::vector<uint8_t> initial,after,replay; m.save(initial); m.cpu.step(); m.cpu.step(); m.save(after);
+    require(m.cpu.state.gpr[2]==0x12348000 && m.cpu.state.gpr[3]==0x8001,"profile CAXI/unsigned port continuation wrong");
+    require(m.restore(initial),"transaction state restore failed"); m.cpu.step(); m.cpu.step(); m.save(replay);
+    require(after==replay,"transaction continuation state diverged");
+}
 static void immediates(vb::Machine& m) {
     // Decode immediate forms through a different encoding, then compare with the
     // register operations independently graded by the original ROM.
@@ -306,7 +411,7 @@ int main(int argc,char** argv) {
         vb::Machine m; require(m.load(rom.data(),rom.size()),"original cartridge load failed");
         require(m.cpu.state.pc==0xfffffff0 && m.cpu.state.sr[5]==0x8000 && m.cpu.state.sr[4]==0xfff0,"reset state wrong");
         m.cpu.step(); m.cpu.step(); require(m.cpu.state.pc==0x07000000,"reset vector did not reach original entry");
-        control(m); muldiv(m); exceptions(); address_traps(m); immediates(m); memory(m); states(m,rom,argv[1]);
+        control(m); muldiv(m); exceptions(); address_traps(m); transactions(m); immediates(m); memory(m); states(m,rom,argv[1]);
         std::cout<<"VB control/memory/state/plugin checks passed\n"; return 0;
     } catch(const std::exception& e) { std::cerr<<e.what()<<'\n'; return 1; }
 }

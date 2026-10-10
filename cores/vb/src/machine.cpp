@@ -39,6 +39,12 @@ bool Machine::write(uint32_t address,unsigned bytes,uint32_t value) {
     for(unsigned n=0;n<bytes;++n) ram[(p+n)&0xffff]=uint8_t(value>>(8*n));
     return true;
 }
+bool Machine::compare_exchange(uint32_t address,uint32_t expected,uint32_t replacement,uint32_t& previous) {
+    // This profile has one serialized CPU bus owner and no asynchronous DMA.
+    // Keep the full RMW in one callback; future bus owners must arbitrate here.
+    if(!read(address,4,previous)) return false;
+    return write(address,4,previous==expected ? replacement:previous);
+}
 static void append(std::vector<uint8_t>& data,uint64_t value) {
     for(unsigned n=0;n<8;++n) data.push_back(uint8_t(value>>(56-8*n)));
 }

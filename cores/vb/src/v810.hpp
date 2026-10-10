@@ -7,6 +7,13 @@ struct Memory {
     virtual ~Memory() = default;
     virtual bool read(uint32_t address, unsigned bytes, uint32_t& value) = 0;
     virtual bool write(uint32_t address, unsigned bytes, uint32_t value) = 0;
+    virtual bool read_port(uint32_t, unsigned, uint32_t&) { return false; }
+    virtual bool write_port(uint32_t, unsigned, uint32_t) { return false; }
+    // One indivisible transaction for the CPU's bus owner. A failed compare
+    // still writes the old word back, as required by CAXI.
+    // Return bus-access success, including a comparison mismatch; false rejects
+    // the transaction rather than reporting that the comparison was unequal.
+    virtual bool compare_exchange(uint32_t, uint32_t, uint32_t, uint32_t&) { return false; }
 };
 struct CpuState {
     std::array<uint32_t,32> gpr{}, sr{};

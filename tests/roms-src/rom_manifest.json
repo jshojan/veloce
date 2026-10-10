@@ -206,6 +206,17 @@
       "source_type": "original",
       "suite": "integer_registers"
     },
+    "vb/memory_ops/memory_ops.vb": {
+      "build_command": "python3 tests/roms-src/vb/memory_ops/build.py",
+      "console": "vb",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "5cba803d70e2d3a56bcf26fc65243cba9fe432a70bf819e395a899ff8171b56a",
+      "source_repo": "tests/roms-src/vb/memory_ops/build.py",
+      "source_sha": "2a8cfc7d7cfc19df9dde06a8e273005d00e20d2e8e3143ebfcd3284ce9cb37a6",
+      "source_type": "original",
+      "suite": "memory_ops"
+    },
     "vb/muldiv/muldiv.vb": {
       "build_command": "python3 tests/roms-src/vb/muldiv/build.py",
       "console": "vb",

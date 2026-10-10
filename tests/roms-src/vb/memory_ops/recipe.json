@@ -1,0 +1,4 @@
+{
+  "source_type": "original", "console": "vb", "suite": "memory_ops",
+  "build": {"script": "build.py", "artifact": "memory_ops.vb"}, "license": "MIT"
+}

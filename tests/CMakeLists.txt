@@ -75,6 +75,10 @@ add_test(NAME vb_address_traps COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/roms-src/vb/address_traps/run.py --emulator $<TARGET_FILE:veloce>
     --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/vb_address_traps)
 set_tests_properties(vb_address_traps PROPERTIES LABELS "accuracy;owned" TIMEOUT 1000)
+add_test(NAME vb_memory_ops COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/vb/memory_ops/run.py --emulator $<TARGET_FILE:veloce>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/vb_memory_ops)
+set_tests_properties(vb_memory_ops PROPERTIES LABELS "accuracy;owned" TIMEOUT 1400)
 
 add_executable(snes_math_pipeline_test cpp/snes_math_pipeline_test.cpp
     ${CMAKE_SOURCE_DIR}/cores/snes/src/bus.cpp ${CMAKE_SOURCE_DIR}/cores/snes/src/cpu.cpp
