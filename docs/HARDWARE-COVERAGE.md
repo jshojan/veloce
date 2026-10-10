@@ -1,6 +1,6 @@
 # Nintendo implementation and hardware test coverage
 
-Current N64 evidence: [RDP fill pipeline and current Mario evidence](#rdp-fill-pipeline-and-depth-clears). Earlier increment reports are historical.
+Current N64 evidence: [RSP comparison/clipping and current Mario evidence](#rsp-vector-comparison-and-clipping). Earlier increment reports are historical.
 
 The goal includes Nintendo core plugins, repository-owned ROMs covering the
 hardware, machine-readable register observations, netplay, seamless controllers,
@@ -1429,3 +1429,59 @@ Verification: the full build and **60/60 N64 gates pass** in one regression
 run (**676.76 seconds**). All **86 original ROM archives** reproduce. The new
 component passes undefined-behavior sanitization, both private retail reports
 match current executable hashes, and completion/whitespace checks pass.
+
+## RSP vector comparison and clipping
+
+The RSP now executes **VLT, VEQ, VNE, VGE, VCL, VCH, VCR and VMRG**.
+All 16 element encodings select VT lanes; inputs are captured before destination
+writes so overlapping registers work. VCO, VCC and VCE follow each instruction's
+rules. The destination also replaces accumulator LOW16 while retaining its
+upper 32 bits. VCH's zero/-1 boundaries feed VCL and VMRG. Remaining arithmetic,
+logic, reciprocal operations and physical pipeline/interlock timing are pending.
+Unsupported instructions still halt with an explicit diagnostic and no fake
+BREAK or interrupt.
+
+The functional rules follow the hardware-test author's primary
+[nemu64-test comparison tests](https://github.com/thelemmy/nemu64-test/blob/main/src/tests/rsp/op_vector_arithmetic.rs).
+The new component independently checks **134,217,728 lane cases**: every 16-bit
+VS value, eight boundary/relationship VT partners, all 32 incoming lane-flag
+combinations and all eight functions. Another **81,920 actual vector cases**
+cover all selectors and register positions, five alias patterns, nonuniform
+flags, untouched registers, accumulator upper slices and scalar/DMEM guards.
+Clipping chains, real dispatch/BREAK IRQ, pending-state replay and unsupported
+VADD behavior are checked. These finite domains do not prove all full-width
+operand pairs or physical hardware timing.
+
+| Original ROM | Cases | Actual 64-bit captures | Domain |
+|---|---:|---:|---|
+| [Comparison pairs](../tests/roms-src/n64/rsp_comparison_pairs/README.md) | 262,144 | 4,718,592 | 256 repeated-byte VS values × 32 groups of eight repeated-byte VT lanes × four incoming flag profiles × eight functions |
+| [Comparison edges](../tests/roms-src/n64/rsp_comparison_edges/README.md) | 262,144 | 4,718,592 | 8,192 groups of consecutive VS halfwords × boundary VT lanes × four incoming flag profiles × eight functions |
+
+Selectors rotate with input/function/profile; the original corpora do not cover
+every selector/flag for every operand. Each actual RSP sequence seeds the
+accumulator with VMUDH, executes the comparison, and captures destination,
+all accumulator slices, both sources, VCO/VCC/VCE and SP PC/status/MI. The guest
+computes no verdict. Independent whole-integer grading checks all 18 fields.
+An executed capture mutant, eighteen individual field mutations and seven
+malformed streams are required to fail. These original cartridges have not run
+on a physical console. Artifacts are under
+`build/artifacts/owned/n64_rsp_comparison_pairs/` and `n64_rsp_comparison_edges/`.
+
+Plugin **0.22.0**, ABI v2, retains **VN64S019**: its existing vector flags and
+48-bit accumulator contain all comparison state, so no state-layout change is
+needed.
+
+The private Super Mario 64 probe now passes **VCH** and advances twelve more
+RSP instructions. At 2,000 scheduling quanta, the CPU reaches **200,000,000
+attempts**, with **534 nonterminal exception entries** and no terminal fault.
+The next RSP blocker is **VADD**, word **4B1FED50**, SP PC **624**, status **C1**,
+after **215,381 instructions**. RDP **SET_TILE** remains blocked at word
+**F510000007000000**, CURRENT **227128**, reason 1. Video remains uniform;
+**93,572 audio sample pairs** do not prove audible game sound. The default
+120-quantum probe retains its 12,000,000-attempt bound and 6,026 RSP instructions.
+Scheduling quanta are not game frames. **Native boot/playability are unverified.**
+The commercial ROM remains local and is not archived.
+
+Delivery completion stays **40% (8/20 milestones)**. The full graphics milestone
+and the overall Nintendo-platform goal remain unfinished. README percentages
+remain synchronized from the fixed ledger. CI/CD remains disabled.
