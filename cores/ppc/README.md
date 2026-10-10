@@ -11,6 +11,8 @@ GameCube/Wii software cannot boot. Full platform completion is unknown.
 - AND/ANDC/OR/ORC/XOR/NAND/NOR/EQV with both Rc forms, RA destinations,
   alias-safe source reads, ordinary GPR0 and unchanged XER. ORI/ORIS,
   XORI/XORIS, ANDI./ANDIS. with unsigned immediates and CR0 recording.
+- RLWIMI/RLWINM/RLWNM with all immediate shifts, low-five-bit register
+  counts, inclusive/wrapped masks, old-destination insertion and both Rc forms.
 - ADDI/ADDIS; big endian LWZ/LHZ/LBZ and STW/STH/STB with signed
   displacement, RA=0 address semantics and alignment diagnostics.
 - B/BL and BC, signed absolute/relative displacement; BCLR/BCCTR including
@@ -76,6 +78,20 @@ X-form logical operations have no OE bit; unsupported high-XO variants diagnose
 without mutating architectural registers. Full operand words and physical
 console behavior are not exhaustive; [domain details](../../tests/roms-src/gc/logical_registers/README.md).
 
+The [GameCube](../../tests/roms-src/gc/rotate_registers/README.md) and
+[Wii](../../tests/roms-src/wii/rotate_registers/README.md) rotate/mask ROMs each
+match 9,437,184 ten-word snapshots: every shift and mask encoding on eight
+source patterns, four insert destinations, four RLWNM upper-count patterns,
+both SO and both Rc states. Host grading independently checks final result,
+CR/XER, sources, initial destination, instruction/seeds and a sentinel. The
+component gate matches 113,258,496 additional rotate snapshots across both
+profiles, including all XER flag combinations, every GPR encoding/alias on
+boundary masks, walking source bits at every shift/mask and all XER byte counts
+at a wrapped mask. Known guest captures and exact replay through both plugins
+pass, including state restoration before an RA=RB rotate. Full 32-bit operand
+pairs, CR/XER words and physical console behavior are not exhaustive;
+[declared domain](../../tests/roms-src/gc/rotate_registers/README.md).
+
 Instruction references: [NXP MPC750 manual](https://www.nxp.com/docs/en/reference-manual/MPC750UM.pdf),
 [IBM addc](https://www.ibm.com/docs/en/aix/7.1.0?topic=set-addc-add-carrying-instruction),
 [IBM subfe](https://www.ibm.com/docs/en/aix/7.1.0?topic=set-subfe-sfe-subtract-from-extended-instruction),
@@ -129,6 +145,6 @@ reports attempted instructions and CPU frequency is unspecified.
 ```sh
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --target veloce gc_plugin wii_plugin ppc_machine_test -j4
-ctest --test-dir build -R '^(ppc_machine_test|(gc|wii)_(integer|branch|condition|logical)_registers)$' --output-on-failure
+ctest --test-dir build -R '^(ppc_machine_test|(gc|wii)_(integer|branch|condition|logical|rotate)_registers)$' --output-on-failure
 python3 tests/roms-src/build.py --original-only --check
 ```

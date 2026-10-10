@@ -40,8 +40,8 @@ See [Build Instructions](#building) for platform-specific details.
 | Nintendo 64 | [cores/n64](cores/n64/README.md) | Experimental | Integer homebrew, settled digital SI/PIF and interrupt gates; no retail boot, graphics, audio or analog sticks |
 | Virtual Boy | [cores/vb](cores/vb/README.md) | Experimental | V810 integer homebrew, multiply/divide, exception and arithmetic bit-string corpora; no retail games, video, audio or controller hardware |
 | Nintendo DS | [cores/nds](cores/nds/README.md) | Experimental | Dual-CPU ARM/Thumb integer, memory, long-call and stack/block homebrew with digital keypad input with shared/private RAM; no firmware/retail boot, graphics, audio or peripheral hardware |
-| GameCube | [cores/ppc](cores/ppc/README.md) | Experimental | Original PowerPC arithmetic, bitwise, branch and condition-register programs; no retail boot, graphics/audio, controllers or netplay |
-| Wii | [cores/ppc](cores/ppc/README.md) | Experimental | Original PowerPC arithmetic, bitwise, branch and condition-register programs; no retail boot, MEM2, IOS, graphics/audio, controllers or netplay |
+| GameCube | [cores/ppc](cores/ppc/README.md) | Experimental | Original PowerPC arithmetic, bitwise, rotate/mask, branch and condition-register programs; no retail boot, graphics/audio, controllers or netplay |
+| Wii | [cores/ppc](cores/ppc/README.md) | Experimental | Original PowerPC arithmetic, bitwise, rotate/mask, branch and condition-register programs; no retail boot, MEM2, IOS, graphics/audio, controllers or netplay |
 
 Additional Nintendo families, including DSi enhanced mode,
 3DS, Wii U, and Switch, still need core plugins. Overall completion is not yet
@@ -332,7 +332,7 @@ console. Start here:
 | N64 | Experimental integer homebrew: 28,127 integer, 262,623 doubleword multiply/divide and 3,158,016 merge-memory results and all 16,384 digital controller combinations and 65,536 interrupt gates verified; full platform completion unknown | [implementation and limits](cores/n64/README.md) |
 | Virtual Boy | Experimental integer homebrew: 6,512,640 result/PSW pairs plus 4,210,688 multiply/divide and 4,685,824 TRAP/illegal and 4,982,784 address-trap snapshots, plus 17,055,744 CAXI/port and 14,680,064 arithmetic bit-string snapshots, plus 100,712,448 immediate-instruction snapshots; full platform completion unknown | [implementation and limits](cores/vb/README.md) |
 | Nintendo DS | Experimental dual-CPU homebrew: 44,238,336 integer plus 38,338,560 multiply snapshots plus 51,426,816 Thumb result/CPSR/source/PC and 49,694,208 memory plus 9,437,184 long-call snapshots matched; 3,720,960 stack/block snapshots matched; 4,096/4,096 digital keypad combinations matched; full platform completion unknown | [implementation and limits](cores/nds/README.md) |
-| GameCube / Wii | Each profile: 49,152/49,152 arithmetic, 74,752/74,752 branch and 42,108,928/42,108,928 condition-register and 6,324,224/6,324,224 integer logical snapshots matched; full platform completion unknown | [implementation and limits](cores/ppc/README.md) |
+| GameCube / Wii | Each profile: 49,152/49,152 arithmetic, 74,752/74,752 branch and 42,108,928/42,108,928 condition-register and 6,324,224/6,324,224 integer logical and 9,437,184/9,437,184 rotate/mask snapshots matched; full platform completion unknown | [implementation and limits](cores/ppc/README.md) |
 
 Run external ROM suites with `python tests/run_all.py`; see [TESTING.md](TESTING.md)
 for per-console and local usage. The percentages above describe that measured
@@ -372,6 +372,8 @@ subset, not whole-core completion.
 | [Wii conditions](tests/roms-src/wii/condition_registers/README.md) | 42,108,928/42,108,928 eight-word compare/CR snapshots matched on the supplied profile; most hardware pending | `build/artifacts/owned/wii_conditions/` |
 | [GameCube integer logical](tests/roms-src/gc/logical_registers/README.md) | 6,324,224/6,324,224 nine-word snapshots matched: eight register logical families/all XER flags/Rc and all immediate values for six logical forms on eight operands/both SO states; timing pending | `build/artifacts/owned/gc_logical/` |
 | [Wii integer logical](tests/roms-src/wii/logical_registers/README.md) | 6,324,224/6,324,224 nine-word snapshots matched on the supplied profile; most hardware pending | `build/artifacts/owned/wii_logical/` |
+| [GameCube rotate/mask](tests/roms-src/gc/rotate_registers/README.md) | 9,437,184/9,437,184 ten-word snapshots matched: all shifts/mask fields on eight sources/four insert destinations/four RLWNM upper-count patterns/both SO/Rc; timing pending | `build/artifacts/owned/gc_rotates/` |
+| [Wii rotate/mask](tests/roms-src/wii/rotate_registers/README.md) | 9,437,184/9,437,184 ten-word snapshots matched on the supplied profile; most hardware pending | `build/artifacts/owned/wii_rotates/` |
 | [N64 interrupt gates](tests/roms-src/n64/interrupts/README.md) | 65,536/65,536 cases matched; 524,288 guest values for software/SI/timer, MI/CPU masks and IE/EXL/ERL; pipeline and physical timer timing pending | `build/artifacts/owned/n64_interrupts/` |
 | [N64 digital controller](tests/roms-src/n64/controller_serial/README.md) | 16,384/16,384 combinations matched; 131,072 guest values for digital input, identity, absent port and settled SI/MI registers; analog and physical timing pending | `build/artifacts/owned/n64_controller/` |
 | [N64 merge memory](tests/roms-src/n64/merge_memory/README.md) | 3,158,016/3,158,016 observations matched; eight instructions, every byte lane, all repeated-byte pairs and full-width boundaries; full multi-byte domains/timing unverified | `build/artifacts/owned/n64_merge_memory/` |

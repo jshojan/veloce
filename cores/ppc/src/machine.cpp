@@ -59,6 +59,18 @@ void Machine::step() {
         record_compare(rt>>2,op==11 ? signed32(s.r[ra]):s.r[ra],op==11 ? signed32(immediate):ins&65535);
     }
     else if(op==14 || op==15) s.r[rt]=(ra ? s.r[ra]:0)+(op==15 ? immediate<<16:immediate);
+    else if(op==20 || op==21 || op==23) {
+        const unsigned shift=op==23 ? s.r[rb]&31:rb;
+        const unsigned begin=(ins>>6)&31,end=(ins>>1)&31;
+        // PowerPC numbers mask bits from the most significant end, inclusively.
+        const uint32_t mask=begin<=end ? (0xffffffffu>>begin)&(0xffffffffu<<(31-end)):
+            (0xffffffffu>>begin)|(0xffffffffu<<(31-end));
+        const uint32_t source=s.r[rt],old=s.r[ra];
+        const uint32_t rotated=shift ? (source<<shift)|(source>>(32-shift)):source;
+        const uint32_t result=(rotated&mask)|(op==20 ? old&~mask:0);
+        s.r[ra]=result;
+        if(ins&1) record_compare(0,signed32(result),0);
+    }
     else if(op>=24 && op<=29) {
         const uint32_t operand=(ins&65535)<<((op&1) ? 16:0);
         const uint32_t source=s.r[rt]; // Logical instructions read ordinary GPR0.

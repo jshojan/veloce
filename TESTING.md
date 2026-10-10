@@ -566,3 +566,33 @@ python3 tests/roms-src/build.py --original-only --check
 
 These finite domains do not exhaust all operand/CR/XER words. Physical cache,
 timing, exceptions and most console hardware remain pending; CI/CD stays disabled.
+
+### Word rotate and mask corpora
+
+`gc_rotate_registers` and `wii_rotate_registers` each match 9,437,184 ten-word
+snapshots through the frontend: 4,194,304 RLWIMI, 1,048,576 RLWINM and 4,194,304
+RLWNM cases. The [domain table](tests/roms-src/gc/rotate_registers/README.md)
+defines source/destination patterns, all shift/mask fields, upper count bits,
+CR seeds and incoming SO/Rc states. Independent grading checks every captured
+bit, including preserved CR/XER and initial destination. Executed result,
+mask and insert mutants fail exactly 3,584/1,472/496 reduced snapshots;
+ten field mutations fail one row each and seven invalid streams return ERROR.
+Raw files (~783 MiB each) and JSON reports remain in
+`build/artifacts/owned/gc_rotates/` and `build/artifacts/owned/wii_rotates/`.
+
+The component gate matches 113,258,496 rotate/mask snapshots across both
+profiles: all masks/shifts within declared patterns/all XER flags, every GPR
+encoding and alias on eight boundary masks, all walking source bits/shifts/masks,
+all XER byte counts at a wrapped mask and exact machine/plugin replay.
+Undefined-behavior sanitization passes in the machine and both loaded plugins.
+
+```sh
+cmake --build build --target veloce gc_plugin wii_plugin ppc_machine_test -j4
+ctest --test-dir build -R '^(ppc_machine_test|(gc|wii)_rotate_registers)$' --output-on-failure
+python3 tests/roms-src/build.py --original-only --check
+python3 tests/roms-src/gc/rotate_registers/run.py --controls-only
+```
+
+All masks/shifts are exhausted within these patterns; full operand pairs,
+CR/XER words, physical cache/timing/exceptions and most console hardware remain
+pending. CI/CD remains disabled.
