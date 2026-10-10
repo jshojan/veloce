@@ -1858,5 +1858,11 @@ N64 now has **45% = 9/20 fixed delivery milestones**. This credits production
 netplay for the implemented profile. Analog/accessories/presence detection,
 local multiplayer frontend routing, complete graphics/audio/CPU/devices,
 physical timing and retail playability remain unfinished. CI/CD remains disabled.
-The four new controller/netplay gates pass; the existing 73-gate regression
-run is pending. All 94 original archives reproduce.
+**77 distinct N64 gates pass cumulatively**. The broad regression run passed
+71/73 in **1,906.17 seconds**; two legacy fixture checks still used old EOF
+offsets. Updating those offsets for the 24-byte S023 extension preserves their
+original assertions; both pass in a **22.32-second targeted rerun**. The four
+new controller/netplay gates pass. All six production core network gates pass
+in **57.15 seconds**. The full build, sanitizer, completion renderer, changed
+local documentation links and whitespace checks pass. All 94 original archives
+reproduce. Production binaries were unchanged by the fixture corrections.

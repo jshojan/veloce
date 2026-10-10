@@ -78,9 +78,9 @@ int main(int argc,char** argv) {
     }
     auto old=saved;old.resize(old.size()-6800);old[6]='0';old[7]='9';
     require(m.restore(old) && s.fcr31==0 && s.gpr[1]==0x1234,"S009 neutral control conversion");
-    auto converted=saved;std::fill(converted.end()-6776,converted.end()-6768,0);
-    std::fill(converted.end()-5032,converted.end()-5024,0); // Legacy state starts the new RSP clock phase at zero.
-    std::fill(converted.end()-5024,converted.end(),0);
+    auto converted=saved;std::fill(converted.end()-6800,converted.end()-6792,0);
+    std::fill(converted.end()-5056,converted.end()-5048,0); // Legacy state starts the new RSP clock phase at zero.
+    std::fill(converted.end()-5048,converted.end(),0);
     converted[converted.size()-5048+7*8+7]=1; // Reset DP pipeline state.
     require(m.save(replay) && replay==converted,"S009 preserves pending AI/host phases and all existing fields");
     // Resume a pending control exception identically after restore.

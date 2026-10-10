@@ -46,7 +46,7 @@ int main(int argc,char** argv) {
             for(unsigned byte=0;byte<8;++byte)bad[at+byte]=uint8_t(uint64_t(invalid[scalar])>>(56-byte*8));
             require(!m.restore(bad) && m.save(replay) && replay==after,"invalid RI scalar mutation");
         }
-        auto bad=after;std::fill(bad.end()-81048,bad.end()-81040,0);bad[bad.size()-81120+2*8+7]=1;
+        auto bad=after;std::fill(bad.end()-81072,bad.end()-81064,0);bad[bad.size()-81120+2*8+7]=1;
         require(!m.restore(bad) && m.save(replay) && replay==after,"unloaded current invariant");
         auto old=after;old.resize(old.size()-81120);old[6]='0';old[7]='3';require(m.restore(old) && !m.ri_current_loaded && m.ri==std::array<uint32_t,6>{},"S003 neutral RI conversion");
         require(m.save(state),"converted state");
