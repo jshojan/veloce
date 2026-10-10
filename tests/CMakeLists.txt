@@ -110,7 +110,7 @@ add_executable(netplay_plugin_peer cpp/netplay_plugin_peer.cpp)
 target_include_directories(netplay_plugin_peer PRIVATE ${CMAKE_SOURCE_DIR}/include ${SDL2_INCLUDE_DIRS})
 target_link_libraries(netplay_plugin_peer PRIVATE ${SDL2_LIBRARIES})
 target_compile_definitions(netplay_plugin_peer PRIVATE SDL_MAIN_HANDLED)
-add_dependencies(netplay_plugin_peer nes_plugin nds_plugin netplay_default)
+add_dependencies(netplay_plugin_peer nes_plugin nds_plugin dsi_plugin netplay_default)
 add_test(NAME netplay_plugin_test COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/netplay_network_test.py $<TARGET_FILE:netplay_plugin_peer>
     $<TARGET_FILE:nes_plugin> ${CMAKE_SOURCE_DIR}/tests/roms-src/nes/netplay_probe/netplay_probe.nes
@@ -396,3 +396,22 @@ foreach(profile gc wii)
         --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/${profile}_memory)
     set_tests_properties(${profile}_memory_registers PROPERTIES LABELS "accuracy;owned" TIMEOUT 1200)
 endforeach()
+
+add_executable(dsi_machine_test cpp/dsi_machine_test.cpp
+    ${CMAKE_SOURCE_DIR}/cores/nds/src/machine.cpp ${CMAKE_SOURCE_DIR}/cores/nds/src/arm.cpp)
+target_include_directories(dsi_machine_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/nds/src ${CMAKE_SOURCE_DIR}/include ${SDL2_INCLUDE_DIRS})
+target_link_libraries(dsi_machine_test PRIVATE ${SDL2_LIBRARIES})
+target_compile_definitions(dsi_machine_test PRIVATE SDL_MAIN_HANDLED)
+add_dependencies(dsi_machine_test nds_plugin dsi_plugin)
+add_test(NAME dsi_machine_test COMMAND dsi_machine_test $<TARGET_FILE:dsi_plugin>
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/dsi/netplay_probe/netplay_probe.vdsi $<TARGET_FILE:nds_plugin>)
+set_tests_properties(dsi_machine_test PROPERTIES LABELS "unit;accuracy;owned" TIMEOUT 90)
+add_test(NAME dsi_ram_registers COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/dsi/ram_registers/run.py --emulator $<TARGET_FILE:veloce>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/dsi_ram)
+set_tests_properties(dsi_ram_registers PROPERTIES LABELS "accuracy;owned" TIMEOUT 600)
+add_test(NAME dsi_netplay_plugin_test COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/netplay_network_test.py $<TARGET_FILE:netplay_plugin_peer>
+    $<TARGET_FILE:dsi_plugin> ${CMAKE_SOURCE_DIR}/tests/roms-src/dsi/netplay_probe/netplay_probe.vdsi
+    ${CMAKE_BINARY_DIR}/artifacts/netplay-dsi --netplay-plugin $<TARGET_FILE:netplay_default> --console dsi)
+set_tests_properties(dsi_netplay_plugin_test PROPERTIES LABELS "integration;netplay;owned" TIMEOUT 120)

@@ -15,7 +15,8 @@ are not measurements of overall hardware or product completion.
 | GBA | `gba_plugin` | ARM MOVS register shifts: 65,536/65,536 result/CPSR pairs verified; all low-byte amounts and C/V inputs on 16 operands | Not measured; remaining CPU modes/instructions, timing and peripheral corpora pending |
 | Nintendo 64 | `n64_plugin` (experimental homebrew only) | 28,127/28,127 defined integer results matched; 28,160 observations, with 33 undefined divide inputs unscored; doubleword multiply/divide: 262,623/262,623 defined LO/HI pairs matched on exhaustive byte pairs and full-width boundaries; merge memory: 3,158,016/3,158,016 observations matched at every lane on all repeated-byte pairs and selected full-width patterns; digital SI/PIF: 16,384/16,384 button combinations and 131,072 register values matched; interrupt gates: 65,536/65,536 cases and 524,288 register values matched | Not measured; retail boot, graphics/audio, analog/controllers beyond port 1 and most platform hardware remain |
 | Virtual Boy | `vb_plugin` (experimental homebrew only) | 6,512,640/6,512,640 result/PSW pairs matched across ADD/SUB/CMP/OR/AND/XOR repeated-byte pairs and full-width boundaries, plus SHL/SHR/SAR patterns and all low-byte amounts; 4,210,688/4,210,688 multiply/divide snapshots matched with 8,704 divide-zero exception/RETI cases; 4,685,824/4,685,824 TRAP/illegal exception snapshots matched across all writable nonfatal PSW combinations and full reserved low-bit encodings; 4,982,784/4,982,784 address-trap snapshots matched across matching/disabled/aliased addresses and entry/return; 17,055,744/17,055,744 CAXI/port snapshots matched across comparisons/replacements, width/alignment, unsigned input and preserved flags; 14,680,064/14,680,064 arithmetic bit-string snapshots matched across eight operations, byte pairs, all offsets and twelve lengths; 100,712,448/100,712,448 immediate-instruction snapshots matched across all wide/short immediates for twelve instructions on sixteen patterns/all flags | Not measured; remaining CPU/NVC instructions, timing, VIP/VSU, controllers and most platform hardware remain |
-| Nintendo DS | `nds_plugin` (experimental homebrew only) | 44,238,336/44,238,336 dual-CPU result/CPSR/source snapshots matched across all sixteen data-processing operations, repeated-byte pairs and full-width boundaries, every NZCV and both ARM9 Q states; 38,338,560 six-family multiply and 51,426,816 Thumb result/CPSR/source/PC observations matched with undefined ARM7 flags excluded; 49,694,208 nine-word ARM/Thumb memory and 9,437,184 eight-word long-call snapshots matched with every bit graded; 3,720,960 stack/block snapshots matched; 4,096/4,096 digital keypad combinations matched | Not measured; firmware/retail boot, ARM block transfers, interrupts, graphics/audio, peripherals, timing and DSi enhanced mode remain |
+| Nintendo DS | `nds_plugin` (experimental homebrew only) | 44,238,336/44,238,336 dual-CPU result/CPSR/source snapshots matched across all sixteen data-processing operations, repeated-byte pairs and full-width boundaries, every NZCV and both ARM9 Q states; 38,338,560 six-family multiply and 51,426,816 Thumb result/CPSR/source/PC observations matched with undefined ARM7 flags excluded; 49,694,208 nine-word ARM/Thumb memory and 9,437,184 eight-word long-call snapshots matched with every bit graded; 3,720,960 stack/block snapshots matched; 4,096/4,096 digital keypad combinations matched | Not measured; firmware/retail boot, ARM block transfers, interrupts, graphics/audio, peripherals and timing remain; DSi has a separate partial plugin |
+| Nintendo DSi | `dsi_plugin` (original marked images only) | 387,072/387,072 original RAM captures; 67,109,008 component byte/width observations; 100-frame TCP host/viewer states and eight guest words match oracle | Not measured; firmware/retail boot, full SCFG/MBK, physical timing and most console hardware remain; [limits](../cores/dsi/README.md) |
 | GameCube | `gc_plugin` (original marked images only) | 49,152/49,152 arithmetic and 74,752/74,752 branch and 42,108,928/42,108,928 condition and 6,324,224/6,324,224 integer logical and 9,437,184/9,437,184 rotate/mask and 4,416,528/4,416,528 shift/unary and 25,168,384/25,168,384 carry arithmetic snapshots and 8,420,320/8,420,320 defined multiply/divide results matched; 1,056 undefined division rows have defined flags/preserved fields checked; 12,586,368/12,586,368 memory-transfer snapshots matched | Not measured; most CPU and console hardware remain; [limits](../cores/ppc/README.md) |
 | Wii | `wii_plugin` (original marked images only) | 49,152/49,152 arithmetic and 74,752/74,752 branch and 42,108,928/42,108,928 condition and 6,324,224/6,324,224 integer logical and 9,437,184/9,437,184 rotate/mask and 4,416,528/4,416,528 shift/unary and 25,168,384/25,168,384 carry arithmetic snapshots and 8,420,320/8,420,320 defined multiply/divide results matched; 1,056 undefined division rows have defined flags/preserved fields checked; 12,586,368/12,586,368 memory-transfer snapshots matched | Not measured; most CPU and console hardware, including MEM2/IOS, remain; [limits](../cores/ppc/README.md) |
 
@@ -149,7 +150,7 @@ bus timing.
 This declares operand/flag coverage, not whole-hardware completion. Shifters,
 WRAM banks and exact saved continuation have separate component checks.
 Firmware, ARM block transfers, exceptions/interrupts, graphics/audio/touchscreen, physical controllers, most
-peripherals/timing and DSi enhanced mode remain pending.
+peripherals/timing remain pending. DSi now has a separate partial plugin.
 
 Run `python3 tests/roms-src/build.py --original-only --check` to reproduce the
 original ROM images and verify their source and image SHA256 ledger. Run
@@ -192,7 +193,7 @@ must implement its hardware as a loadable core plugin and execute its own ROMs;
 an empty plugin or declared platform name does not count as implementation.
 
 Additional requested platform families without a core in this worktree include
-DSi enhanced mode, Nintendo 3DS, Wii U,
+Nintendo 3DS, Wii U,
 and Switch. Famicom Disk System and other Nintendo accessories still need
 separate validation. There is no verified completion percentage for these
 missing implementations.
@@ -212,7 +213,7 @@ custom mappings, capture mode, disconnect/reconnect, saved identity restoration,
 selection after removal, ambiguous devices, and axis endpoints. Physical devices,
 Bluetooth, cross-platform drivers, and multiplayer routing still need testing.
 
-The frontend has netplay interfaces/UI and the NES and DS cores expose `INetplayCapable`.
+The frontend has netplay interfaces/UI and the NES, DS and DSi cores expose `INetplayCapable`.
 The [rollback module](../plugins/netplay_default/README.md) implements
 bounded history, prediction, late-input restore/replay, stalls, and confirmation
 validation. Two delayed actual NES sessions converge byte-for-byte on a 100-frame
@@ -411,5 +412,38 @@ CI/CD stays disabled; use local gates:
 
 ```sh
 ctest --test-dir build -R '^(ppc_machine_test|(gc|wii)_memory_registers)$' --output-on-failure
+python3 tests/roms-src/build.py --original-only --check
+```
+
+### DSi plugin and original RAM evidence
+
+The [DSi plugin](../cores/dsi/README.md) is now separately loadable, sharing the
+DS ARM interpreter with a distinct loader/state/controller identity and 16 MiB
+RAM profile. `dsi_ram_registers` matches 387,072 fourteen-word original captures:
+three RAM-limit modes, four banks, either writing CPU, three store/read aliases,
+all aligned width/lane pairs and 256 byte/complement patterns. An independent
+host byte-array oracle grades every field. Executed bank/width/mode mutants
+fail exactly 1,512/1,038/4,032 reduced rows; fourteen field mutations and seven
+strict invalid streams are rejected. Raw output (~44 MiB) and reports stay in
+`build/artifacts/owned/dsi_ram/`.
+
+`dsi_machine_test` matches 67,109,008 byte/width bus observations, writing each
+supplied RAM byte once with an address-derived value and reading three mirrors
+through the other CPU. Boundary widths, RAM-limit controls/locks, high-RAM
+code, atomic loader/state rejection, DS/DSi coexistence and exact replay pass.
+The component gate also passes undefined-behavior sanitization. These are
+supplied-profile byte checks, not physical chip-control/timing evidence.
+
+`dsi_netplay_plugin_test` passes production TCP rollback with two independent
+100-frame peer states matching the 16,875,896-byte solo baseline and eight
+guest words matching the independent oracle. Host owns one keypad; viewer
+replay is supported, DSi wireless multiplayer is pending. DS component and
+production netplay regression gates pass. Local TCP gates require loopback
+socket permission; CI/CD remains disabled. All 48 original ROMs reproduce
+against the source/image ledger. Firmware/retail boot, full SCFG/MBK and most
+DSi hardware remain pending; full platform completion is unmeasured.
+
+```sh
+ctest --test-dir build -R '^(dsi_|nds_machine_test|nds_netplay_plugin_test)' --output-on-failure
 python3 tests/roms-src/build.py --original-only --check
 ```

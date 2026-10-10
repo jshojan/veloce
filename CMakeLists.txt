@@ -194,6 +194,7 @@ add_subdirectory(cores/gba)
 add_subdirectory(cores/n64)
 add_subdirectory(cores/vb)
 add_subdirectory(cores/nds)
+add_subdirectory(cores/dsi)
 add_subdirectory(cores/ppc)
 
 # Shared plugin libraries
