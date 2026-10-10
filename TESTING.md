@@ -656,3 +656,31 @@ python3 tests/roms-src/gc/carry_registers/run.py --controls-only
 The immediate field is exhausted within these patterns, not all full 32-bit
 sources/CR/XER words or physical cache/timing/exceptions. Most console hardware
 remains pending. CI/CD stays disabled.
+
+## PowerPC multiply/divide coverage
+
+`gc_multiply_registers` and `wii_multiply_registers` each match 8,421,376
+nine-word observations: 8,420,320 defined results and 1,056 undefined division
+rows with defined flags/preserved fields checked. The
+[declared domain](tests/roms-src/gc/multiply_registers/README.md) covers
+MULHW/MULHWU/MULLW/DIVW/DIVWU on sixteen operand patterns/all XER flags/OE/Rc
+and MULLI on every 16-bit immediate. Independent arbitrary precision host
+arithmetic masks undefined quotient and recorded CR0.LT/GT/EQ only. CR0.SO,
+XER and preserved fields remain graded. Executed wrong-result/high-word/flags
+controls fail exactly 328/32/54 reduced rows. Undefined result mutations pass;
+defined SO/OV mutations on undefined rows each fail one row. Strict malformed
+stream controls and nine capture-field mutations pass their rejection gates.
+
+The component gate matches 26,443,776 snapshots across both profiles,
+including 280,640 deterministic undefined-result profile fixtures. Its oracle
+uses 16-bit product limbs and restoring division; register/alias/byte-count,
+reserved encoding, known guest and state replay checks pass, including with
+undefined-behavior sanitization. Raw files (~634 MiB/profile) and JSON reports
+stay under `build/artifacts/owned/gc_products/` and `wii_products/`.
+No full 32-bit operand-pair or physical cache/timing claim is made. CI/CD
+remains disabled; run the local gates:
+
+```sh
+ctest --test-dir build -R '^(ppc_machine_test|(gc|wii)_multiply_registers)$' --output-on-failure
+python3 tests/roms-src/build.py --original-only --check
+```

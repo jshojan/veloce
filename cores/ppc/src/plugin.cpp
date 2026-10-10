@@ -13,7 +13,7 @@ class Plugin final:public emu::IEmulatorPlugin {
 public:
     emu::EmulatorInfo get_info() override {
         static const char* extensions[]={extension,nullptr};
-        return {name,"0.7.0","Veloce","Experimental original PowerPC integer programs; retail boot and console peripherals pending.",extensions,60,0,640,480};
+        return {name,"0.8.0","Veloce","Experimental original PowerPC integer programs; retail boot and console peripherals pending.",extensions,60,0,640,480};
     }
     bool load_rom(const uint8_t* data,size_t size) override { return machine.load(data,size); }
     void unload_rom() override { machine.rom.clear(); machine.identity=0; machine.crc=0; machine.reset(); }

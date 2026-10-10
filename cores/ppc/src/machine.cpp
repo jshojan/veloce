@@ -54,7 +54,8 @@ void Machine::step() {
         const uint32_t result=(a<b ? 8u:a>b ? 4u:2u)|((s.xer>>31)&1);
         s.cr=(s.cr&~(15u<<shift))|(result<<shift);
     };
-    if(op==8 || op==12 || op==13) {
+    if(op==7) s.r[rt]=uint32_t(signed32(s.r[ra])*signed32(immediate));
+    else if(op==8 || op==12 || op==13) {
         const uint32_t source=s.r[ra]; // Unlike ADDI, carry immediates read GPR0.
         const uint64_t wide=uint64_t(op==8 ? ~source:source)+immediate+(op==8 ? 1:0);
         const uint32_t result=uint32_t(wide);
@@ -179,6 +180,23 @@ void Machine::step() {
             if(!negate) s.xer=(s.xer&~0x20000000u)|(wide>>32 ? 0x20000000u:0);
             if(ins&0x400) {
                 const bool overflow=math< -0x80000000LL || math>0x7fffffffLL;
+                s.xer=(s.xer&~0x40000000u)|(overflow ? 0xc0000000u:0);
+            }
+            s.r[rt]=result;
+            if(ins&1) record_compare(0,signed32(result),0);
+        } else if(xo==75 || xo==11 || arithmetic==235 || arithmetic==491 || arithmetic==459) {
+            const uint32_t a=s.r[ra],b=s.r[rb]; uint32_t result=0; bool overflow=false;
+            if(xo==11) result=uint32_t((uint64_t(a)*b)>>32);
+            else if(xo==75 || arithmetic==235) {
+                const int64_t product=signed32(a)*signed32(b);
+                result=xo==75 ? uint32_t(uint64_t(product)>>32):uint32_t(product);
+                overflow=product< -0x80000000LL || product>0x7fffffffLL;
+            } else {
+                overflow=!b || (arithmetic==491 && a==0x80000000u && b==0xffffffffu);
+                // Undefined division quotients use zero in this deterministic profile.
+                if(!overflow) result=arithmetic==459 ? a/b:uint32_t(signed32(a)/signed32(b));
+            }
+            if(arithmetic!=75 && arithmetic!=11 && (ins&0x400)) {
                 s.xer=(s.xer&~0x40000000u)|(overflow ? 0xc0000000u:0);
             }
             s.r[rt]=result;
