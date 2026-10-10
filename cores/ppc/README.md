@@ -19,6 +19,10 @@ GameCube/Wii software cannot boot. Full platform completion is unknown.
 - NEG, ADDZE/ADDME and SUBFZE/SUBFME with all OE/Rc forms, carry-in/out,
   overflow/sticky SO and reserved-field checks. ADDIC/ADDIC./SUBFIC use signed
   immediates and ordinary GPR0, update CA and preserve OV/SO.
+- MULHW/MULHWU, MULLW and MULLI; DIVW/DIVWU, all defined OE/Rc
+  forms, ordinary GPR0 and alias-safe operands. Invalid division chooses zero
+  in this profile; undefined quotient/CR0 ordering bits are excluded from
+  hardware result scoring.
 - ADDI/ADDIS; big endian LWZ/LHZ/LBZ and STW/STH/STB with signed
   displacement, RA=0 address semantics and alignment diagnostics.
 - B/BL and BC, signed absolute/relative displacement; BCLR/BCCTR including
@@ -125,6 +129,22 @@ through both plugins before NEGO. sets OV/SO. Full 32-bit operand and CR/XER
 words, physical exceptions and console behavior remain unverified;
 [declared domains](../../tests/roms-src/gc/carry_registers/README.md).
 
+The [GameCube](../../tests/roms-src/gc/multiply_registers/README.md) and
+[Wii](../../tests/roms-src/wii/multiply_registers/README.md) multiply/divide ROMs
+each match 8,420,320 defined results plus 1,056 undefined division rows checked
+for defined flags and preserved fields. MULLI covers every 16-bit immediate
+on sixteen sources/all incoming XER flags; register forms use sixteen operand
+patterns, every applicable OE/Rc and all incoming flags. The independent host
+masks only undefined quotient and recorded CR0.LT/GT/EQ; CR0.SO and XER remain
+graded. The supplied profile chooses quotient zero on divide-zero/MIN divided
+by -1, without claiming those bits match physical hardware. Component checks
+match 26,443,776 snapshots across both profiles, including 280,640 deterministic
+undefined-result fixtures; register fields, aliases, independent limb products,
+restoring division, reserved variants, guest captures and state replay pass.
+The full component gate also passes undefined-behavior sanitization. See the
+[NXP instruction set manual](https://www.nxp.com.cn/docs/en/reference-manual/MPC82XINSET.pdf)
+for DIVW/DIVWU undefined-result rules. Console timing remains unverified.
+
 Instruction references: [NXP MPC750 manual](https://www.nxp.com/docs/en/reference-manual/MPC750UM.pdf),
 [IBM addc](https://www.ibm.com/docs/en/aix/7.1.0?topic=set-addc-add-carrying-instruction),
 [IBM subfe](https://www.ibm.com/docs/en/aix/7.1.0?topic=set-subfe-sfe-subtract-from-extended-instruction),
@@ -178,6 +198,6 @@ reports attempted instructions and CPU frequency is unspecified.
 ```sh
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --target veloce gc_plugin wii_plugin ppc_machine_test -j4
-ctest --test-dir build -R '^(ppc_machine_test|(gc|wii)_(integer|branch|condition|logical|rotate|shift|carry)_registers)$' --output-on-failure
+ctest --test-dir build -R '^(ppc_machine_test|(gc|wii)_(integer|branch|condition|logical|rotate|shift|carry|multiply)_registers)$' --output-on-failure
 python3 tests/roms-src/build.py --original-only --check
 ```

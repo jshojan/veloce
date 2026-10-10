@@ -99,6 +99,17 @@
       "source_type": "original",
       "suite": "logical_registers"
     },
+    "gc/multiply_registers/multiply_registers.vgc": {
+      "build_command": "python3 tests/roms-src/gc/multiply_registers/build.py",
+      "console": "gc",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "de77b8eb05ae782a071c4f1ff5cad5fb6457971e6969510f8d7fe55293630318",
+      "source_repo": "tests/roms-src/gc/multiply_registers/build.py",
+      "source_sha": "d6eb357e574cfe2b1f03062e951e96ed27a5b6770675ccf6909124a83f3c33ff",
+      "source_type": "original",
+      "suite": "multiply_registers"
+    },
     "gc/rotate_registers/rotate_registers.vgc": {
       "build_command": "python3 tests/roms-src/gc/rotate_registers/build.py",
       "console": "gc",
@@ -469,6 +480,17 @@
       "source_sha": "2cd883d65f3fd7e20a0a99466457b1687a7b6f714911159d510c0debe7f4ed90",
       "source_type": "original",
       "suite": "logical_registers"
+    },
+    "wii/multiply_registers/multiply_registers.vwi": {
+      "build_command": "python3 tests/roms-src/wii/multiply_registers/build.py",
+      "console": "wii",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "273ca73fe55ba5d02090d35f715413ca5f945de7565311e4b2a849ba669b26ef",
+      "source_repo": "tests/roms-src/wii/multiply_registers/build.py",
+      "source_sha": "550f27cb68a271849e7f31e7e6f2ecfa63bdef45067b4c455d705a4396a7e8db",
+      "source_type": "original",
+      "suite": "multiply_registers"
     },
     "wii/rotate_registers/rotate_registers.vwi": {
       "build_command": "python3 tests/roms-src/wii/rotate_registers/build.py",
