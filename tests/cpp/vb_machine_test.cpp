@@ -159,6 +159,59 @@ static void exceptions() {
         }
     }
 }
+static void address_traps(vb::Machine& m) {
+    struct Bus : vb::Memory {
+        unsigned reads=0,count=0;
+        std::array<std::pair<uint32_t,uint32_t>,3> writes{};
+        bool read(uint32_t,unsigned bytes,uint32_t& value) override {
+            ++reads; require(bytes==2,"address trap fetched wrong width"); value=reg(0,1,2); return true;
+        }
+        bool write(uint32_t address,unsigned bytes,uint32_t value) override {
+            require(bytes==4 && count<3,"address fault bus sequence wrong"); writes[count++]={address,value}; return false;
+        }
+    } bus;
+    vb::V810 cpu(bus);
+    // All writable PSW combinations, six address relationships, eight full-PC
+    // boundaries. NP-set fatal paths are separate from the returning ROM gate.
+    for(uint32_t pc:{0u,2u,0x7ffffffeu,0x80000000u,0xfffffffeu,0x05003000u,0x85003000u,0xfd003000u}) {
+        for(uint32_t address:{pc,pc|1u,pc+2,pc-2,pc^0x80000000u,pc+0x10000}) {
+            for(uint32_t index=0;index<262144;++index) {
+                const uint32_t psw=(index&1023)|((index&0x3fc00)<<2);
+                cpu.reset(); auto& s=cpu.state; s.pc=pc; s.sr[5]=psw; s.sr[25]=address&~1u;
+                s.sr[4]=0x12345678; s.sr[0]=start+0x100; s.sr[1]=0x101; s.sr[2]=start+0x200; s.sr[3]=0x202;
+                s.gpr[1]=0x12345678; s.gpr[2]=0x89abcdef;
+                const auto before=s; bus.reads=0; bus.count=0; cpu.step();
+                const bool hit=(psw&0x2000) && (address&~1u)==pc;
+                require(!s.unsupported,"address trap marked unsupported");
+                if(!hit) {
+                    auto regs=before.gpr; regs[2]=regs[1];
+                    require(bus.reads==1 && bus.count==0 && s.gpr==regs && s.pc==pc+2 && s.sr==before.sr && !s.halted,
+                            "nonmatching/disabled address trap changed execution");
+                } else if(psw&0x8000) {
+                    const std::array<std::pair<uint32_t,uint32_t>,3> writes={{{0,0xffffffc0},{4,psw},{8,pc}}};
+                    require(bus.reads==0 && bus.count==3 && bus.writes==writes && s.halted && s.pc==pc && s.sr==before.sr
+                            && s.gpr==before.gpr,"fatal address trap state/bus context wrong");
+                } else {
+                    const bool nested=psw&0x4000; auto sr=before.sr; const unsigned saved=nested ? 2:0;
+                    sr[saved]=pc; sr[saved+1]=psw;
+                    sr[4]=nested ? 0xffc05678:0x1234ffc0;
+                    sr[5]=(psw|(nested ? 0x9000:0x5000))&~0x2000u;
+                    require(bus.reads==0 && bus.count==0 && s.pc==(nested ? 0xffffffd0:0xffffffc0) && s.sr==sr && !s.halted
+                            && s.gpr==before.gpr,"address trap failed before fetch or destroyed saved context");
+                }
+            }
+        }
+    }
+    // Persist the armed breakpoint itself and then its exception context.
+    code(m,{reg(0,1,2),reg(0x19)}); auto& s=m.cpu.state; s.gpr[1]=123; s.sr[5]=0x200f; s.sr[25]=start;
+    std::vector<uint8_t> armed,entered,replay,after; m.save(armed); m.cpu.step(); m.save(entered);
+    require(m.restore(armed),"armed address trap restore failed"); m.cpu.step(); m.save(replay);
+    require(entered==replay,"armed breakpoint state replay diverged");
+    s.pc=start+2; s.sr[1]&=~0x2000u; m.save(entered); m.cpu.step(); m.save(after);
+    require(s.pc==start && s.sr[5]==15,"address trap RETI context wrong");
+    require(m.restore(entered),"entered address trap restore failed"); m.cpu.step(); m.save(replay);
+    require(after==replay,"address trap handler state replay diverged");
+}
 static void immediates(vb::Machine& m) {
     // Decode immediate forms through a different encoding, then compare with the
     // register operations independently graded by the original ROM.
@@ -253,7 +306,7 @@ int main(int argc,char** argv) {
         vb::Machine m; require(m.load(rom.data(),rom.size()),"original cartridge load failed");
         require(m.cpu.state.pc==0xfffffff0 && m.cpu.state.sr[5]==0x8000 && m.cpu.state.sr[4]==0xfff0,"reset state wrong");
         m.cpu.step(); m.cpu.step(); require(m.cpu.state.pc==0x07000000,"reset vector did not reach original entry");
-        control(m); muldiv(m); exceptions(); immediates(m); memory(m); states(m,rom,argv[1]);
+        control(m); muldiv(m); exceptions(); address_traps(m); immediates(m); memory(m); states(m,rom,argv[1]);
         std::cout<<"VB control/memory/state/plugin checks passed\n"; return 0;
     } catch(const std::exception& e) { std::cerr<<e.what()<<'\n'; return 1; }
 }

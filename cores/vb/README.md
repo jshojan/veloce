@@ -15,7 +15,9 @@ little-endian instruction/data memory and an explicit marked cartridge profile.
 - TRAP (all 32 parameters), divide-zero and three reserved major opcode
   families (`$1B`, `$32`, `$36`): normal/nested context, fatal bus writes/halt and
   RETI. TRAP saves the next PC; illegal/divide faults save the instruction PC.
-  Other exception producers and external interrupts remain pending.
+  Address traps compare the full PC against ADTRE before instruction fetch when
+  AE is set; board/RAM aliases do not compare equal. Other exception producers
+  and external interrupts remain pending.
 - MOVEA, MOVHI, ADDI, ORI, ANDI and XORI; sign/zero extension and source aliasing.
 - All 16 branch/SETF conditions, relative JR/JAL, register JMP and link r31.
   There are no MIPS-style branch delay slots.
@@ -82,6 +84,14 @@ plus every low-bit illegal encoding with all flags and both EP states. It
 records entry and post-RETI context, both saved-register banks, persistent ECR
 code halves, vector markers and unchanged GPRs.
 
+The original [address-trap corpus](../../tests/roms-src/vb/address_traps/README.md)
+matched **4,982,784/4,982,784 fourteen-word snapshots**, zero mismatches,
+including 131,168 matching enabled
+cases. It covers all writable nonfatal PSWs on six address relationships, all
+single-bit PC flips and all low-half offsets. Raw ADTRE low-bit masking,
+normal/nested entry, saved AE clearing, RETI retry and nonmatching execution
+are graded from actual guest registers.
+
 `vb_machine_test` separately checks reset entry, all branch conditions/flag
 states on signed displacement boundaries, SETF, JR/JAL/JMP/link behavior, r0,
 source aliasing, immediate/register decoding, wide-immediate reference vectors,
@@ -93,6 +103,10 @@ bus writes/halt and full saved exception continuation. An additional 3,178,496
 TRAP/illegal-instruction component cases include fatal entry and RETI,
 all listed encodings, condition/control combinations, and sticky-flag/interrupt
 level boundaries.
+Another 12,582,912 address-trap cases cover every writable PSW, six address
+relationships at eight full-PC boundaries, fatal state/bus writes, pre-fetch
+delivery and ordinary nonmatching execution. Armed-breakpoint and handler
+save-state replay also match exactly.
 These component checks are separate from the original-ROM domain.
 
 ```bash
@@ -103,7 +117,8 @@ ctest --test-dir build -R '^vb_' --output-on-failure
 ```
 
 Raw observations and reports are in `build/artifacts/owned/vb_integer/`,
-`build/artifacts/owned/vb_muldiv/` and `build/artifacts/owned/vb_exceptions/`.
+`build/artifacts/owned/vb_muldiv/`, `build/artifacts/owned/vb_exceptions/` and
+`build/artifacts/owned/vb_address_traps/`.
 They are uploaded by the owned-hardware CI job. Source/image SHA256 values are recorded
 in `tests/roms-src/rom_manifest.json`. `VVBS0001` states store explicit big-endian
 scalars for the full CPU, frame/step counters, completion, ROM identity and WRAM.
@@ -112,7 +127,7 @@ Size, version, ROM identity and basic field checks precede any mutation.
 ## Remaining platform hardware and features
 
 Bit strings, FPU/custom NVC instructions, port I/O, complete
-system registers/PIR/TKCW, other exceptions/external interrupts, address traps, caches,
+system registers/PIR/TKCW, other exceptions/external interrupts, caches,
 pipeline/wait-state timing, VIP drawing/display/scanner timing, VSU audio,
 controller serial hardware, link communication, timers and save media remain.
 Valid but unimplemented instructions and unmapped transactions stop execution

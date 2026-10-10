@@ -13,7 +13,7 @@ truth this document summarizes rather than duplicates.
 
 ## Repository-owned register corpora
 
-Original NES, GB, SNES, GBA, and N64 ROMs are committed with their Python source generators.
+Original NES, GB, SNES, GBA, N64 and Virtual Boy ROMs are committed with their Python source generators.
 Build reproducibility and source/image SHA256 are checked with
 `python3 tests/roms-src/build.py --original-only --check`, without a downloaded
 ROM, Docker, or an assembler. Run the suites with
@@ -68,7 +68,7 @@ match the independent oracle and 33 undefined divide inputs are unscored.
 All three cartridge byte orders execute through frontend discovery. Mutation
 and damaged-file controls check rejection. `n64_machine_test` separately checks
 control flow/delay slots, basic exceptions, memory and plugin state continuation.
-N64 retail boot, graphics/audio/controllers, peripherals and timing remain
+N64 retail boot, graphics/audio, analog/accessory controllers, remaining peripherals and timing remain
 unimplemented or unverified. Its trailer cycle counter measures instruction
 steps, and frames are scheduling quanta, not VI fields.
 The [N64 doubleword multiply/divide corpus](tests/roms-src/n64/muldiv64/README.md)
@@ -96,6 +96,20 @@ amount, all C/V inputs, and 16 operand patterns. Timing and the full source
 operand domain remain unverified. An opcode mutation, damaged files, and a
 channel enable/disable and buffer boundary probe exercise the measurement path.
 It uses direct cartridge-entry boot and contains no retail BIOS logo.
+
+The experimental [Virtual Boy core](cores/vb/README.md) runs four original
+register corpora through frontend plugin discovery: [integer operations](tests/roms-src/vb/integer_registers/README.md)
+(6,512,640 result/PSW pairs), [multiply/divide](tests/roms-src/vb/muldiv/README.md)
+(4,210,688 nine-word snapshots, including divide-zero entry and RETI),
+[TRAP/illegal exceptions](tests/roms-src/vb/exceptions/README.md)
+(4,685,824 thirteen-word snapshots) and [address traps](tests/roms-src/vb/address_traps/README.md)
+(4,982,784 fourteen-word snapshots). Each has an independent host oracle,
+executed mutations and damaged-file rejection. The exception/address-trap
+ROMs cover every writable PSW with NP clear in their declared address/opcode
+subdomains; fatal paths are separate component evidence. Frames and cycles
+measure scheduling quanta/step attempts, not VIP or pipeline timing. Retail
+Virtual Boy games, graphics/audio/controllers and remaining hardware are
+unimplemented or unverified. Run `ctest --test-dir build -R '^vb_' --output-on-failure`.
 
 All suites retain raw output and reports under `build/artifacts/owned/`, which
 CI uploads. These results are separate from the existing external-ROM weighted

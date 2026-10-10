@@ -66,6 +66,7 @@ separately cover fatal source/PSW/faulting-PC bus writes in order and halt until
 reset, including TRAP's faulting PC rather than its normal saved next PC. Those
 checks also cover every listed encoding, all condition/control combinations,
 sticky-flag and interrupt-level boundaries, and RETI context restoration.
-Physical hardware, bus/pipeline timing, external interrupts, address traps,
+Address traps have a separate [register corpus](../address_traps/README.md).
+Physical hardware, bus/pipeline timing, external interrupts,
 remaining instructions and exceptions, VIP/VSU, controllers and retail games
 remain unverified or unimplemented. Full hardware completion is unknown.

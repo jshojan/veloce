@@ -43,6 +43,11 @@ channel metadata. The generator and archived image SHA256 values are tracked in
 
 Coverage is exhaustive only over the declared repeated-byte, pattern and
 incoming-flag domains. Independent multi-byte 32-bit combinations, other
-operands/register aliases/addressing modes, instruction timing, exceptions,
+operands/register aliases/addressing modes, instruction timing, remaining exceptions,
 remaining V810/NVC instructions, VIP/VSU, controllers, timers and physical
 hardware remain pending. Full Virtual Boy completion is unknown.
+
+Separate original corpora cover [multiply/divide](../muldiv/README.md),
+[TRAP/illegal exceptions](../exceptions/README.md) and
+[address traps](../address_traps/README.md). They do not enlarge this integer
+corpus's declared domain.

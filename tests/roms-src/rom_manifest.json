@@ -173,6 +173,17 @@
       "source_type": "original",
       "suite": "math_timing"
     },
+    "vb/address_traps/address_traps.vb": {
+      "build_command": "python3 tests/roms-src/vb/address_traps/build.py",
+      "console": "vb",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "b3120c868c9df7b3d98d06c319450cb4992dc7ca0f7c2a984fefdde8768050b4",
+      "source_repo": "tests/roms-src/vb/address_traps/build.py",
+      "source_sha": "dd711c8661b3b2c845470e5d2264878492bd12ae3d95c7cc077b7cc34b8df62d",
+      "source_type": "original",
+      "suite": "address_traps"
+    },
     "vb/exceptions/exceptions.vb": {
       "build_command": "python3 tests/roms-src/vb/exceptions/build.py",
       "console": "vb",

@@ -39,6 +39,11 @@ void V810::step() {
     auto& c=state;
     if (c.halted || c.unsupported) return;
     ++c.steps;
+    // ADTRE compares the architectural PC, before instruction execution. Board
+    // memory aliases must not make different CPU addresses compare equal.
+    if ((c.sr[5]&0x2000) && c.pc==c.sr[25]) {
+        exception(c.pc,c.pc,0xffc0,0xffffffc0); return;
+    }
     uint32_t first=0;
     if (!bus.read(c.pc,2,first)) { c.unsupported=true; return; }
     const uint32_t pc=c.pc;
