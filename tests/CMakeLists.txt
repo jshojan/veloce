@@ -720,3 +720,8 @@ add_test(NAME n64_rdp_tmem_commands COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/rdp_tmem_commands/run.py --emulator $<TARGET_FILE:veloce>
     --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_rdp_tmem_commands)
 set_tests_properties(n64_rdp_tmem_commands PROPERTIES LABELS "accuracy;owned" TIMEOUT 700)
+
+add_executable(n64_rdp_combiner_math_test cpp/n64_rdp_combiner_math_test.cpp)
+target_include_directories(n64_rdp_combiner_math_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src)
+add_test(NAME n64_rdp_combiner_math_test COMMAND n64_rdp_combiner_math_test)
+set_tests_properties(n64_rdp_combiner_math_test PROPERTIES LABELS "unit;accuracy" TIMEOUT 120)

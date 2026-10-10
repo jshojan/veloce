@@ -1538,3 +1538,22 @@ bytes remain local. Reports: `build/artifacts/retail/n64-tmem.json` and default
 N64 remains **40% = 8/20 fixed delivery milestones**. Full graphics and the full
 Nintendo-platform goal remain unfinished. Front-page and core README percentages
 stay synchronized. CI/CD remains disabled. Full regression verification is pending.
+
+## RDP scalar combiner arithmetic
+
+The [internal arithmetic kernel](cores/n64/COMBINER-MATH.md) now implements special nine-bit
+A/B/D extension, signed C multiplication, the 128 rounding bias, 17-bit RGB
+residue, nine-bit alpha and the RDP clamp. **262,144 A/B pairs**, **268,173,312
+reduced difference/C/D cases** and **512 clamp encodings** pass the independent
+integer component. The exact finite reduction and limits are documented.
+The reduced RGB/alpha cases and clamp values also pass the actual routines in
+pinned Angrylion RDP Plus; the repeatable optional harness is linked there.
+Undefined-behavior sanitizer and existing command-state/replay checks pass.
+
+This is a kernel for the pending draw pipeline. Guest triangles remain blocked;
+source routing, one-/two-cycle integration, keying, coverage/alpha coupling,
+dithering, texture sampling, blending/depth and rasterization remain unfinished.
+The original command ROM grades command progression, not this arithmetic.
+Physical-console validation and hardware timing remain unverified. Native Mario
+boot/playability remain unverified. ABI v2/plugin 0.26.0 and S022 are unchanged;
+N64 remains **40% = 8/20 fixed delivery milestones**. CI/CD remains disabled.
