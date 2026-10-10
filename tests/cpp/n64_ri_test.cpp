@@ -42,13 +42,13 @@ int main(int argc,char** argv) {
         for(unsigned scalar=0;scalar<7;++scalar) {
             auto bad=after;
             constexpr unsigned invalid[]={16,128,128,8,0x80000,16,2};
-            const size_t at=bad.size()-75768+scalar*8;
+            const size_t at=bad.size()-76072+scalar*8;
             for(unsigned byte=0;byte<8;++byte)bad[at+byte]=uint8_t(uint64_t(invalid[scalar])>>(56-byte*8));
             require(!m.restore(bad) && m.save(replay) && replay==after,"invalid RI scalar mutation");
         }
-        auto bad=after;std::fill(bad.end()-75720,bad.end()-75712,0);bad[bad.size()-75768+2*8+7]=1;
+        auto bad=after;std::fill(bad.end()-76024,bad.end()-76016,0);bad[bad.size()-76072+2*8+7]=1;
         require(!m.restore(bad) && m.save(replay) && replay==after,"unloaded current invariant");
-        auto old=after;old.resize(old.size()-75768);old[6]='0';old[7]='3';require(m.restore(old) && !m.ri_current_loaded && m.ri==std::array<uint32_t,6>{},"S003 neutral RI conversion");
+        auto old=after;old.resize(old.size()-76072);old[6]='0';old[7]='3';require(m.restore(old) && !m.ri_current_loaded && m.ri==std::array<uint32_t,6>{},"S003 neutral RI conversion");
         require(m.save(state),"converted state");
         emulator_test::LoadedCore core(argv[1],rom);
         for(unsigned frame=0;frame<5000;++frame) {core.plugin->run_frame({});require(core.plugin->save_state(state) && m.restore(state),"plugin full RI state");if(m.done)break;}
@@ -57,7 +57,7 @@ int main(int argc,char** argv) {
         // Original opt-in native entry: prove previous native states convert too.
         auto native=rom;std::memcpy(native.data()+0x34,"V64IP001",8);
         require(m.load(native.data(),native.size()),"native profile load");
-        require(m.save(state),"native save");old=state;old.resize(old.size()-75768);old[6]='0';old[7]='3';
+        require(m.save(state),"native save");old=state;old.resize(old.size()-76072);old[6]='0';old[7]='3';
         put(m,1,127);put(m,2,1);
         require(m.restore(old) && m.save(replay) && replay==state,"native S003 conversion");
         std::cout<<"524288 refresh values, 131072 mode/config/select combinations, 16 latencies and 65536 error clears matched; latching, atomic rejection, states and loaded plugin passed\n";

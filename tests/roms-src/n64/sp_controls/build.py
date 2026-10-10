@@ -77,9 +77,10 @@ def build(short=False,wrong_pc=False):
     p.puts("header");p.mark("sample")
     clear=sum(1<<n for n in (0,3,5,7,*range(9,25,2)))
     p.i(15,0,8,clear>>16);p.i(13,8,8,clear&65535);p.i(43,24,8,16)
-    p.i(39,16,18,0);p.i(43,24,18,16);p.i(39,24,19,16);p.i(39,26,22,8)
-    p.i(39,16,20,4);p.i(43,24,20,16);p.i(39,24,21,16);p.i(39,26,23,8)
+    p.i(39,16,18,0);p.i(43,24,18,16);p.word(0);p.word(0);p.i(39,24,19,16);p.i(39,26,22,8)
+    p.i(39,16,20,4);p.i(43,24,20,16);p.word(0);p.word(0);p.i(39,24,21,16);p.i(39,26,23,8)
     p.i(43,24,20,28);p.i(39,24,27,28);p.i(39,24,28,28)
+    p.i(9,0,8,2);p.i(43,24,8,16) # Halt before PC write/read, avoiding execution races.
     p.i(39,16,29,8)
     if wrong_pc:p.i(14,29,29,4)
     p.i(43,25,29,0);p.i(39,25,29,0)

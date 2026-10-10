@@ -79,11 +79,11 @@ int main(int argc,char** argv) {
         require(m.restore(state),"PI state restore");put(m,0x04600010,2);submit(m,0x700008,0x10000200,512);m.save(replay);require(after==replay,"pending PI continuation");
         const auto unchanged=[&] {m.save(replay);require(replay==after,"invalid PI state mutation");};
         for(unsigned index=0;index<15;++index) {
-            auto bad=after;const size_t pos=bad.size()-75888+index*8;
+            auto bad=after;const size_t pos=bad.size()-76192+index*8;
             if(index==1)bad[pos+7]|=1;else bad[pos]=1;
             require(!m.restore(bad),"invalid PI scalar/identity accepted");unchanged();
         }
-        auto legacy=after;legacy.resize(legacy.size()-75888);legacy[6]='0';legacy[7]='2';require(m.restore(legacy) && !m.pi_interrupt && std::all_of(m.pi.begin(),m.pi.end(),[](uint32_t v){return !v;}),"legacy PI reset");
+        auto legacy=after;legacy.resize(legacy.size()-76192);legacy[6]='0';legacy[7]='2';require(m.restore(legacy) && !m.pi_interrupt && std::all_of(m.pi.begin(),m.pi.end(),[](uint32_t v){return !v;}),"legacy PI reset");
         const auto bootstrap=read_file(argv[3]);
         require(m.load(bootstrap.data(),bootstrap.size()) && m.boot_mode==n64::Machine::BootMode::OriginalIPL,"original IPL load");
         require(m.cpu.state.pc==n64::sign32(0xa4000040) && m.cpu.state.gpr[22]==63 && m.cpu.state.cp0[12]==0x34000000,"IPL handoff state");
@@ -95,7 +95,7 @@ int main(int argc,char** argv) {
         large.resize(large.size()+4);require(!m.load(large.data(),large.size()),"over64MiB image accepted");
         require(m.load(bootstrap.data(),bootstrap.size()),"restore original IPL image");
         m.save(state);m.cpu.step();m.save(after);require(m.restore(state),"native state restore");m.cpu.step();m.save(replay);require(after==replay,"native exact step replay");
-        auto native_legacy=state;native_legacy.resize(state.size()-75888);native_legacy[6]='0';native_legacy[7]='2';require(!m.restore(native_legacy),"legacy state accepted for native profile");
+        auto native_legacy=state;native_legacy.resize(state.size()-76192);native_legacy[6]='0';native_legacy[7]='2';require(!m.restore(native_legacy),"legacy state accepted for native profile");
         for(unsigned byte_order=0;byte_order<3;++byte_order) {
             auto bytes=bootstrap;
             if(byte_order==1)for(size_t n=0;n<bytes.size();n+=2)std::swap(bytes[n],bytes[n+1]);

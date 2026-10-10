@@ -2,6 +2,7 @@
 #include "vr4300.hpp"
 #include "rdram.hpp"
 #include "sp_interface.hpp"
+#include "rsp_scalar.hpp"
 #include "audio_interface.hpp"
 #include "video_interface.hpp"
 #include "emu/emulator_plugin.hpp"
@@ -45,6 +46,9 @@ public:
     bool ri_current_loaded=false;
     RdramDevices rdram_devices;
     SpInterface sp_interface;
+    RspScalar rsp;
+    uint64_t rsp_phase=0;
+    static constexpr size_t rsp_state_size=304;
     AudioInterface audio_interface;
     VideoInterface video_interface;
     static constexpr size_t audio_capacity=8192,audio_state_size=32928;
