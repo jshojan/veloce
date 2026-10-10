@@ -292,3 +292,7 @@ add_test(NAME nds_integer_registers COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/roms-src/nds/integer_registers/run.py --emulator $<TARGET_FILE:veloce>
     --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/nds_integer)
 set_tests_properties(nds_integer_registers PROPERTIES LABELS "accuracy;owned" TIMEOUT 1800)
+add_test(NAME nds_multiply_registers COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/nds/multiply_registers/run.py --emulator $<TARGET_FILE:veloce>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/nds_multiply)
+set_tests_properties(nds_multiply_registers PROPERTIES LABELS "accuracy;owned" TIMEOUT 1800)

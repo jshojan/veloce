@@ -11,6 +11,9 @@ Full platform completion is unknown.
 - All sixteen ARM data-processing operations: AND/EOR/SUB/RSB/ADD/ADC/SBC/RSC,
   TST/TEQ/CMP/CMN, ORR/MOV/BIC/MVN. Register/immediate operands, NZCV flags,
   carry/borrow, signed overflow, flag-preserving forms and source aliases.
+- MUL/MLA and signed/unsigned long multiplication/accumulation: both result
+  words, modulo accumulation, S set/clear, N/Z and preserved defined flags.
+  ARM7 unpredictable multiply flags are retained as a model choice.
 - LSL/LSR/ASR/ROR register/immediate shifters, RRX, zero/32/greater-than-32
   counts and rotated immediate operands. Logical operations preserve V.
 - All ordinary ARM conditions, relative B/BL and ARM-state BX, PC operands,
@@ -78,10 +81,22 @@ all its output, signals through main RAM, then ARM7 writes its output. This
 exercises two actual guest programs and shared storage through frontend/plugin
 discovery, not a host CPU shortcut. No whole-platform percentage is established.
 
+The original [multiply corpus](../../tests/roms-src/nds/multiply_registers/README.md)
+matched 38,338,560/38,338,560 five-word observations with zero mismatches
+for six multiply/accumulate families,
+S set/clear, repeated-byte pairs, full-width boundaries and four accumulator
+seeds. Every defined result/source/CPSR bit is independently graded; ARM7 S
+forms exclude only their architecturally unpredictable C or C/V bits. Physical
+multiply latency and full operand/accumulator domains remain unverified.
+
 `nds_machine_test` separately checks:
 
 - 688,128 ALU cases with destination/source aliases and S set/clear. ARM9 Q
   remains set across every operation; every incoming NZCV is included.
+- 1,179,648 multiply cases against a per-bit product oracle, four accumulator
+  seeds, all NZCV and S set/clear, Rs/destination and accumulator aliases;
+  PC/equal-long-destination diagnostics and failed-condition retirement.
+  Rm/destination alias behavior on physical ARM7/ARM9 is not measured.
 - 147,456 register/immediate shift cases against a per-bit oracle, plus 32,768
   rotated-immediate cases; every low-byte register amount and immediate amount.
 - Condition truth tables on both architectures, signed branch/link boundaries,
@@ -105,14 +120,14 @@ cmake --build build --target veloce nds_plugin nds_machine_test -j
 ctest --test-dir build -R '^nds_' --output-on-failure
 ```
 
-Raw observations/reports remain in `build/artifacts/owned/nds_integer/` and are
-uploaded by owned-hardware CI. Generator/image SHA256 are recorded in the ROM
+Raw observations/reports remain in `build/artifacts/owned/nds_integer/` and
+`build/artifacts/owned/nds_multiply/`, and are uploaded by owned-hardware CI. Generator/image SHA256 are recorded in the ROM
 manifest. Component evidence is separate from the original-ROM domain.
 
 ## Remaining hardware and features
 
 Thumb/interworking, ARM9 DSP/saturation and other architecture extensions,
-multiply/long multiply, half/signed/block transfers, SWP, privileged modes,
+half/signed/block transfers, SWP, privileged modes,
 banked registers, SPSR, exceptions/interrupts, CP15/MPU/cache/TCM, firmware and
 BIOS, gamecard/secure-area/save protocols, IPC, DMA, timers, KEYINPUT/touchscreen,
 SPI/RTC, Wi-Fi, graphics/VRAM/palette/OAM, 3D, sound and physical timing remain.

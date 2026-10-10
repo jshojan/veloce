@@ -35,6 +35,47 @@ static void arithmetic(nds::Machine& m) {
             for(unsigned reg=0;reg<15;++reg) require(s.r[reg]==(!test && reg==rd ? result:original[reg]),"ALU destination/source alias wrong");
         }
 }
+static uint64_t product_reference(uint32_t a,uint32_t b,bool sign) {
+    uint64_t result=0;
+    for(unsigned bit=0;bit<32;++bit) if((b>>bit)&1) result+=uint64_t(a)<<bit;
+    if(sign) {
+        if(a>>31) result-=uint64_t(b)<<32;
+        if(b>>31) result-=uint64_t(a)<<32;
+    }
+    return result;
+}
+static void multiplies(nds::Machine& m) {
+    const uint64_t seeds[]={0,~uint64_t(0),uint64_t(1)<<63,0x55555555aaaaaaaaULL};
+    for(bool nine:{false,true}) for(unsigned op=0;op<6;++op) for(auto a:patterns) for(auto b:patterns)
+        for(auto seed:seeds) for(unsigned flags=0;flags<16;++flags) for(bool set:{false,true}) for(unsigned alias=0;alias<3;++alias) {
+            const bool wide=op>=2,accumulate=op==1 || op==3 || op==5,sign=op>=4;
+            const unsigned lo=wide ? (alias==1 ? 1:4):0,hi=wide ? (alias==2 ? 1:5):(alias==1 ? 1:alias==2 ? 3:4);
+            const uint32_t word=0xe0000190|(uint32_t(set)<<20)|(uint32_t(accumulate)<<21)|(hi<<16)|
+                (wide ? 0x00800000|(uint32_t(sign)<<22)|(lo<<12):op==1 ? 3<<12:0);
+            instruction(m,nine,word); auto& cpu=nine ? m.cpu9:m.cpu7; auto& s=cpu.state;
+            s.r[3]=uint32_t(seed); s.r[4]=uint32_t(seed); s.r[5]=uint32_t(seed>>32); s.r[0]=a; s.r[1]=b;
+            s.cpsr=0xdf|(flags<<28)|(nine ? 0x08000000:0); const auto original=s.r;
+            uint64_t result=product_reference(a,b,sign);
+            if(accumulate) result+=wide ? (uint64_t(original[hi])<<32)|original[lo]:original[3];
+            if(!wide) result=uint32_t(result);
+            const uint32_t want=set ? (s.cpsr&0x3fffffff)|uint32_t((wide ? result>>32:result)&0x80000000)|(result==0 ? 0x40000000:0):s.cpsr;
+            cpu.step(); require(!s.unsupported && s.r[15]==start+4,"multiply retirement wrong");
+            const uint32_t mask=!nine && set ? (wide ? 0xcfffffff:0xdfffffff):0xffffffff;
+            require(((s.cpsr^want)&mask)==0,"multiply defined flags wrong");
+            for(unsigned reg=0;reg<15;++reg) {
+                const uint32_t expected=reg==hi ? uint32_t(wide ? result>>32:result):wide && reg==lo ? uint32_t(result):original[reg];
+                require(s.r[reg]==expected,"multiply result/source/accumulator alias wrong");
+            }
+        }
+    for(bool nine:{false,true}) for(uint32_t word:{0xe00f0190u,0xe004f190u,0xe0040f90u,0xe004019fu,0xe085f190u,0xe0844190u,0xe02f3190u}) {
+        instruction(m,nine,word); auto& cpu=nine ? m.cpu9:m.cpu7; const auto original=cpu.state.r; const auto psw=cpu.state.cpsr;
+        cpu.step(); require(cpu.state.unsupported && cpu.state.r==original && cpu.state.cpsr==psw,"unpredictable multiply changed registers");
+    }
+    for(bool nine:{false,true}) {
+        instruction(m,nine,0x00040190); auto& cpu=nine ? m.cpu9:m.cpu7; cpu.state.r[0]=3; cpu.state.r[1]=7; cpu.step();
+        require(cpu.state.r[4]==0 && cpu.state.r[15]==start+4 && !cpu.state.unsupported,"failed multiply condition executed");
+    }
+}
 static void shifts(nds::Machine& m) {
     for(bool nine:{false,true}) for(auto value:patterns) for(unsigned type=0;type<4;++type)
         for(unsigned amount=0;amount<256;++amount) for(unsigned flags=0;flags<4;++flags) for(bool reg:{false,true}) {
@@ -159,7 +200,7 @@ int main(int argc,char** argv) {
     try {
         require(argc==3,"usage: nds_machine_test plugin original.nds"); std::ifstream in(argv[2],std::ios::binary);
         std::vector<uint8_t> rom((std::istreambuf_iterator<char>(in)),{}); nds::Machine m; require(m.load(rom.data(),rom.size()),"original DS ROM rejected");
-        arithmetic(m); shifts(m); control(m); memory(m); states(m,rom,argv[1]);
-        std::cout<<"DS ALU/shifter/control/memory/state/plugin checks passed\n"; return 0;
+        arithmetic(m); multiplies(m); shifts(m); control(m); memory(m); states(m,rom,argv[1]);
+        std::cout<<"DS ALU/multiply/shifter/control/memory/state/plugin checks passed\n"; return 0;
     } catch(const std::exception& e) { std::cerr<<e.what()<<'\n'; return 1; }
 }

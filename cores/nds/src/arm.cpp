@@ -88,6 +88,28 @@ void Arm::step() {
         if(!load || rd!=15) s.r[15]=pc+4;
         return;
     }
+    const bool multiply=(ins&0x0fc000f0)==0x00000090;
+    const bool long_multiply=(ins&0x0f8000f0)==0x00800090;
+    if(multiply || long_multiply) {
+        const bool accumulate=ins&(1u<<21),set=ins&(1u<<20);
+        const unsigned high=(ins>>16)&15,low=(ins>>12)&15,rs=(ins>>8)&15,rm=ins&15;
+        // Stop for architecturally unpredictable operands and nonzero MUL SBZ.
+        if(high==15 || rs==15 || rm==15 || (long_multiply ? low==15 || high==low:accumulate ? low==15:low!=0)) {
+            s.unsupported=true; return;
+        }
+        const auto signed_value=[](uint32_t value)->int64_t { return value&0x80000000 ? int64_t(value)-0x100000000LL:value; };
+        // Read every source before writing either destination (including aliases).
+        uint64_t result=long_multiply && (ins&(1u<<22)) ?
+            uint64_t(signed_value(s.r[rm])*signed_value(s.r[rs])):uint64_t(s.r[rm])*s.r[rs];
+        if(accumulate) result+=long_multiply ? (uint64_t(s.r[high])<<32)|s.r[low]:s.r[low];
+        if(long_multiply) { s.r[low]=uint32_t(result); s.r[high]=uint32_t(result>>32); }
+        else { result=uint32_t(result); s.r[high]=uint32_t(result); }
+        // ARMv4 S forms have unpredictable C (and long forms V). Preserve them
+        // deterministically; hardware scoring excludes only those undefined bits.
+        if(set) s.cpsr=(s.cpsr&0x3fffffff)|((long_multiply ? result>>32:result)&0x80000000)|
+            (result==0 ? 0x40000000u:0);
+        s.r[15]=pc+4; return;
+    }
     if((ins&0x0c000000)!=0 || (!(ins&(1u<<25)) && (ins&0x90)==0x90)) { s.unsupported=true; return; }
     const unsigned op=(ins>>21)&15,rn=(ins>>16)&15,rd=(ins>>12)&15;
     const bool set=ins&(1u<<20),test=op>=8 && op<=11;
