@@ -739,7 +739,7 @@ supplied-profile byte checks, not physical chip-control/timing evidence.
 guest words matching the independent oracle. Host owns one keypad; viewer
 replay is supported, DSi wireless multiplayer is pending. DS component and
 production netplay regression gates pass. Local TCP gates require loopback
-socket permission; CI/CD remains disabled. All 60 original ROMs reproduce
+socket permission; CI/CD remains disabled. All 62 original ROMs reproduce
 against the source/image ledger. Firmware/retail boot, full SCFG/MBK and most
 DSi hardware remain pending; full platform completion is unmeasured.
 
@@ -783,7 +783,7 @@ behavior. All 4,096 digital HID inputs, readonly lanes, atomic image/state
 validation, full 135,791,096-byte state replay, a three-context writing guest,
 and the dynamic plugin lifecycle pass. The full component gate passes
 undefined-behavior sanitization; existing DS/DSi component regressions pass.
-All 60 original ROMs reproduce against the source/image ledger.
+All 62 original ROMs reproduce against the source/image ledger.
 
 ```sh
 cmake --build build --target veloce ctr_plugin ctr_machine_test -j4
@@ -910,7 +910,7 @@ python3 tests/roms-src/build.py --original-only --check
 The variable-state rollback gate also passes undefined-behavior sanitization.
 The full Wii U component gate passes undefined-behavior sanitization, including
 dense/sparse canonical fast bytes/hash, guard checks and replay. All seven
-netplay gates pass; all 60 original ROMs reproduce against the ledger.
+netplay gates pass; all 62 original ROMs reproduce against the ledger.
 
 Native GamePad/KPAD/VPAD, wireless multiplayer, retail boot, Internet, physical
 devices/two machines, cross-platform peers and sustained performance remain
@@ -936,13 +936,13 @@ python3 tests/roms-src/build.py --original-only --check
 python3 tests/update_completion.py --check
 ```
 
-The ledger now includes 60 original ROMs. Controller polling, analog axes,
+The ledger now includes 62 original ROMs. Controller polling, analog axes,
 origin calibration, VI/wire timing, CPU SI interrupts, accessories, four-port
 frontend input and Wii Remote support remain pending. CI/CD remains disabled.
 The [delivery completion ledger](docs/CORE-COMPLETION.md) is separate from
 hardware-domain pass fractions and legacy external-suite accuracy scores.
 The optional `tests/n64_retail_probe.py` takes a locally supplied N64 ROM;
-Super Mario 64 now loads and reaches 5,775,036 IPL3 step attempts, then faults at the missing RSP PC register; boot/playability remain unverified. Its ROM bytes never enter git.
+Super Mario 64 now loads and reaches 5,775,051 IPL3 step attempts, then faults at the missing AI status register; boot/playability remain unverified. Its ROM bytes never enter git.
 
 ## N64 cartridge DMA and IPL3 handoff
 
@@ -951,10 +951,10 @@ The [PI corpus](tests/roms-src/n64/pi_dma/README.md) matches 524,288 cases and
 offsets, two RDRAM addresses and both PI mask states. The [handoff corpus](tests/roms-src/n64/ipl3_handoff/README.md)
 matches twelve startup captures without bundling firmware. Executed guest mutants,
 all captured-field mutants and seven invalid streams per corpus are rejected.
-All seventeen N64 CTests pass; the PI component also passes undefined-behavior sanitization.
+All twenty N64 CTests pass; the PI component also passes undefined-behavior sanitization.
 Settled aligned ROM reads and explicit HLE startup are implemented; RI/RDRAM
 initialization, native retail boot, PI busy/misalignment/peripheral behavior,
-graphics/audio and physical timing remain pending. The ledger contains 60 original
+graphics/audio and physical timing remain pending. The ledger contains 62 original
 ROMs. CI/CD remains disabled.
 
 ## N64 RI configuration register evidence
@@ -967,8 +967,8 @@ The component checks current-load latching, access/state failure atomicity,
 legacy conversion, exact replay, reset and loaded-plugin execution. RI refresh
 scheduling, analog calibration, bus-error production, native RAM remapping and
 physical timing remain pending. Super Mario 64 advances to an unimplemented register read
-(RSP PC A4080000, EPC 800001D4, Cause 10) after 5,775,036 startup step attempts; it is
-not bootable/playable. The corpus ledger contains 60 original ROMs.
+(AI status A450000C, EPC 80000224, Cause 14) after 5,775,051 startup step attempts; it is
+not bootable/playable. The corpus ledger contains 62 original ROMs.
 
 ## N64 MI control evidence
 
@@ -979,11 +979,11 @@ DMA requests pending. Executed count mutation, eight field mutants and seven
 invalid streams reject. The component checks 16,777,216 mode transitions, all
 mask transitions, injected DP delivery/acknowledgment/ERET, exact replay, legacy
 conversion, atomic rejection and production-plugin execution; it also passes
-undefined-behavior sanitization. All seventeen N64 gates pass. Stored MI bus flags
-do not yet implement repeat/EBus/upper transaction effects or native RAM remapping.
-Super Mario 64 stops at RSP PC (EPC 800001D4, Cause 10) after 5,775,036 startup
+undefined-behavior sanitization. All twenty N64 gates pass. MI repeat/upper device-register effects exist; RAM-repeat/EBus transactions
+and native RAM remapping remain pending.
+Super Mario 64 stops at AI status (EPC 80000224, Cause 14) after 5,775,051 startup
 step attempts; retail gameplay, graphics/audio and physical timing remain pending.
-All 60 original ROMs reproduce. CI/CD remains disabled.
+All 62 original ROMs reproduce. CI/CD remains disabled.
 
 ## N64 RDRAM device evidence
 
@@ -993,11 +993,11 @@ fields and repeated-byte storage patterns. Executed mutation, six field mutants
 and seven invalid streams reject. Components check all device ID encodings,
 delay/repeat combinations, selectors/register aliases, discovery, MI upper/repeat,
 state replay and rejection, legacy conversion and loaded-plugin execution.
-All seventeen N64 gates pass; device components pass undefined-behavior sanitization.
+All twenty N64 gates pass; device components pass undefined-behavior sanitization.
 Native RAM remapping, analog calibration, cache timing/errors, physical bus timing, repeat RAM
-and EBus memory remain pending. Super Mario 64 reaches missing RSP PC after
-5,775,036 step attempts (EPC 800001D4, Cause 10); gameplay/video/audio are unverified.
-All 60 original ROMs reproduce. CI/CD stays disabled.
+and EBus memory remain pending. Super Mario 64 reaches missing AI status after
+5,775,051 step attempts (EPC 80000224, Cause 14); gameplay/video/audio are unverified.
+All 62 original ROMs reproduce. CI/CD stays disabled.
 
 ## N64 functional primary cache evidence
 
@@ -1007,9 +1007,31 @@ and initial byte, with cached/uncached alias mutation and dirty writeback. An
 executed writeback mutation, six field mutants and seven invalid streams reject.
 Components additionally cover all physical tag values, instruction staleness/refill,
 dirty eviction, widths/merged stores, PI DMA staleness, CACHE operations/privilege,
-exact dirty/stale state replay and legacy conversion. All seventeen N64 gates
+exact dirty/stale state replay and legacy conversion. All twenty N64 gates
 pass; cache components pass undefined-behavior sanitization. Timing/hazards,
 TLB/address modes, cache errors, native RAM remapping and device bus transactions
-remain incomplete. Super Mario 64 stops at RSP PC A4080000 after 5,775,036 attempts
-(EPC 800001D4, Cause 10); video/audio and gameplay remain unverified. All 60
+remain incomplete. Super Mario 64 stops at AI status A450000C after 5,775,051 attempts
+(EPC 80000224, Cause 14); video/audio and gameplay remain unverified. All 60
 original ROMs reproduce; CI/CD remains disabled.
+
+
+## N64 SP interface evidence
+
+The [original SP controls](tests/roms-src/n64/sp_controls/README.md) match
+196,608 cases / 1,572,864 guest values over every writable status/interrupt
+seed, all twelve command pairs and four command states. The
+[original SP DMA](tests/roms-src/n64/sp_dma/README.md) matches 65,536 cases /
+393,216 guest values across every raw length, both directions/banks and four
+wrap boundaries. Executed mutations, all field mutations and seven malformed
+streams reject per corpus. Component evidence checks full DMA bytes/guards,
+262,144 count/stride transfers, PC/semaphore masks, CPU interrupt delivery/ERET,
+cache staleness, states, reset and the loaded shared plugin. SP components pass
+undefined-behavior sanitization; all twenty N64 CTests pass. All 62 original
+ROMs reproduce. CI/CD stays disabled.
+
+RSP scalar/vector execution, DMA queues/clocks, unaligned stride, open-bus DMA,
+IO-full and exact address/length readback physical validation remain pending.
+Super Mario 64 reaches missing AI status `$A450000C` after 5,775,051 startup
+attempts (EPC `$80000224`, Cause `$14` hex). Gameplay/video/audio remain
+unverified. N64 stays 30% on the delivery checklist; no complete CPU/device
+milestone is claimed.

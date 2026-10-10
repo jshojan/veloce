@@ -319,6 +319,28 @@
       "source_type": "original",
       "suite": "ri_registers"
     },
+    "n64/sp_controls/sp_controls.z64": {
+      "build_command": "python3 tests/roms-src/n64/sp_controls/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "3f8c2549c0bd780bf244a0fa08e6c64c40233599303cfc537f100db1f381e0c9",
+      "source_repo": "tests/roms-src/n64/sp_controls/build.py",
+      "source_sha": "8b471fa87cc6cc696b8f0c49a8ed9888ebf9d9ff1578d91b7404b445a36df935",
+      "source_type": "original",
+      "suite": "sp_controls"
+    },
+    "n64/sp_dma/sp_dma.z64": {
+      "build_command": "python3 tests/roms-src/n64/sp_dma/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "5c8055937813db81c1bfe47a1a2bab4e557a809ac02ad007ea0b02965b46b98e",
+      "source_repo": "tests/roms-src/n64/sp_dma/build.py",
+      "source_sha": "de78628946d291f251585e38061b735e8dfd0ddba57bd7ecb8b7767e741d7c00",
+      "source_type": "original",
+      "suite": "sp_dma"
+    },
     "nds/integer_registers/integer_registers.nds": {
       "build_command": "python3 tests/roms-src/nds/integer_registers/build.py",
       "console": "nds",
