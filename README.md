@@ -21,7 +21,7 @@
 
 These percentages count the 20 explicit delivery milestones in [the completion ledger](docs/CORE-COMPLETION.md); partial or unverified milestones receive zero credit. Each milestone is worth 5 percentage points. **They are not percentages of native hardware accuracy or retail compatibility.** Bounded profile tests do not complete a whole CPU or hardware subsystem.
 
-Super Mario 64 (USA) was tested locally on 2026-10-10: **loads and passes the former VMULF blocker**. The short probe reaches a real RSP BREAK; a longer trace retires 145,423 RSP instructions before an unsupported CPU floating-point comparison (C.LT.S), with an unsupported RDP SET_COMBINE also recorded. Video remains uniform; boot and playability are unverified. See the [repeatable local probe](cores/n64/README.md#local-retail-regression-target).
+Super Mario 64 (USA) was tested locally on 2026-10-10: **loads and passes the former C.LT.S blocker**. The longer trace reaches 200 million CPU attempts without a terminal fault and retires 728,648 RSP instructions. RDP SET_COMBINE remains unsupported, video stays uniform, and boot/playability are unverified. See the [repeatable local probe](cores/n64/README.md#local-retail-regression-target).
 <!-- completion:end -->
 
 A cross-platform, plugin-based emulator framework built for speedrunners and TAS creators.
@@ -461,7 +461,9 @@ subset, not whole-core completion.
 | [N64 vector scalar transfers](tests/roms-src/n64/rsp_vector_transfers/README.md) | 1,048,576 cases / 10,485,760 actual captured words; independent byte/sign/mask oracle with field and stream controls | `build/artifacts/owned/n64_rsp_vector_transfers/` |
 | [N64 RSP multiply pairs](tests/roms-src/n64/rsp_multiply_pairs/README.md) | 917,504 cases / 16,515,072 actual captured words; seven functions, all selectors and packed repeated-byte pairs | `build/artifacts/owned/n64_rsp_multiply_pairs/` |
 | [N64 RSP accumulator edges](tests/roms-src/n64/rsp_accumulate_edges/README.md) | 294,912 cases / 7,372,800 actual captured words; nine functions, raw halfwords and independently captured accumulator setup | `build/artifacts/owned/n64_rsp_accumulate_edges/` |
-| [N64 IPL3 handoff](tests/roms-src/n64/ipl3_handoff/README.md) | 12/12 original startup captures; native retail boot remains unverified; longer Mario trace records C.LT.S and RDP SET_COMBINE blockers | `build/artifacts/owned/n64_ipl3_handoff/` |
+| [N64 FPU comparison pairs](tests/roms-src/n64/fpu_comparison_pairs/README.md) | 262,144 cases / 1,835,008 actual captured words; sixteen S/D predicates and guest branch markers | `build/artifacts/owned/n64_fpu_comparison_pairs/` |
+| [N64 FPU comparison edges](tests/roms-src/n64/fpu_comparison_edges/README.md) | 348,384 cases / 2,438,688 actual captured words; exponents, NaNs/denormals, controls and exception recovery | `build/artifacts/owned/n64_fpu_comparison_edges/` |
+| [N64 IPL3 handoff](tests/roms-src/n64/ipl3_handoff/README.md) | 12/12 original startup captures; native retail boot remains unverified; longer Mario trace passes C.LT.S and remains blocked at RDP SET_COMBINE | `build/artifacts/owned/n64_ipl3_handoff/` |
 | [N64 interrupt gates](tests/roms-src/n64/interrupts/README.md) | 65,536/65,536 cases matched; 524,288 guest values for software/SI/timer, MI/CPU masks and IE/EXL/ERL; pipeline and physical timer timing pending | `build/artifacts/owned/n64_interrupts/` |
 | [N64 digital controller](tests/roms-src/n64/controller_serial/README.md) | 16,384/16,384 combinations matched; 131,072 guest values for digital input, identity, absent port and settled SI/MI registers; analog and physical timing pending | `build/artifacts/owned/n64_controller/` |
 | [N64 merge memory](tests/roms-src/n64/merge_memory/README.md) | 3,158,016/3,158,016 observations matched; eight instructions, every byte lane, all repeated-byte pairs and full-width boundaries; full multi-byte domains/timing unverified | `build/artifacts/owned/n64_merge_memory/` |

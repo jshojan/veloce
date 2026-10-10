@@ -1,6 +1,7 @@
 #include "vr4300.hpp"
 #include "fpu_conversions.hpp"
 #include "fpu_arithmetic.hpp"
+#include "fpu_comparisons.hpp"
 
 namespace n64 {
 uint64_t sign32(uint32_t v) { return uint64_t(v) | ((v & 0x80000000u) ? 0xffffffff00000000ull : 0); }
@@ -38,6 +39,7 @@ void VR4300::exception(unsigned code, uint64_t pc, bool delay, uint64_t bad,bool
         s.cp0[13] = (s.cp0[13] & ~0x80000000ull) | (delay ? 0x80000000ull : 0);
     }
     s.cp0[13] = (s.cp0[13] & ~0x7cull) | (code << 2);
+    if(code==15)s.cp0[13]&=~0x30000000ull; // FPE hardware observations clear stale coprocessor error.
     if (code>=1 && code<=5) s.cp0[8] = bad;
     const bool nested=s.cp0[12]&2;
     if(code>=1 && code<=3) {
@@ -365,6 +367,12 @@ void VR4300::step() {
                     s.fcr31|=(result.causes&31)<<2;
                 }
                 if(rs==16)fp_put_word(sa,uint32_t(result.bits));else s.fpr[sa]=result.bits;
+            } else if(rs>=16 && fn>=48) {
+                if(!fr() && ((rd|rt)&1)) {fault(10);break;} // Undefined odd FR=0 source convention.
+                const auto result=sa?FpuComparisons::Result{false,32}:FpuComparisons::calculate(rs,fn&15,rs==16?fp_word(rd):s.fpr[rd],rs==16?fp_word(rt):s.fpr[rt]);
+                s.fcr31=(s.fcr31&~0x3f000u)|(result.causes<<12);
+                if((result.causes&32) || (result.causes&((s.fcr31>>7)&31))) {fault(15);break;}
+                s.fcr31=(s.fcr31&~0x800000u)|(unsigned(result.condition)<<23)|(result.causes<<2);
             } else if(rs>=16 && ((fn>=8 && fn<=15) || fn==32 || fn==33 || fn==36 || fn==37)) {
                 const unsigned target=fn==32?16:fn==33?17:fn==36 || (fn>=12 && fn<=15)?20:21;
                 const unsigned mode=(s.cp0[12]&6)?0:unsigned(s.cp0[12]>>3)&3;

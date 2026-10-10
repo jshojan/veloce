@@ -1,6 +1,6 @@
 # Nintendo implementation and hardware test coverage
 
-Current N64 evidence: [RSP multiply/accumulate and current Mario evidence](#rsp-vector-multiply-and-accumulate). Earlier increment reports are historical.
+Current N64 evidence: [FPU comparisons and current Mario evidence](#fpu-single-and-double-comparisons). Earlier increment reports are historical.
 
 The goal includes Nintendo core plugins, repository-owned ROMs covering the
 hardware, machine-readable register observations, netplay, seamless controllers,
@@ -1230,3 +1230,72 @@ Final vector/multiply components, the full build and undefined-behavior
 sanitizer pass. All **82 original ROMs** reproduce from the committed
 image/generator ledger; completion renderer, probe budget validation and
 whitespace checks pass. CI/CD remains removed and GitHub Actions disabled.
+
+## FPU single and double comparisons
+
+The CPU now executes all sixteen C.cond predicates in single and double format:
+F/UN/EQ/UEQ/OLT/ULT/OLE/ULE and SF/NGLE/SEQ/NGL/LT/NGE/LE/NGT.
+Integer raw encodings determine less/equal/greater/unordered without host floating
+point. Signed zeros compare equal; infinities order normally. **Denormal operands
+are compared directly**, with no arithmetic-style unimplemented assist and no
+flush-to-zero approximation. The fraction MSB of a VR4300 NaN is set for a
+signaling NaN, opposite to the newer IEEE convention. Quiet predicates signal
+Invalid only for signaling NaNs; signaling predicates signal Invalid for any NaN.
+
+Comparison replaces FCSR cause bits, commits the condition and sticky Invalid
+flag only when the new cause is disabled, and leaves every FPR/GPR untouched.
+An enabled Invalid trap preserves the old condition and flags. FPE now clears
+stale CP0 Cause.CE, matching the published primary hardware observation. CU1 is
+checked before numeric/encoding handling. Odd FR=0 sources retain the documented
+RI convention; reserved formats and nonzero unused encoding bits use the E-assist
+convention. Those undefined/reserved conventions are not physical accuracy claims.
+
+Two original MIT cartridges capture actual guest register output with no guest
+verdict. The independent host oracle uses exact rational values and separate
+NaN classes and predicate truth masks:
+
+| Original cartridge | Cases | Captured 64-bit words | Declared domain |
+|---|---:|---:|---|
+| [Comparison pairs](../tests/roms-src/n64/fpu_comparison_pairs/README.md) | 262,144 | 1,835,008 | S/D × all sixteen predicates × all -32..31 integer pairs × both old condition bits |
+| [Comparison edges](../tests/roms-src/n64/fpu_comparison_edges/README.md) | 348,384 | 2,438,688 | Every exponent with cycling fraction patterns; special/sign pairs, full RM/enable/FS/condition products on ten profiles and reserved formats |
+
+Each captures an untouched destination guard, actual FCSR, FPE indicator/code,
+both source registers and branch-marker results for BC1F/T/FL/TL, including
+actual delay-slot execution or annulment. Original code handles exceptions and
+continues to the strict terminator. Executed mutants must fail every reduced
+case; all seven fields have mutation controls and seven damaged/incomplete
+stream forms must return ERROR. Artifacts:
+`build/artifacts/owned/n64_fpu_comparison_pairs/` and `n64_fpu_comparison_edges/`.
+
+The component checks **76,546,048 raw-fraction/exponent predicate cases**,
+including every S/D exponent pair, **65,536 source/FR/predicate encodings** with
+whole FPR/GPR guards, and **5,242,880 FCSR products**. It covers CU1 precedence,
+reserved fields/formats, enabled/disabled exceptions, stale CE clearing,
+BD/BEV/nested context and exact pending-comparison state replay. State remains
+`VN64S017`; no new persistent fields are needed. Plugin 0.19.0 keeps ABI v2.
+
+Rules follow the NEC [VR4300 manual](https://hack64.net/docs/VR43XX.pdf), chapters
+7/8 and C.cond, and the hardware-test author's primary
+[comparison tests](https://github.com/thelemmy/nemu64-test/blob/main/src/tests/cop1/compares.rs)
+and [raw NaN constants](https://github.com/thelemmy/nemu64-test/blob/main/src/cop1.rs).
+The author's host-language quiet/signaling names are opposite to the VR4300
+classification; raw bits and observed results determine this implementation.
+These original ROMs have not run on a physical console. Finite operand patterns
+do not exhaust every full-width pair. FPU physical timing/interlocks, complete
+CP0/CPU and devices, remaining RSP/RDP and playable retail titles remain pending.
+
+The local Mario probe now passes C.LT.S and reaches its **200,000,000-attempt
+CPU trace limit without a terminal fault**. It retires **728,648 RSP
+instructions** without an unsupported RSP operation. The RDP still blocks on
+**SET_COMBINE** (`FCFFFFFFFFFE793C`, CURRENT `227018`, reason 1). Across 2,000
+production scheduling quanta video stays uniform and 96,646 audio sample pairs
+are observed. Native boot, audible game sound and playability remain unverified.
+The private ROM stays local. N64 remains **40% = 8/20 delivery milestones**.
+
+Verification: **56/56 N64 gates passed in one clean run** (700.37 seconds),
+including both complete comparison corpora and their executed mutants, all seven
+field controls and seven damaged stream controls each. The final expanded
+fraction-pattern component and undefined-behavior sanitizer pass. The full build
+passes; all **84 original ROMs** reproduce against the committed image/generator
+ledger. Completion renderer and whitespace checks pass. Current executable hashes
+match both recorded native probes. CI/CD remains removed and Actions disabled.
