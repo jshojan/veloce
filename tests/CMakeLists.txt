@@ -685,3 +685,14 @@ add_test(NAME n64_rsp_alu_test COMMAND n64_rsp_alu_test
 set_tests_properties(n64_rsp_alu_test PROPERTIES LABELS "unit;accuracy;owned" TIMEOUT 180)
 
 set_tests_properties(n64_rsp_integer_pairs n64_rsp_integer_edges PROPERTIES TIMEOUT 2100)
+
+add_executable(n64_rsp_divider_test cpp/n64_rsp_divider_test.cpp
+    ${CMAKE_SOURCE_DIR}/cores/n64/src/machine.cpp ${CMAKE_SOURCE_DIR}/cores/n64/src/vr4300.cpp)
+target_include_directories(n64_rsp_divider_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src ${CMAKE_SOURCE_DIR}/include)
+add_test(NAME n64_rsp_divider_test COMMAND n64_rsp_divider_test
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/rsp_divider/rsp_divider.z64)
+set_tests_properties(n64_rsp_divider_test PROPERTIES LABELS "unit;accuracy;owned" TIMEOUT 180)
+add_test(NAME n64_rsp_divider COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/rsp_divider/run.py --emulator $<TARGET_FILE:veloce>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_rsp_divider)
+set_tests_properties(n64_rsp_divider PROPERTIES LABELS "accuracy;owned" TIMEOUT 2700)

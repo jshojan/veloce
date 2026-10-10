@@ -4,6 +4,7 @@
 #include <cstdint>
 #include "rsp_compare.hpp"
 #include "rsp_alu.hpp"
+#include "rsp_divider.hpp"
 namespace n64 {
 // Functional vector storage, transfers, multiply/accumulate, comparison and integer ALU execution.
 // Physical load/pipeline interlocks and remaining arithmetic are pending.
@@ -13,6 +14,7 @@ public:
     std::array<uint64_t,8> accumulator{}; // Raw 48-bit lanes.
     using AccState=std::array<uint64_t,8>;
     static constexpr uint64_t acc_mask=0xffffffffffffull;
+    RspDivider divider;
     AccState acc_snapshot() const{return accumulator;}
     bool acc_restore(const AccState& a){for(auto v:a)if(v&~acc_mask)return false;accumulator=a;return true;}
     std::array<uint16_t,3> flags{}; // VCO, VCC, VCE (8 bits).
@@ -24,7 +26,7 @@ public:
         const unsigned op=ins>>26,base=(ins>>21)&31,vt=(ins>>16)&31,kind=(ins>>11)&31,e=(ins>>7)&15;
         auto sign16=[](unsigned v){return uint32_t(v)|((v&32768)?0xffff0000u:0u);};
         if(op==18){
-            if(base>=16){const unsigned fn=ins&63;return RspAlu::supported(fn) || (fn>=32 && fn<=39)?lane_math(ins):multiply(ins);}
+            if(base>=16){const unsigned fn=ins&63;if(fn>=48 && fn<=54)return divide(ins);if(fn==55 || fn==63)return true;return RspAlu::supported(fn) || (fn>=32 && fn<=39)?lane_math(ins):multiply(ins);}
             if(base==0 || base==4){if(ins&127)return false;auto& v=registers[kind];if(base==0){if(vt)scalar[vt]=sign16(unsigned(v[e])*256+v[(e+1)%16]);}else{v[e]=uint8_t(scalar[vt]>>8);if(e<15)v[e+1]=uint8_t(scalar[vt]);}return true;}
             if(base==2 || base==6){if(ins&2047)return false;const unsigned index=std::min(kind&3,2u);if(base==2){if(vt)scalar[vt]=sign16(flags[index]);}else{flags[index]=uint16_t(scalar[vt]&(index==2?255:65535));}return true;}
             return false;
@@ -66,6 +68,14 @@ private:
     static uint16_t clamp_signed(int64_t v){return v<-32768?0x8000:v>32767?0x7fff:uint16_t(v);}
     unsigned lane(unsigned reg,unsigned at) const{return unsigned(registers[reg][2*at])*256+registers[reg][2*at+1];}
     void set_lane(unsigned reg,unsigned at,uint16_t value){registers[reg][2*at]=uint8_t(value>>8);registers[reg][2*at+1]=uint8_t(value);}
+    bool divide(uint32_t ins){
+        const unsigned fn=ins&63,vt=(ins>>16)&31,de=(ins>>11)&7,vd=(ins>>6)&31,e=(ins>>21)&15;
+        std::array<uint16_t,8> selected{};
+        const uint16_t raw=uint16_t(lane(vt,e&7));
+        for(unsigned i=0;i<8;++i){const unsigned source=e<2?i:e<4?(i&6)|(e&1):e<8?(i&4)|(e&3):e&7;selected[i]=uint16_t(lane(vt,source));}
+        for(unsigned i=0;i<8;++i)accumulator[i]=(accumulator[i]&0xffffffff0000ull)|selected[i];
+        set_lane(vd,de,fn==51?selected[de]:divider.execute(fn,raw));return true;
+    }
     bool lane_math(uint32_t ins){
         const unsigned fn=ins&63,vt=(ins>>16)&31,vs=(ins>>11)&31,vd=(ins>>6)&31,e=(ins>>21)&15;
         std::array<unsigned,8> left{},right{};

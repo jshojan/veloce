@@ -1,6 +1,6 @@
 # Veloce Accuracy Scorecard
 
-Current N64 evidence: [RSP integer arithmetic/logic and current Mario evidence](#rsp-vector-integer-arithmetic-and-logic). Earlier increment reports are historical.
+Current N64 evidence: [RSP divider/move and current Mario evidence](#rsp-reciprocal-square-root-and-move). Earlier increment reports are historical.
 
 This is the project's honest, evidence-based statement of how complete and
 cycle-accurate each emulator core is. Legacy headline percentages are produced by the
@@ -1323,3 +1323,79 @@ including the new integer-ALU component. All **90 original ROM archives**
 reproduce. The component passes undefined-behavior sanitization, both private
 retail reports match current executable hashes, and completion/whitespace
 checks pass.
+
+## RSP reciprocal, square-root and move
+
+The RSP now executes **VRCP, VRCPL, VRCPH, VMOV, VRSQ, VRSQL and VRSQH**,
+plus the **VNOP/VNULL** no-ops. Reciprocal and square-root share a high input,
+a 32-bit output and an explicit pending flag. High instructions return the
+previous output's high half and prime the input; low instructions consume it
+once, even if its high half is zero. Ordinary reciprocal/square-root operations
+clear the pending flag. VMOV and no-ops leave divider state unchanged.
+
+Only the destination lane selected by the low three VS-field bits is written.
+Reciprocal/square-root source selection uses raw `e & 7`; VMOV uses the ordinary
+element map at the destination lane. All seven replace accumulator LOW16 with
+selected VT inputs and retain upper slices and VCO/VCC/VCE. The result can differ
+from accumulator LOW16. Inputs are captured before aliases are written. No-ops
+retain the entire vector/accumulator/flag/divider state.
+
+The approximation and shared-latch rules follow the hardware-test author's
+primary [reciprocal/square-root/move tests](https://github.com/thelemmy/nemu64-test/blob/main/src/tests/rsp/op_vmov_vrcp.rs),
+including published E834 high/low expectations. Production tables are independently
+derived with rational quantization and a binary integer-inequality search;
+there is no host floating point or copied emulator implementation. The independent
+component uses exponent/residue algebra and a restoring integer-square-root
+algorithm. It checks all **1,024 table entries**, **393,216 value cases**
+(including every signed halfword and exponent/mantissa/sign boundaries),
+**2,097,152 cross-family high/low chains**, and **917,504 actual vector cases**
+across register positions, every VS encoding, selectors, aliases and flag profiles.
+Zero-high pending state, one-time consumption, published numeric expectations,
+no-op guards, exact save replay and atomic rejection are checked. These domains
+do not enumerate every full-width input or physical interlock.
+
+The original [divider/move ROM](tests/roms-src/n64/rsp_divider/README.md)
+enumerates **5,898,240 cases / 123,863,040 actual 64-bit captures**. Every halfword
+is swept over nine instructions and ten profiles: unprimed/primed low inputs,
+and every high half combined with eight boundary low halves. Source VT values
+are broadcast; selector/destination encodings rotate. Twenty-one fields contain
+vectors/accumulators/sources, flags, SP/MI, the full output high half and a replay
+with low/high probes exposing pending behavior. The guest computes no verdict.
+Independent rational/Python integer-square-root/latch grading checks each field.
+An executed capture mutant, 21 field mutations and seven malformed streams must
+fail. This original has not run on a physical console. Artifacts:
+`build/artifacts/owned/n64_rsp_divider/`.
+
+Plugin **0.24.0**, ABI v2, introduces **VN64S020**. An appended eight-byte word
+stores input[63:48], output[47:16] and pending[0]; bits[15:1] must be zero.
+S019 and previously accepted older states restore neutral divider state and
+preserve previous fields. Existing EOF-relative component state checks move
+eight bytes. Reserved-bit rejection is atomic; a pending zero-high VRCPL resumes
+exactly after restore. Rare vector operations such as VSUT still block explicitly
+without a fake BREAK or interrupt. Physical RSP timing/interlocks and full
+RDP/audio/hardware compatibility remain unfinished or ungraded.
+
+The private Mario probe now passes **VRCPH** and reports **no unsupported RSP
+instruction** at the 2,000-quantum bound. It executes **3,497,074 RSP instructions**;
+the last task reaches a real **BREAK**, SP PC **144**, status **243**. The CPU
+reaches **200,000,000 attempts**, with **620 nonterminal exception entries** and
+no terminal fault. RDP **SET_TILE** remains blocked at **F510000007000000**,
+CURRENT **227128**, reason 1; END advances to **227C30**. Video is still uniform;
+**93,571 audio sample pairs** do not prove audible game sound. Quanta are not
+game frames. **Native boot/playability remain unverified.** Commercial bytes
+stay local. This trace does not establish the full RSP hardware scope.
+
+N64 remains **40% = 8/20 fixed delivery milestones**. The complete graphics
+milestone and full Nintendo-platform goal remain unfinished. Front-page and
+core README percentages remain synchronized. CI/CD stays disabled.
+
+Verification: the full build and **68 distinct N64 gates pass**. The new original
+suite passes in **1,657.36 seconds**, independently grading **5,898,240 cases /
+123,863,040 actual 64-bit words** with zero mismatches and rejecting all executed,
+21-field and seven malformed-stream controls. **24/24 component gates** pass in
+**50.48 seconds**. The remaining ROM batch passes 42 of 43 in **1,285.47 seconds**;
+the video capture helper needed its EOF-relative VI offset moved eight bytes for
+S020, and the corrected gate passes in **4.78 seconds**, completing all 43.
+All **91 original ROM archives** reproduce. Undefined-behavior sanitization,
+current executable hashes for both private retail reports, completion synchronization
+and whitespace checks pass.
