@@ -10,6 +10,10 @@ little-endian instruction/data memory and an explicit marked cartridge profile.
 
 - MOV register/immediate, ADD/SUB/CMP, AND/OR/XOR/NOT, and SHL/SHR/SAR
   register/immediate forms; Z/S/OV/CY flags and immutable r0.
+- MUL/MULU full 64-bit products and DIV/DIVU quotient/remainder, signed overflow,
+  carry preservation and r30/destination aliasing.
+- Divide-zero normal/nested exception context, fatal bus writes/halt and RETI.
+  Other exception producers and external interrupts remain pending.
 - MOVEA, MOVHI, ADDI, ORI, ANDI and XORI; sign/zero extension and source aliasing.
 - All 16 branch/SETF conditions, relative JR/JAL, register JMP and link r31.
   There are no MIPS-style branch delay slots.
@@ -61,12 +65,21 @@ include the unchanged destination and the actual resulting PSW. An executed
 ADD-to-SUB mutation fails only the ADD groups; seven damaged files return ERROR.
 The full run exercises actual shared-plugin discovery through the frontend.
 
+The original [multiply/divide corpus](../../tests/roms-src/vb/muldiv/README.md)
+matched **4,210,688/4,210,688 nine-word register snapshots**, zero mismatches, from MUL/MULU/DIV/DIVU,
+including **8,704 zero-divisor cases** with captured exception registers and
+RETI return. Every signed/unsigned byte pair and full-width boundary pair runs
+with all 16 incoming flag states. Arithmetic and exception-capture mutations
+failed as required, and seven damaged files returned ERROR.
+
 `vb_machine_test` separately checks reset entry, all branch conditions/flag
 states on signed displacement boundaries, SETF, JR/JAL/JMP/link behavior, r0,
 source aliasing, immediate/register decoding, wide-immediate reference vectors,
 flag preservation, alignment/extension/byte order, WRAM mirrors, ROM protection,
 system-register masks, HALT/unsupported stops, rejected ROM/state atomicity and
 full state equality after continuation through the actual shared plugin.
+It also checks multiply/divide aliases, nested exception/RETI priority, fatal
+bus writes/halt and full saved exception continuation.
 These component checks are separate from the original-ROM domain.
 
 ```bash
@@ -76,22 +89,22 @@ cmake --build build --target veloce vb_plugin vb_machine_test -j
 ctest --test-dir build -R '^vb_' --output-on-failure
 ```
 
-Raw observations and reports are in `build/artifacts/owned/vb_integer/` and are
-uploaded by the owned-hardware CI job. Source/image SHA256 values are recorded
+Raw observations and reports are in `build/artifacts/owned/vb_integer/` and
+`build/artifacts/owned/vb_muldiv/`, and are uploaded by the owned-hardware CI job. Source/image SHA256 values are recorded
 in `tests/roms-src/rom_manifest.json`. `VVBS0001` states store explicit big-endian
 scalars for the full CPU, frame/step counters, completion, ROM identity and WRAM.
 Size, version, ROM identity and basic field checks precede any mutation.
 
 ## Remaining platform hardware and features
 
-Multiply/divide, bit strings, FPU/custom NVC instructions, port I/O, complete
-system registers/PIR/TKCW, exceptions/RETI/interrupts, address traps, caches,
+Bit strings, FPU/custom NVC instructions, port I/O, complete
+system registers/PIR/TKCW, other exceptions/external interrupts, address traps, caches,
 pipeline/wait-state timing, VIP drawing/display/scanner timing, VSU audio,
 controller serial hardware, link communication, timers and save media remain.
 Unsupported instructions or unmapped transactions stop execution with an
 explicit serialized `unsupported` flag; this is a diagnostic stop, **not a
-hardware exception implementation**. Register execution and bus storage are
-functional; timing is not modeled.
+hardware illegal-instruction or bus-fault exception implementation**. Register
+execution and bus storage are functional; timing is not modeled.
 
 Each frontend frame is a bounded 100,000-step scheduling quantum. The counter is
 CPU step attempts, not verified hardware cycles; 20 MHz/50 Hz metadata is nominal.

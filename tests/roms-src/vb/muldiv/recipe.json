@@ -1,0 +1,4 @@
+{
+  "source_type": "original", "console": "vb", "suite": "muldiv",
+  "build": {"script": "build.py", "artifact": "muldiv.vb"}, "license": "MIT"
+}

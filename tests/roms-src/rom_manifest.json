@@ -183,6 +183,17 @@
       "source_sha": "82697f3605e0c25615f204da0110f483f32ba68ffd0af977cb7f419032cd3d82",
       "source_type": "original",
       "suite": "integer_registers"
+    },
+    "vb/muldiv/muldiv.vb": {
+      "build_command": "python3 tests/roms-src/vb/muldiv/build.py",
+      "console": "vb",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "afd515b1092e3fe64a42df6da399227019c4892dbeb7c8e640680e6121447c80",
+      "source_repo": "tests/roms-src/vb/muldiv/build.py",
+      "source_sha": "ed3046c4b31b48f91989ded6f11df166ee32b0afc88f46292708ecffd8e3a59e",
+      "source_type": "original",
+      "suite": "muldiv"
     }
   },
   "tool_versions": {

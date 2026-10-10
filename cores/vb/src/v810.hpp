@@ -22,6 +22,7 @@ public:
     static bool condition(unsigned code, uint32_t psw);
     CpuState state;
 private:
+    void divide_zero(uint32_t pc);
     Memory& bus;
 };
 uint32_t extend(uint32_t value, unsigned bits);

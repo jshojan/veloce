@@ -63,6 +63,10 @@ add_test(NAME vb_integer_registers COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/roms-src/vb/integer_registers/run.py --emulator $<TARGET_FILE:veloce>
     --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/vb_integer)
 set_tests_properties(vb_integer_registers PROPERTIES LABELS "accuracy;owned" TIMEOUT 700)
+add_test(NAME vb_muldiv COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/vb/muldiv/run.py --emulator $<TARGET_FILE:veloce>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/vb_muldiv)
+set_tests_properties(vb_muldiv PROPERTIES LABELS "accuracy;owned" TIMEOUT 1000)
 
 add_executable(snes_math_pipeline_test cpp/snes_math_pipeline_test.cpp
     ${CMAKE_SOURCE_DIR}/cores/snes/src/bus.cpp ${CMAKE_SOURCE_DIR}/cores/snes/src/cpu.cpp

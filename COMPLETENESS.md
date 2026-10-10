@@ -45,7 +45,7 @@ No full-core completion percentage has been established.
 | [Game Boy](#game-boy) | 225 external tests / 31 suites, plus 3 original ROMs | Verified subset only | Blargg serial subset, 2 WRAM checks, 8,388,608 ALU pairs and 73,728 unary pairs verified; Mooneye remains unverified |
 | [GBA](#gba) | 132 external tests / 29 suites, plus 1 original ROM | Partial; 65,536 original ARM shift cases verified | Legacy CPU/memory/BIOS/saves subsets verified; timing/PPU and remaining original hardware corpus pending |
 | N64 | 5 original ROMs; no external catalog | Declared integer/merge/controller/interrupt domains verified | Experimental marked homebrew; full hardware completion unknown; [limits](cores/n64/README.md) |
-| Virtual Boy | 1 original ROM; no external catalog | 6,512,640 result/PSW pairs matched across nine V810 operations | Experimental marked homebrew; remaining CPU/NVC, VIP/VSU, controllers and timing pending; [limits](cores/vb/README.md) |
+| Virtual Boy | 2 original ROMs; no external catalog | 6,512,640 result/PSW pairs plus 4,210,688 multiply/divide/exception snapshots | Experimental marked homebrew; remaining CPU/NVC, VIP/VSU, controllers and timing pending; [limits](cores/vb/README.md) |
 
 The legacy four-console platform mean reported by `tests/run_all.py` weights each
 console equally; N64 and Virtual Boy owned corpora are reported separately.

@@ -17,6 +17,24 @@ bool V810::condition(unsigned code, uint32_t psw) {
     const bool values[] = {ov,cy,z,cy||z,s,true,s!=ov,(s!=ov)||z};
     return (code&8) ? !values[code&7] : values[code&7];
 }
+void V810::divide_zero(uint32_t pc) {
+    auto& c=state;
+    const uint32_t psw=c.sr[5];
+    if (psw&0x8000) {
+        // Fatal machine-fault writes are visible on the operand bus. A board
+        // may reject these addresses; the CPU still halts until reset.
+        bus.write(0,4,0xffffff80); bus.write(4,4,psw); bus.write(8,4,pc);
+        c.pc=pc; c.halted=true;
+    } else if (psw&0x4000) {
+        c.sr[2]=pc; c.sr[3]=psw;
+        c.sr[4]=(c.sr[4]&0xffff)|0xff800000;
+        c.sr[5]=(psw|0x9000)&~0x2000u; c.pc=0xffffffd0;
+    } else {
+        c.sr[0]=pc; c.sr[1]=psw;
+        c.sr[4]=(c.sr[4]&0xffff0000)|0xff80;
+        c.sr[5]=(psw|0x5000)&~0x2000u; c.pc=0xffffff80;
+    }
+}
 void V810::step() {
     auto& c=state;
     if (c.halted || c.unsupported) return;
@@ -92,6 +110,30 @@ void V810::step() {
         case 5: shift(b,a,1); break;
         case 6: c.pc=a&~1u; break;
         case 7: shift(b,a,2); break;
+        case 8: case 10: {
+            const auto signed_word=[](uint32_t x) -> int64_t {
+                return x&0x80000000 ? int64_t(x)-0x100000000LL : int64_t(x);
+            };
+            const int64_t product=op==8 ? signed_word(a)*signed_word(b) : 0;
+            const uint64_t bits=op==8 ? uint64_t(product) : uint64_t(a)*b;
+            const uint32_t low=uint32_t(bits);
+            const bool overflow=op==8 ? product!=signed_word(low) : (bits>>32)!=0;
+            put(30,uint32_t(bits>>32)); put(r2,low);
+            flags(low,false,overflow,true); break;
+        }
+        case 9: case 11: {
+            if (!a) { divide_zero(pc); break; }
+            uint32_t quotient,remainder; bool overflow=false;
+            if (op==9) {
+                const int64_t dividend=b&0x80000000 ? int64_t(b)-0x100000000LL : b;
+                const int64_t divisor=a&0x80000000 ? int64_t(a)-0x100000000LL : a;
+                const int64_t q=dividend/divisor;
+                quotient=uint32_t(q); remainder=uint32_t(dividend%divisor);
+                overflow=q>0x7fffffffLL;
+            } else { quotient=b/a; remainder=b%a; }
+            put(30,remainder); put(r2,quotient);
+            flags(quotient,false,overflow,true); break;
+        }
         case 0x0c: case 0x0d: case 0x0e: case 0x0f: {
             const uint32_t value=op==0x0c ? b|a : op==0x0d ? b&a : op==0x0e ? b^a : ~a;
             flags(value,false,false,true); put(r2,value); break;
@@ -103,6 +145,10 @@ void V810::step() {
         case 0x14: shift(b,r1,0); break;
         case 0x15: shift(b,r1,1); break;
         case 0x17: shift(b,r1,2); break;
+        case 0x19: {
+            const unsigned saved=(c.sr[5]&0x8000) ? 2 : 0;
+            c.pc=c.sr[saved]; c.sr[5]=c.sr[saved+1]; break;
+        }
         case 0x1a: c.halted=true; break;
         case 0x1c:
             if(r1==0 || r1==2 || r1==25) c.sr[r1]=b&~1u;

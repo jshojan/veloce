@@ -44,6 +44,70 @@ static void control(vb::Machine& m) {
     m.cpu.step(); require(m.cpu.state.halted && m.cpu.state.steps==steps && m.cpu.state.gpr[2]==0,"HALT did not stop");
     code(m,{reg(0x16)}); m.cpu.step(); require(m.cpu.state.unsupported,"unsupported instruction silently executed");
 }
+static void muldiv(vb::Machine& m) {
+    struct Vector { unsigned op; uint32_t a,b,lo,hi,flags; };
+    for(auto v:{Vector{8,2,0xffffffff,0xfffffffe,0xffffffff,10},
+                Vector{8,0xffffffff,0x80000000,0x80000000,0,14},
+                Vector{10,0xffffffff,0xffffffff,1,0xfffffffe,12},
+                Vector{9,3,0xfffffff9,0xfffffffe,0xffffffff,10},
+                Vector{9,0xffffffff,0x80000000,0x80000000,0,14},
+                Vector{11,2,1,0,1,9}}) {
+        for(unsigned destination:{0u,2u,30u}) {
+            code(m,{reg(v.op,1,destination)}); auto& s=m.cpu.state;
+            s.gpr[1]=v.a; s.gpr[destination]=destination ? v.b:0; s.sr[5]=0x800f;
+            m.cpu.step();
+            require(s.gpr[1]==v.a && !s.unsupported,"multiply/divide source changed");
+            if(destination) {
+                require(s.gpr[destination]==v.lo && s.gpr[30]==(destination==30 ? v.lo:v.hi)
+                        && s.sr[5]==(0x8000|v.flags),"multiply/divide result/alias/PSW wrong");
+            } else require(s.gpr[0]==0 && s.gpr[30]==0 && s.sr[5]==0x8009,"r0 multiply/divide flags wrong");
+        }
+    }
+    for(unsigned op:{8u,9u,10u,11u}) {
+        const bool multiply=op==8 || op==10;
+        code(m,{reg(op,30,2)}); m.cpu.state.gpr[30]=3; m.cpu.state.gpr[2]=7; m.cpu.state.sr[5]=15;
+        m.cpu.step(); require(m.cpu.state.gpr[2]==(multiply ? 21u:2u) && m.cpu.state.gpr[30]==(multiply ? 0u:1u),
+                             "r30 source overwritten before use");
+        code(m,{reg(op,2,2)}); m.cpu.state.gpr[2]=7; m.cpu.state.sr[5]=15; m.cpu.step();
+        require(m.cpu.state.gpr[2]==(multiply ? 49u:1u) && m.cpu.state.gpr[30]==0 && m.cpu.state.sr[5]==8,
+                "multiply/divide same source/destination wrong");
+    }
+    for(unsigned op:{9u,11u}) for(unsigned bits=0;bits<16;++bits) for(bool nested:{false,true}) for(bool ae:{false,true}) {
+        code(m,{reg(op,1,2),reg(0x19)}); auto& s=m.cpu.state;
+        const uint32_t original=0xa0000|bits|(nested ? 0x4000:0)|(ae ? 0x2000:0);
+        s.gpr[2]=0x89abcdef; s.gpr[30]=0x13579bdf; s.sr[5]=original;
+        s.sr[4]=0x12345678; s.sr[0]=start+0x80; s.sr[1]=0x101;
+        s.sr[2]=start+0x90; s.sr[3]=0x202;
+        m.cpu.step(); const unsigned saved=nested ? 2:0;
+        require(s.pc==(nested ? 0xffffffd0:0xffffff80) && s.sr[saved]==start && s.sr[saved+1]==original,
+                "divide-zero saved context/vector wrong");
+        require(s.sr[4]==(nested ? 0xff805678:0x1234ff80) && s.sr[5]==((original|(nested ? 0x9000:0x5000))&~0x2000u),
+                "divide-zero ECR/entry PSW wrong");
+        require(s.gpr[2]==0x89abcdef && s.gpr[30]==0x13579bdf && !s.unsupported,"divide-zero changed result");
+        require(s.sr[nested ? 0:2]==start+(nested ? 0x80:0x90),"divide-zero destroyed other saved context");
+        // Save while in the handler, then verify RETI continuation is identical.
+        s.pc=start+2; s.sr[saved]=start+4;
+        std::vector<uint8_t> snapshot,after,replay; require(m.save(snapshot),"exception save failed");
+        m.cpu.step(); require(s.pc==start+4 && s.sr[5]==original,"RETI restore/NP priority wrong");
+        m.save(after); require(m.restore(snapshot),"exception restore failed"); m.cpu.step(); m.save(replay);
+        require(after==replay,"saved exception continuation diverged");
+    }
+    struct FatalBus : vb::Memory {
+        std::vector<std::pair<uint32_t,uint32_t>> writes;
+        bool read(uint32_t,unsigned bytes,uint32_t& value) override { value=reg(9,1,2); return bytes==2; }
+        bool write(uint32_t address,unsigned bytes,uint32_t value) override {
+            require(bytes==4,"fatal fault write width wrong"); writes.emplace_back(address,value); return false;
+        }
+    } bus;
+    vb::V810 cpu(bus); cpu.reset(); cpu.state.pc=start; cpu.state.sr[5]=0xe00f;
+    cpu.state.gpr[2]=123; cpu.state.gpr[30]=456; const auto sr=cpu.state.sr;
+    cpu.step(); require(cpu.state.halted && !cpu.state.unsupported && cpu.state.pc==start && cpu.state.sr==sr,
+                        "fatal exception state wrong");
+    require(bus.writes==std::vector<std::pair<uint32_t,uint32_t>>{{0,0xffffff80},{4,0xe00f},{8,start}},
+            "fatal exception bus order/context wrong");
+    require(cpu.state.gpr[2]==123 && cpu.state.gpr[30]==456,"fatal fault changed operands");
+    cpu.step(); require(cpu.state.steps==1 && bus.writes.size()==3,"fatal fault did not halt until reset");
+}
 static void immediates(vb::Machine& m) {
     // Decode immediate forms through a different encoding, then compare with the
     // register operations independently graded by the original ROM.
@@ -138,7 +202,7 @@ int main(int argc,char** argv) {
         vb::Machine m; require(m.load(rom.data(),rom.size()),"original cartridge load failed");
         require(m.cpu.state.pc==0xfffffff0 && m.cpu.state.sr[5]==0x8000 && m.cpu.state.sr[4]==0xfff0,"reset state wrong");
         m.cpu.step(); m.cpu.step(); require(m.cpu.state.pc==0x07000000,"reset vector did not reach original entry");
-        control(m); immediates(m); memory(m); states(m,rom,argv[1]);
+        control(m); muldiv(m); immediates(m); memory(m); states(m,rom,argv[1]);
         std::cout<<"VB control/memory/state/plugin checks passed\n"; return 0;
     } catch(const std::exception& e) { std::cerr<<e.what()<<'\n'; return 1; }
 }
