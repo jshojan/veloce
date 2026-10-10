@@ -9,7 +9,7 @@
 | SNES | **40%** | 8/20 |
 | Game Boy / Game Boy Color | **40%** | 8/20 |
 | Game Boy Advance | **40%** | 8/20 |
-| Nintendo 64 | **40%** | 8/20 |
+| Nintendo 64 | **45%** | 9/20 |
 | Virtual Boy | **20%** | 4/20 |
 | Nintendo DS | **30%** | 6/20 |
 | Nintendo DSi | **30%** | 6/20 |
@@ -223,6 +223,11 @@ probe's full final state is 17,392 bytes; omitted pages represent zero across
 the full RAM map. History buffers and frontend snapshots now query current
 serialized size and grow as needed. Native GamePad/VPAD/KPAD and wireless
 multiplayer remain pending. Reports are in `build/artifacts/netplay-wiiu/`.
+N64 now passes two-player production TCP rollback: host/client inputs reach separate
+digital PIF ports, while ports 2/3 remain neutral. Both peers match 600 original
+guest words and complete 8,478,744-byte states. Four virtual ports are supported
+by the core API; analog sticks, accessories and a four-peer network remain
+pending. Reports: `build/artifacts/netplay-n64/`; [implementation and scope](cores/n64/README.md#four-digital-ports-and-production-netplay).
 Relay/session codes, chat, additional spectators, input
 delay scheduling, reconnects, desync recovery, Windows and real two-machine
 verification remain. Internet multiplayer is not validated.
@@ -474,7 +479,8 @@ subset, not whole-core completion.
 | [N64 RSP divider/move](tests/roms-src/n64/rsp_divider/README.md) | 5,898,240 cases / 123,863,040 actual words; halfword/high-half sweeps, shared pending/output latches, full result and probe captures | `build/artifacts/owned/n64_rsp_divider/` |
 | [N64 IPL3 handoff](tests/roms-src/n64/ipl3_handoff/README.md) | 12/12 original startup captures; native retail boot remains unverified; longer Mario trace passes actual buffer clears; RSP reaches a real BREAK with no unsupported instruction at the longer bound; RDP TMEM block/tile/palette transfers now pass; shaded/textured/depth-tested triangles remain blocked | `build/artifacts/owned/n64_ipl3_handoff/` |
 | [N64 interrupt gates](tests/roms-src/n64/interrupts/README.md) | 65,536/65,536 cases matched; 524,288 guest values for software/SI/timer, MI/CPU masks and IE/EXL/ERL; pipeline and physical timer timing pending | `build/artifacts/owned/n64_interrupts/` |
-| [N64 digital controller](tests/roms-src/n64/controller_serial/README.md) | 16,384/16,384 combinations matched; 131,072 guest values for digital input, identity, absent port and settled SI/MI registers; analog and physical timing pending | `build/artifacts/owned/n64_controller/` |
+| [N64 four-port / netplay guest](tests/roms-src/n64/controller_netplay/README.md) | 16,384 rows / 98,304 words matched across four digital ports; 100-quanta production TCP peers match 600 guest words and complete states; analog/accessories pending | `build/artifacts/owned/n64_controller_netplay/`, `build/artifacts/netplay-n64/` |
+| [N64 digital controller](tests/roms-src/n64/controller_serial/README.md) | 16,384/16,384 combinations matched; 131,072 guest values for digital input, identity, neutral second pad and settled SI/MI registers; analog and physical timing pending | `build/artifacts/owned/n64_controller/` |
 | [N64 merge memory](tests/roms-src/n64/merge_memory/README.md) | 3,158,016/3,158,016 observations matched; eight instructions, every byte lane, all repeated-byte pairs and full-width boundaries; full multi-byte domains/timing unverified | `build/artifacts/owned/n64_merge_memory/` |
 | [N64 doubleword multiply/divide](tests/roms-src/n64/muldiv64/README.md) | 262,623/262,623 defined LO/HI pairs matched; every signed/unsigned byte pair and 16×16 full-width boundaries; 545 undefined inputs observed but unscored | `build/artifacts/owned/n64_muldiv64/` |
 | [N64 integer registers](tests/roms-src/n64/integer_registers/README.md) | 28,127/28,127 defined results matched across 20 instructions and selected patterns; 33 undefined division inputs observed but unscored; full core incomplete | `build/artifacts/owned/n64_integer/` |

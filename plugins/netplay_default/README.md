@@ -176,3 +176,8 @@ Native GamePad/VPAD/KPAD and wireless multiplayer remain pending. Run
 `wiiu_netplay_plugin_test`; artifacts are in `build/artifacts/netplay-wiiu/`.
 CI/CD remains disabled. Sustained performance, page sharing/delta states and
 Internet/physical/cross-platform sessions remain unverified.
+
+N64 two-player production rollback is verified with an original four-port SI/PIF
+guest: two TCP processes and baseline match 600 guest words and complete S023
+states. Ports 0/1 are independently owned; 2/3 are neutral. Four virtual core
+inputs do not imply four network participants. See [scope and repeatable gates](../../cores/n64/README.md#four-digital-ports-and-production-netplay).

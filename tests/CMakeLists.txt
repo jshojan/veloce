@@ -725,3 +725,34 @@ add_executable(n64_rdp_combiner_math_test cpp/n64_rdp_combiner_math_test.cpp)
 target_include_directories(n64_rdp_combiner_math_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src)
 add_test(NAME n64_rdp_combiner_math_test COMMAND n64_rdp_combiner_math_test)
 set_tests_properties(n64_rdp_combiner_math_test PROPERTIES LABELS "unit;accuracy" TIMEOUT 120)
+
+add_executable(n64_controller_ports_test cpp/n64_controller_ports_test.cpp
+    ${CMAKE_SOURCE_DIR}/cores/n64/src/machine.cpp ${CMAKE_SOURCE_DIR}/cores/n64/src/vr4300.cpp)
+target_include_directories(n64_controller_ports_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src ${CMAKE_SOURCE_DIR}/include)
+add_test(NAME n64_controller_ports_test COMMAND n64_controller_ports_test
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/rdp_tile_commands/rdp_tile_commands.z64)
+set_tests_properties(n64_controller_ports_test PROPERTIES LABELS "unit;accuracy;owned" TIMEOUT 120)
+
+add_executable(n64_controller_probe cpp/n64_controller_probe.cpp)
+target_include_directories(n64_controller_probe PRIVATE ${CMAKE_SOURCE_DIR}/include ${SDL2_INCLUDE_DIRS})
+target_link_libraries(n64_controller_probe PRIVATE ${SDL2_LIBRARIES})
+add_dependencies(n64_controller_probe n64_plugin)
+add_test(NAME n64_controller_netplay_guest COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/controller_netplay/run.py --probe $<TARGET_FILE:n64_controller_probe>
+    --core $<TARGET_FILE:n64_plugin> --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_controller_netplay)
+set_tests_properties(n64_controller_netplay_guest PROPERTIES LABELS "accuracy;owned" TIMEOUT 240)
+
+add_executable(n64_netplay_state_test cpp/n64_netplay_state_test.cpp)
+target_include_directories(n64_netplay_state_test PRIVATE ${CMAKE_SOURCE_DIR}/include ${SDL2_INCLUDE_DIRS})
+target_link_libraries(n64_netplay_state_test PRIVATE ${SDL2_LIBRARIES})
+add_dependencies(n64_netplay_state_test n64_plugin)
+add_test(NAME n64_netplay_state_test COMMAND n64_netplay_state_test $<TARGET_FILE:n64_plugin>
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/controller_netplay/controller_netplay.z64)
+set_tests_properties(n64_netplay_state_test PROPERTIES LABELS "integration;netplay;owned" TIMEOUT 90)
+
+add_dependencies(netplay_plugin_peer n64_plugin)
+add_test(NAME n64_netplay_plugin_test COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/netplay_network_test.py $<TARGET_FILE:netplay_plugin_peer>
+    $<TARGET_FILE:n64_plugin> ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/controller_netplay/controller_netplay.z64
+    ${CMAKE_BINARY_DIR}/artifacts/netplay-n64 --netplay-plugin $<TARGET_FILE:netplay_default> --console n64)
+set_tests_properties(n64_netplay_plugin_test PROPERTIES LABELS "integration;netplay;owned" TIMEOUT 180)

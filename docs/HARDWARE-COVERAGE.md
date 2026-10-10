@@ -1,6 +1,6 @@
 # Nintendo implementation and hardware test coverage
 
-Current N64 evidence: [RDP texture transfers and current Mario evidence](#rdp-texture-memory-transfers) and [scalar combiner arithmetic](#rdp-scalar-combiner-arithmetic). Earlier increment reports are historical.
+Current N64 evidence: [four digital ports and production netplay](#four-digital-ports-and-production-netplay). Earlier increment reports are historical.
 
 The goal includes Nintendo core plugins, repository-owned ROMs covering the
 hardware, machine-readable register observations, netplay, seamless controllers,
@@ -15,7 +15,7 @@ are not measurements of overall hardware or product completion.
 | GB/CGB | `gb_plugin` | DMG WRAM/ADD probe: 2/2 checks; byte ALU E-register corpus: 8,388,608/8,388,608 A/F pairs matched (100% of eight operations, every operand pair, and all 16 incoming flag states); unary accumulator instructions: 73,728/73,728 A/F pairs matched (18 instructions × all bytes × all flags) | Not measured; other CPU operands/instructions, timing/PPU/APU/MBC/CGB corpus remains |
 | SNES | `snes_plugin` | Settled multiplication: 65,536/65,536 operand pairs verified (100%); division: 3,328 selected boundary cases verified; math timing: 504,832/504,832 register bytes matched at CPU phases 2–18 (100% of declared patterns/phases) | Not measured; timed full operand domain, refresh/DMA interactions, and remaining hardware corpora pending |
 | GBA | `gba_plugin` | ARM MOVS register shifts: 65,536/65,536 result/CPSR pairs verified; all low-byte amounts and C/V inputs on 16 operands | Not measured; remaining CPU modes/instructions, timing and peripheral corpora pending |
-| Nintendo 64 | `n64_plugin` (experimental homebrew/native handoff) | 28,127/28,127 defined integer results matched; 28,160 observations, with 33 undefined divide inputs unscored; doubleword multiply/divide: 262,623/262,623 defined LO/HI pairs matched on exhaustive byte pairs and full-width boundaries; merge memory: 3,158,016/3,158,016 observations matched at every lane on all repeated-byte pairs and selected full-width patterns; digital SI/PIF: 16,384/16,384 button combinations and 131,072 register values matched; interrupt gates: 65,536/65,536 cases and 524,288 register values matched; FPU controls: 8,192/8,192 cases and 65,536 register values matched | Not measured; retail boot, graphics/RSP audio microcode, analog/controllers beyond port 1 and most platform hardware remain |
+| Nintendo 64 | `n64_plugin` (experimental homebrew/native handoff) | 28,127/28,127 defined integer results matched; 28,160 observations, with 33 undefined divide inputs unscored; doubleword multiply/divide: 262,623/262,623 defined LO/HI pairs matched on exhaustive byte pairs and full-width boundaries; merge memory: 3,158,016/3,158,016 observations matched at every lane on all repeated-byte pairs and selected full-width patterns; digital SI/PIF: 16,384/16,384 button combinations and 131,072 register values matched; interrupt gates: 65,536/65,536 cases and 524,288 register values matched; FPU controls: 8,192/8,192 cases and 65,536 register values matched | Not measured; retail boot, graphics/RSP audio microcode, analog/accessories/presence detection and most platform hardware remain |
 | Virtual Boy | `vb_plugin` (experimental homebrew only) | 6,512,640/6,512,640 result/PSW pairs matched across ADD/SUB/CMP/OR/AND/XOR repeated-byte pairs and full-width boundaries, plus SHL/SHR/SAR patterns and all low-byte amounts; 4,210,688/4,210,688 multiply/divide snapshots matched with 8,704 divide-zero exception/RETI cases; 4,685,824/4,685,824 TRAP/illegal exception snapshots matched across all writable nonfatal PSW combinations and full reserved low-bit encodings; 4,982,784/4,982,784 address-trap snapshots matched across matching/disabled/aliased addresses and entry/return; 17,055,744/17,055,744 CAXI/port snapshots matched across comparisons/replacements, width/alignment, unsigned input and preserved flags; 14,680,064/14,680,064 arithmetic bit-string snapshots matched across eight operations, byte pairs, all offsets and twelve lengths; 100,712,448/100,712,448 immediate-instruction snapshots matched across all wide/short immediates for twelve instructions on sixteen patterns/all flags | Not measured; remaining CPU/NVC instructions, timing, VIP/VSU, controllers and most platform hardware remain |
 | Nintendo DS | `nds_plugin` (experimental homebrew only) | 44,238,336/44,238,336 dual-CPU result/CPSR/source snapshots matched across all sixteen data-processing operations, repeated-byte pairs and full-width boundaries, every NZCV and both ARM9 Q states; 38,338,560 six-family multiply and 51,426,816 Thumb result/CPSR/source/PC observations matched with undefined ARM7 flags excluded; 49,694,208 nine-word ARM/Thumb memory and 9,437,184 eight-word long-call snapshots matched with every bit graded; 3,720,960 stack/block snapshots matched; 4,096/4,096 digital keypad combinations matched | Not measured; firmware/retail boot, ARM block transfers, interrupts, graphics/audio, peripherals and timing remain; DSi has a separate partial plugin |
 | Nintendo DSi | `dsi_plugin` (original marked images only) | 387,072/387,072 original RAM captures; 67,109,008 component byte/width observations; 100-frame TCP host/viewer states and eight guest words match oracle | Not measured; firmware/retail boot, full SCFG/MBK, physical timing and most console hardware remain; [limits](../cores/dsi/README.md) |
@@ -1804,3 +1804,59 @@ N64 remains **40% = 8/20 fixed delivery milestones**. CI/CD remains disabled.
 plus the scalar arithmetic gate. The production N64 plugin built from this
 branch is byte-identical to the TMEM build, confirming no change to existing
 guest execution or state layout. This kernel is not yet wired to guest draws.
+
+## Four digital ports and production netplay
+
+Plugin **0.27.0**, emulator ABI v2, now exposes `INetplayCapable` for four
+virtual digital PIF ports. The production default network plugin owns two
+participants: host input reaches port 0, client input reaches port 1, and ports
+2/3 remain neutral. The N-player core API routes up to four virtual masks;
+this does not supply a four-peer network transport or local multi-pad frontend.
+Normal local execution still supplies port 0. All four pads are permanently
+present in this profile, with zero stick bytes and no accessories.
+
+The [original guest](../tests/roms-src/n64/controller_netplay/README.md)
+uses actual SI DMA and reads four replies, completion status and acknowledged
+status. **16,384 rows / 98,304 words** pass a separate bit-assignment oracle;
+all four inputs receive different permutations of the digital domain. The
+executed wrong-capture control fails all 16 rows; six field mutations and seven
+malformed streams reject. **65,536 isolated component cases** cover every
+port and digital mask; sanitizer checks pass. The existing single-input original
+ROM is unchanged; its oracle now expects a neutral second pad. Absent-channel
+component coverage uses channel 4, outside the four controller ports.
+
+The production TCP test passes **100 scheduling quanta** in two independent
+processes. Host, client and baseline match **600 actual guest words** and the
+complete state. Both peers perform rollback with real AI replay callbacks.
+The wrong-capture guest is rejected with exactly 100 mismatched words; six field
+mutations, four malformed result streams, four fragmented invalid network
+packets and ROM mismatch are rejected. Different pre-session histories reload
+fresh; core replacement and external execution disconnect. Reports and raw
+readbacks are in `build/artifacts/netplay-n64/`. Internet, two-machine and
+Windows networking are unverified. Quanta are not measured VI game frames.
+
+State **VN64S023** appends three big-endian eight-byte digital masks to S022,
+for **8,478,744 bytes**. Reserved upper halves reject atomically. Older accepted
+states restore the additional ports to neutral and preserve earlier fields.
+Fast save queries the exact bound, rejects undersized buffers without writes,
+and hashes the complete serialized state. Netplay drains output PCM each
+quantum with or without a callback, keeping muted and streamed states equal;
+normal local polling retains its existing behavior. Actual guest-generated AI
+samples exercise this determinism check.
+
+The current private **Super Mario 64 (USA)** probe still blocks on triangle
+**CF000FFA0FFAF006**, CURRENT **227160**, after **200,000,000 CPU attempts**.
+Video remains uniform; native boot and playability are unverified. The current
+production core SHA-256 is
+`56dd577178d40bae0b7b47125381f55b27d942db73bba49c752fc1eea42818f5`;
+trace SHA-256 is
+`b6fc9dd72f1c2390043903d91c3fbdab75ae449122632a1d3de6bdc5c388a650`.
+Reports: `build/artifacts/retail/n64-controllers.json` and default `n64.json`.
+Commercial ROM bytes remain local.
+
+N64 now has **45% = 9/20 fixed delivery milestones**. This credits production
+netplay for the implemented profile. Analog/accessories/presence detection,
+local multiplayer frontend routing, complete graphics/audio/CPU/devices,
+physical timing and retail playability remain unfinished. CI/CD remains disabled.
+The four new controller/netplay gates pass; the existing 73-gate regression
+run is pending. All 94 original archives reproduce.

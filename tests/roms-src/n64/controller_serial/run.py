@@ -37,7 +37,7 @@ def evaluate(path, rom, cases=16384):
                 got = tuple(int(line[6+n*16:22+n*16],16) for n in range(8))
                 buttons = sum(1 << bit for n,bit in enumerate(WIRE) if sample & (1 << n))
                 packet = bytes([1,4,1,buttons >> 8,buttons & 255,0,0,1])
-                want = (int.from_bytes(packet,"big"), 0x8401aaaaaaaafe00, 0x010300050002fe00,
+                want = (int.from_bytes(packet,"big"), 0x040100000000fe00, 0x010300050002fe00,
                         0x1000,2,2,0,0)
                 report["observed_cases"] += 1; report["graded_cases"] += 1
                 if got != want:

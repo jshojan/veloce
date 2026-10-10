@@ -1,19 +1,19 @@
 # Experimental Nintendo 64 core plugin
 
-Current N64 evidence: [RDP texture transfers and current Mario evidence](#rdp-texture-memory-transfers) and [scalar combiner arithmetic](#rdp-scalar-combiner-arithmetic). Earlier increment reports are historical.
+Current N64 evidence: [four digital ports and production netplay](#four-digital-ports-and-production-netplay). Earlier increment reports are historical.
 
 <!-- completion:start -->
 ## Completion percentage
 
 | Platform | Delivery checklist completion | Delivered / total |
 |---|---:|---:|
-| Nintendo 64 | **40%** | 8/20 |
+| Nintendo 64 | **45%** | 9/20 |
 
 These percentages count the 20 explicit delivery milestones in [the completion ledger](../../docs/CORE-COMPLETION.md); partial or unverified milestones receive zero credit. Each milestone is worth 5 percentage points. **They are not percentages of native hardware accuracy or retail compatibility.** Bounded profile tests do not complete a whole CPU or hardware subsystem.
 
-Nintendo 64 delivered milestones: Guest sound produces audio samples, Native digital controller/keypad registers consume frontend input, Guest graphics produce rendered video, Parse a native cartridge/executable format (boot scored separately), Repository-owned ROM source and reproducible archived image, Separate core plugin and ABI entry points, Actual guest register-file output independently graded on the host, with negative controls, Complete states for the implemented profile and deterministic replay.
+Nintendo 64 delivered milestones: Guest sound produces audio samples, Native digital controller/keypad registers consume frontend input, Guest graphics produce rendered video, Parse a native cartridge/executable format (boot scored separately), Actual production-plugin TCP peers pass original guest oracle and whole-state comparison, Repository-owned ROM source and reproducible archived image, Separate core plugin and ABI entry points, Actual guest register-file output independently graded on the host, with negative controls, Complete states for the implemented profile and deterministic replay.
 
-Remaining: Super Mario 64 passes SET_Z_IMAGE and real color/depth-buffer clears, then reaches the 200-million-attempt trace bound without a terminal CPU fault. RSP reciprocal/square-root/move now pass; the longer probe reports no unsupported RSP instruction and a real BREAK. RDP TMEM block/tile/palette transfers now pass; shaded/textured/depth-tested triangles remain blocked; video stays uniform. Native boot/playability, full CPU/CP0/devices, FPU physical timing, rare RSP operations and pipeline/interlock timing, complete RDP/audio, hidden coverage/depth bits, analog and netplay remain.
+Remaining: Super Mario 64 passes SET_Z_IMAGE and real color/depth-buffer clears, then reaches the 200-million-attempt trace bound without a terminal CPU fault. RSP reciprocal/square-root/move now pass; the longer probe reports no unsupported RSP instruction and a real BREAK. RDP TMEM block/tile/palette transfers now pass; shaded/textured/depth-tested triangles remain blocked; video stays uniform. Native boot/playability, full CPU/CP0/devices, FPU physical timing, rare RSP operations and pipeline/interlock timing, complete RDP/audio, hidden coverage/depth bits, analog/accessories/presence detection, local multiplayer frontend routing and physical timing remain. Production two-player TCP rollback is verified for the implemented digital profile; four virtual PIF ports are supported.
 <!-- completion:end -->
 
 `n64_plugin` builds `n64.so`/`n64.dll`/`n64.dylib` and implements emulator ABI v2.
@@ -63,14 +63,14 @@ PIF ROM, copyrighted boot logo, or commercial ROM is included.
 
 One standard controller supports all 14 digital buttons, identify/reset commands
 (`00`/`FF`, identifier `05 00`, accessory absent `02`), and read command `01`.
-Ports 2–4 and the cartridge channel report no response; accessories are unsupported.
+Ports 1–4 now respond as virtual digital pads; the cartridge channel reports no response. Accessories are unsupported.
 The analog bytes are zero. Aligned 64-byte SI DMA transfers between RDRAM and
 PIF RAM complete immediately. SI status bit 12 and MI pending bit 1 indicate
 completion; writing SI status clears both. MI mask clear/set commands and mask
 reads drive CPU IP2; interrupt delivery is implemented as described below. Direct
 PIF RAM accesses are available. Invalid DMA bounds/alignment fail without mutation.
 Busy/error timing, overlapping DMA, PIF boot/other commands, accessory protocols,
-analog input, port routing and physical hardware validation remain unverified.
+analog input, connection detection and physical hardware validation remain unverified.
 
 Register definitions follow the archived
 [Nintendo RCP header](https://ultra64.ca/files/documentation/online-manuals/man/header/rcp.htm);
@@ -79,7 +79,7 @@ This is settled functional behavior, not a measured model of serial timing.
 
 The original [controller ROM](../../tests/roms-src/n64/controller_serial/README.md)
 matched **16,384/16,384 digital cases**, with 131,072 actual guest register values
-covering every combination of 14 buttons, identification, absent-port responses,
+covering every combination of 14 buttons, identification, a neutral second pad,
 DMA completion/mask/pending registers and acknowledgement. A mutated read command
 failed all 16 negative cases; seven damaged result files were rejected. Unit tests
 also cover all 4,032 nonzero-transmit length combinations, bounded malformed
@@ -1603,3 +1603,59 @@ N64 remains **40% = 8/20 fixed delivery milestones**. CI/CD remains disabled.
 plus the scalar arithmetic gate. The production N64 plugin built from this
 branch is byte-identical to the TMEM build, confirming no change to existing
 guest execution or state layout. This kernel is not yet wired to guest draws.
+
+## Four digital ports and production netplay
+
+Plugin **0.27.0**, emulator ABI v2, now exposes `INetplayCapable` for four
+virtual digital PIF ports. The production default network plugin owns two
+participants: host input reaches port 0, client input reaches port 1, and ports
+2/3 remain neutral. The N-player core API routes up to four virtual masks;
+this does not supply a four-peer network transport or local multi-pad frontend.
+Normal local execution still supplies port 0. All four pads are permanently
+present in this profile, with zero stick bytes and no accessories.
+
+The [original guest](../../tests/roms-src/n64/controller_netplay/README.md)
+uses actual SI DMA and reads four replies, completion status and acknowledged
+status. **16,384 rows / 98,304 words** pass a separate bit-assignment oracle;
+all four inputs receive different permutations of the digital domain. The
+executed wrong-capture control fails all 16 rows; six field mutations and seven
+malformed streams reject. **65,536 isolated component cases** cover every
+port and digital mask; sanitizer checks pass. The existing single-input original
+ROM is unchanged; its oracle now expects a neutral second pad. Absent-channel
+component coverage uses channel 4, outside the four controller ports.
+
+The production TCP test passes **100 scheduling quanta** in two independent
+processes. Host, client and baseline match **600 actual guest words** and the
+complete state. Both peers perform rollback with real AI replay callbacks.
+The wrong-capture guest is rejected with exactly 100 mismatched words; six field
+mutations, four malformed result streams, four fragmented invalid network
+packets and ROM mismatch are rejected. Different pre-session histories reload
+fresh; core replacement and external execution disconnect. Reports and raw
+readbacks are in `build/artifacts/netplay-n64/`. Internet, two-machine and
+Windows networking are unverified. Quanta are not measured VI game frames.
+
+State **VN64S023** appends three big-endian eight-byte digital masks to S022,
+for **8,478,744 bytes**. Reserved upper halves reject atomically. Older accepted
+states restore the additional ports to neutral and preserve earlier fields.
+Fast save queries the exact bound, rejects undersized buffers without writes,
+and hashes the complete serialized state. Netplay drains output PCM each
+quantum with or without a callback, keeping muted and streamed states equal;
+normal local polling retains its existing behavior. Actual guest-generated AI
+samples exercise this determinism check.
+
+The current private **Super Mario 64 (USA)** probe still blocks on triangle
+**CF000FFA0FFAF006**, CURRENT **227160**, after **200,000,000 CPU attempts**.
+Video remains uniform; native boot and playability are unverified. The current
+production core SHA-256 is
+`56dd577178d40bae0b7b47125381f55b27d942db73bba49c752fc1eea42818f5`;
+trace SHA-256 is
+`b6fc9dd72f1c2390043903d91c3fbdab75ae449122632a1d3de6bdc5c388a650`.
+Reports: `build/artifacts/retail/n64-controllers.json` and default `n64.json`.
+Commercial ROM bytes remain local.
+
+N64 now has **45% = 9/20 fixed delivery milestones**. This credits production
+netplay for the implemented profile. Analog/accessories/presence detection,
+local multiplayer frontend routing, complete graphics/audio/CPU/devices,
+physical timing and retail playability remain unfinished. CI/CD remains disabled.
+The four new controller/netplay gates pass; the existing 73-gate regression
+run is pending. All 94 original archives reproduce.

@@ -59,7 +59,7 @@ void Machine::reset() {
         s.gpr[29]=sign32(0xa4001ff0);s.gpr[31]=sign32(0xa4001550);
     }
     frames = 0; done = false; yielded = false;
-    pif.fill(0); si_address = input_buttons = 0; si_interrupt = false; mi_mask = 0;mi_mode=0;dp_interrupt=false;
+    pif.fill(0);other_input_buttons.fill(0); si_address = input_buttons = 0; si_interrupt = false; mi_mask = 0;mi_mode=0;dp_interrupt=false;
     pi={};pi_interrupt=false;ri={};ri_current_loaded=false;rdram_devices.reset();sp_interface.reset();rsp.reset();dp_interface.reset();rsp_phase=0;audio_interface.reset();video_interface.reset();audio_samples={};crystal_phase=output_phase=audio_head=audio_count=audio_dropped=0;
     if(!rom.empty() && boot_mode!=BootMode::Homebrew) {
         const auto config=uint32_t(be(rom.data(),4));
@@ -93,7 +93,7 @@ void Machine::process_pif() {
         if (!tx || pos + 2 + tx + rx > 63) { pif[pos + 1] = uint8_t(rx | 0x40); break; }
         const unsigned command = pif[pos + 2], response = pos + 2 + tx;
         pif[pos + 1] = uint8_t(rx);
-        if (channel != 0 || (command != 0 && command != 0xff && command != 1)) {
+        if (channel >= 4 || (command != 0 && command != 0xff && command != 1)) {
             pif[pos + 1] |= 0x80;
         } else if (tx != 1 || rx != (command == 1 ? 4u : 3u)) {
             pif[pos + 1] |= 0x40;
@@ -109,7 +109,7 @@ void Machine::process_pif() {
                 0x0100,0x0020,0x0010,0x0008,0x0004,0x0002,0x0001};
             uint16_t buttons = 0;
             for (unsigned i = 0; i < 14; ++i)
-                if (emu::is_button_pressed(input_buttons, controls[i])) buttons |= masks[i];
+                if (emu::is_button_pressed(channel?other_input_buttons[channel-1]:input_buttons, controls[i])) buttons |= masks[i];
             pif[response] = uint8_t(buttons >> 8); pif[response + 1] = uint8_t(buttons);
             pif[response + 2] = pif[response + 3] = 0; // Analog input not implemented.
         }
@@ -272,7 +272,8 @@ static void append(std::vector<uint8_t>& data, uint64_t value) {
 }
 bool Machine::save(std::vector<uint8_t>& data) const {
     if (rom.empty()) return false;
-    data.assign({'V','N','6','4','S','0','2','2'});
+    data.assign({'V','N','6','4','S','0','2','3'});
+    data.reserve(current_state_size);
     append(data, identity); append(data, crc); append(data, frames); append(data, done);
     const auto& s = cpu.state;
     for (auto value : s.gpr) append(data, value);
@@ -307,6 +308,7 @@ bool Machine::save(std::vector<uint8_t>& data) const {
     append(data,rsp.vectors.divider.snapshot());
     for(auto value:dp_interface.texture.snapshot())append(data,value);
     data.insert(data.end(),dp_interface.tmem.bytes.begin(),dp_interface.tmem.bytes.end());
+    for(auto buttons:other_input_buttons)append(data,buttons);
     return true;
 }
 bool Machine::restore(const std::vector<uint8_t>& data) {
@@ -332,7 +334,9 @@ bool Machine::restore(const std::vector<uint8_t>& data) {
     const bool divider_previous=!std::memcmp(data.data(),"VN64S019",8);
     const bool texture_previous=!std::memcmp(data.data(),"VN64S020",8);
     const bool tmem_previous=!std::memcmp(data.data(),"VN64S021",8);
-    if((!legacy && !previous && !ri_previous && !mi_previous && !devices_previous && !caches_previous && !sp_previous && !audio_previous && !fpu_previous && !tlb_previous && !video_previous && !scalar_previous && !dp_previous && !vector_previous && !accumulator_previous && !combiner_previous && !depth_previous && !divider_previous && !texture_previous && !tmem_previous && std::memcmp(data.data(),"VN64S022",8)) || data.size()!=prefix+ram_size+sp.size()+(legacy?0:previous?120:ri_previous?176:mi_previous?192:devices_previous?480:caches_previous?41440:sp_previous?41512:audio_previous?74440:fpu_previous?74448:tlb_previous?75472:video_previous?75632:scalar_previous?75888:dp_previous?75888+rsp_state_size:vector_previous?75888+rsp_state_size+dp_state_size:accumulator_previous?75888+rsp_state_size+dp_state_size+vector_state_size:combiner_previous?75888+rsp_state_size+dp_state_size+vector_state_size+accumulator_state_size:depth_previous?75888+rsp_state_size+dp_state_size+vector_state_size+accumulator_state_size+combiner_state_size:75888+rsp_state_size+dp_state_size+vector_state_size+accumulator_state_size+combiner_state_size+depth_image_state_size+(divider_previous?0:divider_state_size+(texture_previous?0:texture_state_size+(tmem_previous?0:tmem_state_size)))) ||
+    const bool controllers_previous=!std::memcmp(data.data(),"VN64S022",8);
+    const bool current=!std::memcmp(data.data(),"VN64S023",8);
+    if((!legacy && !previous && !ri_previous && !mi_previous && !devices_previous && !caches_previous && !sp_previous && !audio_previous && !fpu_previous && !tlb_previous && !video_previous && !scalar_previous && !dp_previous && !vector_previous && !accumulator_previous && !combiner_previous && !depth_previous && !divider_previous && !texture_previous && !tmem_previous && !controllers_previous && !current) || data.size()!=prefix+ram_size+sp.size()+(legacy?0:previous?120:ri_previous?176:mi_previous?192:devices_previous?480:caches_previous?41440:sp_previous?41512:audio_previous?74440:fpu_previous?74448:tlb_previous?75472:video_previous?75632:scalar_previous?75888:dp_previous?75888+rsp_state_size:vector_previous?75888+rsp_state_size+dp_state_size:accumulator_previous?75888+rsp_state_size+dp_state_size+vector_state_size:combiner_previous?75888+rsp_state_size+dp_state_size+vector_state_size+accumulator_state_size:depth_previous?75888+rsp_state_size+dp_state_size+vector_state_size+accumulator_state_size+combiner_state_size:75888+rsp_state_size+dp_state_size+vector_state_size+accumulator_state_size+combiner_state_size+depth_image_state_size+(divider_previous?0:divider_state_size+(texture_previous?0:texture_state_size+(tmem_previous?0:tmem_state_size+(current?controller_state_size:0))))) ||
         (legacy && boot_mode!=BootMode::Homebrew)) return false;
     size_t position = 8;
     auto take = [&]() { auto v = be(data.data() + position, 8); position += 8; return v; };
@@ -428,16 +432,18 @@ bool Machine::restore(const std::vector<uint8_t>& data) {
     if(!legacy && !previous && !ri_previous && !mi_previous && !devices_previous && !caches_previous && !sp_previous && !audio_previous && !fpu_previous && !tlb_previous && !video_previous && !scalar_previous && !dp_previous && !vector_previous && !accumulator_previous && !combiner_previous){
         RdpCombiner::State c{};for(auto& value:c)value=take();if(!saved_dp_interface.combiner.restore(c))return false;
     }
-    if(divider_previous || texture_previous || tmem_previous || !std::memcmp(data.data(),"VN64S022",8)){
+    if(divider_previous || texture_previous || tmem_previous || (controllers_previous || current)){
         const uint64_t z=take();if(z>0x3ffffff)return false;saved_dp_interface.depth_image=uint32_t(z);
     }
-    if((texture_previous || tmem_previous || !std::memcmp(data.data(),"VN64S022",8)) && !saved_rsp.vectors.divider.restore(take()))return false;
-    if(tmem_previous || !std::memcmp(data.data(),"VN64S022",8)){RdpTexture::State t{};for(auto& value:t)value=take();if(!saved_dp_interface.texture.restore(t))return false;}
-    if(!std::memcmp(data.data(),"VN64S022",8)){std::copy_n(data.begin()+position,tmem_state_size,saved_dp_interface.tmem.bytes.begin());position+=tmem_state_size;}
+    if((texture_previous || tmem_previous || (controllers_previous || current)) && !saved_rsp.vectors.divider.restore(take()))return false;
+    if(tmem_previous || (controllers_previous || current)){RdpTexture::State t{};for(auto& value:t)value=take();if(!saved_dp_interface.texture.restore(t))return false;}
+    if((controllers_previous || current)){std::copy_n(data.begin()+position,tmem_state_size,saved_dp_interface.tmem.bytes.begin());position+=tmem_state_size;}
+    std::array<uint32_t,3> saved_other_input{};
+    if(current)for(auto& buttons:saved_other_input){const auto value=take();if(value>0xffffffffu)return false;buttons=uint32_t(value);}
     position=memory_position;
     // Validate first; rejected states leave the active machine untouched.
     cpu.state = s;cpu.caches=saved_caches;cpu.tlb=saved_tlb; frames = saved_frames; done = saved_done;
-    si_address = uint32_t(saved_si_address); input_buttons = uint32_t(saved_input); si_interrupt = saved_irq;
+    si_address = uint32_t(saved_si_address); input_buttons = uint32_t(saved_input);other_input_buttons=saved_other_input; si_interrupt = saved_irq;
     mi_mask = uint8_t(saved_mask); yielded = saved_yield;
     pi=saved_pi;pi_interrupt=saved_pi_irq;ri=saved_ri;ri_current_loaded=saved_current_loaded;mi_mode=uint16_t(saved_mode);dp_interrupt=saved_dp;rdram_devices=saved_devices;sp_interface=saved_sp;rsp=saved_rsp;rsp_phase=saved_rsp_phase;dp_interface=saved_dp_interface;audio_interface=saved_audio;video_interface=saved_video;audio_samples=saved_samples;crystal_phase=saved_crystal;output_phase=saved_output;audio_head=saved_head;audio_count=saved_count;audio_dropped=saved_dropped;
     std::copy_n(data.begin() + position, 64, pif.begin()); position += 64;

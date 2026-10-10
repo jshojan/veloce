@@ -1,12 +1,14 @@
 #include "machine.hpp"
 #include <array>
+#include <cstring>
+#include "emu/netplay_plugin.hpp"
 
 namespace n64 {
-class Plugin : public emu::IEmulatorPlugin {
+class Plugin : public emu::IEmulatorPlugin, public emu::INetplayCapable {
 public:
     emu::EmulatorInfo get_info() override {
         static const char* extensions[] = {".z64", ".v64", ".n64", nullptr};
-        return {"N64", "0.26.0", "Veloce", "Experimental integer core with TLB translation, FPU register/memory transfers and controls/branches, conversions and S/D arithmetic/comparisons, primary caches, settled PI/SI/SP, SP scalar execution and vector transfers/multiply/accumulate/comparison/integer-ALU/reciprocal/square-root/move/clipping, shared DP controls and RDP raw fill/color-depth clears, scissoring and sync and combiner/color and tile/texture-image state and functional TMEM block/tile/palette transfers and RI/MI/RDRAM device controls and CIC-6102 IPL3 handoff; retail boot/playability, RSP/RDP graphics, RSP audio microcode, exact timing and analog input pending; functional AI PCM and unfiltered VI framebuffer output.",
+        return {"N64", "0.27.0", "Veloce", "Experimental integer core with TLB translation, FPU register/memory transfers and controls/branches, conversions and S/D arithmetic/comparisons, primary caches, settled PI/SI/SP, SP scalar execution and vector transfers/multiply/accumulate/comparison/integer-ALU/reciprocal/square-root/move/clipping, shared DP controls and RDP raw fill/color-depth clears, scissoring and sync and combiner/color and tile/texture-image state and functional TMEM block/tile/palette transfers and RI/MI/RDRAM device controls and CIC-6102 IPL3 handoff; retail boot/playability, RSP/RDP graphics, RSP audio microcode, exact timing and analog input pending; functional AI PCM and unfiltered VI framebuffer output.",
                 extensions, 60.0, 93750000, 320, 240};
     }
     const emu::ControllerLayoutInfo* get_controller_layout() override {
@@ -36,12 +38,33 @@ public:
     uint32_t get_rom_crc32() const override { return machine.crc; }
     void reset() override { machine.reset(); }
     void run_frame(const emu::InputState& input) override {
-        if (!is_rom_loaded()) return;
-        machine.input_buttons = input.buttons; machine.yielded = false;
-        // Bounded frontend scheduling quantum, NOT VI/pipeline timing.
-        for (unsigned i = 0; i < 100000 && !machine.done && !machine.yielded; ++i) machine.cpu.step();
-        ++machine.frames;
-        if(m_audio_callback) {const auto a=get_audio();if(a.sample_count)m_audio_callback(a.samples,size_t(a.sample_count),a.sample_rate);clear_audio_buffer();}
+        machine.input_buttons=input.buttons;machine.other_input_buttons.fill(0);step_quantum();
+    }
+    int get_max_players() const override {return 4;}
+    void run_frame_netplay(uint32_t host,uint32_t client) override {
+        machine.input_buttons=host;machine.other_input_buttons={client,0,0};step_quantum(true);
+    }
+    void run_frame_netplay_n(const std::vector<uint32_t>& inputs) override {
+        machine.input_buttons=inputs.empty()?0:inputs[0];
+        for(unsigned port=1;port<4;++port)machine.other_input_buttons[port-1]=port<inputs.size()?inputs[port]:0;
+        step_quantum(true);
+    }
+    size_t get_max_state_size() const override {return is_loaded()?Machine::current_state_size:0;}
+    size_t save_state_fast(uint8_t* buffer,size_t capacity) override {
+        if(!is_loaded())return 0;
+        if(!buffer)return Machine::current_state_size;
+        if(capacity<Machine::current_state_size || !machine.save(state_scratch) || state_scratch.size()!=Machine::current_state_size)return 0;
+        std::memcpy(buffer,state_scratch.data(),state_scratch.size());return state_scratch.size();
+    }
+    bool load_state_fast(const uint8_t* buffer,size_t size) override {
+        if(!is_loaded() || !buffer || size<8 || size>Machine::current_state_size)return false;
+        return machine.restore(std::vector<uint8_t>(buffer,buffer+size));
+    }
+    uint64_t get_state_hash() const override {
+        if(!machine.save(state_scratch))return 0;
+        uint64_t hash=0xcbf29ce484222325ULL;
+        for(auto byte:state_scratch)hash=(hash^byte)*0x100000001b3ULL;
+        return hash;
     }
     uint64_t get_cycle_count() const override { return machine.cpu.state.instructions; }
     uint64_t get_frame_count() const override { return machine.frames; }
@@ -59,7 +82,18 @@ public:
     bool set_test_sink(emu::ITestSink* sink) override { machine.sink = sink; return true; }
     const char* test_channels() const override { return "v64debug"; }
 private:
+    bool is_loaded() const {return !machine.rom.empty();}
+    void step_quantum(bool canonical_audio=false){
+        if(!is_loaded())return;
+        machine.yielded=false;
+        // Bounded frontend scheduling quantum, not VI/pipeline timing.
+        for(unsigned i=0;i<100000 && !machine.done && !machine.yielded;++i)machine.cpu.step();
+        ++machine.frames;
+        if(m_audio_callback){const auto a=get_audio();if(a.sample_count)m_audio_callback(a.samples,size_t(a.sample_count),a.sample_rate);clear_audio_buffer();}
+        else if(canonical_audio)clear_audio_buffer();
+    }
     Machine machine;
+    mutable std::vector<uint8_t> state_scratch;
     std::vector<float> audio;
     std::vector<uint32_t> pixels;
 };

@@ -58,6 +58,28 @@ def grade_wiiu_registers(path):
     expected=[f"REG address={4096+n*4} value={value}" for n,value in enumerate(wiiu_expected())]
     require(lines[2:]==expected,"Wii U guest register oracle mismatch")
 
+def n64_expected():
+    # Independent SI wire assignment; both two-player masks exercise 32 bits.
+    virtual=(0,1,20,6,8,9,10,11,4,5,21,22,23,24)
+    native=(15,14,13,12,11,10,9,8,5,4,3,2,1,0)
+    values=[]
+    for frame in range(100):
+        row=[]
+        for multiplier,offset in ((2246822519,0x13579bdf),(2654435761,0x2468ace1)):
+            mask=(frame*multiplier+offset)&0xffffffff
+            wire=sum(1<<b for a,b in zip(virtual,native) if mask&(1<<a))
+            row.append(wire<<16)
+        values.extend(row+[0,0,4096,0])
+    return values
+
+def grade_n64_registers(path):
+    content=path.read_text();lines=content.splitlines()
+    require(content.endswith("\n") and len(lines)==602 and re.fullmatch(r"#VELOCE NETWORK 1 core=N64 frames=100 role=(baseline|host|client)",lines[0]) and
+            re.fullmatch(r"INFO rollbacks=\d+ replay_audio_chunks=\d+",lines[1]),"invalid N64 register stream")
+    expected=[f"REG address={8192+n*4} value={value}" for n,value in enumerate(n64_expected())]
+    require(lines[2:]==expected,"N64 guest register oracle mismatch")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("peer", type=Path)
@@ -117,6 +139,34 @@ def main():
                 try:grade_registers(path)
                 except RuntimeError:pass
                 else:raise RuntimeError("invalid original register stream escaped")
+        if args.console=="n64":
+            grade_n64_registers(args.artifacts / "baseline.result")
+            spec=importlib.util.spec_from_file_location("n64_probe_builder",args.rom.parent / "build.py")
+            builder=importlib.util.module_from_spec(spec);spec.loader.exec_module(builder)
+            require(builder.build()==args.rom.read_bytes(),"N64 probe archive differs")
+            mutant=Path(temporary)/"wrong-capture.z64";mutant.write_bytes(builder.build(wrong_capture=True))
+            control=subprocess.run(command("baseline",args.artifacts / "wrong-capture",port_file,rom_path=mutant),env=env,capture_output=True,text=True,timeout=30)
+            require(control.returncode==0,control.stdout+control.stderr)
+            (args.artifacts / "wrong-capture.log").write_text(control.stdout+control.stderr)
+            try:grade_n64_registers(args.artifacts / "wrong-capture.result")
+            except RuntimeError as error:
+                require(str(error)=="N64 guest register oracle mismatch","control failed for unrelated reason")
+                actual=(args.artifacts / "wrong-capture.result").read_text().splitlines()[2:]
+                expected=[f"REG address={8192+n*4} value={v}" for n,v in enumerate(n64_expected())]
+                require(len(actual)==600 and sum(a!=b for a,b in zip(actual,expected))==100,"wrong-capture domain changed")
+            else:raise RuntimeError("executed N64 control escaped")
+            original=(args.artifacts / "baseline.result").read_text();records=original.splitlines()
+            for field in range(6):
+                altered=records.copy();line=altered[field+2];value=int(line.split(" value=")[1]);altered[field+2]=line.split(" value=")[0]+f" value={value^1}"
+                path=args.artifacts / f"field-{field}.result";path.write_text("\n".join(altered)+"\n")
+                try:grade_n64_registers(path)
+                except RuntimeError:pass
+                else:raise RuntimeError("N64 field mutation escaped")
+            for name,content in (("truncated",original.rsplit("\n",2)[0]+"\n"),("wrong-header",original.replace("frames=100","frames=99")),("trailing",original+"extra\n"),("unterminated",original.rstrip("\n"))):
+                path=args.artifacts / f"stream-{name}.result";path.write_text(content)
+                try:grade_n64_registers(path)
+                except RuntimeError:pass
+                else:raise RuntimeError("invalid N64 register stream escaped")
         for name, packet, expected in (
                 ("zero-length", struct.pack("!I", 0), "invalid message length"),
                 ("oversized", struct.pack("!I", 65), "invalid message length"),
@@ -214,6 +264,8 @@ def main():
                 require(records==expected,"DS guest register oracle mismatch: "+name)
         if args.console in ("3ds","wiiu"):
             for name in ("baseline","network-host","network-client"):grade_registers(args.artifacts / (name+".result"))
+        if args.console=="n64":
+            for name in ("baseline","network-host","network-client"):grade_n64_registers(args.artifacts / (name+".result"))
         report = {"status": "pass", "console": args.console, "frames": 100,
                   "independent_processes": 2, "transport": "IPv4 TCP loopback",
                   "full_states_equal": True, "rom_mismatch_rejected": True,
@@ -229,6 +281,7 @@ def main():
                           guest_registers_match_independent_oracle=True,wireless_link_emulation=False,
                           executed_wrong_input_rejected=True,wrong_input_mismatched_words=6,field_mutations_rejected=12,invalid_register_streams_rejected=4,
                           frontend_contract="fresh core after different prior histories; poll while paused; host owns keypad; viewer predicts/replays; disconnect on core replacement")
+        if args.console=="n64":report.update(controller_mode="two independently owned digital pads; ports 2/3 neutral",guest_register_words=600,guest_registers_match_independent_oracle=True,executed_wrong_capture_rejected=True,wrong_capture_mismatched_words=100,field_mutations_rejected=6,invalid_register_streams_rejected=4,native_analog_emulation=False)
         if args.console=="wiiu":report.update(state_storage="canonical nonzero RAM pages; history slots grow to actual serialized size",native_gamepad_emulation=False)
         (args.artifacts / "network.json").write_text(json.dumps(report, indent=2) + "\n")
         print(f"Network rollback: two independent TCP peers match complete {args.console} baseline; ROM mismatch rejected")
