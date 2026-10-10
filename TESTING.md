@@ -684,3 +684,33 @@ remains disabled; run the local gates:
 ctest --test-dir build -R '^(ppc_machine_test|(gc|wii)_multiply_registers)$' --output-on-failure
 python3 tests/roms-src/build.py --original-only --check
 ```
+
+## PowerPC integer memory coverage
+
+`gc_memory_registers` and `wii_memory_registers` each match 12,586,368 ten-word
+observations through their production plugins. The
+[declared domain](tests/roms-src/gc/memory_registers/README.md) covers fourteen
+load/store displacement forms at every aligned signed 16-bit displacement on
+eight patterns/three aliases, plus eighteen indexed forms on eight offsets.
+Update and algebraic halfword loads and byte-reversed transfers are included.
+CR/XER seeds are selected per group, not crossed with every input. The host
+uses independent byte arrays and endian/sign arithmetic to grade every bit of
+result, base, index, CR/XER, target word, surrounding guards, instruction and
+source. Executed result/sign/update mutants fail exactly 1,968/120/768 reduced
+rows; ten field mutations and seven strict invalid streams are rejected.
+
+The component gate matches 27,560,000 snapshots across both profiles:
+26,356,500 valid transfers plus 1,203,500 invalid-form/access diagnostics.
+Complete GPR arrays, PC/count, special registers and sixteen neighboring bytes
+are checked with a separate byte oracle. Register fields/aliases, ordinary
+RB=0, special RA=0, reserved Rc and update restrictions are covered. A known
+mixed-transfer guest and exact replay before STWUX's RAM/base update pass.
+The full component gate passes undefined-behavior sanitization. Raw files
+(~1.02 GiB/profile) and JSON reports stay in `build/artifacts/owned/gc_memory/`
+and `wii_memory/`. Physical cache/MMU, exceptions and timing remain pending.
+CI/CD stays disabled; use local gates:
+
+```sh
+ctest --test-dir build -R '^(ppc_machine_test|(gc|wii)_memory_registers)$' --output-on-failure
+python3 tests/roms-src/build.py --original-only --check
+```
