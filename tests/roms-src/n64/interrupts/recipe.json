@@ -1,0 +1,4 @@
+{
+  "source_type": "original", "console": "n64", "suite": "interrupts",
+  "build": {"script": "build.py", "artifact": "interrupts.z64"}, "license": "MIT"
+}

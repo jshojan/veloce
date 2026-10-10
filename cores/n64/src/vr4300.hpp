@@ -5,6 +5,8 @@
 namespace n64 {
 struct Memory {
     virtual ~Memory() = default;
+    // Live external IP2..IP6 levels, expressed in Cause IP bit positions.
+    virtual uint8_t interrupt_pending() const { return 0; }
     virtual bool read(uint64_t address, unsigned bytes, uint64_t& value) = 0;
     virtual bool write(uint64_t address, unsigned bytes, uint64_t value) = 0;
     // Aligned word/doubleword transaction; bit i enables ascending memory byte i.

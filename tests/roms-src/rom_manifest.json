@@ -66,6 +66,17 @@
       "source_type": "original",
       "suite": "integer_registers"
     },
+    "n64/interrupts/interrupts.z64": {
+      "build_command": "python3 tests/roms-src/n64/interrupts/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "3cffe59ddf73305fb5d87375832a99a5ed0471dca701da62b65dc45190309ad7",
+      "source_repo": "tests/roms-src/n64/interrupts/build.py",
+      "source_sha": "b56f3f00391c759191e807d221c51425fa2107e6433c4a966ed123da9037cedf",
+      "source_type": "original",
+      "suite": "interrupts"
+    },
     "n64/merge_memory/merge_memory.z64": {
       "build_command": "python3 tests/roms-src/n64/merge_memory/build.py",
       "console": "n64",

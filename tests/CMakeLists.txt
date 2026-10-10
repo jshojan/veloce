@@ -44,6 +44,11 @@ add_test(NAME n64_controller_serial COMMAND ${Python3_EXECUTABLE}
     --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_controller)
 set_tests_properties(n64_controller_serial PROPERTIES LABELS "accuracy;owned" TIMEOUT 180)
 
+add_test(NAME n64_interrupts COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/interrupts/run.py --emulator $<TARGET_FILE:veloce>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_interrupts)
+set_tests_properties(n64_interrupts PROPERTIES LABELS "accuracy;owned" TIMEOUT 250)
+
 add_executable(snes_math_pipeline_test cpp/snes_math_pipeline_test.cpp
     ${CMAKE_SOURCE_DIR}/cores/snes/src/bus.cpp ${CMAKE_SOURCE_DIR}/cores/snes/src/cpu.cpp
     ${CMAKE_SOURCE_DIR}/cores/snes/src/ppu.cpp ${CMAKE_SOURCE_DIR}/cores/snes/src/apu.cpp

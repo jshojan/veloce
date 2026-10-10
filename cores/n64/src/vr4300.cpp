@@ -45,7 +45,16 @@ void VR4300::step() {
     const bool delay = s.delay_slot;
     ++s.instructions;
     // Count is an instruction-clock approximation; pipeline/bus timing is pending.
-    if (!(s.instructions & 1)) s.cp0[9] = uint32_t(s.cp0[9] + 1);
+    if (!(s.instructions & 1)) {
+        s.cp0[9] = uint32_t(s.cp0[9] + 1);
+        if (s.cp0[9] == s.cp0[11]) s.cp0[13] |= 0x8000;
+    }
+    // Device levels are sampled at instruction boundaries. IP7 is the latched timer;
+    // IP0/IP1 are software requests. Pipeline interrupt latency is not modeled.
+    s.cp0[13] = (s.cp0[13] & ~0x7c00ull) | (uint64_t(memory.interrupt_pending() & 0x7c) << 8);
+    if ((s.cp0[12] & 7) == 1 && (s.cp0[12] & s.cp0[13] & 0xff00)) {
+        exception(0, pc, delay); return;
+    }
     uint64_t fetched = 0;
     if ((pc & 3) || !memory.read(pc, 4, fetched)) { exception(4, pc, delay, pc); return; }
     const uint32_t ins = uint32_t(fetched);
@@ -226,10 +235,16 @@ void VR4300::step() {
         case 15: put(rt, sign32(uint32_t(ins & 0xffff) << 16)); break;
         case 16:
             if (rs == 0) put(rt, sign32(uint32_t(s.cp0[rd])));
-            else if (rs == 4) s.cp0[rd] = uint32_t(b);
+            else if (rs == 4) {
+                if (rd == 13) s.cp0[13] = (s.cp0[13] & ~0x300ull) | (b & 0x300);
+                else if (rd == 11) { s.cp0[11] = uint32_t(b); s.cp0[13] &= ~0x8000ull; }
+                else s.cp0[rd] = (rd == 14 || rd == 30) ? sign32(uint32_t(b)) : uint32_t(b);
+            }
             else if (ins == 0x42000018) {
-                // ERET has no delay slot. Error-level reset handling is pending.
-                s.cp0[12] &= ~2ull; s.pc = s.cp0[14]; s.next_pc = s.pc + 4; s.delay_slot = false;
+                // ERET has no delay slot; error level takes priority over EXL.
+                if (s.cp0[12] & 4) { s.cp0[12] &= ~4ull; s.pc = s.cp0[30]; }
+                else { s.cp0[12] &= ~2ull; s.pc = s.cp0[14]; }
+                s.next_pc = s.pc + 4; s.delay_slot = false;
             } else fault(10);
             break;
         case 24: add(rt, a, imm, true, false, true); break;

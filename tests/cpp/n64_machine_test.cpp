@@ -233,6 +233,110 @@ static void multiply_divide(n64::Machine& m) {
     m.cpu.step(); m.save(repeated);
     require(repeated == baseline, "wide product state continuation diverged");
 }
+struct InterruptBus : n64::Memory {
+    n64::Machine& machine;
+    uint8_t levels = 0;
+    unsigned reads = 0;
+    explicit InterruptBus(n64::Machine& m) : machine(m) {}
+    uint8_t interrupt_pending() const override { return levels; }
+    bool read(uint64_t a, unsigned n, uint64_t& v) override { ++reads; return machine.read(a,n,v); }
+    bool write(uint64_t a, unsigned n, uint64_t v) override { return machine.write(a,n,v); }
+    bool write_masked(uint64_t a, unsigned n, uint64_t v, uint8_t mask) override { return machine.write_masked(a,n,v,mask); }
+};
+static void interrupts(n64::Machine& m) {
+    m.reset();
+    require(m.write(start,4,i(9,0,3,123)) && m.write(start+4,4,i(9,0,3,123)), "interrupt probe store failed");
+    InterruptBus bus(m); n64::VR4300 cpu(bus);
+    // All eight request bits, all masks, all IE/EXL/ERL states, both BD/vector choices.
+    // External pins are injected into the CPU component here; only SI exists on the board.
+    for (unsigned pending=0; pending<256; ++pending) for (unsigned mask=0; mask<256; ++mask)
+        for (unsigned control=0; control<8; ++control) for (bool delay : {false,true}) for (bool bev : {false,true}) {
+            cpu.reset(start); auto& c=cpu.state;
+            if (delay) { c.pc=start+4; c.next_pc=start+0x40; c.delay_slot=true; }
+            c.cp0[12]=(mask<<8)|control|(bev ? 1u<<22 : 0);
+            c.cp0[13]=(pending<<8)|0x7c; c.cp0[14]=0x12345678;
+            bus.levels=uint8_t(pending); bus.reads=0;
+            cpu.step();
+            const bool take=control==1 && (mask & pending);
+            if (take) {
+                require(c.pc==(bev ? 0xffffffffbfc00380ull : 0xffffffff80000180ull) && c.cp0[14]==start,
+                        "interrupt vector/EPC wrong");
+                require((c.cp0[13]&0x8000007c)==(delay ? 0x80000000ull : 0) && (c.cp0[12]&2), "interrupt cause/status wrong");
+                require(c.gpr[3]==0 && bus.reads==0 && !c.delay_slot, "interrupt fetched/executed interrupted instruction");
+            } else {
+                require(c.gpr[3]==123 && c.cp0[14]==0x12345678 && bus.reads==1 && (c.cp0[13]&0x7c)==0x7c,
+                        "masked interrupt entered exception");
+            }
+            require((c.cp0[13]&0xff00)==(pending<<8), "pending requests corrupted");
+        }
+    // Only Cause.IP0/IP1 may be changed by MTC0; exception context, hardware and timer remain.
+    require(m.write(start,4,0x40816800), "Cause write code failed");
+    for (uint32_t value : {0u,0x100u,0x200u,0x300u,0xffffffffu}) {
+        cpu.reset(start); bus.levels=0x7c;
+        cpu.state.cp0[13]=0xb000fc30; cpu.state.gpr[1]=value; cpu.step();
+        require(cpu.state.cp0[13]==(0xb000fc30ull|(value&0x300)), "Cause read-only fields writable");
+    }
+    // Timer latches only on Count equality, survives further ticks, and Compare writes clear it.
+    require(m.write(start,4,0) && m.write(start+4,4,0), "timer code store failed");
+    bus.levels=0;
+    for (uint32_t count : {0u,1u,0xfffffffeu,0xffffffffu})
+        for (uint32_t compare : {0u,1u,2u,0xffffffffu}) for (unsigned phase : {0u,1u}) {
+            cpu.reset(start); auto& c=cpu.state; c.cp0[9]=count; c.cp0[11]=compare; c.instructions=phase;
+            cpu.step(); const uint32_t next=count+(phase ? 1u : 0u);
+            require(c.cp0[9]==next && bool(c.cp0[13]&0x8000)==bool(phase && next==compare), "timer boundary/equality wrong");
+        }
+    cpu.reset(start); cpu.state.cp0[9]=0xfffffffe; cpu.state.cp0[11]=0xffffffff;
+    cpu.step(); cpu.step(); require(cpu.state.cp0[13]&0x8000, "timer not latched");
+    cpu.state.pc=start; cpu.state.next_pc=start+4; cpu.step(); require(cpu.state.cp0[13]&0x8000, "timer latch lost after match");
+    require(m.write(start,4,0x40815800), "Compare write code failed");
+    cpu.state.pc=start; cpu.state.next_pc=start+4; cpu.state.gpr[1]=123;
+    cpu.step(); require(cpu.state.cp0[11]==123 && !(cpu.state.cp0[13]&0x8000), "Compare did not acknowledge timer");
+    // ERL selects ErrorEPC and clears ERL while retaining EXL; EXL selects EPC.
+    require(m.write(start,4,0x42000018), "ERET code store failed");
+    for (unsigned control : {0u,2u,4u,6u}) {
+        cpu.reset(start); auto& c=cpu.state; c.cp0[12]=control; c.cp0[14]=start+0x40; c.cp0[30]=start+0x80;
+        cpu.step(); require(c.pc==start+((control&4) ? 0x80 : 0x40) && c.cp0[12]==((control&4) ? control&~4u : control&~2u),
+                            "ERET error/exception level wrong");
+    }
+    for (unsigned rd : {14u,30u}) for (uint32_t value : {0u,0x7fffffffu,0x80000000u,0xffffffffu}) {
+        require(m.write(start,4,0x40810000|(rd<<11)), "EPC write code failed");
+        cpu.reset(start); cpu.state.gpr[1]=value; cpu.step();
+        require(cpu.state.cp0[rd]==sign32(value), "MTC0 EPC/ErrorEPC extension wrong");
+    }
+    // Timer deadline and pending latch survive full state restoration.
+    m.reset(); require(m.write(start,4,0), "timer state code failed"); m.cpu.reset(start);
+    m.cpu.state.cp0[9]=0xfffffffe; m.cpu.state.cp0[11]=0xffffffff; m.cpu.state.cp0[12]=0x8001;
+    m.cpu.state.instructions=1;
+    std::vector<uint8_t> deadline, timer_after, timer_replay;
+    require(m.save(deadline), "timer deadline save failed");
+    for (unsigned n=0;n<3;++n) m.cpu.step(); m.save(timer_after);
+    require((m.cpu.state.cp0[13]&0x8000) && m.cpu.state.cp0[14]==start, "timer interrupt not delivered");
+    require(m.restore(deadline), "timer deadline restore failed");
+    for (unsigned n=0;n<3;++n) m.cpu.step(); m.save(timer_replay);
+    require(timer_after==timer_replay, "timer deadline continuation diverged");
+    // MI changes and SI acknowledgements drive a live level, even during EXL.
+    m.reset(); require(m.write(start,4,0), "SI interrupt code failed"); m.cpu.reset(start);
+    constexpr uint64_t si=0xffffffffa4800000ull, mi=0xffffffffa4300000ull;
+    require(m.write(si,4,0x10000) && m.write(si+4,4,0), "SI pending setup failed");
+    m.cpu.step(); require(!(m.cpu.state.cp0[13]&0x400) && m.si_interrupt, "MI-masked SI reached IP2");
+    require(m.write(mi+12,4,8), "MI enable failed"); m.cpu.state.cp0[12]=0x401;
+    m.cpu.step(); require(m.cpu.state.pc==0xffffffff80000180ull && (m.cpu.state.cp0[13]&0x400), "SI did not reach CPU");
+    std::vector<uint8_t> pending, after, replay;
+    require(m.save(pending), "pending interrupt save failed");
+    require(m.write(si+24,4,0) && m.write(m.cpu.state.pc,4,0), "SI handler setup failed");
+    m.cpu.step(); require(!(m.cpu.state.cp0[13]&0x400), "SI acknowledge did not clear live IP2"); m.save(after);
+    require(m.restore(pending), "pending interrupt restore failed");
+    require(m.write(si+24,4,0) && m.write(m.cpu.state.pc,4,0), "SI replay setup failed"); m.cpu.step(); m.save(replay);
+    require(after==replay, "pending SI interrupt replay diverged");
+    // A persistent level re-enters after ERET; acknowledgement permits normal execution.
+    m.reset(); require(m.write(start,4,i(9,0,3,123)) && m.write(0xffffffff80000180ull,4,0x42000018), "interrupt return code failed");
+    m.cpu.reset(start); require(m.write(si,4,0x10000) && m.write(si+4,4,0) && m.write(mi+12,4,8), "persistent SI setup failed");
+    m.cpu.state.cp0[12]=0x401;
+    m.cpu.step(); m.cpu.step(); require(m.cpu.state.pc==start && m.cpu.state.cp0[12]==0x401, "interrupt ERET did not return");
+    m.cpu.step(); require(m.cpu.state.pc==0xffffffff80000180ull && m.cpu.state.gpr[3]==0, "persistent SI did not re-enter");
+    require(m.write(si+24,4,0), "persistent SI acknowledge failed");
+    m.cpu.step(); m.cpu.step(); require(m.cpu.state.gpr[3]==123 && !(m.cpu.state.cp0[13]&0x400), "acknowledged SI did not resume guest");
+}
 static void serial(n64::Machine& m) {
     constexpr uint64_t si = 0xffffffffa4800000ull, mi = 0xffffffffa4300000ull;
     constexpr uint64_t pif = 0xffffffffbfc007c0ull;
@@ -367,7 +471,7 @@ int main(int argc, char** argv) {
         std::vector<uint8_t> rom((std::istreambuf_iterator<char>(file)), {});
         n64::Machine machine;
         require(machine.load(rom.data(), rom.size()), "original N64 ROM load failed");
-        control(machine); exceptions(machine); memory(machine); merge_memory(machine); masked_store_transaction(machine); multiply_divide(machine); serial(machine); states(machine, rom, argv[1]);
+        control(machine); exceptions(machine); memory(machine); merge_memory(machine); masked_store_transaction(machine); multiply_divide(machine); interrupts(machine); serial(machine); states(machine, rom, argv[1]);
         serial_plugin(argv[1],argv[3]);
         std::cout << "N64 control/exception/memory/state/plugin checks passed\n";
         return 0;

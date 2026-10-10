@@ -13,7 +13,7 @@ are not measurements of overall hardware or product completion.
 | GB/CGB | `gb_plugin` | DMG WRAM/ADD probe: 2/2 checks; byte ALU E-register corpus: 8,388,608/8,388,608 A/F pairs matched (100% of eight operations, every operand pair, and all 16 incoming flag states); unary accumulator instructions: 73,728/73,728 A/F pairs matched (18 instructions × all bytes × all flags) | Not measured; other CPU operands/instructions, timing/PPU/APU/MBC/CGB corpus remains |
 | SNES | `snes_plugin` | Settled multiplication: 65,536/65,536 operand pairs verified (100%); division: 3,328 selected boundary cases verified; math timing: 504,832/504,832 register bytes matched at CPU phases 2–18 (100% of declared patterns/phases) | Not measured; timed full operand domain, refresh/DMA interactions, and remaining hardware corpora pending |
 | GBA | `gba_plugin` | ARM MOVS register shifts: 65,536/65,536 result/CPSR pairs verified; all low-byte amounts and C/V inputs on 16 operands | Not measured; remaining CPU modes/instructions, timing and peripheral corpora pending |
-| Nintendo 64 | `n64_plugin` (experimental homebrew only) | 28,127/28,127 defined integer results matched; 28,160 observations, with 33 undefined divide inputs unscored; doubleword multiply/divide: 262,623/262,623 defined LO/HI pairs matched on exhaustive byte pairs and full-width boundaries; merge memory: 3,158,016/3,158,016 observations matched at every lane on all repeated-byte pairs and selected full-width patterns; digital SI/PIF: 16,384/16,384 button combinations and 131,072 register values matched | Not measured; retail boot, graphics/audio, analog/controllers beyond port 1 and most platform hardware remain |
+| Nintendo 64 | `n64_plugin` (experimental homebrew only) | 28,127/28,127 defined integer results matched; 28,160 observations, with 33 undefined divide inputs unscored; doubleword multiply/divide: 262,623/262,623 defined LO/HI pairs matched on exhaustive byte pairs and full-width boundaries; merge memory: 3,158,016/3,158,016 observations matched at every lane on all repeated-byte pairs and selected full-width patterns; digital SI/PIF: 16,384/16,384 button combinations and 131,072 register values matched; interrupt gates: 65,536/65,536 cases and 524,288 register values matched | Not measured; retail boot, graphics/audio, analog/controllers beyond port 1 and most platform hardware remain |
 
 The experimental N64 plugin now executes original MIPS integer homebrew ROMs.
 It accepts only the documented `V64HB001` entry profile and cannot run retail
@@ -23,7 +23,7 @@ oracle. The 33 undefined divide inputs are recorded but unscored. All low-byte
 shift amounts are covered on 16 patterns per width; full operand domains and
 full core completion are not measured. Pipeline/timing, TLB/caches/full CP0,
 FPU, RSP/RDP, PIF/IPL/CIC boot, graphics/audio, analog and multiplayer controllers,
-save media, CPU interrupts, timed/peripheral DMA and N64 netplay remain. See [N64 implementation](../cores/n64/README.md)
+save media, remaining interrupt producers and timing, timed/peripheral DMA and N64 netplay remain. See [N64 implementation](../cores/n64/README.md)
 and its [original corpus](../tests/roms-src/n64/integer_registers/README.md).
 
 The original [N64 doubleword multiply/divide corpus](../tests/roms-src/n64/muldiv64/README.md)
@@ -44,8 +44,16 @@ The original [N64 SI/PIF controller corpus](../tests/roms-src/n64/controller_ser
 matched every combination of 14 digital buttons: **16,384/16,384 cases**, with
 131,072 observed guest values. It also checks controller identification,
 absent ports, settled SI DMA, MI mask/pending and interrupt acknowledgement.
-This does not measure asynchronous DMA, CPU interrupt delivery, analog sticks,
+This does not measure asynchronous DMA, interrupt pipeline timing, analog sticks,
 accessories, multiplayer routing or physical controllers. These remain pending.
+
+The original [N64 interrupt corpus](../tests/roms-src/n64/interrupts/README.md)
+matched **65,536/65,536 gates**, with 524,288 observed values for software,
+SI and settled timer pending states, MI masking, all CPU interrupt masks and
+all IE/EXL/ERL combinations. Component evidence separately covers 2,097,152
+logical gates including injected external requests, BD and BEV. This establishes
+logical delivery and exception state, not pipeline latency, CP0 hazards,
+physical Count timing or missing interrupt producers.
 
 Run `python3 tests/roms-src/build.py --original-only --check` to reproduce the
 original ROM images and verify their source and image SHA256 ledger. Run

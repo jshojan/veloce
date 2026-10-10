@@ -317,7 +317,7 @@ console. Start here:
 | SNES | Original settled math: 68,864 cases and 504,832 selected timing observations verified; external visual catalog unscored | [scorecard](COMPLETENESS.md#snes) / [notes](cores/snes/README.md#testing) |
 | Game Boy | Blargg serial subset, original probe, 8,388,608 ALU pairs and 73,728 unary pairs verified; Mooneye unscored | [scorecard](COMPLETENESS.md#game-boy) / [notes](cores/gb/README.md#testing) |
 | GBA | partial (CPU/memory/BIOS/saves verified) | [scorecard](COMPLETENESS.md#gba) / [notes](cores/gba/README.md#test-status) |
-| N64 | Experimental integer homebrew: 28,127 integer, 262,623 doubleword multiply/divide and 3,158,016 merge-memory results and all 16,384 digital controller combinations verified; full platform completion unknown | [implementation and limits](cores/n64/README.md) |
+| N64 | Experimental integer homebrew: 28,127 integer, 262,623 doubleword multiply/divide and 3,158,016 merge-memory results and all 16,384 digital controller combinations and 65,536 interrupt gates verified; full platform completion unknown | [implementation and limits](cores/n64/README.md) |
 
 Run external ROM suites with `python tests/run_all.py`; see [TESTING.md](TESTING.md)
 for per-console and CI usage. The percentages above describe that measured
@@ -334,7 +334,8 @@ subset, not whole-core completion.
 | [GB unary instructions](tests/roms-src/gb/unary_exhaustive/README.md) | 73,728/73,728 A/F pairs matched (100% of 18 accumulator instructions, all bytes and all incoming flags) | `build/artifacts/owned/gb_unary/` |
 | [SNES math registers](tests/roms-src/snes/math_registers/README.md) | 65,536/65,536 multiplication pairs and 3,328 division boundary cases matched; settled results only | `build/artifacts/owned/snes_math/` |
 | [SNES math timing](tests/roms-src/snes/math_timing/README.md) | 504,832/504,832 register bytes matched across CPU phases 2–18 (100% of selected multiplicands/dividends, all 256 second operands, four result registers) | `build/artifacts/owned/snes_math_timing/` |
-| [N64 digital controller](tests/roms-src/n64/controller_serial/README.md) | 16,384/16,384 combinations matched; 131,072 guest values for digital input, identity, absent port and settled SI/MI registers; analog, timing and CPU interrupts pending | `build/artifacts/owned/n64_controller/` |
+| [N64 interrupt gates](tests/roms-src/n64/interrupts/README.md) | 65,536/65,536 cases matched; 524,288 guest values for software/SI/timer, MI/CPU masks and IE/EXL/ERL; pipeline and physical timer timing pending | `build/artifacts/owned/n64_interrupts/` |
+| [N64 digital controller](tests/roms-src/n64/controller_serial/README.md) | 16,384/16,384 combinations matched; 131,072 guest values for digital input, identity, absent port and settled SI/MI registers; analog and physical timing pending | `build/artifacts/owned/n64_controller/` |
 | [N64 merge memory](tests/roms-src/n64/merge_memory/README.md) | 3,158,016/3,158,016 observations matched; eight instructions, every byte lane, all repeated-byte pairs and full-width boundaries; full multi-byte domains/timing unverified | `build/artifacts/owned/n64_merge_memory/` |
 | [N64 doubleword multiply/divide](tests/roms-src/n64/muldiv64/README.md) | 262,623/262,623 defined LO/HI pairs matched; every signed/unsigned byte pair and 16×16 full-width boundaries; 545 undefined inputs observed but unscored | `build/artifacts/owned/n64_muldiv64/` |
 | [N64 integer registers](tests/roms-src/n64/integer_registers/README.md) | 28,127/28,127 defined results matched across 20 instructions and selected patterns; 33 undefined division inputs observed but unscored; full core incomplete | `build/artifacts/owned/n64_integer/` |
@@ -355,7 +356,8 @@ registers, with an independent host oracle and file-channel boundary controls.
 The experimental N64 ROM outputs observed GPR/HI/LO values through an emulator
 debug register. Its marked homebrew loader bypasses retail boot; it provides
 integer execution and settled digital SI/PIF controller evidence. N64 graphics,
-audio, analog sticks, serial timing and CPU interrupt delivery remain pending.
+audio, analog sticks, serial/pipeline timing and other interrupt producers remain
+pending.
 Original suites retain raw
 register output and reports; CI builds the actual core plugins, runs these tests,
 and uploads the files. Source generators and ROM images are stored in this repo.

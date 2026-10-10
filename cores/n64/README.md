@@ -18,9 +18,9 @@ on selected operands, not a percentage of N64 hardware implemented.
 - Aligned byte/halfword/word/doubleword loads/stores, sign/zero extension.
 - Big-endian LWL/LWR/LDL/LDR merge loads and SWL/SWR/SDL/SDR merge stores.
   Masked stores preserve untouched bytes without a bus read-modify-write read.
-- Basic MFC0/MTC0, ERET from EXL, integer overflow, SYSCALL/BREAK, reserved
+- Basic MFC0/MTC0, ERET from EXL/ERL, integer overflow, SYSCALL/BREAK, reserved
   instruction, alignment/address exception EPC/BD context. CP0 is partial;
-  register masks, privilege modes, interrupt delivery and precise bus/TLB
+  most register masks, privilege modes and precise bus/TLB
   exception classes still need implementation.
 - 8 MiB RDRAM, KSEG0/KSEG1 aliases, read-only cartridge mapping, and 8 KiB SP
   memory. SP memory is storage only; no RSP execution or DMA exists yet.
@@ -38,7 +38,7 @@ Ports 2–4 and the cartridge channel report no response; accessories are unsupp
 The analog bytes are zero. Aligned 64-byte SI DMA transfers between RDRAM and
 PIF RAM complete immediately. SI status bit 12 and MI pending bit 1 indicate
 completion; writing SI status clears both. MI mask clear/set commands and mask
-reads are implemented, **but CPU interrupt delivery is still absent**. Direct
+reads drive CPU IP2; interrupt delivery is implemented as described below. Direct
 PIF RAM accesses are available. Invalid DMA bounds/alignment fail without mutation.
 Busy/error timing, overlapping DMA, PIF boot/other commands, accessory protocols,
 analog input, port routing and physical hardware validation remain unverified.
@@ -61,6 +61,33 @@ Keyboard defaults: A=Z, B=X, Z=C, Start=Enter, D-pad=arrows, L=Q, R=W,
 C-Up=I, C-Down=K, C-Left=J, C-Right=L. The input configuration panel exposes
 these controls; custom keyboard/gamepad/axis bindings use the existing persistence
 and hotplug system. Physical pads and rendered UI behavior remain unverified.
+
+## Interrupt subset
+
+CPU interrupt gates now honor all eight Status mask bits, IE, EXL and ERL.
+Software Cause.IP0/IP1 are writable; SI drives live IP2 after MI masking.
+The approximate Count clock latches IP7 when an increment equals Compare;
+writing Compare acknowledges that latch. Cause writes preserve hardware/timer
+requests and exception context. Interrupt entry suppresses the current
+instruction, records EPC/BD, sets EXL and uses the BEV-selected general vector.
+ERET selects ErrorEPC and clears ERL when error level is active; otherwise it
+selects EPC and clears EXL. MTC0 writes to EPC/ErrorEPC sign-extend their word.
+Pending device levels can re-enter after ERET until acknowledged.
+
+The original [interrupt ROM](../../tests/roms-src/n64/interrupts/README.md)
+matched **65,536/65,536 cases** (524,288 guest values) across software/SI/timer
+requests, MI masks, all 256 CPU masks and all IE/EXL/ERL states. Separate component
+tests cover all eight logical requests, both BD contexts and both BEV vectors:
+**2,097,152 gates**. IP3–IP6 are injected only for those CPU tests; their hardware
+producers remain absent. Compare/wrap/latch, protected Cause fields, ERET priority,
+SI re-entry and pending SI/timer save-state continuation also have unit evidence.
+
+Count still advances once per two CPU step attempts, including interrupt entry.
+This is an instruction-clock approximation. Exact PClock/pipeline timing,
+CP0 hazards, Count-write equality timing, privilege checks, other interrupt
+producers and reset/NMI/cache-error paths are unverified. The existing `VN64S002`
+state layout already stores Count, Compare, Cause, Status and pending SI/MI state;
+no state format change is required. Device levels are resampled on the next step.
 
 ## Explicit homebrew entry profile
 
@@ -135,14 +162,15 @@ HI/LO, both PCs, pending delay state, instruction/frame counters, completion,
 RAM and SP storage, PIF RAM, SI address/completion, MI mask, latched digital
 input and debug yield state. The previous `VN64S001` version is rejected. ROM data is immutable and referenced by identity. Size,
 version, ROM identity and basic field validation precede restoration. The
-instruction counter is an execution measure, **not actual VR4300 cycles**;
+instruction counter counts CPU step attempts including interrupt entry,
+**not actual VR4300 cycles**;
 each frontend frame is a bounded 100,000-instruction scheduling quantum,
 not an emulated VI field. The nominal metadata rate is NTSC/93.75 MHz only.
 
 ## Remaining hardware and modern features
 
 PIF/IPL/CIC and retail boot, TLB/address modes, caches and pipeline timing,
-full CP0/interrupts, LL/SC, traps,
+full CP0, remaining interrupt producers and timing, LL/SC, traps,
 FPU, RSP/vector instructions, RDP, VI, AI, PI/RI and their DMA, full SI/MI/PIF,
 analog and multiplayer controllers,
 save media, video/audio output, expansion devices and physical hardware

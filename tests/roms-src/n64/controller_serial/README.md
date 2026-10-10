@@ -35,9 +35,13 @@ frames use the last value. Existing button indices remain unchanged; N64 Z and
 C-Up/Down/Left/Right append indices 20–24.
 
 This is exhaustive only for digital combinations on one standard controller.
-Settled transfers complete immediately; DMA busy/overlap/error timing, CPU
-interrupt delivery, analog sticks, accessories, four-port input routing,
+Settled transfers complete immediately; DMA busy/overlap/error timing, interrupt
+pipeline latency, analog sticks, accessories, four-port input routing,
 PIF boot, retail games, graphics/audio and physical hardware remain pending.
 Packet grammar and error behavior have bounded component tests, not an exhaustive
 original-ROM domain. The source generator and archived image hashes are tracked
 in `tests/roms-src/rom_manifest.json`. Sources are MIT licensed.
+
+CPU interrupt delivery is separately implemented and measured by the
+[interrupt corpus](../interrupts/README.md); this controller corpus samples
+settled transfers with CPU interrupts disabled.
