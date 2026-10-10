@@ -120,6 +120,20 @@ int main() {
                 "ambiguous model silently bound to a different physical pad");
         require(input.get_button_state() == 0, "ambiguous saved binding leaked input");
         input.shutdown();
+        // N64's appended controls must remain configurable and survive a platform switch.
+        input.initialize();
+        input.set_current_platform("N64");
+        require(emu::InputManager::get_platform_buttons("N64").size()==14, "N64 controls missing");
+        require(input.get_binding(emu::VirtualButton::Z)->code==SDL_SCANCODE_C &&
+                input.get_binding(emu::VirtualButton::CUp)->code==SDL_SCANCODE_I &&
+                !input.get_binding(emu::VirtualButton::Select), "N64 keyboard defaults wrong");
+        input.set_binding(emu::VirtualButton::CRight,
+            {emu::InputSourceType::GamepadButton, input.get_controller_instance_id(0), SDL_CONTROLLER_BUTTON_Y, 0, false});
+        require(input.save_platform_config("N64"), "N64 binding save failed");
+        input.set_current_platform("NES"); input.set_current_platform("N64");
+        require(input.get_binding(emu::VirtualButton::CRight)->code==SDL_CONTROLLER_BUTTON_Y &&
+                emu::InputManager::get_button_name(emu::VirtualButton::CRight)=="CRight", "N64 binding lost");
+        input.shutdown();
         SDL_JoystickClose(joystick);
         std::cout << "Input hotplug: identical pads, custom bindings, reconnect, persistence, "
                      "capture, axis endpoints and ambiguity verified\n";

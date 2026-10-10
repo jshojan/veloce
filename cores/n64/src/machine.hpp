@@ -22,7 +22,12 @@ public:
     uint32_t crc = 0;
     uint64_t identity = 0, frames = 0;
     uint64_t entry = 0;
-    bool done = false;
+    bool done = false, yielded = false;
+    std::array<uint8_t, 64> pif{};
+    uint32_t si_address = 0, input_buttons = 0;
+    bool si_interrupt = false;
+    uint8_t mi_mask = 0;
+    void process_pif();
 private:
     static bool physical(uint64_t address, uint32_t& result);
 };

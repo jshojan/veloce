@@ -6,18 +6,40 @@ class Plugin : public emu::IEmulatorPlugin {
 public:
     emu::EmulatorInfo get_info() override {
         static const char* extensions[] = {".z64", ".v64", ".n64", nullptr};
-        return {"N64", "0.1.0", "Veloce", "Experimental VR4300 integer homebrew core; no retail boot, graphics, audio or controller hardware.",
+        return {"N64", "0.1.0", "Veloce", "Experimental VR4300 integer homebrew core; digital SI/PIF controller; no retail boot, graphics, audio or analog input.",
                 extensions, 60.0, 93750000, 320, 240};
+    }
+    const emu::ControllerLayoutInfo* get_controller_layout() override {
+        using emu::VirtualButton;
+        static const emu::ButtonLayout buttons[] = {
+            {VirtualButton::Up,"Up",.18f,.32f,.09f,.12f,true},
+            {VirtualButton::Down,"Down",.18f,.57f,.09f,.12f,true},
+            {VirtualButton::Left,"Left",.08f,.45f,.09f,.12f,true},
+            {VirtualButton::Right,"Right",.28f,.45f,.09f,.12f,true},
+            {VirtualButton::A,"A",.65f,.68f,.1f,.12f,false},
+            {VirtualButton::B,"B",.56f,.48f,.1f,.12f,false},
+            {VirtualButton::Z,"Z",.45f,.74f,.1f,.12f,false},
+            {VirtualButton::Start,"Start",.45f,.40f,.1f,.12f,false},
+            {VirtualButton::L,"L",.10f,.06f,.15f,.12f,false},
+            {VirtualButton::R,"R",.75f,.06f,.15f,.12f,false},
+            {VirtualButton::CUp,"C Up",.82f,.25f,.1f,.12f,false},
+            {VirtualButton::CDown,"C Down",.82f,.53f,.1f,.12f,false},
+            {VirtualButton::CLeft,"C Left",.71f,.39f,.1f,.12f,false},
+            {VirtualButton::CRight,"C Right",.93f,.39f,.1f,.12f,false}};
+        static const emu::ControllerLayoutInfo layout = {"N64","N64 digital controls (stick pending)",
+            emu::ControllerShape::Modern,2.0f,buttons,14,1};
+        return &layout;
     }
     bool load_rom(const uint8_t* data, size_t size) override { return machine.load(data, size); }
     void unload_rom() override { machine.rom.clear(); machine.crc = 0; machine.identity = 0; machine.entry = 0; machine.reset(); }
     bool is_rom_loaded() const override { return !machine.rom.empty(); }
     uint32_t get_rom_crc32() const override { return machine.crc; }
     void reset() override { machine.reset(); }
-    void run_frame(const emu::InputState&) override {
+    void run_frame(const emu::InputState& input) override {
         if (!is_rom_loaded()) return;
+        machine.input_buttons = input.buttons; machine.yielded = false;
         // Bounded frontend scheduling quantum, NOT VI/pipeline timing.
-        for (unsigned i = 0; i < 100000 && !machine.done; ++i) machine.cpu.step();
+        for (unsigned i = 0; i < 100000 && !machine.done && !machine.yielded; ++i) machine.cpu.step();
         ++machine.frames;
     }
     uint64_t get_cycle_count() const override { return machine.cpu.state.instructions; }

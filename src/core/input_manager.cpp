@@ -413,6 +413,15 @@ void InputManager::load_default_bindings_for_platform(const std::string& platfor
         m_bindings[VirtualButton::Y] = {InputSourceType::Keyboard, -1, SDL_SCANCODE_S, 0, false};
         m_bindings[VirtualButton::L] = {InputSourceType::Keyboard, -1, SDL_SCANCODE_Q, 0, false};
         m_bindings[VirtualButton::R] = {InputSourceType::Keyboard, -1, SDL_SCANCODE_W, 0, false};
+    } else if (platform == "N64") {
+        m_bindings.erase(VirtualButton::Select);
+        const std::pair<VirtualButton, SDL_Scancode> keys[] = {
+            {VirtualButton::A, SDL_SCANCODE_Z}, {VirtualButton::B, SDL_SCANCODE_X},
+            {VirtualButton::Z, SDL_SCANCODE_C}, {VirtualButton::L, SDL_SCANCODE_Q},
+            {VirtualButton::R, SDL_SCANCODE_W}, {VirtualButton::CUp, SDL_SCANCODE_I},
+            {VirtualButton::CDown, SDL_SCANCODE_K}, {VirtualButton::CLeft, SDL_SCANCODE_J},
+            {VirtualButton::CRight, SDL_SCANCODE_L}};
+        for (auto key : keys) m_bindings[key.first] = {InputSourceType::Keyboard, -1, key.second, 0, false};
     } else {
         // Default: NES-style
         m_bindings[VirtualButton::A] = {InputSourceType::Keyboard, -1, SDL_SCANCODE_Z, 0, false};
@@ -570,6 +579,11 @@ std::string InputManager::get_button_name(VirtualButton button) {
         case VirtualButton::Reset: return "Reset";
         case VirtualButton::Rewind: return "Rewind";
         case VirtualButton::FastForward: return "FastForward";
+        case VirtualButton::Z: return "Z";
+        case VirtualButton::CUp: return "CUp";
+        case VirtualButton::CDown: return "CDown";
+        case VirtualButton::CLeft: return "CLeft";
+        case VirtualButton::CRight: return "CRight";
         default: return "Unknown";
     }
 }
@@ -635,6 +649,10 @@ std::vector<VirtualButton> InputManager::get_platform_buttons(const std::string&
         buttons.push_back(VirtualButton::R);
         buttons.push_back(VirtualButton::Start);
         buttons.push_back(VirtualButton::Select);
+    } else if (platform == "N64") {
+        for (auto b : {VirtualButton::A, VirtualButton::B, VirtualButton::Z, VirtualButton::Start,
+                       VirtualButton::L, VirtualButton::R, VirtualButton::CUp, VirtualButton::CDown,
+                       VirtualButton::CLeft, VirtualButton::CRight}) buttons.push_back(b);
     } else {
         // Default: NES-style
         buttons.push_back(VirtualButton::A);

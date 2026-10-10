@@ -44,6 +44,17 @@
       "source_type": "original",
       "suite": "arm_shifts"
     },
+    "n64/controller_serial/controller_serial.z64": {
+      "build_command": "python3 tests/roms-src/n64/controller_serial/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "bbb7579926b77fced979dbb98b40d8d6d991db77c595529250f79b6027baf8bc",
+      "source_repo": "tests/roms-src/n64/controller_serial/build.py",
+      "source_sha": "d41ccb4284bac23ac8c15bfec39e91f1a493a31550e3648d26e92dba3f8a8d86",
+      "source_type": "original",
+      "suite": "controller_serial"
+    },
     "n64/integer_registers/integer_registers.z64": {
       "build_command": "python3 tests/roms-src/n64/integer_registers/build.py",
       "console": "n64",

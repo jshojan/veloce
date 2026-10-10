@@ -1,3 +1,5 @@
+#include <charconv>
+#include <stdexcept>
 #include "application.hpp"
 #include "window_manager.hpp"
 #include "renderer.hpp"
@@ -304,23 +306,45 @@ void Application::run() {
             return;
         }
 
-        // Parse INPUT environment variable for button injection
+        // Parse INPUT or the bounded INPUT_FILE for button injection
         // Format: "frame:buttons,frame:buttons,..." where buttons is a hex mask
         // Example: "200:40,201:0,400:40,401:0" (press Start at frame 200 and 400)
         // Button bits: A=1, B=2, X=4, Y=8, L=16, R=32, Start=64, Select=128, Up=256, Down=512, Left=1024, Right=2048
         std::unordered_map<int, uint32_t> input_schedule;
         const char* input_env = std::getenv("INPUT");
-        if (input_env) {
-            std::string input_str(input_env);
+        std::string input_text = input_env ? input_env : "";
+        if (const char* input_file = std::getenv("INPUT_FILE")) {
+            if (input_env) throw std::runtime_error("Use either INPUT or INPUT_FILE");
+            std::ifstream stream(input_file, std::ios::binary);
+            if (!stream || std::filesystem::file_size(input_file) > 8 * 1024 * 1024) {
+                throw std::runtime_error("Cannot read input schedule (maximum 8 MiB)");
+            }
+            input_text.resize(8 * 1024 * 1024 + 1);
+            stream.read(input_text.data(), static_cast<std::streamsize>(input_text.size()));
+            input_text.resize(static_cast<size_t>(stream.gcount()));
+            if (stream.bad() || input_text.size() > 8 * 1024 * 1024)
+                throw std::runtime_error("Cannot read input schedule (maximum 8 MiB)");
+        }
+        if (!input_text.empty()) {
+            std::string input_str(input_text);
             size_t pos = 0;
             while (pos < input_str.length()) {
                 size_t colon = input_str.find(':', pos);
-                if (colon == std::string::npos) break;
+                if (colon == std::string::npos) throw std::runtime_error("Invalid input schedule: missing colon");
                 size_t comma = input_str.find(',', colon);
                 if (comma == std::string::npos) comma = input_str.length();
 
-                int frame = std::stoi(input_str.substr(pos, colon - pos));
-                uint32_t buttons = std::stoul(input_str.substr(colon + 1, comma - colon - 1), nullptr, 16);
+                int frame = 0;
+                uint32_t buttons = 0;
+                const auto* begin = input_str.data();
+                const auto parsed_frame = std::from_chars(begin + pos, begin + colon, frame);
+                size_t mask_start = colon + 1;
+                if (comma - mask_start >= 2 && input_str[mask_start] == '0' &&
+                    (input_str[mask_start + 1] == 'x' || input_str[mask_start + 1] == 'X')) mask_start += 2;
+                const auto parsed_buttons = std::from_chars(begin + mask_start, begin + comma, buttons, 16);
+                if (parsed_frame.ec != std::errc{} || parsed_frame.ptr != begin + colon || frame < 0 ||
+                    parsed_buttons.ec != std::errc{} || parsed_buttons.ptr != begin + comma)
+                    throw std::runtime_error("Invalid input schedule: expected nonnegative frame:32-bit hex mask");
                 input_schedule[frame] = buttons;
 
                 pos = comma + 1;

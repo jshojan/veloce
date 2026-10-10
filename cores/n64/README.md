@@ -30,6 +30,38 @@ Implementation is original C++ and grounded in the
 instruction descriptions and exception EPC/BD behavior. No SDK, Nintendo IPL,
 PIF ROM, copyrighted boot logo, or commercial ROM is included.
 
+## Digital controller subset
+
+One standard controller supports all 14 digital buttons, identify/reset commands
+(`00`/`FF`, identifier `05 00`, accessory absent `02`), and read command `01`.
+Ports 2–4 and the cartridge channel report no response; accessories are unsupported.
+The analog bytes are zero. Aligned 64-byte SI DMA transfers between RDRAM and
+PIF RAM complete immediately. SI status bit 12 and MI pending bit 1 indicate
+completion; writing SI status clears both. MI mask clear/set commands and mask
+reads are implemented, **but CPU interrupt delivery is still absent**. Direct
+PIF RAM accesses are available. Invalid DMA bounds/alignment fail without mutation.
+Busy/error timing, overlapping DMA, PIF boot/other commands, accessory protocols,
+analog input, port routing and physical hardware validation remain unverified.
+
+Register definitions follow the archived
+[Nintendo RCP header](https://ultra64.ca/files/documentation/online-manuals/man/header/rcp.htm);
+controller identification follows [libdragon Joybus definitions](https://github.com/DragonMinded/libdragon/blob/trunk/include/joybus.h).
+This is settled functional behavior, not a measured model of serial timing.
+
+The original [controller ROM](../../tests/roms-src/n64/controller_serial/README.md)
+matched **16,384/16,384 digital cases**, with 131,072 actual guest register values
+covering every combination of 14 buttons, identification, absent-port responses,
+DMA completion/mask/pending registers and acknowledgement. A mutated read command
+failed all 16 negative cases; seven damaged result files were rejected. Unit tests
+also cover all 4,032 nonzero-transmit length combinations, bounded malformed
+packets, identify/reset, channel skips, MI masks, DMA failure atomicity and
+pending-transfer state restoration.
+
+Keyboard defaults: A=Z, B=X, Z=C, Start=Enter, D-pad=arrows, L=Q, R=W,
+C-Up=I, C-Down=K, C-Left=J, C-Right=L. The input configuration panel exposes
+these controls; custom keyboard/gamepad/axis bindings use the existing persistence
+and hotplug system. Physical pads and rendered UI behavior remain unverified.
+
 ## Explicit homebrew entry profile
 
 Only images marked `V64HB001` at normalized header offset `$34` load. They also
@@ -46,9 +78,11 @@ already loaded machine. Maximum image size is bounded by the RAM payload size.
 are normalized before execution. Test file CRC32 identifies the entire raw
 input file. State identity additionally binds the normalized full image.
 
-Two emulator-only observation registers live at uncached `$BFF00000`: `SB`
+Emulator-only observation registers live at uncached `$BFF00000`: `SB`
 forwards one character to `ITestSink`; `SW` to `$BFF00004` ends with an unknown
-verdict. These addresses are debug instrumentation, not Nintendo hardware.
+verdict. `SW` to `$BFF0000C` yields the current frontend quantum so the
+controller corpus can synchronize one observation with each host input event.
+These addresses are debug instrumentation, not Nintendo hardware.
 The frontend owns register files. Ordinary 16-bit RAM-watch API accesses map
 the first 64 KiB of RAM; a wider inspection API remains needed.
 
@@ -96,9 +130,10 @@ cmake --build build --target veloce n64_plugin n64_machine_test -j
 ctest --test-dir build -R '^n64_' --output-on-failure
 ```
 
-`VN64S001` states store explicit big-endian scalars, all GPR/CP0 registers,
+`VN64S002` states store explicit big-endian scalars, all GPR/CP0 registers,
 HI/LO, both PCs, pending delay state, instruction/frame counters, completion,
-RAM and SP storage. ROM data is immutable and referenced by identity. Size,
+RAM and SP storage, PIF RAM, SI address/completion, MI mask, latched digital
+input and debug yield state. The previous `VN64S001` version is rejected. ROM data is immutable and referenced by identity. Size,
 version, ROM identity and basic field validation precede restoration. The
 instruction counter is an execution measure, **not actual VR4300 cycles**;
 each frontend frame is a bounded 100,000-instruction scheduling quantum,
@@ -108,13 +143,14 @@ not an emulated VI field. The nominal metadata rate is NTSC/93.75 MHz only.
 
 PIF/IPL/CIC and retail boot, TLB/address modes, caches and pipeline timing,
 full CP0/interrupts, LL/SC, traps,
-FPU, RSP/vector instructions, RDP, VI, AI, PI/SI/MI/RI and DMA, controllers,
+FPU, RSP/vector instructions, RDP, VI, AI, PI/RI and their DMA, full SI/MI/PIF,
+analog and multiplayer controllers,
 save media, video/audio output, expansion devices and physical hardware
 validation remain. Unimplemented opcodes raise a reserved-instruction exception.
 Unsupported memory access currently uses an address exception approximation.
 Merge memory supports big-endian unmapped RAM/SP storage; TLB, reverse-endian
 modes, MMIO partial writes and precise transaction timing remain pending.
 There is no N64 netplay capability yet. Video is a blank buffer, audio is empty,
-and input is not routed to SI/PIF. Windows/macOS builds and rendered GUI usage
+and digital input is routed to the first SI/PIF controller. Windows/macOS builds and rendered GUI usage
 remain unverified. The external four-platform suite matrix does not yet include
 N64; its original ROM and component gates run in the owned-hardware CI job.

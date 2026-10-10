@@ -9,7 +9,13 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    app.run();
+    try {
+        app.run();
+    } catch (const std::exception& error) {
+        std::cerr << error.what() << '\n';
+        app.shutdown();
+        return 1;
+    }
     app.shutdown();
 
     return 0;

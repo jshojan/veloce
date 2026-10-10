@@ -1,5 +1,6 @@
 #include "machine.hpp"
 #include "nes_plugin_fixture.hpp"
+#include "emu/input_types.hpp"
 #include <fstream>
 #include <iostream>
 #include <iterator>
@@ -232,6 +233,65 @@ static void multiply_divide(n64::Machine& m) {
     m.cpu.step(); m.save(repeated);
     require(repeated == baseline, "wide product state continuation diverged");
 }
+static void serial(n64::Machine& m) {
+    constexpr uint64_t si = 0xffffffffa4800000ull, mi = 0xffffffffa4300000ull;
+    constexpr uint64_t pif = 0xffffffffbfc007c0ull;
+    m.reset();
+    auto read = [&](uint64_t a, unsigned n = 4) { uint64_t v = 0; require(m.read(a,n,v), "serial read failed"); return v; };
+    auto write = [&](uint64_t a, uint64_t v, unsigned n = 4) { require(m.write(a,n,v), "serial write failed"); };
+    require(read(si+24)==0 && read(mi+8)==0 && read(mi+12)==0, "serial reset registers wrong");
+    for (unsigned bit = 0; bit < 6; ++bit) {
+        write(mi+12, 2u << (bit*2)); require(read(mi+12)==(1u << bit), "MI set mask wrong");
+        write(mi+12, 1u << (bit*2)); require(read(mi+12)==0, "MI clear mask wrong");
+    }
+    // Identify and reset commands, absent channels, padding/skips, and invalid lengths.
+    for (unsigned command : {0u,255u}) {
+        m.pif.fill(0xaa); m.pif[0]=1; m.pif[1]=3; m.pif[2]=uint8_t(command); m.pif[6]=0xfe;
+        write(pif+63,1,1);
+        require(read(pif,8)==0x010300050002feaaull + (uint64_t(command) << 40), "controller identity wrong");
+        require(read(pif+63,1)==0, "PIF control not cleared");
+    }
+    m.pif.fill(0xaa); m.pif[0]=0xff; m.pif[1]=0; m.pif[2]=1; m.pif[3]=4; m.pif[4]=1; m.pif[9]=0xfe;
+    write(pif+63,1,1); require(m.pif[3]==0x84 && m.pif[5]==0xaa, "absent channel overwritten/responded");
+    for (unsigned tx = 1; tx <= 63; ++tx) for (unsigned rx = 0; rx <= 63; ++rx) {
+        m.pif.fill(0xaa); m.pif[0]=uint8_t(tx); m.pif[1]=uint8_t(rx); m.pif[2]=1;
+        if (2+tx+rx < 63) m.pif[2+tx+rx]=0xfe;
+        const auto original = m.pif;
+        write(pif+63,1,1);
+        if (tx != 1 || rx != 4) {
+            require(m.pif[1]==(rx|0x40), "malformed controller length not rejected");
+            for (unsigned k=2; k<63; ++k) require(m.pif[k]==original[k], "malformed packet changed payload");
+        }
+        require(m.pif[63]==0, "malformed packet overflowed control");
+    }
+    // DMA snapshots are bounded and failures leave memory/PIF/interrupt state unchanged.
+    m.reset(); write(si,0x10000); m.ram[0x10000]=1; m.ram[0x10001]=4; m.ram[0x10002]=1;
+    m.ram[0x10007]=0xfe; m.ram[0x1003f]=1;
+    m.input_buttons = 1; write(si+16,0);
+    require(read(si+24)==0x1000 && read(mi+8)==2 && m.pif[3]==0x80, "DMA did not sample input/complete");
+    write(mi+12,8); m.yielded=true;
+    std::vector<uint8_t> saved, after, replay;
+    require(m.save(saved), "serial save failed");
+    write(si+24,0); write(si+4,0); require(m.ram[0x10003]==0x80, "PIF read DMA wrong");
+    m.save(after); require(m.restore(saved), "serial restore failed");
+    require(m.si_interrupt && m.mi_mask==2 && m.yielded && m.input_buttons==1, "serial restored scalar wrong");
+    write(si+24,0); write(si+4,0); m.save(replay); require(after==replay, "serial state continuation diverged");
+    write(si+24,0);
+    for (uint32_t address : {0x10001u,0x7fffc8u,0x800000u,0xffffffu}) {
+        write(si,address); const auto before=m.pif; const auto guard=m.ram[0x10003];
+        require(!m.write(si+16,4,0) && !m.write(si+4,4,0), "invalid serial DMA accepted");
+        require(m.pif==before && m.ram[0x10003]==guard && !m.si_interrupt, "failed DMA mutated state");
+    }
+    uint64_t dummy=0;
+    require(!m.write(si+16,2,0) && !m.read(si+24,8,dummy), "invalid MMIO width accepted");
+    // Version and added scalar validation must reject without changing the active machine.
+    m.save(saved);
+    for (unsigned offset : {7u,600u,608u,623u,631u,639u}) {
+        auto bad=saved; bad[offset]=0xff;
+        require(!m.restore(bad), "invalid serial state accepted"); m.save(replay);
+        require(saved==replay, "rejected serial state mutated machine");
+    }
+}
 static void states(n64::Machine& m, const std::vector<uint8_t>& rom, const char* library) {
     program(m, {i(4, 0, 0, 3), i(9, 0, 3, 7)});
     m.cpu.step();
@@ -277,14 +337,38 @@ static void states(n64::Machine& m, const std::vector<uint8_t>& rom, const char*
     core.plugin->unload_rom();
     require(!core.plugin->is_rom_loaded() && !core.plugin->save_state(repeated), "unload failed");
 }
+static void serial_plugin(const char* library, const char* path) {
+    std::ifstream file(path, std::ios::binary);
+    std::vector<uint8_t> rom((std::istreambuf_iterator<char>(file)), {});
+    emulator_test::LoadedCore core(library, rom);
+    const auto* layout = core.plugin->get_controller_layout();
+    require(layout && layout->button_count==14 && layout->controller_count==1, "N64 plugin controls wrong");
+    using emu::VirtualButton;
+    core.plugin->run_frame({emu::button_to_mask(VirtualButton::A)});
+    std::vector<uint8_t> saved, baseline, replay;
+    require(core.plugin->save_state(saved), "controller plugin save failed");
+    n64::Machine mirror;
+    require(mirror.load(rom.data(),rom.size()) && mirror.restore(saved), "controller plugin snapshot invalid");
+    require(mirror.ram[0x20003]==0x80 && mirror.ram[0x20004]==0 && mirror.yielded && mirror.frames==1,
+            "controller plugin input/yield did not reach guest");
+    for (uint32_t input : {emu::button_to_mask(VirtualButton::Z),emu::button_to_mask(VirtualButton::CUp),0u})
+        core.plugin->run_frame({input});
+    core.plugin->save_state(baseline);
+    require(core.plugin->load_state(saved), "controller plugin restore failed");
+    for (uint32_t input : {emu::button_to_mask(VirtualButton::Z),emu::button_to_mask(VirtualButton::CUp),0u})
+        core.plugin->run_frame({input});
+    core.plugin->save_state(replay);
+    require(baseline==replay, "controller plugin input continuation diverged");
+}
 int main(int argc, char** argv) {
     try {
-        require(argc == 3, "usage: n64_machine_test plugin ROM");
+        require(argc == 4, "usage: n64_machine_test plugin integer-ROM controller-ROM");
         std::ifstream file(argv[2], std::ios::binary);
         std::vector<uint8_t> rom((std::istreambuf_iterator<char>(file)), {});
         n64::Machine machine;
         require(machine.load(rom.data(), rom.size()), "original N64 ROM load failed");
-        control(machine); exceptions(machine); memory(machine); merge_memory(machine); masked_store_transaction(machine); multiply_divide(machine); states(machine, rom, argv[1]);
+        control(machine); exceptions(machine); memory(machine); merge_memory(machine); masked_store_transaction(machine); multiply_divide(machine); serial(machine); states(machine, rom, argv[1]);
+        serial_plugin(argv[1],argv[3]);
         std::cout << "N64 control/exception/memory/state/plugin checks passed\n";
         return 0;
     } catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }

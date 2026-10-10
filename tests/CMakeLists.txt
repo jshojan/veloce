@@ -23,7 +23,8 @@ target_link_libraries(n64_machine_test PRIVATE ${SDL2_LIBRARIES})
 target_compile_definitions(n64_machine_test PRIVATE SDL_MAIN_HANDLED)
 add_dependencies(n64_machine_test n64_plugin)
 add_test(NAME n64_machine_test COMMAND n64_machine_test $<TARGET_FILE:n64_plugin>
-    ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/integer_registers/integer_registers.z64)
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/integer_registers/integer_registers.z64
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/controller_serial/controller_serial.z64)
 set_tests_properties(n64_machine_test PROPERTIES LABELS "unit;fast" TIMEOUT 30)
 add_test(NAME n64_integer_registers COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/integer_registers/run.py --emulator $<TARGET_FILE:veloce>
@@ -37,6 +38,11 @@ add_test(NAME n64_merge_memory COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/merge_memory/run.py --emulator $<TARGET_FILE:veloce>
     --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_merge_memory)
 set_tests_properties(n64_merge_memory PROPERTIES LABELS "accuracy;owned" TIMEOUT 800)
+
+add_test(NAME n64_controller_serial COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/controller_serial/run.py --emulator $<TARGET_FILE:veloce>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_controller)
+set_tests_properties(n64_controller_serial PROPERTIES LABELS "accuracy;owned" TIMEOUT 180)
 
 add_executable(snes_math_pipeline_test cpp/snes_math_pipeline_test.cpp
     ${CMAKE_SOURCE_DIR}/cores/snes/src/bus.cpp ${CMAKE_SOURCE_DIR}/cores/snes/src/cpu.cpp
