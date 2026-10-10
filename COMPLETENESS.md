@@ -1,6 +1,6 @@
 # Veloce Accuracy Scorecard
 
-Current N64 evidence: [VI framebuffer and current Mario blocker](#video-interface-and-first-framebuffer). Earlier increment reports are historical.
+Current N64 evidence: [FPU data transfers and current Mario blocker](#fpu-register-and-memory-data-transfers). Earlier increment reports are historical.
 
 This is the project's honest, evidence-based statement of how complete and
 cycle-accurate each emulator core is. Legacy headline percentages are produced by the
@@ -49,7 +49,7 @@ headlines or original-ROM domain pass fractions.
 | [SNES](#snes) | 67 external tests / 19 suites, plus 2 original ROMs | 68,864 settled math cases and 504,832 timing bytes verified | Original multiplication domain is exhaustive; division covers boundaries; timing covers declared patterns/phases; external catalog remains unscored |
 | [Game Boy](#game-boy) | 225 external tests / 31 suites, plus 3 original ROMs | Verified subset only | Blargg serial subset, 2 WRAM checks, 8,388,608 ALU pairs and 73,728 unary pairs verified; Mooneye remains unverified |
 | [GBA](#gba) | 132 external tests / 29 suites, plus 1 original ROM | Partial; 65,536 original ARM shift cases verified | Legacy CPU/memory/BIOS/saves subsets verified; timing/PPU and remaining original hardware corpus pending |
-| N64 | 19 original ROMs; no external catalog | Declared integer/merge/controller/interrupt/PI/RI/MI/device/cache/SP/AI/FPU-control/TLB/VI domains verified | Experimental homebrew/native handoff; retail boot pending; full hardware completion unknown; [limits](cores/n64/README.md) |
+| N64 | 20 original ROMs; no external catalog | Declared integer/merge/controller/interrupt/PI/RI/MI/device/cache/SP/AI/FPU-control/data/TLB/VI domains verified | Experimental homebrew/native handoff; retail boot pending; full hardware completion unknown; [limits](cores/n64/README.md) |
 | Virtual Boy | 7 original ROMs; no external catalog | 6,512,640 result/PSW pairs plus 4,210,688 multiply/divide and 4,685,824 TRAP/illegal and 4,982,784 address-trap snapshots plus 17,055,744 CAXI/port and 14,680,064 arithmetic bit-string and 100,712,448 immediate-instruction snapshots | Experimental marked homebrew; remaining CPU/NVC, VIP/VSU, controllers and timing pending; [limits](cores/vb/README.md) |
 | Nintendo DS | 8 original ROMs; no external catalog | 44,238,336 integer plus 38,338,560 multiply plus 51,426,816 Thumb result/CPSR/source/PC observations matched; 49,694,208 nine-word memory and 9,437,184 eight-word long-call observations matched; 3,720,960 stack/block observations matched; 4,096/4,096 digital keypad combinations matched; 100-frame TCP host/viewer states and eight guest words match baseline/oracle; DS wireless multiplayer pending; ARM7 unpredictable multiply flags excluded | Experimental marked ARM/Thumb integer homebrew; firmware, ARM block transfers, graphics/audio, peripherals pending; DSi has a separate partial plugin; [limits](cores/nds/README.md) |
 | Nintendo DSi | 2 original ROMs; no external catalog | 387,072/387,072 RAM captures; 67,109,008 component bus observations; 100-frame TCP host/viewer states and eight guest register words match oracle | Experimental dual-CPU expanded-memory profile; firmware/retail boot, full SCFG/MBK, graphics/audio/peripherals and physical timing pending; [limits](cores/dsi/README.md) |
@@ -570,3 +570,46 @@ Rules follow the [VI register reference](https://n64brew.dev/wiki/Video_Interfac
 and [hardware timing reference](https://github.com/meauxdal/N64-Refresh-Rate-Reference/blob/main/N64_Timing_Reference.md).
 
 Verification: **32/32 N64 CTests passed** in 668.56 seconds, including all original register ROMs, production PCM/video oracles and eleven component gates. The full build and VI undefined-behavior sanitizer passed; all **68 original ROMs** reproduce against the committed image/generator ledger. Completion renderer and whitespace checks pass. CI/CD remains removed and Actions disabled.
+
+## FPU register and memory data transfers
+
+The core implements all eight FPU data-transfer instructions:
+MFC1/MTC1/DMFC1/DMTC1 and LWC1/LDC1/SWC1/SDC1. FR=0 pairs low words of even
+registers with high words addressed by odd register numbers; FR=1 exposes 32
+independent 64-bit registers. MFC1 sign-extends its word, MTC1 ignores high GPR
+bits, and data movement preserves payload bits without interpreting NaNs or
+changing FCR31. Doubleword moves are valid in 32-bit kernel mode and 64-bit
+user/supervisor mode. Memory transfers use the CPU's existing translation/cache
+path and enforce aligned 4-/8-byte accesses. CU1 unusable takes priority over
+operand decoding or data access; failed loads leave FPR state untouched and
+faulted stores preserve backing memory. EPC/BD, nested and BEV context are tested.
+
+The [original register ROM](tests/roms-src/n64/fpu_data/README.md) matches
+**131,072 cases / 1,179,648 actual 64-bit values**. Its independent host oracle
+rejects an executed capture mutant, nine field mutants and seven malformed-stream
+controls. The component checks **4,194,304 word-register/payload cases** and
+**3,145,728 defined doubleword-register/payload cases**, **262,144 signed-offset
+cases**, all GPR indices/zero, all 64 data-bit positions in every FR=1 register,
+reserved transfer fields, privilege/CU1, alignment/TLB/bus exceptions and state
+continuation. These are declared finite domains, not full independent products or
+a complete FPU/hardware corpus. No physical-console run has validated this ROM.
+
+`VN64S013` appends 32 raw 64-bit FPRs (256 bytes). S012 and earlier versions
+restore zero FPR storage. Existing cache/VI/AI/TLB state and legacy conversions
+retain their documented behavior. Undefined FR=1 upper word-write bits are
+preserved; undefined odd FR=0 doubleword forms raise RI as deterministic emulator
+conventions. Raw storage is retained across FR view changes, with physical
+mode-transition behavior ungraded. Transfer pipeline hazards, physical timing,
+reverse-endian mode and FPR arithmetic/conversion/comparison remain pending.
+Rules follow the [NEC VR4300 manual](https://hack64.net/docs/VR43XX.pdf),
+sections 7.2, 17.3 and the corresponding instruction entries.
+
+Super Mario 64 USA now passes LDC1 and reaches **6,212,336 startup attempts**,
+then unsupported `CVT.S.W` at EPC `80325984`, actual instruction-cache and backing
+word `468042A0`, Cause `10000028` (RI code 10). It passed 22 earlier nonterminal
+exception entries. The 120-quantum production probe still observes uniform video
+and zero audio pairs; boot/playability remain unverified. Commercial ROM bytes
+are never committed. Earlier increment records retain their historical blockers.
+N64 remains **40% (8/20 delivery milestones)**; the whole CPU milestone is pending.
+
+Verification: **34/34 N64 CTests passed** in 437.02 seconds, including twenty original register-ROM gates, two production audio/video oracles and twelve component gates. The full build and final FPU-data undefined-behavior sanitizer passed; all **69 original ROMs** reproduce against the committed image/generator ledger. Completion renderer and whitespace checks pass. CI/CD remains removed and Actions disabled.

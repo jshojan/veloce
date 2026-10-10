@@ -269,7 +269,7 @@ static void append(std::vector<uint8_t>& data, uint64_t value) {
 }
 bool Machine::save(std::vector<uint8_t>& data) const {
     if (rom.empty()) return false;
-    data.assign({'V','N','6','4','S','0','1','2'});
+    data.assign({'V','N','6','4','S','0','1','3'});
     append(data, identity); append(data, crc); append(data, frames); append(data, done);
     const auto& s = cpu.state;
     for (auto value : s.gpr) append(data, value);
@@ -293,6 +293,7 @@ bool Machine::save(std::vector<uint8_t>& data) const {
     append(data,s.fcr31);
     for(const auto& e:cpu.tlb.entries)for(auto v:{e.hi,uint64_t(e.mask),uint64_t(e.even),uint64_t(e.odd)})append(data,v);
     for(auto value:video_interface.snapshot())append(data,value);
+    for(auto value:s.fpr)append(data,value);
     return true;
 }
 bool Machine::restore(const std::vector<uint8_t>& data) {
@@ -308,7 +309,8 @@ bool Machine::restore(const std::vector<uint8_t>& data) {
     const bool audio_previous=!std::memcmp(data.data(),"VN64S009",8);
     const bool fpu_previous=!std::memcmp(data.data(),"VN64S010",8);
     const bool tlb_previous=!std::memcmp(data.data(),"VN64S011",8);
-    if((!legacy && !previous && !ri_previous && !mi_previous && !devices_previous && !caches_previous && !sp_previous && !audio_previous && !fpu_previous && !tlb_previous && std::memcmp(data.data(),"VN64S012",8)) || data.size()!=prefix+ram_size+sp.size()+(legacy?0:previous?120:ri_previous?176:mi_previous?192:devices_previous?480:caches_previous?41440:sp_previous?41512:audio_previous?74440:fpu_previous?74448:tlb_previous?75472:75632) ||
+    const bool video_previous=!std::memcmp(data.data(),"VN64S012",8);
+    if((!legacy && !previous && !ri_previous && !mi_previous && !devices_previous && !caches_previous && !sp_previous && !audio_previous && !fpu_previous && !tlb_previous && !video_previous && std::memcmp(data.data(),"VN64S013",8)) || data.size()!=prefix+ram_size+sp.size()+(legacy?0:previous?120:ri_previous?176:mi_previous?192:devices_previous?480:caches_previous?41440:sp_previous?41512:audio_previous?74440:fpu_previous?74448:tlb_previous?75472:video_previous?75632:75888) ||
         (legacy && boot_mode!=BootMode::Homebrew)) return false;
     size_t position = 8;
     auto take = [&]() { auto v = be(data.data() + position, 8); position += 8; return v; };
@@ -385,6 +387,7 @@ bool Machine::restore(const std::vector<uint8_t>& data) {
     if(!legacy && !previous && !ri_previous && !mi_previous && !devices_previous && !caches_previous && !sp_previous && !audio_previous && !fpu_previous && !tlb_previous) {
         VideoInterface::State v{};for(auto& value:v)value=take();if(!saved_video.restore(v))return false;
     }
+    if(!legacy && !previous && !ri_previous && !mi_previous && !devices_previous && !caches_previous && !sp_previous && !audio_previous && !fpu_previous && !tlb_previous && !video_previous)for(auto& value:s.fpr)value=take();
     position=memory_position;
     // Validate first; rejected states leave the active machine untouched.
     cpu.state = s;cpu.caches=saved_caches;cpu.tlb=saved_tlb; frames = saved_frames; done = saved_done;

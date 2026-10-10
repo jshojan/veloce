@@ -10,6 +10,7 @@ struct CpuState {
     std::array<uint64_t, 32> gpr{};
     std::array<uint64_t, 32> cp0{};
     uint32_t fcr31 = 0;
+    std::array<uint64_t,32> fpr{};
     uint64_t hi = 0, lo = 0, pc = 0, next_pc = 0, instructions = 0;
     bool delay_slot = false;
 };

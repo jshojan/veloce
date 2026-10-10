@@ -253,6 +253,17 @@
       "source_type": "original",
       "suite": "fpu_controls"
     },
+    "n64/fpu_data/fpu_data.z64": {
+      "build_command": "python3 tests/roms-src/n64/fpu_data/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "b76bf30310c47ed4a78f07dae0bcd7589706ae2c99b3db6cf59fc30ac8a44fac",
+      "source_repo": "tests/roms-src/n64/fpu_data/build.py",
+      "source_sha": "bdc88febc7e7638ef766a0f0c3288df6d944f81eec201c86a14fddcbd755af88",
+      "source_type": "original",
+      "suite": "fpu_data"
+    },
     "n64/integer_registers/integer_registers.z64": {
       "build_command": "python3 tests/roms-src/n64/integer_registers/build.py",
       "console": "n64",

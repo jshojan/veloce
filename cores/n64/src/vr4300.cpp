@@ -119,6 +119,30 @@ void VR4300::step() {
         if (trap && overflow) fault(12);
         else put(reg, wide ? result : sign32(uint32_t(result)));
     };
+    auto cop1_usable = [&]() {
+        if(s.cp0[12]&0x20000000)return true;
+        s.cp0[13]=(s.cp0[13]&~0x30000000ull)|0x10000000;fault(11);return false;
+    };
+    auto fr = [&]() {return bool(s.cp0[12]&0x4000000);};
+    auto fp_word = [&](unsigned reg) {
+        return uint32_t(s.fpr[fr()?reg:reg&~1u]>>(!fr() && (reg&1)?32:0));
+    };
+    auto fp_put_word = [&](unsigned reg,uint32_t value) {
+        const unsigned index=fr()?reg:reg&~1u,shift=!fr() && (reg&1)?32:0;
+        // FR=1 upper bits are architecturally undefined; preservation is our convention.
+        s.fpr[index]=(s.fpr[index]&~(uint64_t(0xffffffff)<<shift))|(uint64_t(value)<<shift);
+    };
+    auto fp_double_valid = [&](unsigned reg) {
+        if(fr() || !(reg&1))return true;
+        fault(10);return false; // Odd FR=0 doubleword forms are undefined; deterministic RI.
+    };
+    auto fp_memory = [&](unsigned bytes,bool store_value) {
+        if(!cop1_usable() || (bytes==8 && !fp_double_valid(rt)))return;
+        const auto address=a+imm;
+        if(store_value)write(address,bytes,bytes==8?s.fpr[rt]:fp_word(rt),uint8_t((1u<<bytes)-1),pc,delay,address);
+        else {uint64_t value=0;if(!read(address,bytes,value,false,pc,delay,address))return;
+            if(bytes==8)s.fpr[rt]=value;else fp_put_word(rt,uint32_t(value));}
+    };
     auto load = [&](unsigned bytes, bool signed_value) {
         const uint64_t address = a + imm;
         uint64_t value = 0;
@@ -309,9 +333,15 @@ void VR4300::step() {
             break;
         }
         case 17:
-            if (!(s.cp0[12] & 0x20000000)) {
-                s.cp0[13] = (s.cp0[13] & ~0x30000000ull) | 0x10000000;
-                fault(11);
+            if(!cop1_usable())break;
+            if((rs==0 || rs==1 || rs==4 || rs==5) && !(ins&0x7ff)) {
+                const unsigned mode=(s.cp0[12]&6)?0:unsigned(s.cp0[12]>>3)&3;
+                if((rs==1 || rs==5) && mode && !(s.cp0[12]&(mode==1?64:32))) {fault(10);break;}
+                if((rs==1 || rs==5) && !fp_double_valid(rd))break;
+                if(rs==0)put(rt,sign32(fp_word(rd)));
+                else if(rs==1)put(rt,s.fpr[rd]);
+                else if(rs==4)fp_put_word(rd,uint32_t(b));
+                else s.fpr[rd]=b;
             } else if (rs == 2 && !(ins & 0x7ff) && (rd == 0 || rd == 31)) {
                 // FCR0 is read-only. Revision zero is the selected VR4300 profile.
                 put(rt, sign32(rd == 0 ? 0x00000b00 : s.fcr31));
@@ -355,6 +385,10 @@ void VR4300::step() {
             if(rt==4 || rt==5) {s.cp0[28]=tag;s.cp0[29]=0;}
             break;
         }
+        case 49: fp_memory(4,false); break;
+        case 53: fp_memory(8,false); break;
+        case 57: fp_memory(4,true); break;
+        case 61: fp_memory(8,true); break;
         case 55: load(8, false); break;
         case 63: store(8); break;
         default: fault(10); break;
