@@ -10,7 +10,7 @@ int main(int argc,char** argv) {
     n64::Machine machine;const bool loaded=machine.load(image.data(),image.size());
     if(!loaded) {std::cout<<"{\"loaded\":false}\n";return 0;}
     bool fault=false;
-    for(unsigned n=0;n<1000000 && !machine.done;++n) {
+    for(unsigned n=0;n<12000000 && !machine.done;++n) {
         machine.cpu.step();
         if(machine.cpu.state.cp0[12]&2) {fault=true;break;}
     }

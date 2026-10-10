@@ -19,11 +19,12 @@ static void multiply_doubleword(uint64_t a, uint64_t b, uint64_t& lo, uint64_t& 
     hi = p11 + (p01 >> 32) + (p10 >> 32) + (middle >> 32);
 }
 void VR4300::reset(uint64_t entry) {
-    state = {};
+    state = {};caches.reset();
     state.pc = entry;
     state.next_pc = entry + 4;
     // Explicit homebrew entry in kernel mode with interrupts off. Not a PIF/IPL reset.
     state.cp0[12] = 0;
+    state.cp0[16] = 2; // Explicit uncached homebrew entry.
     state.cp0[15] = 0x00000b22;
 }
 void VR4300::exception(unsigned code, uint64_t pc, bool delay, uint64_t bad) {
@@ -56,7 +57,7 @@ void VR4300::step() {
         exception(0, pc, delay); return;
     }
     uint64_t fetched = 0;
-    if ((pc & 3) || !memory.read(pc, 4, fetched)) { exception(4, pc, delay, pc); return; }
+    if ((pc & 3) || !caches.read(memory,pc,4,fetched,true,uint32_t(s.cp0[16]))) { exception(4, pc, delay, pc); return; }
     const uint32_t ins = uint32_t(fetched);
     const unsigned op = ins >> 26, rs = (ins >> 21) & 31, rt = (ins >> 16) & 31;
     const unsigned rd = (ins >> 11) & 31, sa = (ins >> 6) & 31, fn = ins & 63;
@@ -82,7 +83,7 @@ void VR4300::step() {
     auto load = [&](unsigned bytes, bool signed_value) {
         const uint64_t address = a + imm;
         uint64_t value = 0;
-        if ((address & (bytes - 1)) || !memory.read(address, bytes, value)) { fault(4, address); return; }
+        if ((address & (bytes - 1)) || !caches.read(memory,address,bytes,value,false,uint32_t(s.cp0[16]))) { fault(4, address); return; }
         if (signed_value) {
             if (bytes == 1) value |= (value & 128) ? 0xffffffffffffff00ull : 0;
             else if (bytes == 2) value = sign16(uint16_t(value));
@@ -92,13 +93,13 @@ void VR4300::step() {
     };
     auto store = [&](unsigned bytes) {
         const uint64_t address = a + imm;
-        if ((address & (bytes - 1)) || !memory.write(address, bytes, b)) fault(5, address);
+        if ((address & (bytes - 1)) || !caches.write(memory,address,bytes,b,uint8_t((1u<<bytes)-1),uint32_t(s.cp0[16]))) fault(5, address);
     };
     auto merge_load = [&](unsigned bytes, bool left) {
         const uint64_t address = a + imm, aligned = address & ~uint64_t(bytes - 1);
         const unsigned lane = address & (bytes - 1);
         uint64_t value = 0;
-        if (!memory.read(aligned, bytes, value)) { fault(4, address); return; }
+        if (!caches.read(memory,aligned,bytes,value,false,uint32_t(s.cp0[16]))) { fault(4, address); return; }
         const uint64_t width_mask = bytes == 8 ? ~uint64_t(0) : 0xffffffffull;
         uint64_t result;
         if (left) {
@@ -119,7 +120,7 @@ void VR4300::step() {
         const uint8_t mask = left ? uint8_t((all_lanes << lane) & all_lanes)
                                   : uint8_t((1u << (lane + 1)) - 1);
         const uint64_t value = left ? b >> (lane * 8) : b << ((bytes - 1 - lane) * 8);
-        if (!memory.write_masked(aligned, bytes, value, mask)) fault(5, address);
+        if (!caches.write(memory,aligned,bytes,value,mask,uint32_t(s.cp0[16]))) fault(5, address);
     };
     if (op == 0) {
         switch (fn) {
@@ -133,7 +134,7 @@ void VR4300::step() {
         case 0x09: put(rd, pc + 8); jump(a); break;
         case 0x0c: fault(8); break;
         case 0x0d: fault(9); break;
-        case 0x0f: break; // SYNC: uncached interpreter has no pending transactions.
+        case 0x0f: break; // SYNC: settled cache operations have no outstanding bus queue.
         case 0x10: put(rd, s.hi); break;
         case 0x11: s.hi = a; break;
         case 0x12: put(rd, s.lo); break;
@@ -266,6 +267,15 @@ void VR4300::step() {
         case 44: merge_store(8, true); break;
         case 45: merge_store(8, false); break;
         case 46: merge_store(4, false); break;
+        case 47: {
+            const auto status=s.cp0[12];
+            if(!(status&6) && (status&24) && !(status&0x10000000)) {s.cp0[13]&=~0x30000000ull;fault(11);break;}
+            if(!PrimaryCaches::defined(rt)) {fault(10);break;}
+            uint32_t tag=uint32_t(s.cp0[28]);
+            if(!caches.operation(memory,rt,a+imm,tag)) {fault(4,a+imm);break;}
+            if(rt==4 || rt==5) {s.cp0[28]=tag;s.cp0[29]=0;}
+            break;
+        }
         case 55: load(8, false); break;
         case 63: store(8); break;
         default: fault(10); break;

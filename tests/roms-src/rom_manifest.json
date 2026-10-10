@@ -198,6 +198,17 @@
       "source_type": "original",
       "suite": "shift_registers"
     },
+    "n64/cache_coherence/cache_coherence.z64": {
+      "build_command": "python3 tests/roms-src/n64/cache_coherence/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "a749eca47c6880fed287fead82f4eb185c70e644da0e74159ca8cc31453b10a7",
+      "source_repo": "tests/roms-src/n64/cache_coherence/build.py",
+      "source_sha": "847ffa038f73c2c28404105acce033e3609acb319631978c061e0d4c621da150",
+      "source_type": "original",
+      "suite": "cache_coherence"
+    },
     "n64/controller_serial/controller_serial.z64": {
       "build_command": "python3 tests/roms-src/n64/controller_serial/build.py",
       "console": "n64",
