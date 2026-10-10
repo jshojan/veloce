@@ -83,6 +83,10 @@ add_test(NAME vb_bitstrings COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/roms-src/vb/bitstrings/run.py --emulator $<TARGET_FILE:veloce>
     --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/vb_bitstrings)
 set_tests_properties(vb_bitstrings PROPERTIES LABELS "accuracy;owned" TIMEOUT 2100)
+add_test(NAME vb_immediates COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/vb/immediates/run.py --emulator $<TARGET_FILE:veloce>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/vb_immediates)
+set_tests_properties(vb_immediates PROPERTIES LABELS "accuracy;owned" TIMEOUT 3500)
 
 add_executable(snes_math_pipeline_test cpp/snes_math_pipeline_test.cpp
     ${CMAKE_SOURCE_DIR}/cores/snes/src/bus.cpp ${CMAKE_SOURCE_DIR}/cores/snes/src/cpu.cpp

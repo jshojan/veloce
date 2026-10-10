@@ -206,6 +206,17 @@
       "source_type": "original",
       "suite": "exceptions"
     },
+    "vb/immediates/immediates.vb": {
+      "build_command": "python3 tests/roms-src/vb/immediates/build.py",
+      "console": "vb",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "6f4b43645b45107f9470a9c6c58628c67c170d1e2f43f1dc40d7b8c87f82a9ff",
+      "source_repo": "tests/roms-src/vb/immediates/build.py",
+      "source_sha": "f85bcb04d6e8dafb400866bd0e05e7132b556ba56eee57d7cca1d2dd84ad3662",
+      "source_type": "original",
+      "suite": "immediates"
+    },
     "vb/integer_registers/integer_registers.vb": {
       "build_command": "python3 tests/roms-src/vb/integer_registers/build.py",
       "console": "vb",

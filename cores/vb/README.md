@@ -115,6 +115,14 @@ through 65 bits, with all incoming flags. It grades destination memory, unchange
 source/guard words, working registers and PSW. Overlap and physical bus timing
 are outside its declared domain.
 
+The original [immediate-instruction corpus](../../tests/roms-src/vb/immediates/README.md)
+matched **100,712,448/100,712,448 three-word snapshots**, zero mismatches:
+every 16-bit encoding for six
+wide-immediate instructions and every 5-bit encoding for six short-immediate
+forms, on 16 full-width patterns and all incoming low flags. The ROM executes
+changing instructions from WRAM and records destination, PSW and source.
+Full 32-bit operands and physical cache coherency remain outside this domain.
+
 `vb_machine_test` separately checks reset entry, all branch conditions/flag
 states on signed displacement boundaries, SETF, JR/JAL/JMP/link behavior, r0,
 source aliasing, immediate/register decoding, wide-immediate reference vectors,
@@ -149,8 +157,8 @@ ctest --test-dir build -R '^vb_' --output-on-failure
 
 Raw observations and reports are in `build/artifacts/owned/vb_integer/`,
 `build/artifacts/owned/vb_muldiv/`, `build/artifacts/owned/vb_exceptions/`,
-`build/artifacts/owned/vb_address_traps/`, `build/artifacts/owned/vb_memory_ops/`
-and `build/artifacts/owned/vb_bitstrings/`.
+`build/artifacts/owned/vb_address_traps/`, `build/artifacts/owned/vb_memory_ops/`,
+`build/artifacts/owned/vb_bitstrings/` and `build/artifacts/owned/vb_immediates/`.
 They are uploaded by the owned-hardware CI job. Source/image SHA256 values are recorded
 in `tests/roms-src/rom_manifest.json`. `VVBS0002` states store explicit big-endian
 scalars for the full CPU, frame/step counters, completion, ROM identity, WRAM
@@ -182,3 +190,12 @@ presentation, rendered UI usage, Windows/macOS builds, real hardware and netplay
 for this core remain unverified or unimplemented. Other plugins retain their
 existing networking/controller behavior. The external four-platform suite
 matrix does not include VB; its owned original ROM and component gates run in CI.
+
+### Pending bit-string search evidence
+
+The English architecture manual's SCH0BS remarks refer to searching for a one
+despite the zero-search definition; its no-match cursor wording also needs
+clarification before an independent register oracle can be accepted. The
+current core stops all four search forms diagnostically. Final cursor/length
+semantics need stronger primary clarification or captured physical-hardware
+registers; no search completion percentage is claimed.
