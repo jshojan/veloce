@@ -164,7 +164,7 @@
         "register_oracle",
         "states"
       ],
-      "remaining": "Super Mario 64 reaches 6,212,303 startup attempts, then encounters unsupported LDC1; native boot/playability, remaining CPU/FPU/devices, RSP/RDP, VI filters and physical timing, RSP audio microcode, analog and netplay remain."
+      "remaining": "Super Mario 64 reaches 6,212,336 startup attempts, then encounters unsupported CVT.S.W; native boot/playability, remaining CPU/FPU/devices, RSP/RDP, VI filters and physical timing, RSP audio microcode, analog and netplay remain."
     },
     {
       "id": "vb",

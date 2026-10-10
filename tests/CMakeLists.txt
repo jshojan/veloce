@@ -491,7 +491,7 @@ add_test(NAME n64_pi_test COMMAND n64_pi_test $<TARGET_FILE:n64_plugin>
     ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/integer_registers/integer_registers.z64
     ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/ipl3_handoff/ipl3_handoff.z64)
 set_tests_properties(n64_pi_test PROPERTIES LABELS "unit;accuracy;owned" TIMEOUT 180)
-foreach(suite pi_dma ipl3_handoff ri_registers mi_controls rdram_devices cache_coherence sp_controls sp_dma ai_fifo ai_pcm fpu_controls tlb_translation vi_registers vi_framebuffer)
+foreach(suite pi_dma ipl3_handoff ri_registers mi_controls rdram_devices cache_coherence sp_controls sp_dma ai_fifo ai_pcm fpu_controls tlb_translation vi_registers vi_framebuffer fpu_data)
     add_test(NAME n64_${suite} COMMAND ${Python3_EXECUTABLE}
         ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/${suite}/run.py --emulator $<TARGET_FILE:veloce>
         --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_${suite})
@@ -599,3 +599,10 @@ add_dependencies(n64_vi_test n64_plugin)
 add_test(NAME n64_vi_test COMMAND n64_vi_test $<TARGET_FILE:n64_plugin>
     ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/vi_framebuffer/vi_framebuffer.z64)
 set_tests_properties(n64_vi_test PROPERTIES LABELS "unit;accuracy;owned" TIMEOUT 240)
+
+add_executable(n64_fpu_data_test cpp/n64_fpu_data_test.cpp
+    ${CMAKE_SOURCE_DIR}/cores/n64/src/machine.cpp ${CMAKE_SOURCE_DIR}/cores/n64/src/vr4300.cpp)
+target_include_directories(n64_fpu_data_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src ${CMAKE_SOURCE_DIR}/include)
+add_test(NAME n64_fpu_data_test COMMAND n64_fpu_data_test
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/fpu_data/fpu_data.z64)
+set_tests_properties(n64_fpu_data_test PROPERTIES LABELS "unit;accuracy;owned" TIMEOUT 240)

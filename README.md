@@ -21,7 +21,7 @@
 
 These percentages count the 20 explicit delivery milestones in [the completion ledger](docs/CORE-COMPLETION.md); partial or unverified milestones receive zero credit. Each milestone is worth 5 percentage points. **They are not percentages of native hardware accuracy or retail compatibility.** Bounded profile tests do not complete a whole CPU or hardware subsystem.
 
-Super Mario 64 (USA) was tested locally on 2026-10-10: **loads and reaches 6,212,303 startup step attempts**, then encounters unsupported LDC1 at EPC `80325978` (actual instruction-cache word `D7400130`). Boot and playability remain pending. See the [repeatable local probe](cores/n64/README.md#local-retail-regression-target).
+Super Mario 64 (USA) was tested locally on 2026-10-10: **loads and reaches 6,212,336 startup step attempts**, then encounters unsupported CVT.S.W at EPC `80325984` (actual instruction-cache word `468042A0`). Boot and playability remain pending. See the [repeatable local probe](cores/n64/README.md#local-retail-regression-target).
 <!-- completion:end -->
 
 A cross-platform, plugin-based emulator framework built for speedrunners and TAS creators.
@@ -447,7 +447,8 @@ subset, not whole-core completion.
 | [N64 cartridge DMA](tests/roms-src/n64/pi_dma/README.md) | 524,288/524,288 aligned cases; 8,388,608 guest values; busy/quirk/peripheral timing pending | `build/artifacts/owned/n64_pi_dma/` |
 | [N64 VI registers](tests/roms-src/n64/vi_registers/README.md) | 65,536 rows / 983,040 actual register values matched; CURRENT/IRQ component domains verified | `build/artifacts/owned/n64_vi_registers/` |
 | [N64 VI framebuffer](tests/roms-src/n64/vi_framebuffer/README.md) | 24 guest values and 131,072 production ABI pixels matched across RGBA16/RGBA32; filters/RSP/RDP/physical timing pending | `build/artifacts/owned/n64_vi_video/` |
-| [N64 IPL3 handoff](tests/roms-src/n64/ipl3_handoff/README.md) | 12/12 original startup captures; native retail boot remains blocked at unsupported LDC1 | `build/artifacts/owned/n64_ipl3_handoff/` |
+| [N64 FPU data](tests/roms-src/n64/fpu_data/README.md) | 131,072 rows / 1,179,648 actual values matched for all eight register/memory transfer instructions in both FR modes; arithmetic and physical timing pending | `build/artifacts/owned/n64_fpu_data/` |
+| [N64 IPL3 handoff](tests/roms-src/n64/ipl3_handoff/README.md) | 12/12 original startup captures; native retail boot remains blocked at unsupported CVT.S.W | `build/artifacts/owned/n64_ipl3_handoff/` |
 | [N64 interrupt gates](tests/roms-src/n64/interrupts/README.md) | 65,536/65,536 cases matched; 524,288 guest values for software/SI/timer, MI/CPU masks and IE/EXL/ERL; pipeline and physical timer timing pending | `build/artifacts/owned/n64_interrupts/` |
 | [N64 digital controller](tests/roms-src/n64/controller_serial/README.md) | 16,384/16,384 combinations matched; 131,072 guest values for digital input, identity, absent port and settled SI/MI registers; analog and physical timing pending | `build/artifacts/owned/n64_controller/` |
 | [N64 merge memory](tests/roms-src/n64/merge_memory/README.md) | 3,158,016/3,158,016 observations matched; eight instructions, every byte lane, all repeated-byte pairs and full-width boundaries; full multi-byte domains/timing unverified | `build/artifacts/owned/n64_merge_memory/` |

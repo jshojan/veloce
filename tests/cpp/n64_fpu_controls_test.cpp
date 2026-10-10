@@ -73,12 +73,12 @@ int main(int argc,char** argv) {
     require(m.restore(saved) && s.fcr31==0x183ffff && m.save(replay) && replay==saved,"control state exact restore");
     for(unsigned bit=0;bit<64;++bit) {
         if(bit<32 && (bit<=17 || bit==23 || bit==24))continue;
-        auto bad=saved;bad[bad.size()-1185-bit/8]|=uint8_t(1u<<(bit%8));
+        auto bad=saved;bad[bad.size()-1441-bit/8]|=uint8_t(1u<<(bit%8));
         require(!m.restore(bad) && m.save(replay) && replay==saved,"reserved scalar state rejection atomicity");
     }
-    auto old=saved;old.resize(old.size()-1192);old[6]='0';old[7]='9';
+    auto old=saved;old.resize(old.size()-1448);old[6]='0';old[7]='9';
     require(m.restore(old) && s.fcr31==0 && s.gpr[1]==0x1234,"S009 neutral control conversion");
-    auto converted=saved;std::fill(converted.end()-1192,converted.end()-1184,0);
+    auto converted=saved;std::fill(converted.end()-1448,converted.end()-1440,0);
     require(m.save(replay) && replay==converted,"S009 preserves pending AI/host phases and all existing fields");
     // Resume a pending control exception identically after restore.
     require(m.restore(saved),"pending FCR31 restore");instruction(m,0x44c1f800);s.gpr[1]=0x21080;
