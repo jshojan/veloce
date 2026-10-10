@@ -59,7 +59,13 @@ void Machine::step() {
         record_compare(rt>>2,op==11 ? signed32(s.r[ra]):s.r[ra],op==11 ? signed32(immediate):ins&65535);
     }
     else if(op==14 || op==15) s.r[rt]=(ra ? s.r[ra]:0)+(op==15 ? immediate<<16:immediate);
-    else if(op==24 || op==25) s.r[ra]=s.r[rt]|((ins&65535)<<(op==25 ? 16:0));
+    else if(op>=24 && op<=29) {
+        const uint32_t operand=(ins&65535)<<((op&1) ? 16:0);
+        const uint32_t source=s.r[rt]; // Logical instructions read ordinary GPR0.
+        const uint32_t result=op<26 ? source|operand:op<28 ? source^operand:source&operand;
+        s.r[ra]=result;
+        if(op>=28) record_compare(0,signed32(result),0); // ANDI./ANDIS. always record.
+    }
     else if(op==32 || op==34 || op==36 || op==38 || op==40 || op==44) {
         const bool load=op==32 || op==34 || op==40;
         const unsigned width=op==34 || op==38 ? 1:op==40 || op==44 ? 2:4;
@@ -142,6 +148,21 @@ void Machine::step() {
             }
             s.r[rt]=result;
             if(ins&1) s.cr=(s.cr&0x0fffffffu)|((result==0 ? 2u:result&0x80000000 ? 8u:4u)|((s.xer>>31)&1))<<28;
+        } else if(xo==28 || xo==60 || xo==444 || xo==412 || xo==316 || xo==476 || xo==124 || xo==284) {
+            // X-form logical destinations are RA; read both old sources before writing.
+            const uint32_t a=s.r[rt],b=s.r[rb]; uint32_t result=0;
+            switch(xo) {
+                case 28: result=a&b; break;
+                case 60: result=a&~b; break;
+                case 444: result=a|b; break;
+                case 412: result=a|~b; break;
+                case 316: result=a^b; break;
+                case 476: result=~(a&b); break;
+                case 124: result=~(a|b); break;
+                case 284: result=~(a^b); break;
+            }
+            s.r[ra]=result;
+            if(ins&1) record_compare(0,signed32(result),0);
         } else if(xo==339 || xo==467) {
             if(ins&1) { s.unsupported=true; return; }
             const unsigned spr=((ins>>16)&31)|((ins>>6)&992);

@@ -1,0 +1,1 @@
+{"source_type": "original", "console": "gc", "suite": "logical_registers", "build": {"script": "build.py", "artifact": "logical_registers.vgc"}, "license": "MIT"}

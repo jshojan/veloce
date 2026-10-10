@@ -8,7 +8,10 @@ GameCube/Wii software cannot boot. Full platform completion is unknown.
 
 - ADD/ADDC/ADDE and SUBF/SUBFC/SUBFE, all OE/Rc forms, wrapping results,
   XER carry/overflow/sticky summary overflow and CR0 recording.
-- ADDI/ADDIS, ORI/ORIS; big endian LWZ/LHZ/LBZ and STW/STH/STB with signed
+- AND/ANDC/OR/ORC/XOR/NAND/NOR/EQV with both Rc forms, RA destinations,
+  alias-safe source reads, ordinary GPR0 and unchanged XER. ORI/ORIS,
+  XORI/XORIS, ANDI./ANDIS. with unsigned immediates and CR0 recording.
+- ADDI/ADDIS; big endian LWZ/LHZ/LBZ and STW/STH/STB with signed
   displacement, RA=0 address semantics and alignment diagnostics.
 - B/BL and BC, signed absolute/relative displacement; BCLR/BCCTR including
   linked forms, CTR decrement/testing, CR bit conditions and aligned targets.
@@ -59,6 +62,19 @@ aliases, reserved-bit diagnostics and exact state replay through both plugins.
 Runtime-generated instructions use the supplied flat mapping; physical cache
 coherency and timing remain unverified. CMP L=1 and invalid forms diagnose;
 physical program exceptions are still pending.
+
+The [GameCube](../../tests/roms-src/gc/logical_registers/README.md) and
+[Wii](../../tests/roms-src/wii/logical_registers/README.md) integer logical ROMs
+each match 6,324,224 nine-word snapshots: 32,768 register operations on sixteen
+operand patterns/all XER flags/both Rc states, and 6,291,456 immediate cases
+covering all immediate values on eight operands/both SO states. Independent
+truth-table grading checks result, CR, XER, sources, encoding, seeds and sentinel.
+The component gate matches 21,856,256 additional integer logical snapshots
+across both profiles, including every register field encoding/alias, all bit
+truth inputs, immediate fields and exact state replay through both plugins.
+X-form logical operations have no OE bit; unsupported high-XO variants diagnose
+without mutating architectural registers. Full operand words and physical
+console behavior are not exhaustive; [domain details](../../tests/roms-src/gc/logical_registers/README.md).
 
 Instruction references: [NXP MPC750 manual](https://www.nxp.com/docs/en/reference-manual/MPC750UM.pdf),
 [IBM addc](https://www.ibm.com/docs/en/aix/7.1.0?topic=set-addc-add-carrying-instruction),
@@ -113,6 +129,6 @@ reports attempted instructions and CPU frequency is unspecified.
 ```sh
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --target veloce gc_plugin wii_plugin ppc_machine_test -j4
-ctest --test-dir build -R '^(ppc_machine_test|(gc|wii)_(integer|branch)_registers)$' --output-on-failure
+ctest --test-dir build -R '^(ppc_machine_test|(gc|wii)_(integer|branch|condition|logical)_registers)$' --output-on-failure
 python3 tests/roms-src/build.py --original-only --check
 ```

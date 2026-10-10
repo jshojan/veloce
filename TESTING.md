@@ -537,3 +537,32 @@ Runtime-generated instructions are supported by the supplied flat mapping.
 Physical cache/pipeline synchronization, timing, exceptions, full 32-bit
 operand/CR-word domains and most platform hardware are not verified. CI/CD
 remains disabled; run these gates locally.
+
+### Integer logical register corpora
+
+`gc_logical_registers` and `wii_logical_registers` each match 6,324,224 nine-word
+observations through the actual frontend: 32,768 register cases and 6,291,456
+immediate cases. [The domain table](tests/roms-src/gc/logical_registers/README.md)
+specifies operands, CR seeds, XER flags, Rc and fixed guest GPR fields. Every
+16-bit immediate is covered for ORI/ORIS/XORI/XORIS/ANDI./ANDIS. on eight source
+patterns/both SO states. The independent truth-table oracle grades every bit
+of result, CR, XER, sources, instruction encoding, initial seeds and sentinel.
+Executed result/CR/XER mutants fail exactly 512/192/512 reduced snapshots; nine
+field mutations fail one row each and seven invalid streams return ERROR.
+Raw files (~477 MiB each) and JSON reports remain in
+`build/artifacts/owned/gc_logical/` and `build/artifacts/owned/wii_logical/`.
+
+The component gate matches 21,856,256 integer logical snapshots across both
+profiles: every register field encoding/alias (including GPR0), all bit truth
+inputs, immediate values and boundary immediate register fields, preserved
+flags and exact machine/plugin replay. Undefined-behavior sanitization passes.
+Invalid high-XO forms diagnose without architectural register mutation.
+
+```sh
+cmake --build build --target veloce gc_plugin wii_plugin ppc_machine_test -j4
+ctest --test-dir build -R '^(ppc_machine_test|(gc|wii)_logical_registers)$' --output-on-failure
+python3 tests/roms-src/build.py --original-only --check
+```
+
+These finite domains do not exhaust all operand/CR/XER words. Physical cache,
+timing, exceptions and most console hardware remain pending; CI/CD stays disabled.
