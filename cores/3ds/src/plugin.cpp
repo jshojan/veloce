@@ -1,11 +1,12 @@
 #include "machine.hpp"
 #include <array>
+#include "emu/netplay_plugin.hpp"
 namespace ctr {
-class Plugin final:public emu::IEmulatorPlugin {
+class Plugin final:public emu::IEmulatorPlugin, public emu::INetplayCapable {
 public:
     emu::EmulatorInfo get_info() override {
         static const char* extensions[]={".v3ds",nullptr};
-        return {"3DS","0.1.0","Veloce","Experimental original ARM11/ARM9 integer programs; firmware, graphics/audio and most hardware pending.",extensions,60,0,400,480};
+        return {"3DS","0.2.0","Veloce","Experimental original ARM11/ARM9 integer programs; firmware, graphics/audio and most hardware pending.",extensions,60,0,400,480};
     }
     const emu::ControllerLayoutInfo* get_controller_layout() override {
         using emu::VirtualButton;
@@ -41,6 +42,12 @@ public:
     void write_memory(uint16_t address,uint8_t value) override { machine.fcram[address]=value; }
     bool save_state(std::vector<uint8_t>& state) override { return machine.save(state); }
     bool load_state(const std::vector<uint8_t>& state) override { return machine.restore(state); }
+    int get_max_players() const override { return 1; }
+    void run_frame_netplay(uint32_t host_buttons,uint32_t) override { run_frame({host_buttons}); }
+    size_t get_max_state_size() const override { return machine.state_size(); }
+    size_t save_state_fast(uint8_t* buffer,size_t capacity) override { return machine.save_into(buffer,capacity); }
+    bool load_state_fast(const uint8_t* buffer,size_t size) override { return machine.restore(buffer,size); }
+    uint64_t get_state_hash() const override { return machine.state_hash(); }
     bool set_test_sink(emu::ITestSink* sink) override { machine.sink=sink; return true; }
     const char* test_channels() const override { return "3dsdebug"; }
 private:

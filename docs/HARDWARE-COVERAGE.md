@@ -17,7 +17,7 @@ are not measurements of overall hardware or product completion.
 | Virtual Boy | `vb_plugin` (experimental homebrew only) | 6,512,640/6,512,640 result/PSW pairs matched across ADD/SUB/CMP/OR/AND/XOR repeated-byte pairs and full-width boundaries, plus SHL/SHR/SAR patterns and all low-byte amounts; 4,210,688/4,210,688 multiply/divide snapshots matched with 8,704 divide-zero exception/RETI cases; 4,685,824/4,685,824 TRAP/illegal exception snapshots matched across all writable nonfatal PSW combinations and full reserved low-bit encodings; 4,982,784/4,982,784 address-trap snapshots matched across matching/disabled/aliased addresses and entry/return; 17,055,744/17,055,744 CAXI/port snapshots matched across comparisons/replacements, width/alignment, unsigned input and preserved flags; 14,680,064/14,680,064 arithmetic bit-string snapshots matched across eight operations, byte pairs, all offsets and twelve lengths; 100,712,448/100,712,448 immediate-instruction snapshots matched across all wide/short immediates for twelve instructions on sixteen patterns/all flags | Not measured; remaining CPU/NVC instructions, timing, VIP/VSU, controllers and most platform hardware remain |
 | Nintendo DS | `nds_plugin` (experimental homebrew only) | 44,238,336/44,238,336 dual-CPU result/CPSR/source snapshots matched across all sixteen data-processing operations, repeated-byte pairs and full-width boundaries, every NZCV and both ARM9 Q states; 38,338,560 six-family multiply and 51,426,816 Thumb result/CPSR/source/PC observations matched with undefined ARM7 flags excluded; 49,694,208 nine-word ARM/Thumb memory and 9,437,184 eight-word long-call snapshots matched with every bit graded; 3,720,960 stack/block snapshots matched; 4,096/4,096 digital keypad combinations matched | Not measured; firmware/retail boot, ARM block transfers, interrupts, graphics/audio, peripherals and timing remain; DSi has a separate partial plugin |
 | Nintendo DSi | `dsi_plugin` (original marked images only) | 387,072/387,072 original RAM captures; 67,109,008 component byte/width observations; 100-frame TCP host/viewer states and eight guest words match oracle | Not measured; firmware/retail boot, full SCFG/MBK, physical timing and most console hardware remain; [limits](../cores/dsi/README.md) |
-| Nintendo 3DS | `ctr_plugin` (original `.v3ds` only) | 25,165,824 original reversal captures; 36,123,648 component register snapshots and 541,065,300 RAM bus observations; 4,096 digital inputs | Not measured; native boot, remaining CPU/peripherals, GPU/audio, physical timing and netplay pending; [limits](../cores/3ds/README.md) |
+| Nintendo 3DS | `ctr_plugin` (original `.v3ds` only) | 25,165,824 original reversal captures; 36,123,648 component register snapshots and 541,065,300 RAM bus observations; 4,096 digital inputs; 100-frame production TCP host/viewer states and twelve guest words match baseline/oracle | Not measured; native boot, remaining CPU/peripherals, GPU/audio, physical timing and wireless multiplayer pending; [limits](../cores/3ds/README.md) |
 | GameCube | `gc_plugin` (original marked images only) | 49,152/49,152 arithmetic and 74,752/74,752 branch and 42,108,928/42,108,928 condition and 6,324,224/6,324,224 integer logical and 9,437,184/9,437,184 rotate/mask and 4,416,528/4,416,528 shift/unary and 25,168,384/25,168,384 carry arithmetic snapshots and 8,420,320/8,420,320 defined multiply/divide results matched; 1,056 undefined division rows have defined flags/preserved fields checked; 12,586,368/12,586,368 memory-transfer snapshots matched | Not measured; most CPU and console hardware remain; [limits](../cores/ppc/README.md) |
 | Wii | `wii_plugin` (original marked images only) | 49,152/49,152 arithmetic and 74,752/74,752 branch and 42,108,928/42,108,928 condition and 6,324,224/6,324,224 integer logical and 9,437,184/9,437,184 rotate/mask and 4,416,528/4,416,528 shift/unary and 25,168,384/25,168,384 carry arithmetic snapshots and 8,420,320/8,420,320 defined multiply/divide results matched; 1,056 undefined division rows have defined flags/preserved fields checked; 12,586,368/12,586,368 memory-transfer snapshots matched | Not measured; most CPU and console hardware, including MEM2/IOS, remain; [limits](../cores/ppc/README.md) |
 
@@ -214,7 +214,7 @@ custom mappings, capture mode, disconnect/reconnect, saved identity restoration,
 selection after removal, ambiguous devices, and axis endpoints. Physical devices,
 Bluetooth, cross-platform drivers, and multiplayer routing still need testing.
 
-The frontend has netplay interfaces/UI and the NES, DS and DSi cores expose `INetplayCapable`.
+The frontend has netplay interfaces/UI and the NES, DS, DSi and 3DS cores expose `INetplayCapable`.
 The [rollback module](../plugins/netplay_default/README.md) implements
 bounded history, prediction, late-input restore/replay, stalls, and confirmation
 validation. Two delayed actual NES sessions converge byte-for-byte on a 100-frame
@@ -440,7 +440,7 @@ supplied-profile byte checks, not physical chip-control/timing evidence.
 guest words matching the independent oracle. Host owns one keypad; viewer
 replay is supported, DSi wireless multiplayer is pending. DS component and
 production netplay regression gates pass. Local TCP gates require loopback
-socket permission; CI/CD remains disabled. All 49 original ROMs reproduce
+socket permission; CI/CD remains disabled. All 50 original ROMs reproduce
 against the source/image ledger. Firmware/retail boot, full SCFG/MBK and most
 DSi hardware remain pending; full platform completion is unmeasured.
 
@@ -467,6 +467,25 @@ boundary atomicity, 4,096 digital HID combinations, loader/state rejection,
 a three-context guest and exact full-state replay. The original fixed-field
 ROM and component alias enumeration are separate evidence. Physical timing,
 MMU/cache/coherency, firmware/native boot, GPU/audio, most peripherals and
-3DS netplay remain pending. Wii U and Switch still lack plugins. No overall
+3DS wireless/link multiplayer remain pending. Wii U and Switch still lack plugins. No overall
 completion percentage follows from these finite domains. Raw output and
 JSON grades stay in `build/artifacts/owned/3ds_reversal/`; CI/CD stays disabled.
+
+### 3DS host/viewer netplay evidence
+
+The [3DS netplay probe](../tests/roms-src/3ds/netplay_probe/README.md) now passes
+production IPv4 TCP rollback. Both independent peers match the 100-frame solo
+baseline's complete 135,791,096-byte state; twelve guest words from ARM11_0,
+ARM11_1 and ARM9 match the independent host arithmetic oracle. Executed input,
+field and stream controls fail; ROM/transport and lifecycle rejection checks
+pass. Fast states write directly into caller buffers and preserve canonical
+bytes/full-state hash, including the far end of each RAM region. Component
+and undefined-behavior sanitizer checks pass. NES/DS/DSi production network
+regressions remain separate gates.
+
+The host owns one HID keypad; viewer corrections replay that one instance.
+Physical 3DS wireless/link multiplayer, Internet/cross-platform sessions,
+compression/page sharing and sustained real-time performance remain pending.
+A window-8 ring uses about 1.14 GiB per peer plus core/scratch memory. Reports,
+register files and full states stay in `build/artifacts/netplay-3ds/`.
+All 50 original ROMs reproduce from their source/image ledger. CI/CD remains disabled.

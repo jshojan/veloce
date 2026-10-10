@@ -140,3 +140,16 @@ third complete baseline state and an independent eight-word guest-register
 oracle. Viewer rollback and lifecycle checks pass; DS audio is empty and has no
 replay-audio claim. Artifacts remain in `build/artifacts/netplay-nds/`. This mirrors
 one DS instance and does not emulate wireless multiplayer between handhelds.
+
+### 3DS host/viewer profile
+
+The experimental 3DS core now provides one-controller `INetplayCapable` and
+complete 135,791,096-byte fast states. The production TCP gate matches both
+independent peers to a 100-frame solo baseline and grades twelve original
+guest words with a separate arithmetic oracle. The viewer predicts/replays the
+host HID input; native 3DS wireless/link multiplayer remains pending. Full
+states use about 129.5 MiB each, or ~1.14 GiB for the window-8 nine-state ring
+per peer, plus core/scratch memory. Serialization avoids temporary state
+vectors, but compression/page sharing and sustained real-time performance
+remain unverified. Run `ctr_netplay_plugin_test`; register/state/log/report
+artifacts are in `build/artifacts/netplay-3ds/`. CI/CD stays disabled.

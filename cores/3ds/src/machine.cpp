@@ -78,21 +78,39 @@ void Machine::frame() {
     }
     ++frames;
 }
-static void append(std::vector<uint8_t>& out,uint64_t value) { for(unsigned n=0;n<8;++n) out.push_back(uint8_t(value>>(56-n*8))); }
+void Machine::save_prefix(uint8_t* out) const {
+    std::memcpy(out,"V3DS0001",8); size_t position=8;
+    const auto append=[&](uint64_t value) { for(unsigned n=0;n<8;++n) out[position++]=uint8_t(value>>(56-n*8)); };
+    for(auto value:{identity,uint64_t(crc),frames,uint64_t(done),uint64_t(keys)}) append(value);
+    for(unsigned id=0;id<3;++id) {
+        for(auto r:cpu(id).state.r) append(r);
+        append(cpu(id).state.cpsr); append(cpu(id).state.steps); append(cpu(id).state.unsupported);
+    }
+}
+size_t Machine::save_into(uint8_t* out,size_t capacity) const {
+    if(rom.empty()) return 0;
+    const size_t expected=state_size();
+    if(!out) return expected;
+    if(capacity<expected) return 0;
+    save_prefix(out); size_t position=504;
+    for(const auto* ram:{&fcram,&axi,&private9}) { std::memcpy(out+position,ram->data(),ram->size()); position+=ram->size(); }
+    return expected;
+}
 bool Machine::save(std::vector<uint8_t>& out) const {
     if(rom.empty()) return false;
-    out.assign({'V','3','D','S','0','0','0','1'});
-    for(auto value:{identity,uint64_t(crc),frames,uint64_t(done),uint64_t(keys)}) append(out,value);
-    for(unsigned id=0;id<3;++id) {
-        for(auto r:cpu(id).state.r) append(out,r);
-        append(out,cpu(id).state.cpsr); append(out,cpu(id).state.steps); append(out,cpu(id).state.unsupported);
-    }
-    for(const auto* ram:{&fcram,&axi,&private9}) out.insert(out.end(),ram->begin(),ram->end());
-    return true;
+    out.resize(state_size()); return save_into(out.data(),out.size())==out.size();
 }
-bool Machine::restore(const std::vector<uint8_t>& in) {
-    const size_t prefix=504,expected=prefix+fcram.size()+axi.size()+private9.size();
-    if(rom.empty() || in.size()!=expected || std::memcmp(in.data(),"V3DS0001",8)) return false;
+uint64_t Machine::state_hash() const {
+    if(rom.empty()) return 0;
+    uint8_t prefix[504];save_prefix(prefix);
+    uint64_t hash=0xcbf29ce484222325ULL;
+    const auto add=[&](const uint8_t* bytes,size_t size) { for(size_t n=0;n<size;++n) hash=(hash^bytes[n])*0x100000001b3ULL; };
+    add(prefix,sizeof(prefix));for(const auto* ram:{&fcram,&axi,&private9}) add(ram->data(),ram->size());
+    return hash;
+}
+bool Machine::restore(const std::vector<uint8_t>& in) { return restore(in.data(),in.size()); }
+bool Machine::restore(const uint8_t* in,size_t size) {
+    if(rom.empty() || !in || size!=state_size() || std::memcmp(in,"V3DS0001",8)) return false;
     size_t position=8; const auto take=[&]() { uint64_t v=0; for(unsigned n=0;n<8;++n) v=v*256+in[position++]; return v; };
     if(take()!=identity || take()!=crc) return false;
     const auto frame=take(),finished=take(),input=take(); if(finished>7 || input>0xfff) return false;
@@ -104,7 +122,7 @@ bool Machine::restore(const std::vector<uint8_t>& in) {
     }
     frames=frame; done=uint8_t(finished); keys=uint16_t(input);
     for(unsigned id=0;id<3;++id) cpu(id).state=states[id];
-    for(auto* ram:{&fcram,&axi,&private9}) { std::copy_n(in.begin()+position,ram->size(),ram->begin()); position+=ram->size(); }
+    for(auto* ram:{&fcram,&axi,&private9}) { std::memcpy(ram->data(),in+position,ram->size()); position+=ram->size(); }
     return true;
 }
 }

@@ -1,5 +1,16 @@
 {
   "roms": {
+    "3ds/netplay_probe/netplay_probe.v3ds": {
+      "build_command": "python3 tests/roms-src/3ds/netplay_probe/build.py",
+      "console": "3ds",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "f108922c3ed843d99c1b70613241f708995c6cab07f00bdf9b70719895afb5e5",
+      "source_repo": "tests/roms-src/3ds/netplay_probe/build.py",
+      "source_sha": "7b4050b9a2f4f46486ce21916c3b0e8f48945b35d06809bd50f6411ff684f718",
+      "source_type": "original",
+      "suite": "netplay_probe"
+    },
     "3ds/reversal_registers/reversal_registers.v3ds": {
       "build_command": "python3 tests/roms-src/3ds/reversal_registers/build.py",
       "console": "3ds",
