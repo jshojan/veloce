@@ -1,6 +1,6 @@
 # Veloce Accuracy Scorecard
 
-Current N64 evidence: [RDP combiner command state and current Mario evidence](#rdp-combiner-command-state). Earlier increment reports are historical.
+Current N64 evidence: [RDP fill pipeline and current Mario evidence](#rdp-fill-pipeline-and-depth-clears). Earlier increment reports are historical.
 
 This is the project's honest, evidence-based statement of how complete and
 cycle-accurate each emulator core is. Legacy headline percentages are produced by the
@@ -1118,3 +1118,76 @@ ROM builder used OR instead of addition for one input address. Both were
 corrected and their targeted gates pass, including the complete original-ROM
 domain and negative controls. All **85 original ROM archives** reproduce;
 completion synchronization and whitespace checks pass. CI/CD remains disabled.
+
+
+## RDP fill pipeline and depth clears
+
+The fill-cycle engine now accepts bypassed texture, combiner, blender and dither
+mode state, including the native clearing path, and writes actual 8-, 16- and
+32-bit framebuffer bytes. Fill pattern selection follows the absolute RAM
+address. SET_Z_IMAGE stores its 26-bit address; clearing depth redirects the
+color image to depth RAM, as documented by Nintendo, rather than performing
+depth compares. The original corpus clears separate color and depth buffers.
+
+Fractional rectangle/scissor bounds, field-even/field-odd selection and odd row
+strides are supported. Width is a memory stride: X spans can extend beyond it
+and overlap the next row. The detailed span model includes the truncated high
+X scissor pixel, while Y clipping tests quarter scanlines before writing a row.
+This corrects the older inset-scissor oracle, whose high X endpoint was excluded.
+The original archived integer fill cartridge is unchanged; its oracle now
+matches the expanded span model.
+
+Command fields and depth clearing follow the [SGI RDP command summary](https://hcs64.com/files/RDP_COMMANDS.pdf)
+and [Nintendo fill-cycle documentation](https://ultra64.ca/files/documentation/online-manuals/man/pro-man/pro12/12-01.html).
+The quarter-span and hazard details are inferred from the RDP author's primary
+[edge-walker implementation](https://github.com/ata4/angrylion-rdp-plus/blob/master/src/core/n64video/rdp/rasterizer.c).
+Nintendo gives a broad four-pixel scissor warning; these gates characterize the
+author's detailed span model, **not physical subpixel/scissor accuracy**.
+Image reads, depth compares and stepped depth-update modes are explicit blockers.
+Hardware crash timing and partial crash writes are ungraded; the functional
+engine rejects these profiles before any write. Four-bit fills are blocked.
+
+The new original `rdp_fill_pipeline` corpus enumerates **294,912 input patterns**
+and grades **589,824 rows / 6,488,064 actual 64-bit words**. All 12,288 safe low
+16-bit modes, CI8/RGBA16/RGBA32, RDRAM/wrapping DMEM and four geometry profiles
+are covered. Two ordered 11-word rows per pattern contain color/depth pixels,
+three guards and actual CURRENT/STATUS/MI state. An independently executed
+capture mutant, 22 field mutations and seven malformed streams must fail.
+The two rows fit the result channel's 255-byte line limit.
+
+The component passes **1,572,864 fractional/scissor/field/stride cases**,
+**196,608 mode cases**, **196,608 raw fill-code cases**, all **1,024 widths**
+and all **67,108,864 depth-image address values**, plus guards, selected-row
+bounds, actual depth clears, FullSync IRQ, frozen-list replay, rejected state
+fields and legacy conversion. Address enumeration proves command retention;
+it is not a depth-comparison or physical-register readback test. The component
+also passes undefined-behavior sanitization.
+
+State **VN64S019** appends a validated 8-byte depth-image scalar. S018 and
+previously accepted older states restore a neutral depth pointer and preserve
+previous fields. Plugin **0.21.0** retains ABI v2. Earlier component state-tail
+offsets move by eight bytes. Hidden coverage/depth bits, exact bus/DMA/raster
+timing, texture loads/sampling, triangles, blending, combiner arithmetic and
+actual depth comparisons remain missing or ungraded. Reserved image formats
+and input bits receive no accuracy credit.
+
+The private Mario probe now passes SET_Z_IMAGE and the real buffer clears.
+At **2,000 scheduling quanta**, the CPU reaches **200,000,000 attempts** with
+**534 nonterminal exception entries** and no terminal fault. The later graphics
+list blocks at **SET_TILE**, word **F510000007000000**, CURRENT **227128**,
+reason 1. The RSP blocks at **VCH**, word **4AFDE8E5**, SP PC **5F4**, status
+**C1**, after **215,369 instructions**. Production video remains uniform with
+**93,572 audio sample pairs**; sample counts do not prove audible game sound.
+The default 120-quantum probe remains at 12,000,000 CPU attempts, 6,026 RSP
+instructions and 480 sample pairs. **Retail boot/playability remain unverified.**
+No commercial bytes are committed.
+
+Delivery completion remains **40% (8/20 milestones)**. The complete graphics
+milestone and the overall Nintendo-platform goal remain unfinished. Root and
+core README percentages are synchronized from the fixed completion ledger.
+CI/CD remains disabled.
+
+Verification: the full build and **60/60 N64 gates pass** in one regression
+run (**676.76 seconds**). All **86 original ROM archives** reproduce. The new
+component passes undefined-behavior sanitization, both private retail reports
+match current executable hashes, and completion/whitespace checks pass.
