@@ -30,6 +30,9 @@ static uint64_t immediates(wiiu::Machine& m) {
     }
     return count;
 }
+static uint64_t reference_hash(const std::vector<uint8_t>& bytes) {
+    uint64_t hash=0xcbf29ce484222325ULL;for(auto byte:bytes)hash=(hash^byte)*0x100000001b3ULL;return hash;
+}
 static uint64_t ram_and_dense_states(wiiu::Machine& m) {
     uint64_t count=0;
     for(auto spec:{std::array<uint32_t,2>{0,0x02000000},{0x10000000,0x80000000}}) {
@@ -45,7 +48,13 @@ static uint64_t ram_and_dense_states(wiiu::Machine& m) {
         const uint32_t end=spec[0]+spec[1];const auto old=read(m,0,end-4);uint32_t value=0x12345678;
         require(!m.write(0,end-1,4,0) && !m.read(0,end-1,4,value) && value==0x12345678 && read(m,0,end-4)==old,"unmapped boundary atomicity");
     }
-    auto full=state(m);require(full.size()==2183168992ull,"all physical RAM pages retained");
+    auto full=state(m);require(full.size()==2183168992ull && m.state_size()==full.size() && m.save_into(nullptr,0)==full.size(),"all physical RAM pages retained");
+    require(m.state_hash()==reference_hash(full),"dense canonical state hash omitted RAM/page metadata");
+    std::vector<uint8_t> fast(full.size()+16,0xa5);require(m.save_into(fast.data(),fast.size())==full.size() && std::equal(full.begin(),full.end(),fast.begin()) && std::all_of(fast.end()-16,fast.end(),[](uint8_t b){return b==0xa5;}),"dense fast serialization/guard");
+    fast.clear();fast.shrink_to_fit();
+    uint8_t small[16];std::fill_n(small,16,0x5a);
+    require(!m.save_into(small,16) && std::all_of(small,small+16,[](uint8_t b){return b==0x5a;}),"short fast save mutation");
+    require(!m.restore(nullptr,full.size()) && !m.restore(full.data(),full.size()-1),"null/truncated fast state accepted");
     for(uint32_t address:{0u,0x1fffffffu,0x10000000u,0x50000000u,0x8fffffffu})require(m.write(1,address,1,read(m,1,address,1)^1),"dense replay mutation");
     require(m.restore(full) && state(m)==full,"complete dense RAM state replay");
     return count;
@@ -77,7 +86,7 @@ static void loaders_states_input(wiiu::Machine& m,const std::vector<uint8_t>& or
         require(m.write(0,0xffe0000c,4,0) && read(m,0,0xffe0000c)==input,"read-only input latch");
     }
     m.frame();for(unsigned id=0;id<3;++id)require(read(m,id,0x2000+id*4)==id && read(m,id,0x2040+id*4)==4095 && !m.cpus[id].unsupported,"three-context high-RAM guest/input captures");
-    auto before=state(m);m.set_input(123);m.frame();auto after=state(m);require(m.restore(before),"sparse replay restore");m.set_input(123);m.frame();require(state(m)==after,"sparse CPU/RAM/input replay");
+    auto before=state(m);require(m.state_hash()==reference_hash(before) && m.save_into(nullptr,0)==before.size(),"sparse canonical hash/query");m.set_input(123);m.frame();auto after=state(m);require(m.restore(before.data(),before.size()),"sparse fast replay restore");m.set_input(123);m.frame();require(state(m)==after,"sparse CPU/RAM/input replay");
     require(m.write(0,0x20000000,4,0) && state(m)==after,"zero write creates observable sparse page");
     require(m.write(0,0x20000000,4,0x12345678),"new page write");require(state(m).size()==after.size()+4100,"new nonzero page missing");
     require(m.write(0,0x20000000,4,0) && state(m)==after,"cleared page not canonical");
@@ -95,8 +104,11 @@ int main(int argc,char** argv) {
         require(std::string(info.name)=="Wii U" && std::string(info.file_extensions[0])==".vwiiu","Wii U plugin identity");
         const auto* layout=plugin.get_controller_layout();require(layout && std::string(layout->platform_name)=="Wii U" && layout->button_count==12,"Wii U controller identity");
         plugin.run_frame({4095});for(unsigned id=0;id<3;++id)require(plugin.read_memory(0x2000+id*4)==0 && plugin.read_memory(0x2003+id*4)==id && plugin.read_memory(0x2042+id*4)==15 && plugin.read_memory(0x2043+id*4)==255,"plugin endian/input captures");
-        std::vector<uint8_t> before,after,replay;require(plugin.save_state(before),"plugin state save");plugin.run_frame({123});require(plugin.save_state(after) && plugin.load_state(before),"plugin state restore");plugin.run_frame({123});require(plugin.save_state(replay) && replay==after,"plugin input replay");
-        plugin.reset();require(!plugin.get_cycle_count() && !plugin.get_frame_count(),"reset counters");plugin.unload_rom();require(!plugin.is_rom_loaded() && !plugin.save_state(replay),"unload state");
-        std::cout<<registers<<" immediate register snapshots and "<<bus<<" RAM bus observations matched; full 2 GiB MEM2/32 MiB MEM1, dense/sparse replay, atomic loaders/states, 4096 original input latches, three-context guest and plugin passed\n";
+        std::vector<uint8_t> before,after,replay;require(plugin.save_state(before),"plugin state save");auto& netplay=loaded.netplay();
+        require(netplay.is_deterministic() && netplay.get_max_players()==1 && netplay.get_max_state_size()==2183168992ull && netplay.save_state_fast(nullptr,0)==before.size() && before.size()<65536,"Wii U compact/max state contract");
+        require(emulator_test::snapshot(netplay)==before && netplay.get_state_hash()==reference_hash(before),"plugin canonical fast state/hash");
+        require(!netplay.load_state_fast(nullptr,before.size()) && !netplay.load_state_fast(before.data(),before.size()-1),"plugin invalid fast load");plugin.run_frame({123});require(plugin.save_state(after) && plugin.load_state(before),"plugin state restore");netplay.run_frame_netplay(123,4095);require(plugin.save_state(replay) && replay==after,"plugin input replay");
+        plugin.reset();require(!plugin.get_cycle_count() && !plugin.get_frame_count(),"reset counters");plugin.unload_rom();require(!plugin.is_rom_loaded() && !plugin.save_state(replay) && !netplay.save_state_fast(nullptr,0) && !netplay.load_state_fast(before.data(),before.size()) && !netplay.get_state_hash(),"unload state");
+        std::cout<<registers<<" immediate register snapshots and "<<bus<<" RAM bus observations matched; full 2 GiB MEM2/32 MiB MEM1, dense/sparse replay, atomic loaders/states, 4096 original input latches, canonical fast states/hash, host-owned input replay, three-context guest and plugin passed\n";
     }catch(const std::exception& e) { std::cerr<<e.what()<<'\n';return 1; }
 }

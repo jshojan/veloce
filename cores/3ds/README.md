@@ -66,7 +66,7 @@ This is one chosen value per address, not all address/value combinations.
 Loader/state rejection, a three-context RAM-writing guest, dynamic plugin
 lifecycle, digital input and exact replay pass. The full component gate also
 passes undefined-behavior sanitization. Existing DS/DSi component regressions
-pass. All 51 original ROMs reproduce against the source/image ledger. See [testing](../../TESTING.md).
+pass. All 52 original ROMs reproduce against the source/image ledger. See [testing](../../TESTING.md).
 
 ```sh
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
@@ -97,7 +97,7 @@ wrong-input, field and invalid-stream controls fail; ROM mismatch, malformed
 TCP frames, different prior histories and replacement/frame-change lifecycle
 checks pass. This mirrors one 3DS instance; wireless/link multiplayer is pending.
 
-Full snapshots cost about 129.5 MiB each. Window 8 preallocates nine states,
+Full snapshots cost about 129.5 MiB each. Window 8 retains nine full states once history fills,
 about 1.14 GiB per peer, in addition to core and scratch buffers. Compression,
 page sharing and sustained real-time performance are unverified. Use a smaller
 rollback window on machines with limited memory. Existing NES/DS/DSi production

@@ -78,27 +78,51 @@ void Machine::frame() {
     }
     ++frames;
 }
-static void append(std::vector<uint8_t>& out,uint64_t value,unsigned width=8) { for(unsigned n=0;n<width;++n)out.push_back(uint8_t(value>>(8*(width-n-1)))); }
-bool Machine::save(std::vector<uint8_t>& out) const {
-    if(rom.empty())return false;
-    std::vector<uint32_t> active;
-    for(size_t index=0;index<pages.size();++index) {
-        const auto& page=pages[index];if(page && !std::all_of(page->begin(),page->end(),[](uint8_t b){return !b;}))active.push_back(uint32_t(index));
-    }
-    out.clear();out.reserve(992+active.size()*4100);
-    out.insert(out.end(),{'V','W','U','S','0','0','0','1'});
-    for(auto value:{identity,uint64_t(crc),frames,uint64_t(done),uint64_t(buttons)})append(out,value);
-    for(const auto& cpu:cpus) {
-        for(auto value:cpu.r)append(out,value);
-        for(uint64_t value:{uint64_t(cpu.pc),uint64_t(cpu.cr),uint64_t(cpu.xer),uint64_t(cpu.lr),uint64_t(cpu.ctr),cpu.steps,uint64_t(cpu.unsupported)})append(out,value);
-    }
-    append(out,active.size());
-    for(auto index:active) { append(out,index,4);out.insert(out.end(),pages[index]->begin(),pages[index]->end()); }
-    return true;
+bool Machine::active(const std::unique_ptr<Page>& page) { return page && !std::all_of(page->begin(),page->end(),[](uint8_t b){return !b;}); }
+size_t Machine::state_size() const {
+    if(rom.empty())return 0;
+    size_t count=0;for(const auto& page:pages)if(active(page))++count;
+    return 992+count*4100;
 }
-bool Machine::restore(const std::vector<uint8_t>& in) {
+void Machine::save_prefix(uint8_t* out,size_t count) const {
+    std::memcpy(out,"VWUS0001",8);size_t pos=8;
+    const auto append=[&](uint64_t value) { for(unsigned n=0;n<8;++n)out[pos++]=uint8_t(value>>(56-n*8)); };
+    for(auto value:{identity,uint64_t(crc),frames,uint64_t(done),uint64_t(buttons)})append(value);
+    for(const auto& cpu:cpus) {
+        for(auto value:cpu.r)append(value);
+        for(uint64_t value:{uint64_t(cpu.pc),uint64_t(cpu.cr),uint64_t(cpu.xer),uint64_t(cpu.lr),uint64_t(cpu.ctr),cpu.steps,uint64_t(cpu.unsupported)})append(value);
+    }
+    append(count);
+}
+size_t Machine::save_into(uint8_t* out,size_t capacity) const {
+    const size_t size=state_size();if(!size || !out)return size;
+    if(capacity<size)return 0;
+    save_prefix(out,(size-992)/4100);size_t pos=992;
+    for(size_t index=0;index<pages.size();++index)if(active(pages[index])) {
+        for(unsigned n=0;n<4;++n)out[pos++]=uint8_t(index>>(24-n*8));
+        std::memcpy(out+pos,pages[index]->data(),4096);pos+=4096;
+    }
+    return size;
+}
+bool Machine::save(std::vector<uint8_t>& out) const {
+    const size_t size=state_size();if(!size)return false;
+    out.resize(size);return save_into(out.data(),out.size())==size;
+}
+uint64_t Machine::state_hash() const {
+    const size_t size=state_size();if(!size)return 0;
+    uint8_t prefix[992];save_prefix(prefix,(size-992)/4100);uint64_t hash=0xcbf29ce484222325ULL;
+    const auto add=[&](const uint8_t* bytes,size_t count) { for(size_t n=0;n<count;++n)hash=(hash^bytes[n])*0x100000001b3ULL; };
+    add(prefix,sizeof(prefix));
+    for(size_t index=0;index<pages.size();++index)if(active(pages[index])) {
+        uint8_t encoded[4];for(unsigned n=0;n<4;++n)encoded[n]=uint8_t(index>>(24-n*8));
+        add(encoded,4);add(pages[index]->data(),4096);
+    }
+    return hash;
+}
+bool Machine::restore(const std::vector<uint8_t>& in) { return restore(in.data(),in.size()); }
+bool Machine::restore(const uint8_t* in,size_t size) {
     constexpr size_t prefix=992;
-    if(rom.empty() || in.size()<prefix || std::memcmp(in.data(),"VWUS0001",8))return false;
+    if(rom.empty() || !in || size<prefix || std::memcmp(in,"VWUS0001",8))return false;
     size_t pos=8;const auto take=[&](unsigned width=8) { uint64_t v=0;for(unsigned n=0;n<width;++n)v=v*256+in[pos++];return v; };
     if(take()!=identity || take()!=crc)return false;
     const auto frame=take(),finished=take(),input=take();if(finished>7 || input>0xfff)return false;
@@ -108,11 +132,11 @@ bool Machine::restore(const std::vector<uint8_t>& in) {
         for(auto* r:{&cpu.pc,&cpu.cr,&cpu.xer,&cpu.lr,&cpu.ctr}) { const auto value=take();if(value>0xffffffff)return false;*r=uint32_t(value); }
         cpu.steps=take();const auto stopped=take();if(stopped>1 || (cpu.pc&3) || (cpu.xer&~0xe000007fu))return false;cpu.unsupported=stopped;
     }
-    const auto count=take();if(count>page_count || in.size()!=prefix+count*4100)return false;
+    const auto count=take();if(count>page_count || size!=prefix+count*4100)return false;
     std::vector<std::unique_ptr<Page>> replacement(page_count);uint64_t previous=0;
     for(uint64_t n=0;n<count;++n) {
         const auto index=take(4);if(index>=page_count || (n && index<=previous))return false;
-        auto page=std::make_unique<Page>();std::copy_n(in.begin()+pos,4096,page->begin());pos+=4096;
+        auto page=std::make_unique<Page>();std::memcpy(page->data(),in+pos,4096);pos+=4096;
         if(std::all_of(page->begin(),page->end(),[](uint8_t b){return !b;}))return false;
         replacement[index]=std::move(page);previous=index;
     }

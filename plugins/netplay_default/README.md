@@ -54,7 +54,12 @@ the GGPO SDK or claim its network behavior. Session calls run on the emulator
 thread. A transport must validate peer identity/ROM/core compatibility and feed
 frame-indexed remote inputs. The module supports two players and a window of
 1–`NETPLAY_MAX_ROLLBACK_FRAMES`; caller/core frame numbers must agree at creation.
-State buffers are preallocated, although core serialization may still allocate.
+State buffers query the current serialization requirement with
+`save_state_fast(nullptr, 0)` and grow each history slot only as needed, reusing
+its high-water capacity. The query must be nonzero and within the core's stable
+maximum; actual writes must fit the queried bound. Invalid sizes and allocation
+failures stop before executing an unsaved frame. Fixed-size cores retain their
+full-state cost. Core serialization may still allocate internally.
 
 ## TCP peer transport
 
@@ -153,3 +158,21 @@ per peer, plus core/scratch memory. Serialization avoids temporary state
 vectors, but compression/page sharing and sustained real-time performance
 remain unverified. Run `ctr_netplay_plugin_test`; register/state/log/report
 artifacts are in `build/artifacts/netplay-3ds/`. CI/CD stays disabled.
+
+### Wii U sparse-state profile
+
+The experimental Wii U core provides one-controller `INetplayCapable` for its
+original virtual input latch. Its full logical 32 MiB MEM1/2 GiB MEM2 state is
+canonical nonzero pages; unchanged format preserves compatibility. The original
+probe's snapshots range up to 21,492 bytes, with a 17,392-byte final state. Both
+production TCP peers match the 100-frame baseline exactly, and twelve guest
+words are independently graded, including input-dependent high-RAM readbacks.
+
+History slots and frontend snapshots query current size and grow as needed;
+they retain high-water capacity rather than allocating the 2,183,168,992-byte
+upper bound for every frame. Variable-state tests verify growing/shrinking
+replay and failure handling; dense workloads can still need substantial memory.
+Native GamePad/VPAD/KPAD and wireless multiplayer remain pending. Run
+`wiiu_netplay_plugin_test`; artifacts are in `build/artifacts/netplay-wiiu/`.
+CI/CD remains disabled. Sustained performance, page sharing/delta states and
+Internet/physical/cross-platform sessions remain unverified.

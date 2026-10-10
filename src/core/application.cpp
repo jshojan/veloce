@@ -1022,12 +1022,14 @@ bool Application::save_state_to_buffer(std::vector<uint8_t>& buffer) {
     // Try fast path first if emulator supports it
     auto* netplay_capable = get_netplay_capable_emulator();
     if (netplay_capable) {
-        size_t max_size = netplay_capable->get_max_state_size();
-        buffer.resize(max_size);
-        size_t actual_size = netplay_capable->save_state_fast(buffer.data(), buffer.size());
-        if (actual_size > 0) {
-            buffer.resize(actual_size);
-            return true;
+        const size_t required = netplay_capable->save_state_fast(nullptr, 0);
+        if (required && required <= netplay_capable->get_max_state_size()) {
+            buffer.resize(required);
+            const size_t actual_size = netplay_capable->save_state_fast(buffer.data(), buffer.size());
+            if (actual_size > 0 && actual_size <= required) {
+                buffer.resize(actual_size);
+                return true;
+            }
         }
     }
 

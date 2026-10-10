@@ -1,7 +1,7 @@
 # Experimental Wii U core plugin
 
 `wiiu_plugin` builds `wiiu.so` (or the platform library equivalent), ABI v2,
-version 0.1.0. It executes repository-owned `.vwiiu` PowerPC integer programs
+version 0.2.0. It executes repository-owned `.vwiiu` PowerPC integer programs
 on three independent Espresso-style contexts and shared RAM. **Native Wii U
 software and firmware do not boot. Full platform completion is unmeasured.**
 
@@ -75,7 +75,7 @@ domain plus all RT/RA fields/aliases on eight source/eight immediate patterns,
 all supplied RAM bytes and selected boundary/endian/page widths. Full dense
 2,183,168,992-byte state round trip and sparse replay pass, as do atomic
 loaders/states, all 4,096 original digital latch values, a three-context guest
-at MEM1/MEM2 endpoints and the actual plugin lifecycle. All 51 original ROMs
+at MEM1/MEM2 endpoints and the actual plugin lifecycle. All 52 original ROMs
 reproduce against their source/image ledger. The full component gate passes
 undefined-behavior sanitization; the GC/Wii component regression passes.
 
@@ -101,10 +101,37 @@ once with an address-derived pattern and reads it through all three contexts;
 this checks one chosen value per address, not all address/value combinations.
 The dense state gate needs several GiB of host RAM. CI/CD remains disabled.
 
-## Remaining hardware and features
+## Netplay and remaining hardware
 
-Netplay is pending for this core; it does not expose `INetplayCapable` yet.
-Existing NES/DS/DSi/3DS production netplay is separate. Shared frontend input
+The core now exposes `INetplayCapable` with one host-owned virtual digital
+input latch and a joining viewer. `save_state_fast(nullptr, 0)` queries the
+current canonical sparse size; direct writes need only that capacity. The
+stable maximum remains 2,183,168,992 bytes, preserving every mapped RAM byte.
+Fast saves and full canonical-state hashing avoid temporary state vectors;
+loads retain atomic validation. Existing `VWUS0001` states remain compatible:
+a 100-frame state matches the previous serializer byte-for-byte.
+
+The [original netplay probe](../../tests/roms-src/wiiu/netplay_probe/README.md)
+passes production IPv4 TCP rollback. Both independent peers match the solo
+100-frame state byte-for-byte and twelve guest words match the independent
+arithmetic oracle. The viewer corrects host predictions. The guest makes a
+high MEM2 page nonzero/zero with input, exercising sparse state growth and
+shrinkage. Executed input/field/stream controls and ROM/transport/lifecycle
+rejections pass. This mirrors one instance; native GamePad/VPAD/KPAD,
+wireless multiplayer and native software remain pending.
+
+Rollback history now grows each slot to the current serialized requirement
+and reuses its capacity, bounded by the core's fixed maximum. The frontend
+also queries current size. This probe needs at most 21,492 bytes per snapshot,
+with a 17,392-byte complete final state. Cleared/untouched pages represent
+zero RAM, rather than a smaller memory map. High-water capacity remains in
+each history slot; dense workloads can still need several GiB per snapshot.
+Page sharing, delta states, sustained real-time performance, Internet,
+physical two-machine and cross-platform sessions remain unverified.
+All seven netplay gates pass across NES/DS/DSi/3DS/Wii U, including the raw
+transport and variable-state rollback tests. Full Wii U component checks
+(including dense fast bytes/hash, guards and replay) pass undefined-behavior
+sanitization. Shared frontend input
 bindings/hotplug are available, but native GamePad/Pro Controller/Wii Remote
 protocols, ZL/ZR/analog/touch/motion and physical device behavior are unverified.
 

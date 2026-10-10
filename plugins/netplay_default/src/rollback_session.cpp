@@ -1,18 +1,18 @@
 #include "rollback_session.hpp"
 #include <limits>
 #include <stdexcept>
+#include <new>
 
 namespace emu {
 RollbackSession::RollbackSession(INetplayCapable& core, int local_player, size_t window,
                                  uint64_t first_frame)
-    : m_core(core), m_local_player(local_player), m_window(window),
+    : m_core(core), m_local_player(local_player), m_window(window), m_max_state_size(core.get_max_state_size()),
       m_first_frame(first_frame), m_next_frame(first_frame) {
     if (!core.is_deterministic() || core.get_max_players() < 1 ||
         local_player < 0 || local_player > 1 || window == 0 ||
-        window > NETPLAY_MAX_ROLLBACK_FRAMES || core.get_max_state_size() == 0)
+        window > NETPLAY_MAX_ROLLBACK_FRAMES || m_max_state_size == 0)
         throw std::invalid_argument("rollback needs deterministic controller state and a valid window");
     m_frames.resize(window + 1);
-    for (auto& frame : m_frames) frame.state.resize(core.get_max_state_size());
 }
 
 RollbackSession::Frame* RollbackSession::find(uint64_t id) {
@@ -21,11 +21,15 @@ RollbackSession::Frame* RollbackSession::find(uint64_t id) {
 }
 
 bool RollbackSession::save(Frame& frame) {
-    frame.size = m_core.save_state_fast(frame.state.data(), frame.state.size());
-    if (frame.size == 0 || frame.size > frame.state.size()) {
-        m_failed = true;
-        return false;
-    }
+    try {
+        const size_t required = m_core.save_state_fast(nullptr, 0);
+        if (!required || required > m_max_state_size) { m_failed = true; return false; }
+        // Reuse each slot's capacity, growing only when serialized state grows.
+        if (frame.state.size() < required) frame.state.resize(required);
+        frame.size = m_core.save_state_fast(frame.state.data(), frame.state.size());
+        if (!frame.size || frame.size > required) { m_failed = true; return false; }
+    } catch (const std::bad_alloc&) { m_failed = true; return false; }
+      catch (const std::length_error&) { m_failed = true; return false; }
     return true;
 }
 

@@ -739,7 +739,7 @@ supplied-profile byte checks, not physical chip-control/timing evidence.
 guest words matching the independent oracle. Host owns one keypad; viewer
 replay is supported, DSi wireless multiplayer is pending. DS component and
 production netplay regression gates pass. Local TCP gates require loopback
-socket permission; CI/CD remains disabled. All 51 original ROMs reproduce
+socket permission; CI/CD remains disabled. All 52 original ROMs reproduce
 against the source/image ledger. Firmware/retail boot, full SCFG/MBK and most
 DSi hardware remain pending; full platform completion is unmeasured.
 
@@ -783,7 +783,7 @@ behavior. All 4,096 digital HID inputs, readonly lanes, atomic image/state
 validation, full 135,791,096-byte state replay, a three-context writing guest,
 and the dynamic plugin lifecycle pass. The full component gate passes
 undefined-behavior sanitization; existing DS/DSi component regressions pass.
-All 51 original ROMs reproduce against the source/image ledger.
+All 52 original ROMs reproduce against the source/image ledger.
 
 ```sh
 cmake --build build --target veloce ctr_plugin ctr_machine_test -j4
@@ -835,7 +835,7 @@ its bus explicitly; GC/Wii loader/map/state behavior is retained. MEM1 is
 32 MiB and MEM2 is the full 2 GiB physical profile, backed by sparse 4 KiB
 pages. Missing pages represent zero bytes, with canonical nonzero-page states.
 Native boot, full CPU/GPU/audio, services, physical timing, GamePad hardware
-and Wii U netplay remain pending; overall completion is unmeasured.
+and native wireless multiplayer remain pending; overall completion is unmeasured.
 
 `wiiu_immediate_registers` matches **25,165,824/25,165,824 nine-word original
 captures**: three contexts × ADDI/ADDIS × four source values × RA=0/3 × all
@@ -871,3 +871,49 @@ python3 tests/roms-src/build.py --original-only --check
 The full component and corpus timeouts are 1,200/1,800 seconds. CI/CD remains
 disabled. See [core scope](cores/wiiu/README.md) and
 [original domain/controls](tests/roms-src/wiiu/immediate_registers/README.md).
+
+### Wii U sparse-state production netplay
+
+`wiiu_plugin` version 0.2.0 now exposes `INetplayCapable` with one host-owned
+original digital-input latch and joining viewer. Fast snapshots write directly
+into caller buffers; a null-buffer query returns the current canonical sparse
+size. The stable maximum is 2,183,168,992 bytes. Prefix/page format remains
+`VWUS0001`; a 100-frame state is byte-identical to the previous serializer.
+Hashing covers every canonical scalar/page/index byte, with missing pages
+representing zero over the full 32 MiB MEM1/2 GiB MEM2 map.
+
+`RollbackSession` now sizes each slot from the current query and reuses capacity,
+rather than reserving the dense upper bound for every frame. Frontend snapshots
+use the same contract. `netplay_rollback_test` verifies 100-frame delayed and
+reordered histories with states growing/shrinking between 16 bytes and 64 KiB
+under a 2,183,168,992-byte declared bound. Both exact states and hashes converge;
+zero/oversized queries, oversized write results and allocation failure stop
+before an unsaved frame advances. Existing fixed-state behavior remains tested.
+
+The [original Wii U probe](tests/roms-src/wiiu/netplay_probe/README.md) polls input
+on all three contexts and writes/reloads an input bit at the high end of MEM2.
+The page becomes nonzero or clears, exercising canonical growth/shrinkage.
+`wiiu_netplay_plugin_test` passes two-process production TCP replay: both full
+100-frame states equal the solo baseline and twelve guest words match the
+independent arithmetic oracle. Final state is 17,392 bytes; the largest probe
+snapshot is 21,492 bytes. Executed zero-input control differs in six words;
+twelve field mutations and four invalid streams fail. ROM mismatch, four
+fragmented malformed TCP messages, different prior histories and core/frame
+replacement checks pass. Artifacts remain in `build/artifacts/netplay-wiiu/`.
+
+```sh
+ctest --test-dir build -R '^(wiiu_machine_test|wiiu_netplay_plugin_test|netplay_rollback_test)$' --output-on-failure
+ctest --test-dir build -L netplay --output-on-failure
+python3 tests/roms-src/build.py --original-only --check
+```
+
+The variable-state rollback gate also passes undefined-behavior sanitization.
+The full Wii U component gate passes undefined-behavior sanitization, including
+dense/sparse canonical fast bytes/hash, guard checks and replay. All seven
+netplay gates pass; all 52 original ROMs reproduce against the ledger.
+
+Native GamePad/KPAD/VPAD, wireless multiplayer, retail boot, Internet, physical
+devices/two machines, cross-platform peers and sustained performance remain
+pending or unverified. High-water capacity is retained in each history slot;
+dense workloads still require large states. Page sharing/delta histories are
+pending. TCP gates need loopback socket permission. CI/CD remains disabled.

@@ -19,7 +19,7 @@ are not measurements of overall hardware or product completion.
 | Nintendo DSi | `dsi_plugin` (original marked images only) | 387,072/387,072 original RAM captures; 67,109,008 component byte/width observations; 100-frame TCP host/viewer states and eight guest words match oracle | Not measured; firmware/retail boot, full SCFG/MBK, physical timing and most console hardware remain; [limits](../cores/dsi/README.md) |
 | Nintendo 3DS | `ctr_plugin` (original `.v3ds` only) | 25,165,824 original reversal captures; 36,123,648 component register snapshots and 541,065,300 RAM bus observations; 4,096 digital inputs; 100-frame production TCP host/viewer states and twelve guest words match baseline/oracle | Not measured; native boot, remaining CPU/peripherals, GPU/audio, physical timing and wireless multiplayer pending; [limits](../cores/3ds/README.md) |
 | GameCube | `gc_plugin` (original marked images only) | 49,152/49,152 arithmetic and 74,752/74,752 branch and 42,108,928/42,108,928 condition and 6,324,224/6,324,224 integer logical and 9,437,184/9,437,184 rotate/mask and 4,416,528/4,416,528 shift/unary and 25,168,384/25,168,384 carry arithmetic snapshots and 8,420,320/8,420,320 defined multiply/divide results matched; 1,056 undefined division rows have defined flags/preserved fields checked; 12,586,368/12,586,368 memory-transfer snapshots matched | Not measured; most CPU and console hardware remain; [limits](../cores/ppc/README.md) |
-| Wii U | `wiiu_plugin` (original `.vwiiu` only) | 25,165,824 original immediate captures; 28,311,552 component register snapshots and 8,724,152,428 RAM bus observations; dense/sparse replay and synthetic digital input | Not measured; native boot, remaining CPU/peripherals, GPU/audio, GamePad, physical timing and netplay pending; [limits](../cores/wiiu/README.md) |
+| Wii U | `wiiu_plugin` (original `.vwiiu` only) | 25,165,824 original immediate captures; 28,311,552 component register snapshots and 8,724,152,428 RAM bus observations; dense/sparse replay and synthetic digital input; 100-frame production TCP states/twelve guest words match baseline/oracle | Not measured; native boot, remaining CPU/peripherals, GPU/audio, GamePad, physical timing and wireless multiplayer pending; [limits](../cores/wiiu/README.md) |
 | Wii | `wii_plugin` (original marked images only) | 49,152/49,152 arithmetic and 74,752/74,752 branch and 42,108,928/42,108,928 condition and 6,324,224/6,324,224 integer logical and 9,437,184/9,437,184 rotate/mask and 4,416,528/4,416,528 shift/unary and 25,168,384/25,168,384 carry arithmetic snapshots and 8,420,320/8,420,320 defined multiply/divide results matched; 1,056 undefined division rows have defined flags/preserved fields checked; 12,586,368/12,586,368 memory-transfer snapshots matched | Not measured; most CPU and console hardware, including MEM2/IOS, remain; [limits](../cores/ppc/README.md) |
 
 The experimental N64 plugin now executes original MIPS integer homebrew ROMs.
@@ -214,7 +214,7 @@ custom mappings, capture mode, disconnect/reconnect, saved identity restoration,
 selection after removal, ambiguous devices, and axis endpoints. Physical devices,
 Bluetooth, cross-platform drivers, and multiplayer routing still need testing.
 
-The frontend has netplay interfaces/UI and the NES, DS, DSi and 3DS cores expose `INetplayCapable`.
+The frontend has netplay interfaces/UI and the NES, DS, DSi, 3DS and Wii U cores expose `INetplayCapable`.
 The [rollback module](../plugins/netplay_default/README.md) implements
 bounded history, prediction, late-input restore/replay, stalls, and confirmation
 validation. Two delayed actual NES sessions converge byte-for-byte on a 100-frame
@@ -440,7 +440,7 @@ supplied-profile byte checks, not physical chip-control/timing evidence.
 guest words matching the independent oracle. Host owns one keypad; viewer
 replay is supported, DSi wireless multiplayer is pending. DS component and
 production netplay regression gates pass. Local TCP gates require loopback
-socket permission; CI/CD remains disabled. All 51 original ROMs reproduce
+socket permission; CI/CD remains disabled. All 52 original ROMs reproduce
 against the source/image ledger. Firmware/retail boot, full SCFG/MBK and most
 DSi hardware remain pending; full platform completion is unmeasured.
 
@@ -488,7 +488,7 @@ Physical 3DS wireless/link multiplayer, Internet/cross-platform sessions,
 compression/page sharing and sustained real-time performance remain pending.
 A window-8 ring uses about 1.14 GiB per peer plus core/scratch memory. Reports,
 register files and full states stay in `build/artifacts/netplay-3ds/`.
-All 51 original ROMs reproduce from their source/image ledger. CI/CD remains disabled.
+All 52 original ROMs reproduce from their source/image ledger. CI/CD remains disabled.
 
 ### Wii U original integer and full mapped-RAM evidence
 
@@ -514,7 +514,29 @@ checks; full 32-bit operands, cache/MMU/coherency and physical timing are not
 proved. Raw files/grades stay in `build/artifacts/owned/wiiu_immediates/`.
 
 Firmware/native formats, Starbuck/IOSU/Cafe, remaining CPU instructions,
-Latte/GX2 GPU, DSP/audio, native GamePad/KPAD/VPAD, storage, wireless, netplay
+Latte/GX2 GPU, DSP/audio, native GamePad/KPAD/VPAD, storage, native wireless multiplayer
 and most platform hardware remain pending. Switch still lacks a plugin.
-All 51 original ROMs reproduce from the ledger. No overall hardware percentage
+All 52 original ROMs reproduce from the ledger. No overall hardware percentage
 is inferred. CI/CD remains disabled; use the local gates in the core README.
+
+### Wii U sparse-state host/viewer netplay
+
+The Wii U core now supports production host/viewer replay for original programs.
+Both independent TCP peers match the 100-frame solo canonical state byte-for-byte,
+and twelve guest words—including high MEM2 readbacks—match an independent host
+arithmetic oracle. Input-dependent far-page clearing/growth changes the sparse
+serialized size; the final state is 17,392 bytes while retaining the complete
+32 MiB MEM1/2 GiB MEM2 logical map. The original input/field/stream controls and
+ROM/transport/lifecycle rejection checks pass. Current fast states preserve the
+previous format; a 100-frame snapshot matches the previous serializer exactly.
+
+Rollback and frontend snapshot buffers now use the current size query, growing
+slots as needed within the stable maximum. Variable-state tests exercise delayed
+and reordered growth/shrinkage, exact state/hash convergence and query/write/
+allocation failure. High-water slot capacities are retained; dense workloads
+still cost large states. Native GamePad/VPAD/KPAD, wireless multiplayer, physical
+devices/two machines, Internet/cross-platform and sustained performance remain
+unverified or pending. Reports are in `build/artifacts/netplay-wiiu/`.
+The full Wii U component gate passes undefined-behavior sanitization; all
+seven netplay gates pass. CI/CD stays disabled; all 52 original ROMs reproduce
+against the ledger.

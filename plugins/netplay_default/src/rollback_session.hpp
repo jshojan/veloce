@@ -37,7 +37,7 @@ private:
     Result replay(uint64_t first);
     INetplayCapable& m_core;
     int m_local_player;
-    size_t m_window;
+    size_t m_window,m_max_state_size;
     uint64_t m_first_frame, m_next_frame;
     uint32_t m_last_remote = 0;
     std::vector<Frame> m_frames;

@@ -16,6 +16,8 @@ class Machine {
     std::vector<std::unique_ptr<Page>> pages;
     static bool location(uint32_t,unsigned,size_t&);
     bool store(uint32_t,unsigned,uint32_t);
+    static bool active(const std::unique_ptr<Page>&);
+    void save_prefix(uint8_t*,size_t) const;
 public:
     Machine():bus0(*this,0),bus1(*this,1),bus2(*this,2),pages(page_count) {}
     bool load(const uint8_t*,size_t);
@@ -25,6 +27,11 @@ public:
     void set_input(uint32_t v) { buttons=v&0xfff; }
     bool read(unsigned,uint32_t,unsigned,uint32_t&) const;
     bool write(unsigned,uint32_t,unsigned,uint32_t);
+    static constexpr size_t max_state_size() { return 992+page_count*4100; }
+    size_t state_size() const;
+    size_t save_into(uint8_t*,size_t) const;
+    bool restore(const uint8_t*,size_t);
+    uint64_t state_hash() const;
     bool save(std::vector<uint8_t>&) const;
     bool restore(const std::vector<uint8_t>&);
     std::array<ppc::State,3> cpus{};

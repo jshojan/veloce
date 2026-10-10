@@ -145,8 +145,8 @@ int main(int argc, char** argv) {
                   << "INFO rollbacks=" << rollbacks << " replay_audio_chunks=" << replay_chunks << "\n";
         if(!solo) registers<<"REG p0_sum="<<unsigned(fixture.plugin->read_memory(0x12))<<" p1_sum="<<unsigned(fixture.plugin->read_memory(0x13))<<"\n";
         if(solo) {
-            for(unsigned address=0x1000;address<(std::string(host.get_platform_name())=="3DS"?0x1030u:0x1020u);address+=4) {
-                uint32_t value=0; for(unsigned n=0;n<4;++n) value|=uint32_t(fixture.plugin->read_memory(address+n))<<(n*8);
+            for(unsigned address=0x1000;address<((std::string(host.get_platform_name())=="3DS" || std::string(host.get_platform_name())=="Wii U")?0x1030u:0x1020u);address+=4) {
+                uint32_t value=0; for(unsigned n=0;n<4;++n) { const auto byte=fixture.plugin->read_memory(address+n);if(std::string(host.get_platform_name())=="Wii U")value=value*256+byte;else value|=uint32_t(byte)<<(n*8); }
                 registers<<"REG address="<<address<<" value="<<value<<"\n";
             }
         }
