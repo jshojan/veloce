@@ -110,6 +110,17 @@
       "source_type": "original",
       "suite": "integer_registers"
     },
+    "nds/long_calls/long_calls.nds": {
+      "build_command": "python3 tests/roms-src/nds/long_calls/build.py",
+      "console": "nds",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "f968b7b2c19910fb2af4cf76879a2f27f3ecf4baa07f9140d0b81592780e4892",
+      "source_repo": "tests/roms-src/nds/long_calls/build.py",
+      "source_sha": "6b785b4ae985d4eedb0fec680bc8bd97003f14c8f26f90f78e3696446c55451a",
+      "source_type": "original",
+      "suite": "long_calls"
+    },
     "nds/memory_registers/memory_registers.nds": {
       "build_command": "python3 tests/roms-src/nds/memory_registers/build.py",
       "console": "nds",

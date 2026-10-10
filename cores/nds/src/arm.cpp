@@ -283,6 +283,19 @@ void Arm::thumb_step() {
     } else if((ins&0xf800)==0xe000) {
         const uint32_t delta=(ins&2047)<<1;
         s.r[15]=pc+4+(delta|(delta&2048 ? 0xfffff000u:0)); return;
+    } else if((ins&0xf800)==0xf000) {
+        const uint32_t high=(ins&2047)<<12;
+        s.r[14]=pc+4+(high|(high&0x00400000 ? 0xff800000u:0));
+    } else if((ins&0xf800)==0xf800 || (ins&0xf800)==0xe800) {
+        const bool exchange=(ins&0xf800)==0xe800;
+        if(exchange && (!v5 || (ins&1))) { s.unsupported=true; return; }
+        const auto target=s.r[14]+((ins&2047)<<1);
+        // A call pair may not branch into its own second half. Treat that
+        // unpredictable stream diagnostically, without changing LR or T.
+        if((exchange ? target&~3u:target)==pc) { s.unsupported=true; return; }
+        s.r[14]=(pc+2)|1;
+        if(exchange) s.cpsr&=~0x20u;
+        s.r[15]=exchange ? target&~3u:target; return;
     } else { s.unsupported=true; return; }
     s.r[15]=pc+2;
 }

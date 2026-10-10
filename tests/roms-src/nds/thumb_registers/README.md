@@ -64,7 +64,7 @@ High-register arithmetic/PC and SP address forms, conditional/unconditional
 branches, BLX register differences and exact Thumb/plugin state replay have
 separate component checks. Full 32-bit operand domains, all aliases, instruction
 latency, physical-hardware comparison, cache coherency, stack/block
-transfers, long calls, SWI/exceptions and ARM9 DSP extensions remain unverified
+transfers, SWI/exceptions and ARM9 DSP extensions remain unverified
 or unimplemented. Retail DS and DSi boot, peripherals, graphics/audio/input and
 DS netplay remain incomplete.
 
@@ -78,3 +78,7 @@ word as eight lowercase hex digits. Text framing still uses the byte port at
 and grades expected values independently. Native serialization changes no
 instruction domain or snapshot field. These ports are outside DS hardware and
 provide no evidence of physical timing.
+
+Adjacent Thumb BL and ARM9 BLX have a separate original
+[long-call corpus](../long_calls/README.md); its finite field domain does not
+establish physical cache coherence or exception behavior.

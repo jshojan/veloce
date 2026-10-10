@@ -27,6 +27,11 @@ Full platform completion is unknown.
   conditional/unconditional branches, BX and ARM9 register BLX. ARMv4 Thumb MUL
   C is unpredictable and retained as a model choice; equal MUL source/destination
   and pre-ARMv6 low/low high-register encodings stop diagnostically.
+- Thumb adjacent two-halfword BL calls on both CPUs and BLX immediate calls on
+  ARM9: signed high displacement, unsigned low displacement, tagged return LR,
+  word-aligned BLX targets and Thumb-to-ARM transition. Undefined odd BLX and
+  unavailable ARM7 BLX stop diagnostically; calls into their own suffix also
+  stop. These stops do not model physical exceptions.
 - ARM9 LDR-to-PC selects ARM/Thumb state. Thumb PC reads are instruction address
   plus four; high-register PC writes stay in Thumb, and PC-relative address
   generation word-aligns the PC. Normal BX targets select state with bit zero.
@@ -119,9 +124,17 @@ matched 49,694,208/49,694,208 nine-word observations with zero mismatches for AR
 memory transfers. It captures destination/CPSR/base/offset/source, the containing
 memory word, two guards and SP. Every recorded bit is graded; no bits are excluded.
 
-The four original ROMs use the word transport for register observations and the
-byte transport for text framing. Instruction domains, snapshot fields and host
-grading are unchanged. The integer builder retains `word_output=False`, which
+The original [long-call corpus](../../tests/roms-src/nds/long_calls/README.md)
+matched **9,437,184/9,437,184 eight-word snapshots**, zero mismatches and no
+unscored bits. Valid adjacent BL/ARM9 BLX pairs cover every high field and every
+valid low field individually, both source halfword positions, sixteen incoming
+LR seeds and all NZCV/ARM9 Q inputs. It observes link/CPSR/target-PC/input fields
+and an ARM-target memory store of LR. It patches and restores loaded RAM under
+the supplied cache-free profile; physical instruction-cache coherence is unverified.
+
+The five original ROMs use the word transport for register observations and the
+byte transport for text framing. The four earlier corpora retain their instruction
+domains, snapshot fields and independent grading. The integer builder retains `word_output=False`, which
 reproduces the previously committed byte-output image exactly. Its reduced
 347,136 observations match byte-for-byte between both transports, with both
 streams independently graded. In that supplied scheduling profile, native word
@@ -153,6 +166,14 @@ these counts measure test-driver work, not physical DS cycles or latency.
   BX/BLX target states, link addresses, ARM7 rejection, PC-load interworking,
   unsupported Thumb forms, halfword-aligned state replay and odd-PC rejection.
   Actual shared-plugin replay includes both CPUs in a Thumb loop.
+- 20,971,515 defined adjacent BL/BLX encoding pairs, covering the combined
+  high × low field matrix on both source positions and available architectures.
+  Five combinations targeting their own suffix are unpredictable and excluded.
+  Another 6,720 boundary/flag attempts include undefined/unavailable/self-suffix
+  diagnostics. Actual shared-plugin frames end after a prefix on both CPUs;
+  saving there and replaying the suffix produces byte-identical whole states,
+  including ARM9 BLX interworking. Existing serialized LR/PC/CPSR preserve this
+  continuation without changing the state format.
 - 393,216 ARM halfword/signed transfer attempts: every eight-bit offset,
   six addressing forms, distinct immediate/register inputs, four byte lanes
   and four flag patterns, including
@@ -188,14 +209,14 @@ ctest --test-dir build -R '^nds_' --output-on-failure
 ```
 
 Raw observations/reports remain in `build/artifacts/owned/nds_integer/`,
-`build/artifacts/owned/nds_multiply/`, `build/artifacts/owned/nds_thumb/` and
-`build/artifacts/owned/nds_memory/`,
+`build/artifacts/owned/nds_multiply/`, `build/artifacts/owned/nds_thumb/`,
+`build/artifacts/owned/nds_memory/` and `build/artifacts/owned/nds_long_calls/`,
 and are uploaded by owned-hardware CI. Generator/image SHA256 are recorded
 in the ROM manifest. Component evidence is separate from the original-ROM domain.
 
 ## Remaining hardware and features
 
-Thumb stack/block transfers and long calls, ARM BLX immediate,
+Thumb stack/block transfers, ARM BLX immediate,
 ARM9 DSP/saturation and other architecture extensions,
 doubleword/block transfers, SWP, privileged modes,
 banked registers, SPSR, exceptions/interrupts, CP15/MPU/cache/TCM, firmware and

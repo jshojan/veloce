@@ -73,7 +73,7 @@ ctest --test-dir build -R '^nds_memory_registers$' --output-on-failure
 Component checks cover register aliases, every encoded low destination,
 PC alignment, odd-half diagnostics, reserved operands and failed-transaction
 atomicity. Full 32-bit operand/offset/address domains, stack/block/doubleword
-transfers, long Thumb calls, cache/TCM/MPU, exceptions, bus timing and physical
+transfers, cache/TCM/MPU, exceptions, bus timing and physical
 hardware comparisons remain unverified or unimplemented. Retail DS/DSi boot,
 graphics/audio/input/peripherals and DS netplay remain incomplete. Finite domain
 coverage establishes no whole-platform completion percentage.
@@ -86,3 +86,7 @@ word as eight lowercase hex digits. Text framing still uses the byte port at
 and grades expected values independently. Native serialization changes no
 instruction domain or snapshot field. These ports are outside DS hardware and
 provide no evidence of physical timing.
+
+Adjacent Thumb BL and ARM9 BLX have a separate original
+[long-call corpus](../long_calls/README.md); its finite field domain does not
+establish physical cache coherence or exception behavior.

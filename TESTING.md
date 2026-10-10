@@ -128,7 +128,7 @@ ARM9/ARM7 share main RAM and execute from their loaded main/private segments.
 The host grades both output streams independently; an ADC-to-ADD mutation and
 seven damaged files check failure detection. Component gates cover aliases,
 shifters, WRAM banks, validation and exact plugin state replay. Firmware,
-Thumb stack/block transfers and long calls, physical timing, graphics/audio/controllers and
+Thumb stack/block transfers, physical timing, graphics/audio/controllers and
 DSi enhanced mode remain pending.
 The [multiply corpus](tests/roms-src/nds/multiply_registers/README.md) adds
 38,338,560 five-word observations across six multiply/accumulate forms, both S
@@ -155,7 +155,20 @@ are rejected. Every missing-store case must fail at both halfword lanes. Compone
 128 ARM aliases, 524,288 Thumb register cases and 30,720 immediate/SP/PC cases.
 The byte oracle checks width, sign extension, writeback and failed-transaction
 atomicity. Odd halfwords and unaligned Thumb words are outside the hardware grade.
-All four DS corpora serialize register words through emulator-only `$04FF0008`
+The [long-call corpus](tests/roms-src/nds/long_calls/README.md) matched
+9,437,184/9,437,184 eight-word observations, zero mismatches, with every bit
+graded. Valid adjacent BL/ARM9 BLX pairs cover each high and valid low field
+individually, both halfword positions, sixteen LR seeds and all NZCV/ARM9 Q.
+The reduced 9,472-case ROM passes; executed sign and link mutants fail 9,472
+and 3,328 cases respectively. Eight single-field mutations fail and seven
+malformed files return ERROR. Components cover 20,971,515 defined combined
+encoding pairs separately from the ROM field domain, excluding five unpredictable
+self-suffix targets, plus 6,720 boundary/flag/diagnostic attempts. Actual plugin
+frames cut after a prefix on each CPU; restored suffix execution reproduces
+whole states exactly, including ARM9 BLX. Dynamic code patches are backed up and
+restored under the cache-free test profile; physical cache coherence, exception
+handling and timing remain unverified.
+All five DS corpora serialize register words through emulator-only `$04FF0008`
 while retaining byte framing and the same independent graders. Integer controls
 compare 347,136 independently graded native/legacy observations byte-for-byte;
 `legacy-byte.nds`, `.result` and `.json` remain with the integer artifacts.

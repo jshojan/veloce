@@ -215,7 +215,7 @@ static void thumb_control(nds::Machine& m) {
         if(stop) require(s.r[15]==pc && s.cpsr==psw && s.r[14]==0,"rejected interworking changed state");
         else require(s.r[15]==(lane&1 ? start+0x100+(lane&2):start+0x100) && s.cpsr==((psw&~0x20u)|((lane&1)<<5)) && s.r[14]==(link ? (from_thumb ? (pc+2)|1:pc+4):0),"BX/BLX PC/T/link wrong");
     }
-    for(bool nine:{false,true}) for(uint16_t word:{0x4400,0x4500,0x4600,0x45ff,0x4701,0x47f8,0xde00,0xdf00,0xf000,0xc000,0xb400}) {
+    for(bool nine:{false,true}) for(uint16_t word:{0x4400,0x4500,0x4600,0x45ff,0x4701,0x47f8,0xde00,0xdf00,0xbe00,0xc000,0xb400}) {
         thumb_instruction(m,nine,word); auto& cpu=nine ? m.cpu9:m.cpu7; const auto original=cpu.state.r; cpu.step();
         require(cpu.state.unsupported && cpu.state.r==original,"unsupported/unpredictable Thumb encoding retired");
     }
@@ -261,6 +261,60 @@ static void memory(nds::Machine& m) {
     }
     m.write(true,0x02000000,4,0x12345678);
     for(bool nine:{false,true}) for(uint32_t mirror:{0x02000000u,0x02400000u,0x02800000u,0x02c00000u}) { uint32_t v=0; require(m.read(nine,mirror,4,v) && v==0x12345678,"main RAM mirror/coherence wrong"); }
+}
+static void thumb_long_calls(nds::Machine& m) {
+    uint64_t defined_pairs=0,unpredictable_pairs=0;
+    // Complete combined displacement fields, in valid adjacent pairs. Fetch
+    // only the call itself: mapped target execution is covered by the ROM.
+    for(bool nine:{false,true}) for(bool exchange:{false,true}) {
+        if(exchange && !nine) continue;
+        auto& cpu=nine ? m.cpu9:m.cpu7;
+        for(unsigned position:{0u,2u}) {
+            const uint32_t pc=start+position;
+            for(unsigned high=0;high<2048;++high) {
+                require(m.write(nine,pc,2,0xf000|high),"long-call prefix setup failed");
+                const int64_t signed_high=high<1024 ? int64_t(high):int64_t(high)-2048;
+                for(unsigned low=0;low<2048;low+=exchange ? 2:1) {
+                    require(m.write(nine,pc+2,2,(exchange ? 0xe800:0xf800)|low),"long-call suffix setup failed");
+                    const uint32_t destination=uint32_t(int64_t(pc)+4+signed_high*4096+int64_t(low)*2);
+                    const auto target=exchange ? destination/4*4:destination;
+                    if(target==pc+2) { ++unpredictable_pairs; continue; }
+                    ++defined_pairs;
+                    cpu.reset(pc); auto& s=cpu.state; s.r[14]=0xdeadbeef;
+                    s.cpsr=nine ? 0xf80000ff:0xf00000ff; const auto psw=s.cpsr;
+                    const uint32_t temporary=uint32_t(int64_t(pc)+4+signed_high*4096);
+                    cpu.step(); require(!s.unsupported && s.r[14]==temporary && s.r[15]==pc+2 && s.cpsr==psw && s.steps==1,"long-call intermediate LR/PC/flags wrong");
+                    cpu.step(); require(!s.unsupported && s.r[14]==((pc+4)|1) && s.r[15]==(exchange ? destination/4*4:destination) && s.cpsr==(exchange ? psw&~0x20u:psw) && s.steps==2,"long-call combined displacement/link/state wrong");
+                    for(unsigned reg=0;reg<14;++reg) require(s.r[reg]==0,"long call changed non-link register");
+                }
+            }
+        }
+    }
+    require(defined_pairs==20971515 && unpredictable_pairs==5,"combined call domain changed");
+    // All flags and boundary offsets on both instruction positions, together
+    // with ARM7 unavailable and ARM9 undefined BLX forms after a valid prefix.
+    for(bool nine:{false,true}) for(unsigned flags=0;flags<(nine ? 32u:16u);++flags)
+        for(unsigned position:{0u,2u}) for(unsigned high:{0u,1u,1023u,1024u,2047u})
+        for(unsigned low:{0u,1u,2u,1023u,1024u,2046u,2047u}) for(bool exchange:{false,true}) {
+            const uint32_t pc=start+position;
+            require(m.write(nine,pc,2,0xf000|high) && m.write(nine,pc+2,2,(exchange ? 0xe800:0xf800)|low),"flag boundary pair setup failed");
+            auto& cpu=nine ? m.cpu9:m.cpu7; cpu.reset(pc); cpu.state.cpsr=0xff|(flags<<(nine ? 27:28));
+            cpu.step(); const auto original=cpu.state.r; const auto psw=cpu.state.cpsr;
+            const bool replay_case=flags==0 && position==2 && high==1 && low==2;
+            std::vector<uint8_t> middle,after,replay; if(replay_case) require(m.save(middle),"between-halves save failed");
+            cpu.step();
+            const int64_t offset=(high<1024 ? int64_t(high):int64_t(high)-2048)*4096+int64_t(low)*2;
+            const auto target=uint32_t(int64_t(pc)+4+offset);
+            const bool self_suffix=(exchange ? target/4*4:target)==pc+2;
+            if((exchange && (!nine || (low&1))) || self_suffix) require(cpu.state.unsupported && cpu.state.r==original && cpu.state.cpsr==psw,"unsupported/undefined BLX changed state");
+            else {
+                require(!cpu.state.unsupported && cpu.state.r[14]==((pc+4)|1) && cpu.state.r[15]==(exchange ? target/4*4:target) && cpu.state.cpsr==(exchange ? psw&~0x20u:psw),"long-call boundary flags/state wrong");
+            }
+            if(replay_case) {
+                m.save(after); require(m.restore(middle),"between-halves restore failed"); cpu.step(); m.save(replay);
+                require(after==replay,"between-halves long-call continuation diverged");
+            }
+        }
 }
 static uint32_t byte_load(const std::array<uint8_t,12>& bytes,unsigned lane,unsigned width,bool sign) {
     uint32_t result=0;
@@ -427,6 +481,47 @@ static void states(nds::Machine& m,const std::vector<uint8_t>& rom,const char* p
     require((after[183]&0x20) && (after[335]&0x20),"plugin lost Thumb state");
     require(core.load_state(before),"plugin Thumb replay restore failed"); core.run_frame({0}); core.save_state(replay);
     require(replay==after,"actual plugin Thumb continuation diverged");
+    // End a real plugin frame immediately after each CPU's prefix. The next
+    // frame starts at the suffix with an observable temporary LR, so replay
+    // checks actual prefix execution and the serialized partial-call context.
+    const auto read_scalar=[](const std::vector<uint8_t>& data,unsigned offset) {
+        uint64_t value=0; for(unsigned n=0;n<8;++n) value=value*256+data[offset+n]; return value;
+    };
+    for(bool exchange:{false,true}) {
+        const uint32_t bases[]={start,0x020a2000};
+        const unsigned lengths[]={200000,100000};
+        scalar(24,0); scalar(32,0); scalar(168,bases[0]); scalar(320,bases[1]);
+        scalar(176,0xf80000ff); scalar(328,0xf00000ff); scalar(184,0); scalar(336,0);
+        scalar(160,0xdeadbeef); scalar(312,0x89abcdef);
+        for(unsigned cpu=0;cpu<2;++cpu) {
+            const auto store_half=[&](unsigned n,uint16_t word) {
+                const auto offset=352+bases[cpu]-0x02000000+n*2;
+                before[offset]=uint8_t(word); before[offset+1]=uint8_t(word>>8);
+            };
+            for(unsigned n=0;n<lengths[cpu]-1;++n) store_half(n,0x46c0); // MOV r8,r8
+            store_half(lengths[cpu]-1,0xf000);
+            store_half(lengths[cpu],cpu==0 && exchange ? 0xe802:0xf800);
+            if(cpu==0 && exchange) {
+                // Word-aligned ARM self-loop after the pair, away from its suffix.
+                store_half(lengths[cpu]+2,0xfffe); store_half(lengths[cpu]+3,0xeaff);
+            } else store_half(lengths[cpu]+1,0xe7fe);
+        }
+        require(core.load_state(before),"plugin call setup rejected"); core.run_frame({0});
+        std::vector<uint8_t> middle; require(core.save_state(middle),"plugin between-halves save failed");
+        for(unsigned cpu=0;cpu<2;++cpu) {
+            const auto suffix=bases[cpu]+lengths[cpu]*2;
+            require(read_scalar(middle,cpu ? 320:168)==suffix && read_scalar(middle,cpu ? 312:160)==suffix+2 && read_scalar(middle,cpu ? 336:184)==lengths[cpu],"plugin frame did not end after call prefix");
+        }
+        core.run_frame({0}); core.save_state(after);
+        for(unsigned cpu=0;cpu<2;++cpu) {
+            const auto return_address=bases[cpu]+lengths[cpu]*2+2;
+            const auto target=cpu==0 && exchange ? (return_address+4)/4*4:return_address;
+            require(read_scalar(after,cpu ? 320:168)==target && read_scalar(after,cpu ? 312:160)==(return_address|1),"plugin resumed call with wrong target/link");
+            require(read_scalar(after,cpu ? 328:176)==(cpu ? 0xf00000ffu:exchange ? 0xf80000dfu:0xf80000ffu),"plugin resumed call with wrong flags/state");
+        }
+        require(core.load_state(middle),"plugin partial-call restore failed"); core.run_frame({0}); core.save_state(replay);
+        require(after==replay,"actual plugin between-halves call replay diverged");
+    }
     // Both actual plugin CPUs emit a register word, then terminate. Restore
     // and replay must reproduce the bytes, completion and whole machine state.
     scalar(32,0); scalar(168,start); scalar(320,start); scalar(176,0xdf); scalar(328,0xdf);
@@ -448,7 +543,7 @@ int main(int argc,char** argv) {
     try {
         require(argc==3,"usage: nds_machine_test plugin original.nds"); std::ifstream in(argv[2],std::ios::binary);
         std::vector<uint8_t> rom((std::istreambuf_iterator<char>(in)),{}); nds::Machine m; require(m.load(rom.data(),rom.size()),"original DS ROM rejected");
-        arithmetic(m); multiplies(m); shifts(m); control(m); thumb_alu(m); thumb_high_registers(m); thumb_control(m); memory_instructions(m); memory(m); register_output(m); states(m,rom,argv[1]);
+        arithmetic(m); multiplies(m); shifts(m); control(m); thumb_alu(m); thumb_high_registers(m); thumb_control(m); thumb_long_calls(m); memory_instructions(m); memory(m); register_output(m); states(m,rom,argv[1]);
         std::cout<<"DS ARM/Thumb ALU/multiply/shifter/control/memory/state/plugin checks passed\n"; return 0;
     } catch(const std::exception& e) { std::cerr<<e.what()<<'\n'; return 1; }
 }
