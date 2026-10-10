@@ -1775,4 +1775,8 @@ bytes remain local. Reports: `build/artifacts/retail/n64-tmem.json` and default
 
 N64 remains **40% = 8/20 fixed delivery milestones**. Full graphics and the full
 Nintendo-platform goal remain unfinished. Front-page and core README percentages
-stay synchronized. CI/CD remains disabled. Full regression verification is pending.
+stay synchronized. CI/CD remains disabled. **72 distinct N64 gates pass**: the 70 existing regressions passed in
+**2,149.11 seconds**, and both TMEM gates passed after the reference-driven
+corrections. The full build and undefined-behavior sanitizer pass; all 93
+original archives reproduce. This verifies the stated implemented profiles,
+not the full native hardware or playable retail games.
