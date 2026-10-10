@@ -85,6 +85,16 @@ bool Aarch64::step(){
         put(rd,result);
         if(op==3)state.nzcv=unsigned(bool(result&(uint64_t(1)<<(width-1))))*8+unsigned(!result)*4;
     }
+    else if((w&0x3fe00800)==0x1a800000){
+        // Conditional select: both sources use XZR, never SP; NZCV is preserved.
+        uint64_t result=reg(rn);
+        if(!condition((w>>12)&15)){
+            result=reg(rm);
+            if(w&(1u<<30))result=~result;
+            if(w&1024)++result;
+        }
+        put(rd,result&mask);
+    }
     else if((w&0x7fe0fc00)==0x1ac00800 || (w&0x7fe0fc00)==0x1ac00c00){
         put(rd,integer_divide(reg(rn),reg(rm),width,bool(w&1024)));
     }

@@ -789,3 +789,16 @@ set_tests_properties(switch_muldiv_registers PROPERTIES LABELS "accuracy;owned" 
 add_test(NAME switch_muldiv_plugin_state_test COMMAND switch_plugin_state_test $<TARGET_FILE:switch_plugin>
     ${CMAKE_SOURCE_DIR}/tests/roms-src/switch/muldiv_registers/muldiv_registers.nso)
 set_tests_properties(switch_muldiv_plugin_state_test PROPERTIES LABELS "integration;accuracy;owned" TIMEOUT 90)
+
+add_executable(switch_select_test cpp/switch_select_test.cpp ${CMAKE_SOURCE_DIR}/cores/switch/src/aarch64.cpp)
+target_include_directories(switch_select_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/switch/src)
+target_compile_features(switch_select_test PRIVATE cxx_std_17)
+add_test(NAME switch_select_test COMMAND switch_select_test)
+set_tests_properties(switch_select_test PROPERTIES LABELS "unit;accuracy;owned" TIMEOUT 180)
+add_test(NAME switch_select_registers COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/switch/select_registers/run.py --emulator $<TARGET_FILE:veloce>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/switch_select)
+set_tests_properties(switch_select_registers PROPERTIES LABELS "accuracy;owned" TIMEOUT 240)
+add_test(NAME switch_select_plugin_state_test COMMAND switch_plugin_state_test $<TARGET_FILE:switch_plugin>
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/switch/select_registers/select_registers.nso)
+set_tests_properties(switch_select_plugin_state_test PROPERTIES LABELS "integration;accuracy;owned" TIMEOUT 90)
