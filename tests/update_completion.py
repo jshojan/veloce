@@ -20,7 +20,7 @@ def main():
     by_file={}
     for row in data['platforms']:by_file.setdefault(row['readme'],[]).append(row)
     legend='These percentages count the 20 explicit delivery milestones in [the completion ledger]({link}); partial or unverified milestones receive zero credit. Each milestone is worth 5 percentage points. **They are not percentages of native hardware accuracy or retail compatibility.** Bounded profile tests do not complete a whole CPU or hardware subsystem.'
-    blocks={'README.md':'## Core completion percentages\n\n'+table(data['platforms'])+'\n\n'+legend.format(link='docs/CORE-COMPLETION.md')+'\n\nSuper Mario 64 (USA) was tested locally on 2026-10-10: **loads and reaches 35,944 IPL3 step attempts**, then faults on an unsupported CACHE instruction. Boot and playability remain pending. See the [repeatable local probe](cores/n64/README.md#local-retail-regression-target).'}
+    blocks={'README.md':'## Core completion percentages\n\n'+table(data['platforms'])+'\n\n'+legend.format(link='docs/CORE-COMPLETION.md')+'\n\nSuper Mario 64 (USA) was tested locally on 2026-10-10: **loads and reaches 5,775,036 startup step attempts**, then faults at missing RSP PC register `A4080000`. Boot and playability remain pending. See the [repeatable local probe](cores/n64/README.md#local-retail-regression-target).'}
     for path,rows in by_file.items():
         blocks[path]='## Completion percentage\n\n'+table(rows)+'\n\n'+legend.format(link='../../docs/CORE-COMPLETION.md')
         for row in rows:

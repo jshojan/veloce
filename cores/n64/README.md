@@ -11,7 +11,7 @@ These percentages count the 20 explicit delivery milestones in [the completion l
 
 Nintendo 64 delivered milestones: Native digital controller/keypad registers consume frontend input, Parse a native cartridge/executable format (boot scored separately), Repository-owned ROM source and reproducible archived image, Separate core plugin and ABI entry points, Actual guest register-file output independently graded on the host, with negative controls, Complete states for the implemented profile and deterministic replay.
 
-Remaining: Super Mario 64 loads but faults on unsupported CACHE after 35,944 IPL3 step attempts; native boot, native RAM remapping/calibration, remaining CPU/FPU/devices, RSP/RDP/VI/AI, analog and netplay remain.
+Remaining: Super Mario 64 reaches 5,775,036 startup attempts, then faults at RSP PC; native boot, RAM remapping/calibration, remaining CPU/FPU/devices, RSP/RDP/VI/AI, analog and netplay remain.
 <!-- completion:end -->
 
 `n64_plugin` builds `n64.so`/`n64.dll`/`n64.dylib` and implements emulator ABI v2.
@@ -99,7 +99,7 @@ SI re-entry and pending SI/timer save-state continuation also have unit evidence
 Count still advances once per two CPU step attempts, including interrupt entry.
 This is an instruction-clock approximation. Exact PClock/pipeline timing,
 CP0 hazards, Count-write equality timing, privilege checks, other interrupt
-producers and reset/NMI/cache-error paths are unverified. The current `VN64S006` state stores Count, Compare, Cause, Status and pending SI/PI/MI state. Device levels are resampled on the next step.
+producers and reset/NMI/cache-error paths are unverified. The current `VN64S007` state stores Count, Compare, Cause, Status and pending SI/PI/MI state. Device levels are resampled on the next step.
 
 ## Explicit homebrew entry profile
 
@@ -108,7 +108,7 @@ need the standard `$80371240` big-endian cartridge prefix, an aligned entry in
 KSEG0/KSEG1 RAM at header offset `$08`, and a payload starting at ROM offset
 `$1000`. The loader zeroes RAM, copies that payload to physical RAM `$400`, and
 enters the header's address with zero GPRs/HI/LO and interrupts disabled in
-kernel mode. This is a repository-defined test entry profile, **not PIF/IPL/CIC
+kernel mode with Config.K0=2 (uncached KSEG0). This is a repository-defined test entry profile, **not PIF/IPL/CIC
 boot emulation**. The entry must point within the copied payload. The loader
 rejects unsupported native variants and malformed/truncated headers without replacing an
 already loaded machine. Maximum homebrew image size is bounded by the RAM payload size. Native images are bounded at 64 MiB.
@@ -165,14 +165,14 @@ executes all three archive formats through actual frontend discovery.
 ```bash
 python3 tests/roms-src/build.py --original-only --check
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build --target veloce n64_plugin n64_machine_test n64_pi_test n64_ri_test n64_mi_test n64_rdram_test -j
+cmake --build build --target veloce n64_plugin n64_machine_test n64_pi_test n64_ri_test n64_mi_test n64_rdram_test n64_cache_test -j
 ctest --test-dir build -R '^n64_' --output-on-failure
 ```
 
-`VN64S006` states store explicit big-endian scalars, all GPR/CP0 registers,
+`VN64S007` states store explicit big-endian scalars, all GPR/CP0 registers,
 HI/LO, both PCs, pending delay state, instruction/frame counters, completion,
 RAM and SP storage, PIF RAM, SI address/completion, MI mask, latched digital
-input and debug yield state, plus 13 PI registers, PI IRQ and boot mode (120 bytes), six RI controls and a current-loaded flag (56 bytes), plus MI mode and pending DP (16 bytes) and 36 device-register scalars (288 bytes). Legacy `VN64S005` restores reset device registers; `VN64S004` states restore with neutral MI mode/DP; `VN64S003` states restore with neutral RI; `VN64S002` loads only for homebrew, with neutral PI/RI; `VN64S001` is rejected. ROM data is immutable and referenced by identity. Size,
+input and debug yield state, plus 13 PI registers, PI IRQ and boot mode (120 bytes), six RI controls and a current-loaded flag (56 bytes), plus MI mode and pending DP (16 bytes) and 36 device-register scalars (288 bytes), plus all cache tags/valid/dirty flags and data (40,960 bytes). Legacy `VN64S006` restores invalid caches; `VN64S005` restores reset device registers; `VN64S004` states restore with neutral MI mode/DP; `VN64S003` states restore with neutral RI; `VN64S002` loads only for homebrew, with neutral PI/RI; `VN64S001` is rejected. ROM data is immutable and referenced by identity. Size,
 version, ROM identity and basic field validation precede restoration. The
 instruction counter counts CPU step attempts including interrupt entry,
 **not actual VR4300 cycles**;
@@ -181,7 +181,7 @@ not an emulated VI field. The nominal metadata rate is NTSC/93.75 MHz only.
 
 ## Remaining hardware and modern features
 
-PIF/IPL/CIC and retail boot, TLB/address modes, caches and pipeline timing,
+PIF/IPL/CIC and retail boot, TLB/address modes, cache errors and pipeline timing,
 full CP0, remaining interrupt producers and timing, LL/SC, traps,
 FPU, RSP/vector instructions, RDP, VI, AI, RDRAM chip controls and remaining RI/PI behavior, full SI/MI/PIF,
 analog and multiplayer controllers,
@@ -203,7 +203,7 @@ Other native boot variants reject. The original `V64IP001` marker opts a test
 image into the same handoff. Reset copies only IPL3 into SP DMEM `$40`, leaves
 RDRAM zero, and enters `$A4000040`. It supplies Status `34000000`, registers
 s3=0, s4=1, s5=0, s6=63, s7=1, SP=`A4001FF0`, RA=`A4001550`, and header-derived
-PI domain-1 timing values. This is an explicit HLE handoff; PIF ROM execution,
+PI domain-1 timing values, with Config.K0=3 selecting cached KSEG0. This is an explicit HLE handoff; PIF ROM execution,
 CIC authentication, full reset state and successful native boot remain pending.
 The setup follows independently authored [flashcart boot code](https://github.com/Polprzewodnikowy/N64FlashcartMenu/blob/main/src/boot/boot.c)
 and [PIF handoff code](https://github.com/mikeryan/n64dev/blob/master/src/boot/pif.S).
@@ -231,7 +231,7 @@ all captured-field mutations and seven malformed streams per corpus are rejected
 `n64_pi_test` separately covers 1,048,576 RDRAM destinations, 32,768 even lengths,
 65,536 address masks, every byte of an 8 MiB DMA, all SI/PI/MI combinations,
 actual IRQ/ACK/ERET continuation, atomic rejection, legacy/native states,
-64 MiB formats and the loaded plugin. All fifteen N64 CTests pass; the component
+64 MiB formats and the loaded plugin. All seventeen N64 CTests pass; the component
 also passes undefined-behavior sanitization.
 
 ## RI configuration controls
@@ -256,7 +256,7 @@ exact continuation, legacy states, reset and the loaded plugin.
 These are functional controls. Analog current calibration, mode-dependent RAM
 access, refresh scheduling, bus contention/error production, native RAM remapping
 and physical timing remain pending. Native cartridge startup now proceeds past
-RI register configuration and reaches MI control setup; the local target now reaches an unsupported cache instruction.
+RI register configuration and reaches MI control setup; the local target now reaches the missing RSP PC register.
 
 ## MI mode and interrupt controls
 
@@ -308,14 +308,48 @@ undefined-behavior sanitization.
 Native RAM remapping remains pending; ordinary RAM and PI/SI DMA still use the
 existing direct 8 MiB storage profile. Analog current calibration/degradation,
 refresh scheduling, ordinary-RAM repeat writes, EBus ninth-bit memory, physical
-timing and cached bus transactions remain incomplete. Stored current/mode
+timing and device cache-burst transactions remain incomplete. Stored current/mode
 readback is functional and does not establish physical calibration or boot.
+
+## Functional primary caches
+
+CPU instruction fetches and data loads/stores now use separate direct-mapped
+caches for KSEG0 when Config.K0 differs from 2. KSEG1 and the homebrew reset
+configuration bypass them. Instruction/data cache sizes are 16/8 KiB with
+32/16-byte lines. Dirty data evicts to the address stored in its tag; uncached
+CPU and PI/SI DMA writes do not snoop either cache. Masked merge stores update
+enabled cached bytes without changing neighboring bytes.
+
+Thirteen defined CACHE sub-opcodes support index invalidate/writeback,
+index load/store tag, create dirty exclusive, hit invalidate/writeback and
+explicit instruction fill. TagLo reflects valid D lines as state 11 even when
+clean. CACHE checks CU0 outside kernel/exception levels; unsupported encodings
+raise RI, and unsupported addresses/bus failures use the existing address-fault
+approximation. Full TLB/privilege, parity/error, Status/cache diagnostic behavior,
+cycle timing, hazards, bus ordering and extended address modes remain pending.
+Details follow the [VR4300 manual](https://hack64.net/docs/VR43XX.pdf), chapters
+5/11 and instruction descriptions; code is original C++.
+
+The [original cache ROM](../../tests/roms-src/n64/cache_coherence/README.md)
+matches 2,097,152 cases / 12,582,912 guest values across every D index/byte lane
+and initial byte. Executed writeback mutation, six field mutants and seven
+invalid streams reject. `n64_cache_test` separately checks all 1,048,576 tag
+values, 1,048,576 instruction staleness/refill cases, index/offset selection,
+create dirty exclusive, index versus hit operations, widths/merged masks,
+real PI DMA staleness, executed stale instructions, CACHE opcode/privilege
+checks, dirty/stale state replay, rejected cache fields and loaded-plugin states.
+The component passes undefined-behavior sanitization.
+
+Native startup now executes past cache initialization into the RAM bootstrap.
+Native RAM chip remapping/calibration and remaining devices still prevent a
+verified boot. The bounded trace now allows 12,000,000 attempts, matching the
+120-frame production probe's scheduling budget; neither proves gameplay.
 
 ## Local retail regression target
 
 Super Mario 64 (USA), supplied locally by the user, was probed on 2026-10-10.
-The plugin **loads it and reaches 35,944 IPL3 step attempts**, then raises a reserved-instruction
-exception on CACHE. EPC is `$A40003D8`, Cause is `$28`,
+The plugin **loads it and reaches 5,775,036 startup step attempts**, then faults reading
+the missing RSP PC register `$A4080000`. EPC is `$800001D4`, Cause is `$10`,
 and the exception vector is `$80000180`. The production ABI probe runs 120
 frontend scheduling quanta with uniform video and no audio. **Retail boot and
 playability are unverified.** The 8 MiB image has SHA256
@@ -332,5 +366,5 @@ video/audio and runs a bounded machine trace to the first CPU exception.
 It writes hashes, EPC, Cause, fault address and all 32 GPRs to
 `build/artifacts/retail/n64.json`; no commercial bytes are archived or copied.
 The current verdict is `boot-blocked`. A successful probe process is not a
-playability verdict. Next work includes cache instructions and native RAM mapping, full CPU/CP0/FPU,
+playability verdict. Next work includes RSP registers and native RAM mapping, full CPU/CP0/FPU,
 RSP/RDP/VI/device scheduling, AI and save media.

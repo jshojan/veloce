@@ -54,7 +54,7 @@ void Machine::reset() {
     cpu.reset(rom.empty() || boot_mode==BootMode::Homebrew?entry:sign32(0xa4000040));
     if(!rom.empty() && boot_mode!=BootMode::Homebrew) {
         // Explicit HLE handoff to IPL3, not a model of the PIF ROM/CIC exchange.
-        auto& s=cpu.state;s.cp0[12]=0x34000000;
+        auto& s=cpu.state;s.cp0[12]=0x34000000;s.cp0[16]=3;
         s.gpr[19]=0;s.gpr[20]=1;s.gpr[21]=0;s.gpr[22]=0x3f;s.gpr[23]=1;
         s.gpr[29]=sign32(0xa4001ff0);s.gpr[31]=sign32(0xa4001550);
     }
@@ -248,7 +248,7 @@ static void append(std::vector<uint8_t>& data, uint64_t value) {
 }
 bool Machine::save(std::vector<uint8_t>& data) const {
     if (rom.empty()) return false;
-    data.assign({'V','N','6','4','S','0','0','6'});
+    data.assign({'V','N','6','4','S','0','0','7'});
     append(data, identity); append(data, crc); append(data, frames); append(data, done);
     const auto& s = cpu.state;
     for (auto value : s.gpr) append(data, value);
@@ -263,6 +263,8 @@ bool Machine::save(std::vector<uint8_t>& data) const {
     for(auto reg:ri) append(data,reg);
     append(data,ri_current_loaded);append(data,mi_mode);append(data,dp_interrupt);
     for(const auto& chip:rdram_devices.snapshot())for(auto reg:chip)append(data,reg);
+    auto cache=[&](const auto& lines) {for(const auto& line:lines) {append(data,line.page);append(data,line.flags);data.insert(data.end(),line.data.begin(),line.data.end());}};
+    cache(cpu.caches.instruction);cache(cpu.caches.data);
     return true;
 }
 bool Machine::restore(const std::vector<uint8_t>& data) {
@@ -272,7 +274,8 @@ bool Machine::restore(const std::vector<uint8_t>& data) {
     const bool previous=!std::memcmp(data.data(),"VN64S003",8);
     const bool ri_previous=!std::memcmp(data.data(),"VN64S004",8);
     const bool mi_previous=!std::memcmp(data.data(),"VN64S005",8);
-    if((!legacy && !previous && !ri_previous && !mi_previous && std::memcmp(data.data(),"VN64S006",8)) || data.size()!=prefix+ram_size+sp.size()+(legacy?0:previous?120:ri_previous?176:mi_previous?192:480) ||
+    const bool devices_previous=!std::memcmp(data.data(),"VN64S006",8);
+    if((!legacy && !previous && !ri_previous && !mi_previous && !devices_previous && std::memcmp(data.data(),"VN64S007",8)) || data.size()!=prefix+ram_size+sp.size()+(legacy?0:previous?120:ri_previous?176:mi_previous?192:devices_previous?480:41440) ||
         (legacy && boot_mode!=BootMode::Homebrew)) return false;
     size_t position = 8;
     auto take = [&]() { auto v = be(data.data() + position, 8); position += 8; return v; };
@@ -309,9 +312,19 @@ bool Machine::restore(const std::vector<uint8_t>& data) {
         for(auto& chip:device_state)for(auto& reg:chip) {const auto v=take();if(v>0xffffffffu)return false;reg=uint32_t(v);}
         if(!saved_devices.restore(device_state))return false;
     }
+    PrimaryCaches saved_caches;
+    if(!legacy && !previous && !ri_previous && !mi_previous && !devices_previous) {
+        auto cache=[&](auto& lines,bool instruction) {for(auto& line:lines) {
+            const auto page=take(),flags=take();
+            if(page>0xfffff || (flags!=0 && flags!=1 && (instruction || flags!=3)))return false;
+            line.page=uint32_t(page);line.flags=uint8_t(flags);
+            std::copy_n(data.begin()+position,line.data.size(),line.data.begin());position+=line.data.size();
+        }return true;};
+        if(!cache(saved_caches.instruction,true) || !cache(saved_caches.data,false))return false;
+    } else if(!s.cp0[16]) s.cp0[16]=boot_mode==BootMode::Homebrew?2:3;
     position=memory_position;
     // Validate first; rejected states leave the active machine untouched.
-    cpu.state = s; frames = saved_frames; done = saved_done;
+    cpu.state = s;cpu.caches=saved_caches; frames = saved_frames; done = saved_done;
     si_address = uint32_t(saved_si_address); input_buttons = uint32_t(saved_input); si_interrupt = saved_irq;
     mi_mask = uint8_t(saved_mask); yielded = saved_yield;
     pi=saved_pi;pi_interrupt=saved_pi_irq;ri=saved_ri;ri_current_loaded=saved_current_loaded;mi_mode=uint16_t(saved_mode);dp_interrupt=saved_dp;rdram_devices=saved_devices;

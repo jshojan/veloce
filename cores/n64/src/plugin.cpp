@@ -6,7 +6,7 @@ class Plugin : public emu::IEmulatorPlugin {
 public:
     emu::EmulatorInfo get_info() override {
         static const char* extensions[] = {".z64", ".v64", ".n64", nullptr};
-        return {"N64", "0.5.0", "Veloce", "Experimental integer core, settled PI/SI, RI/MI/RDRAM device controls and CIC-6102 IPL3 handoff; retail boot/playability, graphics/audio and analog input pending.",
+        return {"N64", "0.6.0", "Veloce", "Experimental integer core with primary caches, settled PI/SI, RI/MI/RDRAM device controls and CIC-6102 IPL3 handoff; retail boot/playability, graphics/audio and analog input pending.",
                 extensions, 60.0, 93750000, 320, 240};
     }
     const emu::ControllerLayoutInfo* get_controller_layout() override {
