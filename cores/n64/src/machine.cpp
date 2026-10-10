@@ -60,7 +60,7 @@ void Machine::reset() {
     }
     frames = 0; done = false; yielded = false;
     pif.fill(0); si_address = input_buttons = 0; si_interrupt = false; mi_mask = 0;mi_mode=0;dp_interrupt=false;
-    pi={};pi_interrupt=false;ri={};ri_current_loaded=false;rdram_devices.reset();sp_interface.reset();audio_interface.reset();audio_samples={};crystal_phase=output_phase=audio_head=audio_count=audio_dropped=0;
+    pi={};pi_interrupt=false;ri={};ri_current_loaded=false;rdram_devices.reset();sp_interface.reset();audio_interface.reset();video_interface.reset();audio_samples={};crystal_phase=output_phase=audio_head=audio_count=audio_dropped=0;
     if(!rom.empty() && boot_mode!=BootMode::Homebrew) {
         const auto config=uint32_t(be(rom.data(),4));
         pi[5]=config&255;pi[6]=(config>>8)&255;pi[7]=(config>>16)&15;pi[8]=(config>>20)&3;
@@ -69,7 +69,7 @@ void Machine::reset() {
 void Machine::clock() {
     // One nominal CPU clock per interpreter attempt: physical CPI is unmodeled.
     crystal_phase+=48681818;
-    if(crystal_phase>=93750000) {crystal_phase-=93750000;audio_interface.tick(ram);}
+    if(crystal_phase>=93750000) {crystal_phase-=93750000;audio_interface.tick(ram);video_interface.tick();}
     output_phase+=48000;
     if(output_phase>=93750000) {
         output_phase-=93750000;
@@ -137,6 +137,7 @@ bool Machine::read(uint64_t address, unsigned bytes, uint64_t& value) {
     if (p >= 0x10000000 && uint64_t(p) + bytes <= 0x10000000 + rom.size()) { value = be(rom.data() + p - 0x10000000, bytes); return true; }
     if (p >= 0x1fc007c0 && uint64_t(p) + bytes <= 0x1fc00800) { value = be(pif.data() + p - 0x1fc007c0, bytes); return true; }
     if (bytes == 4) {
+        if(p>=0x04400000 && p<=0x0440003c && !(p&3))return video_interface.read((p-0x04400000)/4,value);
         if(p>=0x04500000 && p<=0x04500014 && !(p&3)) {value=audio_interface.read((p-0x04500000)/4);return true;}
         if(p>=0x04040000 && p<=0x0404001c && !(p&3))return sp_interface.read((p-0x04040000)/4,value);
         if(p==0x04080000) {value=sp_interface.pc;return true;}
@@ -152,7 +153,7 @@ bool Machine::read(uint64_t address, unsigned bytes, uint64_t& value) {
         if (p == 0x04800018) { value = si_interrupt ? 0x1000 : 0; return true; }
         if (p == 0x04300000) { value=mi_mode;return true; }
         if (p == 0x04300004) { value=0x02020102;return true; }
-        if (p == 0x04300008) { value = (audio_interface.interrupt?4:0)|sp_interface.interrupt|(si_interrupt ? 2 : 0)|(pi_interrupt ? 16 : 0)|(dp_interrupt ? 32 : 0); return true; }
+        if (p == 0x04300008) { value = (video_interface.interrupt?8:0)|(audio_interface.interrupt?4:0)|sp_interface.interrupt|(si_interrupt ? 2 : 0)|(pi_interrupt ? 16 : 0)|(dp_interrupt ? 32 : 0); return true; }
         if (p == 0x0430000c) { value = mi_mask; return true; }
     }
     return false;
@@ -181,6 +182,7 @@ bool Machine::write(uint64_t address, unsigned bytes, uint64_t value) {
         return true;
     }
     if (bytes == 4) {
+        if(p>=0x04400000 && p<=0x0440003c && !(p&3))return video_interface.write((p-0x04400000)/4,uint32_t(value));
         if(p>=0x04500000 && p<=0x04500014 && !(p&3))return audio_interface.write((p-0x04500000)/4,uint32_t(value),ram.size());
         if(p>=0x04040000 && p<=0x0404001c && !(p&3))return sp_interface.write((p-0x04040000)/4,uint32_t(value),ram,sp);
         if(p==0x04080000) {sp_interface.pc=uint32_t(value)&0xffc;return true;}
@@ -267,7 +269,7 @@ static void append(std::vector<uint8_t>& data, uint64_t value) {
 }
 bool Machine::save(std::vector<uint8_t>& data) const {
     if (rom.empty()) return false;
-    data.assign({'V','N','6','4','S','0','1','1'});
+    data.assign({'V','N','6','4','S','0','1','2'});
     append(data, identity); append(data, crc); append(data, frames); append(data, done);
     const auto& s = cpu.state;
     for (auto value : s.gpr) append(data, value);
@@ -290,6 +292,7 @@ bool Machine::save(std::vector<uint8_t>& data) const {
     for(auto sample:audio_samples) {data.push_back(uint8_t(sample>>8));data.push_back(uint8_t(sample));}
     append(data,s.fcr31);
     for(const auto& e:cpu.tlb.entries)for(auto v:{e.hi,uint64_t(e.mask),uint64_t(e.even),uint64_t(e.odd)})append(data,v);
+    for(auto value:video_interface.snapshot())append(data,value);
     return true;
 }
 bool Machine::restore(const std::vector<uint8_t>& data) {
@@ -304,7 +307,8 @@ bool Machine::restore(const std::vector<uint8_t>& data) {
     const bool sp_previous=!std::memcmp(data.data(),"VN64S008",8);
     const bool audio_previous=!std::memcmp(data.data(),"VN64S009",8);
     const bool fpu_previous=!std::memcmp(data.data(),"VN64S010",8);
-    if((!legacy && !previous && !ri_previous && !mi_previous && !devices_previous && !caches_previous && !sp_previous && !audio_previous && !fpu_previous && std::memcmp(data.data(),"VN64S011",8)) || data.size()!=prefix+ram_size+sp.size()+(legacy?0:previous?120:ri_previous?176:mi_previous?192:devices_previous?480:caches_previous?41440:sp_previous?41512:audio_previous?74440:fpu_previous?74448:75472) ||
+    const bool tlb_previous=!std::memcmp(data.data(),"VN64S011",8);
+    if((!legacy && !previous && !ri_previous && !mi_previous && !devices_previous && !caches_previous && !sp_previous && !audio_previous && !fpu_previous && !tlb_previous && std::memcmp(data.data(),"VN64S012",8)) || data.size()!=prefix+ram_size+sp.size()+(legacy?0:previous?120:ri_previous?176:mi_previous?192:devices_previous?480:caches_previous?41440:sp_previous?41512:audio_previous?74440:fpu_previous?74448:tlb_previous?75472:75632) ||
         (legacy && boot_mode!=BootMode::Homebrew)) return false;
     size_t position = 8;
     auto take = [&]() { auto v = be(data.data() + position, 8); position += 8; return v; };
@@ -377,12 +381,16 @@ bool Machine::restore(const std::vector<uint8_t>& data) {
             if(!Tlb::valid(e))return false;
         }
     }
+    VideoInterface saved_video;
+    if(!legacy && !previous && !ri_previous && !mi_previous && !devices_previous && !caches_previous && !sp_previous && !audio_previous && !fpu_previous && !tlb_previous) {
+        VideoInterface::State v{};for(auto& value:v)value=take();if(!saved_video.restore(v))return false;
+    }
     position=memory_position;
     // Validate first; rejected states leave the active machine untouched.
     cpu.state = s;cpu.caches=saved_caches;cpu.tlb=saved_tlb; frames = saved_frames; done = saved_done;
     si_address = uint32_t(saved_si_address); input_buttons = uint32_t(saved_input); si_interrupt = saved_irq;
     mi_mask = uint8_t(saved_mask); yielded = saved_yield;
-    pi=saved_pi;pi_interrupt=saved_pi_irq;ri=saved_ri;ri_current_loaded=saved_current_loaded;mi_mode=uint16_t(saved_mode);dp_interrupt=saved_dp;rdram_devices=saved_devices;sp_interface=saved_sp;audio_interface=saved_audio;audio_samples=saved_samples;crystal_phase=saved_crystal;output_phase=saved_output;audio_head=saved_head;audio_count=saved_count;audio_dropped=saved_dropped;
+    pi=saved_pi;pi_interrupt=saved_pi_irq;ri=saved_ri;ri_current_loaded=saved_current_loaded;mi_mode=uint16_t(saved_mode);dp_interrupt=saved_dp;rdram_devices=saved_devices;sp_interface=saved_sp;audio_interface=saved_audio;video_interface=saved_video;audio_samples=saved_samples;crystal_phase=saved_crystal;output_phase=saved_output;audio_head=saved_head;audio_count=saved_count;audio_dropped=saved_dropped;
     std::copy_n(data.begin() + position, 64, pif.begin()); position += 64;
     std::copy_n(data.begin() + position, ram_size, ram.begin());
     std::copy_n(data.begin() + position + ram_size, sp.size(), sp.begin());

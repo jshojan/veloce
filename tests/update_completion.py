@@ -20,7 +20,7 @@ def main():
     by_file={}
     for row in data['platforms']:by_file.setdefault(row['readme'],[]).append(row)
     legend='These percentages count the 20 explicit delivery milestones in [the completion ledger]({link}); partial or unverified milestones receive zero credit. Each milestone is worth 5 percentage points. **They are not percentages of native hardware accuracy or retail compatibility.** Bounded profile tests do not complete a whole CPU or hardware subsystem.'
-    blocks={'README.md':'## Core completion percentages\n\n'+table(data['platforms'])+'\n\n'+legend.format(link='docs/CORE-COMPLETION.md')+'\n\nSuper Mario 64 (USA) was tested locally on 2026-10-10: **loads and reaches 5,897,464 startup step attempts**, then faults reading the unimplemented VI Current register (`A4400010`) at PC `803275F4`. Boot and playability remain pending. See the [repeatable local probe](cores/n64/README.md#local-retail-regression-target).'}
+    blocks={'README.md':'## Core completion percentages\n\n'+table(data['platforms'])+'\n\n'+legend.format(link='docs/CORE-COMPLETION.md')+'\n\nSuper Mario 64 (USA) was tested locally on 2026-10-10: **loads and reaches 6,212,303 startup step attempts**, then encounters unsupported LDC1 at EPC `80325978` (actual instruction-cache word `D7400130`). Boot and playability remain pending. See the [repeatable local probe](cores/n64/README.md#local-retail-regression-target).'}
     for path,rows in by_file.items():
         blocks[path]='## Completion percentage\n\n'+table(rows)+'\n\n'+legend.format(link='../../docs/CORE-COMPLETION.md')
         for row in rows:

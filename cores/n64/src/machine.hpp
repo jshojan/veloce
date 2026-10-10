@@ -3,6 +3,7 @@
 #include "rdram.hpp"
 #include "sp_interface.hpp"
 #include "audio_interface.hpp"
+#include "video_interface.hpp"
 #include "emu/emulator_plugin.hpp"
 #include <vector>
 
@@ -13,7 +14,7 @@ public:
     Machine() : ram(ram_size), cpu(*this) {}
     bool load(const uint8_t* data, size_t size);
     void reset();
-    uint8_t interrupt_pending() const override { return ((audio_interface.interrupt && (mi_mask & 4)) || (sp_interface.interrupt && (mi_mask & 1)) || (si_interrupt && (mi_mask & 2)) || (pi_interrupt && (mi_mask & 16)) || (dp_interrupt && (mi_mask & 32))) ? 4 : 0; }
+    uint8_t interrupt_pending() const override { return ((video_interface.interrupt && (mi_mask & 8)) || (audio_interface.interrupt && (mi_mask & 4)) || (sp_interface.interrupt && (mi_mask & 1)) || (si_interrupt && (mi_mask & 2)) || (pi_interrupt && (mi_mask & 16)) || (dp_interrupt && (mi_mask & 32))) ? 4 : 0; }
     void clock() override;
     void clear_audio() {audio_head=audio_count=0;}
     bool read(uint64_t address, unsigned bytes, uint64_t& value) override;
@@ -45,6 +46,7 @@ public:
     RdramDevices rdram_devices;
     SpInterface sp_interface;
     AudioInterface audio_interface;
+    VideoInterface video_interface;
     static constexpr size_t audio_capacity=8192,audio_state_size=32928;
     std::array<uint16_t,audio_capacity*2> audio_samples{};
     uint64_t crystal_phase=0,output_phase=0,audio_head=0,audio_count=0,audio_dropped=0;

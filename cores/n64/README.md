@@ -1,17 +1,19 @@
 # Experimental Nintendo 64 core plugin
 
+Current N64 evidence: [VI framebuffer and current Mario blocker](#video-interface-and-first-framebuffer). Earlier increment reports are historical.
+
 <!-- completion:start -->
 ## Completion percentage
 
 | Platform | Delivery checklist completion | Delivered / total |
 |---|---:|---:|
-| Nintendo 64 | **35%** | 7/20 |
+| Nintendo 64 | **40%** | 8/20 |
 
 These percentages count the 20 explicit delivery milestones in [the completion ledger](../../docs/CORE-COMPLETION.md); partial or unverified milestones receive zero credit. Each milestone is worth 5 percentage points. **They are not percentages of native hardware accuracy or retail compatibility.** Bounded profile tests do not complete a whole CPU or hardware subsystem.
 
-Nintendo 64 delivered milestones: Guest sound produces audio samples, Native digital controller/keypad registers consume frontend input, Parse a native cartridge/executable format (boot scored separately), Repository-owned ROM source and reproducible archived image, Separate core plugin and ABI entry points, Actual guest register-file output independently graded on the host, with negative controls, Complete states for the implemented profile and deterministic replay.
+Nintendo 64 delivered milestones: Guest sound produces audio samples, Native digital controller/keypad registers consume frontend input, Guest graphics produce rendered video, Parse a native cartridge/executable format (boot scored separately), Repository-owned ROM source and reproducible archived image, Separate core plugin and ABI entry points, Actual guest register-file output independently graded on the host, with negative controls, Complete states for the implemented profile and deterministic replay.
 
-Remaining: Super Mario 64 reaches 5,897,464 startup attempts, then faults reading VI Current; native boot/playability, RAM remapping/calibration, remaining CPU/FPU/devices, RSP/RDP/VI, RSP audio microcode, physical AI timing, analog and netplay remain.
+Remaining: Super Mario 64 reaches 6,212,303 startup attempts, then encounters unsupported LDC1; native boot/playability, remaining CPU/FPU/devices, RSP/RDP, VI filters and physical timing, RSP audio microcode, analog and netplay remain.
 <!-- completion:end -->
 
 `n64_plugin` builds `n64.so`/`n64.dll`/`n64.dylib` and implements emulator ABI v2.
@@ -22,6 +24,11 @@ Full-core completion is unknown; the available corpus measures defined results
 on selected operands, not a percentage of N64 hardware implemented.
 
 ## Implemented execution
+
+- Functional VI scanline/field and IRQ/MI controls, plus unfiltered RGBA16/RGBA32
+  guest-RAM framebuffer output with fixed-point scale/offset. Filters and RSP/RDP remain pending.
+- AI stereo guest PCM, FIFO/IRQ and deterministic 48 kHz host output; physical
+  timing, DAC/filter behavior and RSP audio microcode remain pending.
 
 - 32 paired-page TLB entries, seven page sizes, ASID/global matching, valid/dirty
   permissions, TLBR/TLBWI/TLBWR/TLBP, masked CP0 fields and DMFC0/DMTC0.
@@ -40,9 +47,8 @@ on selected operands, not a percentage of N64 hardware implemented.
 - Big-endian LWL/LWR/LDL/LDR merge loads and SWL/SWR/SDL/SDR merge stores.
   Masked stores preserve untouched bytes without a bus read-modify-write read.
 - Basic MFC0/MTC0, ERET from EXL/ERL, integer overflow, SYSCALL/BREAK, reserved
-  instruction, alignment/address exception EPC/BD context. CP0 is partial;
-  most register masks, privilege modes and precise bus/TLB
-  exception classes still need implementation.
+  instruction, alignment/address and TLB/bus exception EPC/BD context.
+  Full CP0, cache-error/shutdown/reset/NMI paths and pipeline hazards remain incomplete.
 - 8 MiB RDRAM, KSEG0/KSEG1 aliases, read-only cartridge mapping, and 8 KiB SP
   memory, SP PC/status/semaphore controls and settled bidirectional SP DMA.
   RSP scalar/vector execution and DMA scheduling remain pending.
@@ -107,7 +113,7 @@ SI re-entry and pending SI/timer save-state continuation also have unit evidence
 Count still advances once per two CPU step attempts, including interrupt entry.
 This is an instruction-clock approximation. Exact PClock/pipeline timing,
 CP0 hazards, Count-write equality timing, privilege checks, other interrupt
-producers and reset/NMI/cache-error paths are unverified. The current `VN64S011` state stores Count, Compare, Cause, Status and pending SI/PI/SP/AI/MI state. Device levels are resampled on the next step.
+producers and reset/NMI/cache-error paths are unverified. The current `VN64S012` state stores Count, Compare, Cause, Status and pending SI/PI/SP/AI/VI/MI state. Device levels are resampled on the next step.
 
 ## Explicit homebrew entry profile
 
@@ -177,10 +183,10 @@ cmake --build build --target veloce n64_plugin n64_machine_test n64_pi_test n64_
 ctest --test-dir build -R '^n64_' --output-on-failure
 ```
 
-`VN64S011` states store explicit big-endian scalars, all GPR/CP0 registers,
+`VN64S012` states store explicit big-endian scalars, all GPR/CP0 registers,
 HI/LO, both PCs, pending delay state, instruction/frame counters, completion,
 RAM and SP storage, PIF RAM, SI address/completion, MI mask, latched digital
-input and debug yield state, plus 13 PI registers, PI IRQ and boot mode (120 bytes), six RI controls and a current-loaded flag (56 bytes), plus MI mode and pending DP (16 bytes) and 36 device-register scalars (288 bytes), plus all cache tags/valid/dirty flags and data (40,960 bytes) and nine SP interface scalars (72 bytes), plus 15 AI scalars, five host-clock/ring scalars and 32,768 bytes of pending PCM storage (32,928 bytes). FCR31 is stored as an 8-byte validated scalar, followed by 32 TLB entries as four 8-byte scalars each (1,024 bytes). Legacy `VN64S010` restores neutral TLB entries; `VN64S009` restores neutral FCR31; `VN64S008` restores neutral AI/host audio; `VN64S007` restores reset SP controls; `VN64S006` restores invalid caches; `VN64S005` restores reset device registers; `VN64S004` states restore with neutral MI mode/DP; `VN64S003` states restore with neutral RI; `VN64S002` loads only for homebrew, with neutral PI/RI; `VN64S001` is rejected. ROM data is immutable and referenced by identity. Size,
+input and debug yield state, plus 13 PI registers, PI IRQ and boot mode (120 bytes), six RI controls and a current-loaded flag (56 bytes), plus MI mode and pending DP (16 bytes) and 36 device-register scalars (288 bytes), plus all cache tags/valid/dirty flags and data (40,960 bytes) and nine SP interface scalars (72 bytes), plus 15 AI scalars, five host-clock/ring scalars and 32,768 bytes of pending PCM storage (32,928 bytes). FCR31 is stored as an 8-byte validated scalar, followed by 32 TLB entries as four 8-byte scalars each (1,024 bytes). VI adds 20 validated 8-byte scalars (160 bytes), including registers, current line, crystal phase, field count, leap pattern and interrupt latch. Legacy `VN64S011` restores reset VI; `VN64S010` restores neutral TLB entries; `VN64S009` restores neutral FCR31; `VN64S008` restores neutral AI/host audio; `VN64S007` restores reset SP controls; `VN64S006` restores invalid caches; `VN64S005` restores reset device registers; `VN64S004` states restore with neutral MI mode/DP; `VN64S003` states restore with neutral RI; `VN64S002` loads only for homebrew, with neutral PI/RI; `VN64S001` is rejected. ROM data is immutable and referenced by identity. Size,
 version, ROM identity and basic field validation precede restoration. The
 instruction counter counts CPU step attempts including interrupt entry,
 **not actual VR4300 cycles**;
@@ -191,12 +197,12 @@ not an emulated VI field. The nominal metadata rate is NTSC/93.75 MHz only.
 
 PIF/IPL/CIC and retail boot, TLB multiple-hit/shutdown behavior and remaining address edge cases, cache errors and pipeline timing,
 full CP0, remaining interrupt producers and timing, LL/SC, traps,
-FPU data transfers/arithmetic/conversion/comparison, RSP/vector instructions, RDP, VI, full AI/DAC physical behavior, full RDRAM initialization and remaining RI/PI behavior, full SI/MI/PIF,
+FPU data transfers/arithmetic/conversion/comparison, RSP/vector instructions, RDP, VI filters/diagnostic line buffer/physical timing, full AI/DAC physical behavior, full RDRAM initialization and remaining RI/PI behavior, full SI/MI/PIF,
 analog and multiplayer controllers,
-save media, video/audio output, expansion devices and physical hardware
+save media, retail graphics and RSP audio microcode, expansion devices and physical hardware
 validation remain. Unimplemented opcodes raise a reserved-instruction exception.
-Unsupported memory access currently uses an address exception approximation.
-Merge memory supports big-endian unmapped RAM/SP storage; TLB, reverse-endian
+Unsupported aligned physical accesses raise IBE/DBE; precise physical board/open-bus responses remain unverified.
+Merge memory supports translated big-endian RAM/SP storage; reverse-endian
 modes, MMIO partial writes and precise transaction timing remain pending.
 There is no N64 netplay capability yet. Video is a blank buffer, audio is empty,
 and digital input is routed to the first SI/PIF controller. Windows/macOS builds and rendered GUI usage
@@ -264,7 +270,7 @@ exact continuation, legacy states, reset and the loaded plugin.
 These are functional controls. Analog current calibration, mode-dependent RAM
 access, refresh scheduling, bus contention/error production, native RAM remapping
 and physical timing remain pending. Native cartridge startup now proceeds past
-RI register configuration and reaches MI control setup; the local target now reaches the unimplemented VI Current register.
+RI register configuration and reaches MI control setup; the local target now reaches unsupported LDC1 (see the retail probe above).
 
 ## MI mode and interrupt controls
 
@@ -288,7 +294,7 @@ invalid streams reject. The component passes undefined-behavior sanitization.
 
 Repeat/upper device-register effects are implemented in the RDRAM profile.
 EBus, ninth-bit RAM, repeat RAM writes and native RAM remapping remain pending.
-RSP BREAK/VI/DP hardware producers and physical bus/interrupt timing remain incomplete.
+RSP BREAK/DP hardware producers and physical bus/interrupt timing remain incomplete.
 
 ## RDRAM device register topology
 
@@ -356,11 +362,15 @@ verified boot. The bounded trace now allows 12,000,000 attempts, matching the
 ## Local retail regression target
 
 Super Mario 64 (USA), supplied locally by the user, was probed on 2026-10-10.
-The plugin **loads it and reaches 5,897,464 startup step attempts**, then faults on
-a read of the unimplemented VI Current register (`A4400010`) at PC `$803275F4` (word `$8D8D0010`). EPC is `$803275F4`, Cause is `$1C`,
-and the exception vector is `$80000180`. The production ABI probe runs 120
-frontend scheduling quanta with uniform video and no audio. **Retail boot and
-playability are unverified.** The 8 MiB image has SHA256
+The plugin **loads it and reaches 6,212,303 startup step attempts**, then
+encounters unsupported `LDC1` at EPC `$80325978`, actual instruction-cache word
+`$D7400130`, Cause `$10000028` (RI code 10). The backing RAM word is `$44844000`;
+the trace distinguishes the cached instruction from its noncoherent backing.
+The last recorded bus access belongs to an earlier instruction and is not an
+LDC1 operand observation. There were 22 earlier nonterminal exception entries.
+The production ABI probe runs 120 frontend scheduling quanta with uniform
+video and zero audio pairs. **Retail boot and playability are unverified.**
+The 8 MiB image has SHA256
 `17ce077343c6133f8c9f2d6d6d9a4ab62c8cd2aa57c40aea1f490b4c8bb21d91`.
 It is not included in this repository.
 
@@ -370,12 +380,12 @@ python3 tests/n64_retail_probe.py /path/to/your/sm64.z64
 ```
 
 The optional probe loads the production shared library, checks ABI, measures
-video/audio and runs a bounded machine trace to the first CPU exception.
+video/audio and runs a bounded machine trace through interrupts and recoverable TLB/FPU exceptions to the first terminal exception.
 It writes hashes, EPC, Cause, fault address and all 32 GPRs to
 `build/artifacts/retail/n64.json`; no commercial bytes are archived or copied.
 The current verdict is `boot-blocked`. A successful probe process is not a
 playability verdict. Next work includes FPU and native RAM mapping, full CPU/CP0/FPU,
-RSP/RDP/VI/device scheduling, physical AI timing and save media.
+RSP/RDP, VI filtering and device pipeline scheduling, physical AI timing and save media.
 
 
 ## SP controls and settled DMA
@@ -489,7 +499,7 @@ The profile follows NEC's original VR4300 manual, sections 7.2 and the six
 control/branch instruction entries. Arithmetic, FPR data transfers, comparisons,
 conversions, physical pipeline hazards and NaN/denormal behavior remain pending.
 Unsupported/undefined COP1 encodings raise RI as an emulator limitation.
-No CPU-complete milestone is awarded; N64 remains **35%** on the delivery checklist.
+No CPU-complete milestone was awarded for this increment; N64 was **35%** before the VI graphics increment below.
 
 The private Mario 64 probe now passes CFC1 and reaches unimplemented VI Current register at
 EPC `803275F4`, word `8D8D0010`, Cause `1C` hex, after 5,897,464 attempts.
@@ -524,7 +534,7 @@ with neutral entries while retaining FCR31/audio and other implemented state.
 Reset tags and undefined-mask/multiple-hit outcomes are functional conventions.
 Multiple-hit shutdown/TS, physical Random/CP0/cache/TLB timing, pipeline hazards,
 remaining address edge cases and physical board response validation remain
-pending. N64 stays **35%** on the delivery checklist; the CPU remains incomplete.
+pending. This TLB increment left N64 at **35%**; the subsequent VI increment below raises delivery completion to 40%. The CPU remains incomplete.
 
 The private Mario 64 trace now passes TLBWI and reaches a read of VI Current at
 `A4400010`: EPC `803275F4`, decoded word `8D8D0010`, Cause `1C` (DBE), after
@@ -532,3 +542,56 @@ The private Mario 64 trace now passes TLBWI and reaches a read of VI Current at
 instructions; merely setting EXL in software is no longer labeled a fault.
 Interrupt/refill/permission/FPE entries may be handled by guest code and do not
 stop the diagnostic trace. Boot, gameplay and retail video/audio remain unverified.
+
+## Video Interface and first framebuffer
+
+The N64 core now exposes functional VI registers, scanline/field progression,
+five-field H_LEAP selection, CURRENT acknowledgement and VI → MI → CPU interrupts.
+The NTSC crystal advances at 48,681,818 / 93,750,000 per nominal CPU attempt;
+physical CPI, DMA arbitration and sub-line sync timing remain unverified.
+Odd V_TOTAL preserves field parity; even V_TOTAL alternates parity. Interrupt
+comparison includes the documented odd-field early-match and V_INTR=0 behavior.
+TYPE 0 holds CURRENT at zero; reserved TYPE 1 uses an emulator blank convention.
+
+The production ABI derives an **unfiltered RGBA16/RGBA32 framebuffer** from RAM,
+ORIGIN, WIDTH, visible spans and fixed-point scale/offset fields. Dirty CPU data
+cache remains invisible until writeback. Host observation leaves guest state
+unchanged. Host alpha is opaque because source low bits represent coverage.
+Inactive/invalid visible spans return a 320×240 black framebuffer; unavailable
+source pixels are black. Active dimensions follow the programmed visible spans.
+Y offset's upper two stored bits do not affect rendering. Rendering is a snapshot,
+not accumulated physical scanout. Antialiasing/divot/dither/gamma, coverage filters,
+TEST_MODE staged data, pixel advance, extreme-scale errata, mid-frame changes,
+RSP/RDP rendering and physical timing remain pending.
+
+The [register ROM](../../tests/roms-src/n64/vi_registers/README.md) matches **65,536
+rows / 983,040 guest values**. The [framebuffer ROM](../../tests/roms-src/n64/vi_framebuffer/README.md)
+matches **24 guest values** and **131,072 actual production ABI pixels** across
+two formats. Executed mutations and strict file/channel/framing controls reject
+incorrect results. The component checks all **16,777,216 ORIGIN values**, all
+**1,048,576 vertical-total/interrupt-target sequences** over multiple fields,
+**4,096 horizontal periods**, all **65,536 RGBA16 words**, register bits, leap
+selection, fractional scaling, memory/cache bounds, IRQ routing and save replay.
+These are declared finite domains, not their full independent product or physical
+hardware certification. No physical-console run has validated these cartridges.
+
+`VN64S012` appends 160 validated VI state bytes. Legacy S011 restores reset VI;
+earlier conversions retain their documented neutral state. Phase, field, leap
+pattern and IRQ continuation replay exactly; malformed states reject atomically.
+N64 is now **40% (8/20 delivery milestones)**: guest framebuffer output earns the
+graphics milestone. This is not a hardware-accuracy or retail-compatibility score.
+
+The private Super Mario 64 USA trace now reaches **6,212,303 attempts**, then
+unsupported `LDC1`: EPC `80325978`, actual instruction-cache word `D7400130`,
+Cause `10000028` (RI code 10). The backing word `44844000` differs because the
+cache is noncoherent; the diagnostic records both. The trace passed 22 earlier
+nonterminal exception entries. The 120-quantum production probe still observes
+uniform video and zero audio pairs. Boot and playability remain unverified;
+commercial ROM bytes are never committed. Earlier increment reports below/above
+retain their historical blocker and percentage at the time of that increment.
+
+Rules follow the [VI register reference](https://n64brew.dev/wiki/Video_Interface),
+[original Nintendo VI manual](https://jrra.zone/n64/doc/pro-man/pro30/30-01.htm),
+and [hardware timing reference](https://github.com/meauxdal/N64-Refresh-Rate-Reference/blob/main/N64_Timing_Reference.md).
+
+Verification: **32/32 N64 CTests passed** in 668.56 seconds, including all original register ROMs, production PCM/video oracles and eleven component gates. The full build and VI undefined-behavior sanitizer passed; all **68 original ROMs** reproduce against the committed image/generator ledger. Completion renderer and whitespace checks pass. CI/CD remains removed and Actions disabled.

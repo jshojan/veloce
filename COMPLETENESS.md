@@ -1,5 +1,7 @@
 # Veloce Accuracy Scorecard
 
+Current N64 evidence: [VI framebuffer and current Mario blocker](#video-interface-and-first-framebuffer). Earlier increment reports are historical.
+
 This is the project's honest, evidence-based statement of how complete and
 cycle-accurate each emulator core is. Legacy headline percentages are produced by the
 shared scoring methodology described in [TESTING.md](TESTING.md#how-the-completeness-percentage-is-computed)
@@ -47,7 +49,7 @@ headlines or original-ROM domain pass fractions.
 | [SNES](#snes) | 67 external tests / 19 suites, plus 2 original ROMs | 68,864 settled math cases and 504,832 timing bytes verified | Original multiplication domain is exhaustive; division covers boundaries; timing covers declared patterns/phases; external catalog remains unscored |
 | [Game Boy](#game-boy) | 225 external tests / 31 suites, plus 3 original ROMs | Verified subset only | Blargg serial subset, 2 WRAM checks, 8,388,608 ALU pairs and 73,728 unary pairs verified; Mooneye remains unverified |
 | [GBA](#gba) | 132 external tests / 29 suites, plus 1 original ROM | Partial; 65,536 original ARM shift cases verified | Legacy CPU/memory/BIOS/saves subsets verified; timing/PPU and remaining original hardware corpus pending |
-| N64 | 17 original ROMs; no external catalog | Declared integer/merge/controller/interrupt/PI/RI/MI/device/cache/SP/AI/FPU-control/TLB domains verified | Experimental homebrew/native handoff; retail boot pending; full hardware completion unknown; [limits](cores/n64/README.md) |
+| N64 | 19 original ROMs; no external catalog | Declared integer/merge/controller/interrupt/PI/RI/MI/device/cache/SP/AI/FPU-control/TLB/VI domains verified | Experimental homebrew/native handoff; retail boot pending; full hardware completion unknown; [limits](cores/n64/README.md) |
 | Virtual Boy | 7 original ROMs; no external catalog | 6,512,640 result/PSW pairs plus 4,210,688 multiply/divide and 4,685,824 TRAP/illegal and 4,982,784 address-trap snapshots plus 17,055,744 CAXI/port and 14,680,064 arithmetic bit-string and 100,712,448 immediate-instruction snapshots | Experimental marked homebrew; remaining CPU/NVC, VIP/VSU, controllers and timing pending; [limits](cores/vb/README.md) |
 | Nintendo DS | 8 original ROMs; no external catalog | 44,238,336 integer plus 38,338,560 multiply plus 51,426,816 Thumb result/CPSR/source/PC observations matched; 49,694,208 nine-word memory and 9,437,184 eight-word long-call observations matched; 3,720,960 stack/block observations matched; 4,096/4,096 digital keypad combinations matched; 100-frame TCP host/viewer states and eight guest words match baseline/oracle; DS wireless multiplayer pending; ARM7 unpredictable multiply flags excluded | Experimental marked ARM/Thumb integer homebrew; firmware, ARM block transfers, graphics/audio, peripherals pending; DSi has a separate partial plugin; [limits](cores/nds/README.md) |
 | Nintendo DSi | 2 original ROMs; no external catalog | 387,072/387,072 RAM captures; 67,109,008 component bus observations; 100-frame TCP host/viewer states and eight guest register words match oracle | Experimental dual-CPU expanded-memory profile; firmware/retail boot, full SCFG/MBK, graphics/audio/peripherals and physical timing pending; [limits](cores/dsi/README.md) |
@@ -515,3 +517,56 @@ register ROMs, PCM ABI oracle and ten component tests. The final DMCP0
 32-bit-mode restriction and independent permission checks are verified by the
 affected TLB gates and the updated component sanitizer run. All **66** original
 ROMs reproduce from their source/image ledger. CI/CD remains disabled.
+
+## Video Interface and first framebuffer
+
+The N64 core now exposes functional VI registers, scanline/field progression,
+five-field H_LEAP selection, CURRENT acknowledgement and VI → MI → CPU interrupts.
+The NTSC crystal advances at 48,681,818 / 93,750,000 per nominal CPU attempt;
+physical CPI, DMA arbitration and sub-line sync timing remain unverified.
+Odd V_TOTAL preserves field parity; even V_TOTAL alternates parity. Interrupt
+comparison includes the documented odd-field early-match and V_INTR=0 behavior.
+TYPE 0 holds CURRENT at zero; reserved TYPE 1 uses an emulator blank convention.
+
+The production ABI derives an **unfiltered RGBA16/RGBA32 framebuffer** from RAM,
+ORIGIN, WIDTH, visible spans and fixed-point scale/offset fields. Dirty CPU data
+cache remains invisible until writeback. Host observation leaves guest state
+unchanged. Host alpha is opaque because source low bits represent coverage.
+Inactive/invalid visible spans return a 320×240 black framebuffer; unavailable
+source pixels are black. Active dimensions follow the programmed visible spans.
+Y offset's upper two stored bits do not affect rendering. Rendering is a snapshot,
+not accumulated physical scanout. Antialiasing/divot/dither/gamma, coverage filters,
+TEST_MODE staged data, pixel advance, extreme-scale errata, mid-frame changes,
+RSP/RDP rendering and physical timing remain pending.
+
+The [register ROM](tests/roms-src/n64/vi_registers/README.md) matches **65,536
+rows / 983,040 guest values**. The [framebuffer ROM](tests/roms-src/n64/vi_framebuffer/README.md)
+matches **24 guest values** and **131,072 actual production ABI pixels** across
+two formats. Executed mutations and strict file/channel/framing controls reject
+incorrect results. The component checks all **16,777,216 ORIGIN values**, all
+**1,048,576 vertical-total/interrupt-target sequences** over multiple fields,
+**4,096 horizontal periods**, all **65,536 RGBA16 words**, register bits, leap
+selection, fractional scaling, memory/cache bounds, IRQ routing and save replay.
+These are declared finite domains, not their full independent product or physical
+hardware certification. No physical-console run has validated these cartridges.
+
+`VN64S012` appends 160 validated VI state bytes. Legacy S011 restores reset VI;
+earlier conversions retain their documented neutral state. Phase, field, leap
+pattern and IRQ continuation replay exactly; malformed states reject atomically.
+N64 is now **40% (8/20 delivery milestones)**: guest framebuffer output earns the
+graphics milestone. This is not a hardware-accuracy or retail-compatibility score.
+
+The private Super Mario 64 USA trace now reaches **6,212,303 attempts**, then
+unsupported `LDC1`: EPC `80325978`, actual instruction-cache word `D7400130`,
+Cause `10000028` (RI code 10). The backing word `44844000` differs because the
+cache is noncoherent; the diagnostic records both. The trace passed 22 earlier
+nonterminal exception entries. The 120-quantum production probe still observes
+uniform video and zero audio pairs. Boot and playability remain unverified;
+commercial ROM bytes are never committed. Earlier increment reports below/above
+retain their historical blocker and percentage at the time of that increment.
+
+Rules follow the [VI register reference](https://n64brew.dev/wiki/Video_Interface),
+[original Nintendo VI manual](https://jrra.zone/n64/doc/pro-man/pro30/30-01.htm),
+and [hardware timing reference](https://github.com/meauxdal/N64-Refresh-Rate-Reference/blob/main/N64_Timing_Reference.md).
+
+Verification: **32/32 N64 CTests passed** in 668.56 seconds, including all original register ROMs, production PCM/video oracles and eleven component gates. The full build and VI undefined-behavior sanitizer passed; all **68 original ROMs** reproduce against the committed image/generator ledger. Completion renderer and whitespace checks pass. CI/CD remains removed and Actions disabled.
