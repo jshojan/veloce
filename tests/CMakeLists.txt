@@ -333,7 +333,7 @@ target_link_libraries(ppc_machine_test PRIVATE ${SDL2_LIBRARIES})
 target_compile_definitions(ppc_machine_test PRIVATE SDL_MAIN_HANDLED)
 add_dependencies(ppc_machine_test gc_plugin wii_plugin)
 add_test(NAME ppc_machine_test COMMAND ppc_machine_test $<TARGET_FILE:gc_plugin> $<TARGET_FILE:wii_plugin>)
-set_tests_properties(ppc_machine_test PROPERTIES LABELS "unit;fast" TIMEOUT 30)
+set_tests_properties(ppc_machine_test PROPERTIES LABELS "unit;fast" TIMEOUT 90)
 foreach(profile gc wii)
     add_test(NAME ${profile}_integer_registers COMMAND ${Python3_EXECUTABLE}
         ${CMAKE_SOURCE_DIR}/tests/roms-src/${profile}/integer_registers/run.py --emulator $<TARGET_FILE:veloce>
@@ -346,4 +346,11 @@ foreach(profile gc wii)
         ${CMAKE_SOURCE_DIR}/tests/roms-src/${profile}/branch_registers/run.py --emulator $<TARGET_FILE:veloce>
         --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/${profile}_branches)
     set_tests_properties(${profile}_branch_registers PROPERTIES LABELS "accuracy;owned" TIMEOUT 150)
+endforeach()
+
+foreach(profile gc wii)
+    add_test(NAME ${profile}_condition_registers COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_SOURCE_DIR}/tests/roms-src/${profile}/condition_registers/run.py --emulator $<TARGET_FILE:veloce>
+        --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/${profile}_conditions)
+    set_tests_properties(${profile}_condition_registers PROPERTIES LABELS "accuracy;owned" TIMEOUT 2400)
 endforeach()

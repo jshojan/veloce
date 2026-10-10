@@ -506,3 +506,34 @@ physical prediction/timing and other console hardware are not hardware-scored.
 ```sh
 ctest --test-dir build -R '^(ppc_machine_test|(gc|wii)_(integer|branch)_registers)$' --output-on-failure
 ```
+
+### Comparison and condition-register corpora
+
+`gc_condition_registers` and `wii_condition_registers` each match 42,108,928
+eight-word snapshots through the actual frontend: 131,072 CMP/CMPL, 33,554,432
+CMPI/CMPLI, 8,388,608 CR logical, 2,048 MCRF and 32,768 MCRXR cases. The
+[domain table](tests/roms-src/gc/condition_registers/README.md) specifies the
+operand/CR/XER patterns; every immediate and logical bit-field encoding is
+covered within those declared patterns. The independent host oracle checks
+every bit of CR/XER, sources, stimulus instruction, initial seeds and sentinel.
+Executed corruption/signedness/XER-clear controls fail exactly 864/68/8 reduced
+cases; eight field mutations fail and seven malformed streams return ERROR.
+Raw output and JSON reports remain in `build/artifacts/owned/gc_conditions/`
+and `build/artifacts/owned/wii_conditions/`. Each full file is about 2.8 GiB.
+
+The component gate matches 101,941,248 comparison/condition snapshots across
+both profiles, forcing every defined logical truth input/field alias, every
+compare immediate, ordinary GPR0 reads, all GPR/CR field encodings, MCRF nibble
+pairs and MCRXR byte counts. It validates unsupported/reserved forms as
+diagnostics and exact replay of known guest captures through both plugins,
+including state restoration immediately before MCRXR clears XER flags.
+
+```sh
+cmake --build build --target veloce gc_plugin wii_plugin ppc_machine_test -j4
+ctest --test-dir build -R '^(ppc_machine_test|(gc|wii)_condition_registers)$' --output-on-failure
+```
+
+Runtime-generated instructions are supported by the supplied flat mapping.
+Physical cache/pipeline synchronization, timing, exceptions, full 32-bit
+operand/CR-word domains and most platform hardware are not verified. CI/CD
+remains disabled; run these gates locally.

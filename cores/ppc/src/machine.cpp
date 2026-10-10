@@ -49,7 +49,16 @@ void Machine::step() {
     if((pc&3) || !read(pc,4,ins)) { s.unsupported=true; return; }
     const unsigned op=ins>>26,rt=(ins>>21)&31,ra=(ins>>16)&31,rb=(ins>>11)&31;
     const uint32_t immediate=uint32_t(int64_t(int(ins&0xffff))-((ins&0x8000) ? 65536:0));
-    if(op==14 || op==15) s.r[rt]=(ra ? s.r[ra]:0)+(op==15 ? immediate<<16:immediate);
+    const auto record_compare=[&](unsigned field,int64_t a,int64_t b) {
+        const unsigned shift=28-field*4;
+        const uint32_t result=(a<b ? 8u:a>b ? 4u:2u)|((s.xer>>31)&1);
+        s.cr=(s.cr&~(15u<<shift))|(result<<shift);
+    };
+    if(op==10 || op==11) {
+        if(rt&3) { s.unsupported=true; return; } // Reserved bit and unsupported L=1.
+        record_compare(rt>>2,op==11 ? signed32(s.r[ra]):s.r[ra],op==11 ? signed32(immediate):ins&65535);
+    }
+    else if(op==14 || op==15) s.r[rt]=(ra ? s.r[ra]:0)+(op==15 ? immediate<<16:immediate);
     else if(op==24 || op==25) s.r[ra]=s.r[rt]|((ins&65535)<<(op==25 ? 16:0));
     else if(op==32 || op==34 || op==36 || op==38 || op==40 || op==44) {
         const bool load=op==32 || op==34 || op==40;
@@ -81,9 +90,42 @@ void Machine::step() {
         // LK updates LR on both taken and untaken paths, after reading targets.
         if(ins&1) s.lr=pc+4;
         s.pc=count_ok && condition_ok ? target:pc+4; return;
+    } else if(op==19) {
+        const unsigned xo=(ins>>1)&1023;
+        if(ins&1) { s.unsupported=true; return; }
+        if(xo==0) {
+            if((rt&3) || (ra&3) || rb) { s.unsupported=true; return; }
+            const unsigned shift=28-(rt>>2)*4,source=28-(ra>>2)*4;
+            const uint32_t value=(s.cr>>source)&15;
+            s.cr=(s.cr&~(15u<<shift))|(value<<shift);
+        } else {
+            const bool a=(s.cr>>(31-ra))&1,b=(s.cr>>(31-rb))&1;
+            bool result;
+            switch(xo) {
+                case 257: result=a && b; break;
+                case 129: result=a && !b; break;
+                case 289: result=a==b; break;
+                case 225: result=!(a && b); break;
+                case 33: result=!(a || b); break;
+                case 449: result=a || b; break;
+                case 417: result=a || !b; break;
+                case 193: result=a!=b; break;
+                default: s.unsupported=true; return;
+            }
+            const uint32_t mask=1u<<(31-rt);
+            s.cr=(s.cr&~mask)|(result ? mask:0);
+        }
     } else if(op==31) {
         const unsigned xo=(ins>>1)&1023,arithmetic=xo&511;
-        if(arithmetic==266 || arithmetic==10 || arithmetic==138 || arithmetic==40 || arithmetic==8 || arithmetic==136) {
+        if(xo==0 || xo==32) {
+            if((rt&3) || (ins&1)) { s.unsupported=true; return; }
+            record_compare(rt>>2,xo==0 ? signed32(s.r[ra]):s.r[ra],xo==0 ? signed32(s.r[rb]):s.r[rb]);
+        } else if(xo==512) {
+            if(ins&0x007ff801u) { s.unsupported=true; return; }
+            const unsigned shift=28-(rt>>2)*4;
+            s.cr=(s.cr&~(15u<<shift))|((s.xer>>28)<<shift);
+            s.xer&=0x0fffffffu;
+        } else if(arithmetic==266 || arithmetic==10 || arithmetic==138 || arithmetic==40 || arithmetic==8 || arithmetic==136) {
             const bool subtract=arithmetic==40 || arithmetic==8 || arithmetic==136;
             const bool extended=arithmetic==138 || arithmetic==136;
             const unsigned carry=(s.xer>>29)&1;

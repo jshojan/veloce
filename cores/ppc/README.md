@@ -13,6 +13,10 @@ GameCube/Wii software cannot boot. Full platform completion is unknown.
 - B/BL and BC, signed absolute/relative displacement; BCLR/BCCTR including
   linked forms, CTR decrement/testing, CR bit conditions and aligned targets.
   LK updates LR even on untaken paths; old LR supplies BCLR targets.
+- CMP/CMPL and CMPI/CMPLI (32-bit L=0), signed/unsigned ordering, any CR
+  field and copied XER.SO; all GPR fields, including ordinary GPR0 reads.
+- CRAND/CRANDC/CREQV/CRNAND/CRNOR/CROR/CRORC/CRXOR, aliased source/destination
+  bits, MCRF field copies and MCRXR field capture/flag clearing.
 - XER/LR/CTR MFSpr/MTSpr,
   MFCR and MTCRF field masks.
 - Reset, ROM CRC/identity, complete register/RAM states and exact replay.
@@ -41,6 +45,20 @@ Noncanonical BO z bits are ignored in the supplied profile, separately tested
 but excluded from the ROM hardware score. Original XL fields require all five
 reserved bits zero; newer BH encodings are unsupported. Branch prediction,
 physical timing and specific Gekko/Broadway quirks remain unverified.
+
+The [GameCube](../../tests/roms-src/gc/condition_registers/README.md) and
+[Wii](../../tests/roms-src/wii/condition_registers/README.md) condition corpora
+each match 42,108,928 eight-word snapshots. All 16-bit compare immediates are
+covered on sixteen operand patterns, all CR fields and both SO states. CR
+logical operations cover every destination/source field encoding on four CR
+patterns and all XER flag states; MCRF/MCRXR capture preserved fields and
+cleared flags, including every seven-bit XER byte count. Component checks
+match 101,941,248 additional comparison/condition snapshots across both
+profiles, force every defined logical truth input and verify GPR0, field
+aliases, reserved-bit diagnostics and exact state replay through both plugins.
+Runtime-generated instructions use the supplied flat mapping; physical cache
+coherency and timing remain unverified. CMP L=1 and invalid forms diagnose;
+physical program exceptions are still pending.
 
 Instruction references: [NXP MPC750 manual](https://www.nxp.com/docs/en/reference-manual/MPC750UM.pdf),
 [IBM addc](https://www.ibm.com/docs/en/aix/7.1.0?topic=set-addc-add-carrying-instruction),
