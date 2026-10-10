@@ -1,0 +1,1 @@
+{"source_type": "original", "console": "n64", "suite": "dp_registers", "build": {"script": "build.py", "artifact": "dp_registers.z64"}, "license": "MIT"}

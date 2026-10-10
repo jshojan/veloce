@@ -1,6 +1,6 @@
 # Veloce Accuracy Scorecard
 
-Current N64 evidence: [RSP scalar execution and current Mario evidence](#rsp-scalar-execution). Earlier increment reports are historical.
+Current N64 evidence: [Display-processor interface, fill engine and current Mario evidence](#display-processor-interface-and-fill-engine). Earlier increment reports are historical.
 
 This is the project's honest, evidence-based statement of how complete and
 cycle-accurate each emulator core is. Legacy headline percentages are produced by the
@@ -772,3 +772,69 @@ N64 remains **40% (8/20 delivery milestones)**. Vector/RDP/game rendering, RSP
 audio microcode, physical timing, FPU comparisons, analog and netplay remain pending.
 
 Verification: **43/43 N64 CTests passed** in 325.15 seconds, including twenty-six original register-ROM gates, two production audio/video oracles and fifteen component gates. The corrected RSP ROM/component gates also passed in 78.34 seconds. The full build and final scalar undefined-behavior sanitizer passed; all **75 original ROMs** reproduce against the committed image/generator ledger. Completion renderer and whitespace checks pass. CI/CD remains removed and GitHub Actions disabled.
+
+## Display-processor interface and fill engine
+
+CPU MMIO `$04100000..1C` and RSP COP0 slots 8–15 now use one shared DP
+module. START/END mask to aligned 24-bit pointers; START holds one pending
+value and ignores repeats until END activates it. END updates CURRENT even
+while frozen. The functional profile includes queued ranges, extensions,
+XBUS DMEM wrapping, status controls and 24-bit nominal counters. It selects
+zero for physically undefined reset pointers/counters; reset status is `$A8`.
+Read-only writes and simultaneous clear/set pairs have deterministic conventions
+and receive no physical-hardware credit.
+
+The bounded RDP engine fetches big-endian 64-bit commands from DRAM or DMEM,
+implements NOP, settled sync barriers, SetColorImage/SetScissor/SetOtherMode/
+SetFillColor, integer fill-cycle RGBA16/32 rectangles, and actual FullSync.
+Scissor ends are exclusive; fill rectangle ends are inclusive. RGBA16 alternates
+the two halves of the 32-bit fill word by memory address. Bounds are validated
+before any draw mutates RAM. FullSync raises MI DP bit 5 and settles the pipeline;
+range-end alone never creates an IRQ. MI_INIT acknowledges the real level and
+the existing mask/CPU IP2 path delivers it. CPU caches remain stale across RDP
+writes until invalidated; the existing VI displays actual filled guest RAM.
+
+The [register cartridge](tests/roms-src/n64/dp_registers/README.md)
+matches **262,144 rows / 2,621,440 captured words**, using an original RSP
+program to observe both control views. The [fill cartridge](tests/roms-src/n64/dp_fill_rectangles/README.md)
+matches **524,288 rows / 6,815,744 captured words**, covering every 16-bit
+color code in both pixel sizes, both command sources and whole/center scissor.
+Independent integer oracles grade every captured pixel/guard/control word;
+executed capture mutants fail all 32 reduced cases, each field mutation fails
+individually and seven damaged stream controls return ERROR in each suite.
+The component additionally checks all **16,777,216 START encodings**, **262,144
+fill/scissor/guard cases**, shared CPU/RSP register banks, command flags/counters,
+freeze/flush stalls, queued ranges, DMEM wrap, unsupported/bounds diagnostics,
+cache/VI integration and CPU IRQ acknowledgment.
+
+State `VN64S015` appends 19 validated big-endian scalars (152 bytes): DP latches,
+active endpoint, status/counters, pipeline, command diagnostics and fill state.
+Replay checks preserve pending commands, diagnostics and IRQs; invalid fields
+are rejected atomically. S014 and earlier start reset DP controls/counters while
+preserving all previously implemented fields, including the stored MI DP level.
+
+Rules follow SGI's [DP register guide](https://hcs64.com/files/RSPCOP0.pdf),
+[RDP command summary](https://ultra64.ca/files/documentation/silicon-graphics/SGI_RDP_Command_Summary.pdf),
+and the hardware-test author's [current DP latch cases](https://github.com/thelemmy/nemu64-test/blob/main/src/tests/rdp/mod.rs).
+These original cartridges have not been validated on a physical console.
+Counters/issue use nominal RCP clocks, with no DMA FIFO/prefetch or physical
+raster timing. Hidden coverage memory, TMEM/textures, triangles, blending, depth,
+other cycle modes, fractional rectangles and interlace scissor remain unsupported.
+Unknown commands or unsupported draws retain CURRENT and report the actual word
+and a reason; they do not fabricate task completion or an interrupt.
+
+The local Super Mario 64 (USA) probe on 2026-10-10 now passes the former
+`MFC0 DPC_STATUS` blocker and retires **308 RSP scalar instructions**. It then
+blocks at **SP PC `424`, `LQV`, word `C8411800`**. The CPU reaches 12,000,000
+attempts with 51 nonterminal exception entries and no terminal CPU fault.
+The production probe still observes uniform video and 480 audio sample pairs
+across 120 scheduling quanta. Native boot, audible game sound and playability
+remain unverified. The private image remains local. N64 stays **40% = 8/20**
+delivery milestones; partial DP progress does not complete a whole hardware milestone.
+
+Verification: **46/46 N64 gates passed** across the existing 43-gate regression
+(322.32 seconds) and the three new DP gates (79.44 seconds). The final component
+including VI scanout also passed. The full build and undefined-behavior sanitizer
+passed; all **77 original ROMs** reproduce against the committed image/generator
+ledger. Completion renderer and whitespace checks pass. CI/CD remains removed
+and GitHub Actions disabled.

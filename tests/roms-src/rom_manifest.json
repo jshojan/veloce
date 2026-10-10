@@ -242,6 +242,28 @@
       "source_type": "original",
       "suite": "controller_serial"
     },
+    "n64/dp_fill_rectangles/dp_fill_rectangles.z64": {
+      "build_command": "python3 tests/roms-src/n64/dp_fill_rectangles/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "84937b0ecabcd2090c9829a977e241807b93997acb5f404c043162a28be54cb3",
+      "source_repo": "tests/roms-src/n64/dp_fill_rectangles/build.py",
+      "source_sha": "e9222edacbbd27a274ac3ca63ef202b1dc27f0f14a8b8145adf99a2f24903ddc",
+      "source_type": "original",
+      "suite": "dp_fill_rectangles"
+    },
+    "n64/dp_registers/dp_registers.z64": {
+      "build_command": "python3 tests/roms-src/n64/dp_registers/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "16e839306b6977bd9f6d100e00b54a4002829563222352a9a96050f0bc95b6c1",
+      "source_repo": "tests/roms-src/n64/dp_registers/build.py",
+      "source_sha": "7b05982f3ae2d3b1874a977722730645e00ef9c0639575e031eeee62d98eab65",
+      "source_type": "original",
+      "suite": "dp_registers"
+    },
     "n64/fpu_arithmetic_edges/fpu_arithmetic_edges.z64": {
       "build_command": "python3 tests/roms-src/n64/fpu_arithmetic_edges/build.py",
       "console": "n64",

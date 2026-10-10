@@ -1,10 +1,11 @@
 #pragma once
 #include "sp_interface.hpp"
+#include "dp_interface.hpp"
 #include <array>
 #include <cstdint>
 namespace n64 {
 // Scalar RSP execution, sharing the real SP controls and 8 KiB memory.
-// Vector and DP operations report an explicit emulator block, never a fake BREAK.
+// Unimplemented vector operations report an explicit emulator block, never a fake BREAK.
 class RspScalar {
 public:
     std::array<uint32_t,32> gpr{};
@@ -21,7 +22,7 @@ public:
         for(unsigned n=0;n<32;++n)gpr[n]=uint32_t(s[n]);
         next_pc=uint32_t(s[32]);instructions=s[33];delay_slot=bool(s[34]);blocked=bool(s[35]);blocked_word=uint32_t(s[36]);return true;
     }
-    bool step(SpInterface& control,std::array<uint8_t,8192>& memory,std::vector<uint8_t>& ram){
+    bool step(SpInterface& control,DpInterface& dp,std::array<uint8_t,8192>& memory,std::vector<uint8_t>& ram){
         if(control.status&1)return false;
         const uint32_t pc=control.pc,old_next=next_pc;
         uint32_t ins=0;for(unsigned n=0;n<4;++n)ins=(ins<<8)|memory[4096+((pc+n)&4095)];
@@ -57,9 +58,9 @@ public:
         case 8:case 9:put(rt,a+imm);break;case 10:put(rt,signed_value(a)<signed_value(imm));break;case 11:put(rt,a<imm);break;
         case 12:put(rt,a&(ins&65535));break;case 13:put(rt,a|(ins&65535));break;case 14:put(rt,a^(ins&65535));break;case 15:put(rt,ins<<16);break;
         case 16:
-            if(rd>=8 || (ins&0x7ff) || (rs!=0 && rs!=4)){supported=false;break;}
-            if(rs==0){uint64_t value=0;if(!control.read(rd,value))supported=false;else put(rt,uint32_t(value));}
-            else supported=control.write(rd,b,ram,memory);
+            if(rd>=16 || (ins&0x7ff) || (rs!=0 && rs!=4)){supported=false;break;}
+            if(rs==0){uint64_t value=0;if(rd>=8)put(rt,dp.read(rd-8));else if(!control.read(rd,value))supported=false;else put(rt,uint32_t(value));}
+            else supported=rd>=8?dp.write(rd-8,b):control.write(rd,b,ram,memory);
             break;
         case 32:load(1,true);break;case 33:load(2,true);break;case 35:case 39:load(4,false);break;
         case 36:load(1,false);break;case 37:load(2,false);break;

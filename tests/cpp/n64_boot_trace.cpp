@@ -41,6 +41,9 @@ int main(int argc,char** argv) {
     std::cout<<sp_word<<"\",\"mi_mask\":\""<<unsigned(machine.mi_mask)<<"\",\"vi_registers\":[";
     for(unsigned n=0;n<14;++n){if(n)std::cout<<',';std::cout<<'"'<<machine.video_interface.snapshot()[n]<<'"';}
     std::cout<<"],\"rsp_instructions\":"<<std::dec<<machine.rsp.instructions<<",\"rsp_blocked\":"<<(machine.rsp.blocked?"true":"false")
-             <<",\"rsp_blocked_word\":\""<<std::hex<<machine.rsp.blocked_word<<"\",\"retail_boot_verified\":false,\"playability_verified\":false}\n";
+             <<",\"rsp_blocked_word\":\""<<std::hex<<machine.rsp.blocked_word<<"\",\"dp_registers\":[";
+    for(unsigned n=0;n<8;++n){if(n)std::cout<<',';std::cout<<'"'<<machine.dp_interface.read(n)<<'"';}
+    std::cout<<"],\"dp_blocked\":"<<(machine.dp_interface.blocked?"true":"false")<<",\"dp_blocked_word\":\""<<machine.dp_interface.blocked_word
+             <<"\",\"dp_blocked_reason\":"<<std::dec<<machine.dp_interface.blocked_reason<<",\"retail_boot_verified\":false,\"playability_verified\":false}\n";
     return 0;
 }

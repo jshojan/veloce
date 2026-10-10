@@ -8,7 +8,7 @@ static int64_t signed32(uint32_t x){return x<0x80000000u?int64_t(x):int64_t(x)-0
 static uint32_t arithmetic(unsigned op,uint32_t a,uint32_t imm){const int64_t signed_imm=imm<32768?imm:int64_t(imm)-65536;
  switch(op){case 8:case 9:return uint32_t(uint64_t(a)+uint64_t(signed_imm));case 10:return signed32(a)<signed_imm;case 11:return uint64_t(a)<(signed_imm<0?uint64_t(signed_imm+0x100000000ll):uint64_t(signed_imm));case 12:return a&imm;case 13:return a|imm;case 14:return a^imm;default:return imm*65536;}}
 static void opcode(n64::Machine& m,uint32_t ins,uint32_t pc=0){for(unsigned n=0;n<4;++n)m.sp[4096+((pc+n)&4095)]=uint8_t(ins>>(24-n*8));m.sp_interface.pc=pc;m.rsp.redirect(pc);m.sp_interface.status=0;}
-static void step(n64::Machine& m){require(m.rsp.step(m.sp_interface,m.sp,m.ram),"scalar instruction blocked");}
+static void step(n64::Machine& m){require(m.rsp.step(m.sp_interface,m.dp_interface,m.sp,m.ram),"scalar instruction blocked");}
 int main(int argc,char** argv){try{
  require(argc==2,"ROM required");std::ifstream f(argv[1],std::ios::binary);std::vector<uint8_t> rom{std::istreambuf_iterator<char>(f),{}};n64::Machine m;require(m.load(rom.data(),rom.size()),"ROM load");auto& r=m.rsp;auto& sp=m.sp_interface;
  const uint32_t patterns[]={0,1,0x7fffffff,0x80000000,0xffffffff,0x55555555,0xaaaaaaaa,0x12345678};uint64_t immediates=0,memory=0,branches=0,registers=0;
@@ -70,16 +70,16 @@ int main(int argc,char** argv){try{
  opcode(m,0x40822000);r.gpr[2]=0x400;step(m);require(sp.status==128,"MTC0 status signal command");
 
  sp.reset();opcode(m,0x40043800);step(m);require(r.gpr[4]==0 && sp.semaphore==1,"MFC0 acquires semaphore");opcode(m,0x40843800);r.gpr[4]=123;step(m);require(!sp.semaphore,"MTC0 releases semaphore");
- for(uint32_t bad:{0x40045800u,0x4a000000u,0x70000000u}){opcode(m,bad);const auto before=r.gpr;const auto count=r.instructions;require(!r.step(sp,m.sp,m.ram) && r.gpr==before && sp.pc==0 && sp.status==1 && r.blocked && r.blocked_word==bad && r.instructions==count,"unsupported DP/vector operation never fabricates BREAK or IRQ");}
- for(unsigned flags=0;flags<8;++flags){opcode(m,13);sp.status=(flags%2)*1+(flags/2%2)*32+(flags/4)*64;sp.interrupt=0;const bool halted=flags%2;r.step(sp,m.sp,m.ram);require(sp.pc==(halted?0u:4u) && (sp.status&3)==(halted?1u:3u) && sp.interrupt==(!halted && flags/4),"HALT/BREAK/IOB combinations");}
+ for(uint32_t bad:{0x40048000u,0x4a000000u,0x70000000u}){opcode(m,bad);const auto before=r.gpr;const auto count=r.instructions;require(!r.step(sp,m.dp_interface,m.sp,m.ram) && r.gpr==before && sp.pc==0 && sp.status==1 && r.blocked && r.blocked_word==bad && r.instructions==count,"unsupported DP/vector operation never fabricates BREAK or IRQ");}
+ for(unsigned flags=0;flags<8;++flags){opcode(m,13);sp.status=(flags%2)*1+(flags/2%2)*32+(flags/4)*64;sp.interrupt=0;const bool halted=flags%2;r.step(sp,m.dp_interface,m.sp,m.ram);require(sp.pc==(halted?0u:4u) && (sp.status&3)==(halted?1u:3u) && sp.interrupt==(!halted && flags/4),"HALT/BREAK/IOB combinations");}
  opcode(m,0);sp.status=32;step(m);require(sp.pc==4 && sp.status==33,"single NOP step settles HALT");
  // CPU clock and MI see actual RSP BREAK, then CPU ack clears the shared level.
  m.reset();opcode(m,13);sp.status=64;m.mi_mask=1;m.rsp_phase=1;m.cpu.state.cp0[12]=0x401;require(m.write(n64::sign32(0xa0000400),4,0),"CPU NOP");m.cpu.step();require(m.cpu.exception_taken && sp.interrupt && (m.cpu.state.cp0[13]&0x400),"real RSP BREAK drives CPU MI interrupt");require(m.write(n64::sign32(0xa4040010),4,8) && !m.interrupt_pending(),"CPU acknowledges RSP interrupt");
  // Pending branch, fractional phase, blocked diagnostics and all registers survive state replay.
  m.reset();opcode(m,0x10000006);step(m);for(unsigned n=0;n<4;++n)m.sp[4096+4+n]=uint8_t(13>>(24-n*8));m.rsp_phase=2;
  std::vector<uint8_t> saved,after,replay;require(m.save(saved),"RSP save");m.clock();m.save(after);require(m.restore(saved),"RSP restore");m.clock();m.save(replay);require(after==replay,"pending RSP branch/BREAK exact replay");
- for(unsigned field=0;field<38;++field){if(field==33)continue;auto bad=saved;const uint64_t invalid=field==0?1:field<32 || field==36?0x100000000ull:field==32?1:field==37?3:2;const size_t at=bad.size()-304+field*8;for(unsigned n=0;n<8;++n)bad[at+n]=uint8_t(invalid>>(56-n*8));require(m.restore(saved) && !m.restore(bad) && m.save(replay) && replay==saved,"invalid RSP state rejected atomically");}
- auto old=saved;old.resize(old.size()-304);old[7]='3';require(m.restore(old) && r.gpr==std::array<uint32_t,32>{} && !r.instructions && r.next_pc==((sp.pc+4)&4095) && !m.rsp_phase,"S013 neutral scalar/phase conversion preserves SP PC");
+ for(unsigned field=0;field<38;++field){if(field==33)continue;auto bad=saved;const uint64_t invalid=field==0?1:field<32 || field==36?0x100000000ull:field==32?1:field==37?3:2;const size_t at=bad.size()-456+field*8;for(unsigned n=0;n<8;++n)bad[at+n]=uint8_t(invalid>>(56-n*8));require(m.restore(saved) && !m.restore(bad) && m.save(replay) && replay==saved,"invalid RSP state rejected atomically");}
+ auto old=saved;old.resize(old.size()-456);old[7]='3';require(m.restore(old) && r.gpr==std::array<uint32_t,32>{} && !r.instructions && r.next_pc==((sp.pc+4)&4095) && !m.rsp_phase,"S013 neutral scalar/phase conversion preserves SP PC");
  m.reset();require(!r.instructions && !r.blocked && !m.rsp_phase && sp.status==1,"RSP reset");
  std::cout<<immediates<<" immediate, "<<registers<<" register triples, "<<memory<<" memory and "<<branches<<" branch/BREAK cases passed; shifts/JALR, controls, CPU IRQ, unsupported diagnostics, S014 replay/rejection and S013 conversion passed\n";return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}
