@@ -20,27 +20,36 @@ public:
         result=low&0x1fffffffu;return true;
     }
     bool read(Memory& bus,uint64_t address,unsigned bytes,uint64_t& value,bool fetch,uint32_t config) {
-        if((bytes!=1 && bytes!=2 && bytes!=4 && bytes!=8) || (address&(bytes-1)))return false;
-        if(!cached(address,config))return bus.read(address,bytes,value);
         uint32_t p=0;if(!physical(address,p))return false;
-        if(fetch) {auto& line=instruction[(p>>5)&511];if(!fill(bus,line,p,((p>>5)&511),false))return false;value=read_bytes(line,p&31,bytes);}
-        else {auto& line=data[(p>>4)&511];if(!fill(bus,line,p,((p>>4)&511),false))return false;value=read_bytes(line,p&15,bytes);}
-        return true;
+        return read_translated(bus,address,p,cached(address,config),bytes,value,fetch);
     }
     bool write(Memory& bus,uint64_t address,unsigned bytes,uint64_t value,uint8_t mask,uint32_t config) {
-        if((bytes!=1 && bytes!=2 && bytes!=4 && bytes!=8) || (address&(bytes-1)) || !mask || (unsigned(mask)>>bytes))return false;
-        if(!cached(address,config))return mask==((1u<<bytes)-1)?bus.write(address,bytes,value):bus.write_masked(address,bytes,value,mask);
-        uint32_t p=0;if(!physical(address,p) || (p&15)+bytes>16)return false;
-        const unsigned index=(p>>4)&511;auto& line=data[index];
+        uint32_t p=0;if(!physical(address,p))return false;
+        return write_translated(bus,address,p,cached(address,config),bytes,value,mask);
+    }
+    bool read_translated(Memory& bus,uint64_t va,uint32_t p,bool use_cache,unsigned bytes,uint64_t& value,bool fetch) {
+        if((bytes!=1 && bytes!=2 && bytes!=4 && bytes!=8) || (va&(bytes-1)) || p>0x1fffffffu)return false;
+        if(!use_cache)return bus.read(bus_address(p),bytes,value);
+        if(fetch) {const unsigned index=(va>>5)&511;auto& line=instruction[index];if(!fill(bus,line,p,index,false))return false;value=read_bytes(line,p&31,bytes);}
+        else {const unsigned index=(va>>4)&511;auto& line=data[index];if(!fill(bus,line,p,index,false))return false;value=read_bytes(line,p&15,bytes);}
+        return true;
+    }
+    bool write_translated(Memory& bus,uint64_t va,uint32_t p,bool use_cache,unsigned bytes,uint64_t value,uint8_t mask) {
+        if((bytes!=1 && bytes!=2 && bytes!=4 && bytes!=8) || (va&(bytes-1)) || !mask || (unsigned(mask)>>bytes) || p>0x1fffffffu)return false;
+        if(!use_cache)return mask==((1u<<bytes)-1)?bus.write(bus_address(p),bytes,value):bus.write_masked(bus_address(p),bytes,value,mask);
+        const unsigned index=(va>>4)&511;auto& line=data[index];
         if(!fill(bus,line,p,index,false))return false;
         for(unsigned n=0;n<bytes;++n)if(mask&(1u<<n))line.data[(p&15)+n]=uint8_t(value>>(8*(bytes-1-n)));
         line.flags=3;return true;
     }
-    // Returns false for a bus/address error. Caller checks undefined sub-opcodes.
     bool operation(Memory& bus,unsigned op,uint64_t address,uint32_t& taglo) {
         uint32_t p=0;if(!physical(address,p))return false;
-        if(op&1)return operate(bus,data[(p>>4)&511],(p>>4)&511,p,op>>2,taglo,false);
-        return operate(bus,instruction[(p>>5)&511],(p>>5)&511,p,op>>2,taglo,true);
+        return operation_translated(bus,op,address,p,taglo);
+    }
+    // Index operations only use VA index bits. Hit/fill/create operations use PA tags.
+    bool operation_translated(Memory& bus,unsigned op,uint64_t va,uint32_t p,uint32_t& taglo) {
+        if(op&1)return operate(bus,data[(va>>4)&511],(va>>4)&511,p,op>>2,taglo,false);
+        return operate(bus,instruction[(va>>5)&511],(va>>5)&511,p,op>>2,taglo,true);
     }
     static bool defined(unsigned op) {
         switch(op) {case 0:case 1:case 4:case 5:case 8:case 9:case 13:case 16:case 17:case 20:case 21:case 24:case 25:return true;default:return false;}
@@ -61,6 +70,7 @@ private:
         line.flags=1;return true;
     }
     template<unsigned B> static bool fill(Memory& bus,Line<B>& line,uint32_t p,unsigned index,bool force) {
+        if(p>0x1fffffffu)return false;
         if(!force && (line.flags&1) && line.page==(p>>12))return true;
         Line<B> next;next.page=p>>12;next.flags=1;
         for(unsigned n=0;n<B;n+=8) {

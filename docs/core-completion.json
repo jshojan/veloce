@@ -163,7 +163,7 @@
         "register_oracle",
         "states"
       ],
-      "remaining": "Super Mario 64 reaches 5,896,601 startup attempts, then faults on TLBWI; native boot/playability, RAM remapping/calibration, remaining CPU/FPU/devices, RSP/RDP/VI, RSP audio microcode, physical AI timing, analog and netplay remain."
+      "remaining": "Super Mario 64 reaches 5,897,464 startup attempts, then faults reading VI Current; native boot/playability, RAM remapping/calibration, remaining CPU/FPU/devices, RSP/RDP/VI, RSP audio microcode, physical AI timing, analog and netplay remain."
     },
     {
       "id": "vb",

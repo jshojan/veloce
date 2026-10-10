@@ -157,7 +157,7 @@ static void merge_memory(n64::Machine& m) {
     m.cpu.step(); require(m.cpu.state.gpr[2] == 0x0123456789abcdefull, "negative merge offset failed");
     program(m, {i(0x2c, 1, 2, 3)}); m.cpu.state.gpr[1] = 0xffffffffb0000000ull;
     auto rom = m.rom; m.cpu.step();
-    require(m.rom == rom && (m.cpu.state.cp0[13] & 0x7c) == 20 && m.cpu.state.cp0[8] == 0xffffffffb0000003ull,
+    require(m.rom == rom && (m.cpu.state.cp0[13] & 0x7c) == 28 && m.cpu.state.cp0[8] == 0,
             "protected merge store/fault address wrong");
     m.write(base, 8, 0x0123456789abcdefull);
     require(!m.write_masked(base, 4, 0, 0x80) && !m.write_masked(base + 1, 8, 0, 0xff), "invalid mask/alignment accepted");

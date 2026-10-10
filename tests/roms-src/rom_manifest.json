@@ -374,6 +374,17 @@
       "source_type": "original",
       "suite": "sp_dma"
     },
+    "n64/tlb_translation/tlb_translation.z64": {
+      "build_command": "python3 tests/roms-src/n64/tlb_translation/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "6d7f30fc46db6159d23afb14f1c025cfa5cc433580be8743eb7435b80c931ef9",
+      "source_repo": "tests/roms-src/n64/tlb_translation/build.py",
+      "source_sha": "1f6bf1b8d49cc43e2c288a44dc0132cd34470ffcb702ed6eccab179beb18b432",
+      "source_type": "original",
+      "suite": "tlb_translation"
+    },
     "nds/integer_registers/integer_registers.nds": {
       "build_command": "python3 tests/roms-src/nds/integer_registers/build.py",
       "console": "nds",

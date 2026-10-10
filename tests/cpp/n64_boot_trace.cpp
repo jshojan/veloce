@@ -9,24 +9,28 @@ int main(int argc,char** argv) {
     const std::vector<uint8_t> image{std::istreambuf_iterator<char>(file),{}};
     n64::Machine machine;const bool loaded=machine.load(image.data(),image.size());
     if(!loaded) {std::cout<<"{\"loaded\":false}\n";return 0;}
-    bool fault=false;
+    bool fault=false;uint64_t handled_exceptions=0;uint32_t last_status=0;
     for(unsigned n=0;n<12000000 && !machine.done;++n) {
-        machine.cpu.step();
-        if(machine.cpu.state.cp0[12]&2) {fault=true;break;}
+        last_status=uint32_t(machine.cpu.state.cp0[12]);machine.cpu.step();
+        if(machine.cpu.exception_taken) {
+            const unsigned code=(machine.cpu.state.cp0[13]>>2)&31;
+            // Interrupts, TLB refill/permission and FPE may be handled by guest code.
+            if(code==4 || code==5 || code==6 || code==7 || code==10) {fault=true;break;}
+            ++handled_exceptions;
+        }
     }
     const auto& s=machine.cpu.state;
-    uint64_t instruction=0;const bool readable=fault && machine.read(s.cp0[14],4,instruction);
-    uint64_t fetched=instruction;bool fetched_valid=readable && !(s.cp0[14]&3);
-    if(fault && (s.cp0[16]&7)!=2 && uint32_t(s.cp0[14])<0xa0000000u) {
-        const uint32_t physical=uint32_t(s.cp0[14])&0x1fffffffu;
-        const auto& line=machine.cpu.caches.instruction[(physical>>5)&511];
-        fetched_valid=!(physical&3) && (line.flags&1) && line.page==(physical>>12);
-        fetched=0;if(fetched_valid)for(unsigned n=0;n<4;++n)fetched=(fetched<<8)|line.data[(physical&31)+n];
-    }
+    const auto translation=machine.cpu.tlb.translate(s.cp0[14],last_status,uint8_t(s.cp0[10]),uint32_t(s.cp0[16]),false);
+    uint64_t instruction=0;
+    const bool readable=fault && translation.fault==n64::Tlb::Fault::none && translation.physical<=0x1fffffffu &&
+        machine.read(0xffffffffa0000000ull|translation.physical,4,instruction);
+    const uint64_t fetched=fault?machine.cpu.instruction_word:0;const bool fetched_valid=fault && machine.cpu.instruction_valid;
     std::cout<<"{\"loaded\":true,\"boot_mode\":"<<unsigned(machine.boot_mode)
-             <<",\"attempts\":"<<s.instructions<<",\"exception_observed\":"<<(fault?"true":"false")
+             <<",\"attempts\":"<<s.instructions<<",\"nonterminal_exception_entries\":"<<handled_exceptions<<",\"exception_observed\":"<<(fault?"true":"false")
              <<",\"fault_backing_readable\":"<<(readable?"true":"false")<<",\"fault_backing_word\":\""<<std::hex<<instruction<<std::dec<<"\""
              <<",\"fault_instruction_valid\":"<<(fetched_valid?"true":"false")<<",\"fault_instruction_word\":\""<<std::hex<<fetched<<std::dec<<"\""
+             <<",\"fault_access_address\":\""<<std::hex<<(fault?machine.cpu.access_address:0)<<std::dec<<"\""
+             <<",\"fault_access_bytes\":"<<(fault?machine.cpu.access_bytes:0)<<",\"fault_access_store\":"<<(fault && machine.cpu.access_store?"true":"false")
              <<",\"done\":"<<(machine.done?"true":"false")<<",\"pc\":\""<<std::hex<<s.pc
              <<"\",\"epc\":\""<<s.cp0[14]<<"\",\"cause\":\""<<s.cp0[13]<<"\",\"status\":\""<<s.cp0[12]
              <<"\",\"bad_address\":\""<<s.cp0[8]<<"\",\"gpr\":[";
