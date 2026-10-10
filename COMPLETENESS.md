@@ -1,6 +1,6 @@
 # Veloce Accuracy Scorecard
 
-Current N64 evidence: [RSP divider/move and current Mario evidence](#rsp-reciprocal-square-root-and-move). Earlier increment reports are historical.
+Current N64 evidence: [RDP tile state and current Mario evidence](#rdp-tile-and-texture-image-state). Earlier increment reports are historical.
 
 This is the project's honest, evidence-based statement of how complete and
 cycle-accurate each emulator core is. Legacy headline percentages are produced by the
@@ -1399,3 +1399,55 @@ S020, and the corrected gate passes in **4.78 seconds**, completing all 43.
 All **91 original ROM archives** reproduce. Undefined-behavior sanitization,
 current executable hashes for both private retail reports, completion synchronization
 and whitespace checks pass.
+
+## RDP tile and texture-image state
+
+The RDP executes **SET_TILE (0x35), SET_TILE_SIZE (0x32) and
+SET_TEXTURE_IMAGE (0x3D)** and retains all documented fields. Eight independent
+tile descriptors contain format, texel size, line/TMEM word addresses, palette,
+S/T clamp/mirror/mask/shift; separate bounds retain raw unsigned 10.2 SL/TL/SH/TH.
+The texture image retains format/size, width-minus-one and its 26-bit byte address.
+Descriptor updates preserve bounds and other tiles; size updates preserve descriptors.
+The image width accessor adds one. This state is available to subsequent texture
+operations. There is no fabricated TMEM transfer or textured output.
+
+Layout follows [SGI RDP Command Summary, tables 3, 6 and 9](https://hcs64.com/files/RDP_COMMANDS.pdf).
+Reserved command bits are discarded as an explicit deterministic convention;
+physical reserved-bit behavior is ungraded. Command-state progression from
+RDRAM and XBUS DMEM uses the shared DP interface, including wrap/freeze/END
+extension. Only real FullSync asserts DP IRQ. LOAD_BLOCK, LOAD_TILE, LOAD_TLUT,
+texture sampling/filtering/coordinates, rasterization and exact timing remain pending.
+
+The [original tile command ROM](tests/roms-src/n64/rdp_tile_commands/README.md)
+provides **131,072 cases / 917,504 actual register/RAM words** covering every
+16-bit repeated payload through both sources, with all eight tile indices rotating.
+It captures CURRENT/STATUS/MI before and after FullSync and an untouched RAM guard.
+It computes no verdict. The independent host grader checks the exact finite domain
+and rejects an executed capture mutant, seven field mutations and seven malformed
+streams. **There is no hardware readback of internal tile/image state in this ROM.**
+The component independently grades **10,107,008 descriptor-field pairs**, all encoded
+field values at all tile indices, **1,048,576 source/tile state streams**, every
+input bit, 131,072 isolated coordinate-field cases, raw bounds and image fields, reset and real unsupported-load blocking.
+This is neither the full payload/address corpus nor physical-console verification.
+
+Plugin **0.25.0**, ABI v2, saves **VN64S021**. The appended **136 bytes / 17 words**
+store descriptor/bounds per tile then texture image; reserved bits must be zero.
+Restore validates every word before updating the machine. S020 and previously
+accepted older formats restore neutral texture state and preserve previous fields;
+the S020 conversion specifically preserves a pending zero-high divider input and
+nonzero output. Frozen pending texture commands replay exactly. Existing EOF-relative
+state checks and the ABI video capture move 136 bytes.
+
+The private Mario probe passes the prior **SET_TILE** blocker. At **2,000 scheduling
+quanta / 200,000,000 CPU attempts**, the next block is **LOAD_BLOCK**, word
+**F3000000073FF100**, CURRENT **227158**, reason 1, END **227C30**. There are **620
+nonterminal exception entries**, no terminal fault, **3,497,074 RSP instructions**,
+no unsupported RSP at this bound, and a real BREAK (SP PC **0x144**, status **0x243**).
+Video remains uniform. **93,571 audio sample pairs** do not prove game sound.
+Quanta are not game frames. **Native boot/playability remain unverified.** Commercial
+ROM bytes remain local. Repeatable reports are in `build/artifacts/retail/n64-tile.json`
+and the default `build/artifacts/retail/n64.json`.
+
+N64 remains **40% = 8/20 fixed delivery milestones**; the complete graphics
+milestone and full Nintendo-platform goal remain unfinished. Front-page and core
+README percentages stay synchronized. CI/CD remains disabled.

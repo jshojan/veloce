@@ -5,6 +5,7 @@
 #include <algorithm>
 #include "rdp_combiner.hpp"
 #include "rdp_fill.hpp"
+#include "rdp_texture.hpp"
 namespace n64 {
 // Shared CPU/RSP DP interface and bounded, functional RDP fill engine.
 // Command issue/counters are nominal clocks, not DMA FIFO or rasterizer timing.
@@ -15,6 +16,7 @@ public:
     uint32_t clock=0,command_busy=0,pipe_busy=0,tmem_busy=0,blocked_reason=0,fill_color=0;
     uint64_t blocked_word=0,color_image=0,other_mode=0,scissor=0;
     RdpCombiner combiner;
+    RdpTexture texture;
     uint32_t depth_image=0;
     using State=std::array<uint64_t,19>;
     void reset(){*this=DpInterface{};}
@@ -56,6 +58,7 @@ public:
         case 45:scissor=word&0x00ffffffffffffffull;break;
         case 47:other_mode=word&0x00ffffffffffffffull;break;
         case 55:fill_color=uint32_t(word);break;
+        case 50:case 53:case 61:texture.command(op,word);break;
         case 58:case 59:case 60:combiner.command(op,word);break;
         case 62:depth_image=uint32_t(word)&0x3ffffff;break;
         case 63:color_image=word&0x00ffffffffffffffull;break;

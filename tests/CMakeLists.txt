@@ -696,3 +696,15 @@ add_test(NAME n64_rsp_divider COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/rsp_divider/run.py --emulator $<TARGET_FILE:veloce>
     --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_rsp_divider)
 set_tests_properties(n64_rsp_divider PROPERTIES LABELS "accuracy;owned" TIMEOUT 2700)
+
+add_executable(n64_rdp_texture_test cpp/n64_rdp_texture_test.cpp
+    ${CMAKE_SOURCE_DIR}/cores/n64/src/machine.cpp ${CMAKE_SOURCE_DIR}/cores/n64/src/vr4300.cpp)
+target_include_directories(n64_rdp_texture_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src ${CMAKE_SOURCE_DIR}/include)
+add_test(NAME n64_rdp_texture_test COMMAND n64_rdp_texture_test
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/rdp_combiner_commands/rdp_combiner_commands.z64)
+set_tests_properties(n64_rdp_texture_test PROPERTIES LABELS "unit;accuracy;owned" TIMEOUT 180)
+
+add_test(NAME n64_rdp_tile_commands COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/rdp_tile_commands/run.py --emulator $<TARGET_FILE:veloce>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_rdp_tile_commands)
+set_tests_properties(n64_rdp_tile_commands PROPERTIES LABELS "accuracy;owned" TIMEOUT 700)
