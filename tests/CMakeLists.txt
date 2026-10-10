@@ -708,3 +708,15 @@ add_test(NAME n64_rdp_tile_commands COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/rdp_tile_commands/run.py --emulator $<TARGET_FILE:veloce>
     --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_rdp_tile_commands)
 set_tests_properties(n64_rdp_tile_commands PROPERTIES LABELS "accuracy;owned" TIMEOUT 700)
+
+add_executable(n64_rdp_tmem_test cpp/n64_rdp_tmem_test.cpp
+    ${CMAKE_SOURCE_DIR}/cores/n64/src/machine.cpp ${CMAKE_SOURCE_DIR}/cores/n64/src/vr4300.cpp)
+target_include_directories(n64_rdp_tmem_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src ${CMAKE_SOURCE_DIR}/include)
+add_test(NAME n64_rdp_tmem_test COMMAND n64_rdp_tmem_test
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/rdp_tile_commands/rdp_tile_commands.z64)
+set_tests_properties(n64_rdp_tmem_test PROPERTIES LABELS "unit;accuracy;owned" TIMEOUT 240)
+
+add_test(NAME n64_rdp_tmem_commands COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/rdp_tmem_commands/run.py --emulator $<TARGET_FILE:veloce>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_rdp_tmem_commands)
+set_tests_properties(n64_rdp_tmem_commands PROPERTIES LABELS "accuracy;owned" TIMEOUT 700)
