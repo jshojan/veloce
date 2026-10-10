@@ -626,3 +626,33 @@ python3 tests/roms-src/gc/shift_registers/run.py --controls-only
 This exhausts count and extension input fields within declared patterns, not
 all full 32-bit operands/CR/XER words, physical cache/timing/exceptions or console
 hardware. CI/CD remains disabled.
+
+### Carry arithmetic and negation corpora
+
+`gc_carry_registers` and `wii_carry_registers` each match 25,168,384 nine-word
+snapshots through the frontend: 2,560 NEG/extended unary cases and 25,165,824
+carry immediate observations. [The domain table](tests/roms-src/gc/carry_registers/README.md)
+defines every immediate value on sixteen sources/all XER flags and all unary
+OE/Rc states, finite CR seeds, fixed guest GPR fields and byte count. Independent
+mathematical/unsigned-carry grading checks every captured bit. Executed result,
+stale-CA and cleared-SO mutants fail exactly 272/120/140 reduced snapshots;
+nine field mutations fail one row each and seven invalid streams return ERROR.
+Raw files (~1.85 GiB each) and JSON reports stay in `build/artifacts/owned/gc_carry/`
+and `build/artifacts/owned/wii_carry/`.
+
+The component gate matches 56,083,456 carry arithmetic snapshots across both
+profiles: declared patterns plus every GPR encoding/alias, walking sources,
+all XER byte counts, reserved unary-field rejection and exact machine/plugin
+replay before OV/SO changes. The machine and both loaded plugins pass
+undefined-behavior sanitization.
+
+```sh
+cmake --build build --target veloce gc_plugin wii_plugin ppc_machine_test -j4
+ctest --test-dir build -R '^(ppc_machine_test|(gc|wii)_carry_registers)$' --output-on-failure
+python3 tests/roms-src/build.py --original-only --check
+python3 tests/roms-src/gc/carry_registers/run.py --controls-only
+```
+
+The immediate field is exhausted within these patterns, not all full 32-bit
+sources/CR/XER words or physical cache/timing/exceptions. Most console hardware
+remains pending. CI/CD stays disabled.

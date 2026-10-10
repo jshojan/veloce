@@ -375,3 +375,10 @@ foreach(profile gc wii)
         --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/${profile}_shifts)
     set_tests_properties(${profile}_shift_registers PROPERTIES LABELS "accuracy;owned" TIMEOUT 600)
 endforeach()
+
+foreach(profile gc wii)
+    add_test(NAME ${profile}_carry_registers COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_SOURCE_DIR}/tests/roms-src/${profile}/carry_registers/run.py --emulator $<TARGET_FILE:veloce>
+        --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/${profile}_carry)
+    set_tests_properties(${profile}_carry_registers PROPERTIES LABELS "accuracy;owned" TIMEOUT 1200)
+endforeach()

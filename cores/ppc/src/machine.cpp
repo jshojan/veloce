@@ -54,7 +54,15 @@ void Machine::step() {
         const uint32_t result=(a<b ? 8u:a>b ? 4u:2u)|((s.xer>>31)&1);
         s.cr=(s.cr&~(15u<<shift))|(result<<shift);
     };
-    if(op==10 || op==11) {
+    if(op==8 || op==12 || op==13) {
+        const uint32_t source=s.r[ra]; // Unlike ADDI, carry immediates read GPR0.
+        const uint64_t wide=uint64_t(op==8 ? ~source:source)+immediate+(op==8 ? 1:0);
+        const uint32_t result=uint32_t(wide);
+        s.xer=(s.xer&~0x20000000u)|(wide>>32 ? 0x20000000u:0);
+        s.r[rt]=result;
+        if(op==13) record_compare(0,signed32(result),0);
+    }
+    else if(op==10 || op==11) {
         if(rt&3) { s.unsupported=true; return; } // Reserved bit and unsupported L=1.
         record_compare(rt>>2,op==11 ? signed32(s.r[ra]):s.r[ra],op==11 ? signed32(immediate):ins&65535);
     }
@@ -160,6 +168,21 @@ void Machine::step() {
             }
             s.r[rt]=result;
             if(ins&1) s.cr=(s.cr&0x0fffffffu)|((result==0 ? 2u:result&0x80000000 ? 8u:4u)|((s.xer>>31)&1))<<28;
+        } else if(arithmetic==104 || arithmetic==202 || arithmetic==234 || arithmetic==200 || arithmetic==232) {
+            if(rb) { s.unsupported=true; return; }
+            const uint32_t source=s.r[ra]; const unsigned carry=(s.xer>>29)&1;
+            const bool negate=arithmetic==104,subtract=arithmetic==200 || arithmetic==232;
+            const bool minus_one=arithmetic==234 || arithmetic==232;
+            const uint64_t wide=uint64_t(subtract ? ~source:source)+(minus_one ? 0xffffffffu:0)+carry;
+            const uint32_t result=negate ? 0u-source:uint32_t(wide);
+            const int64_t math=negate ? -signed32(source):subtract ? -signed32(source)+carry-1-(minus_one ? 1:0):signed32(source)+carry-(minus_one ? 1:0);
+            if(!negate) s.xer=(s.xer&~0x20000000u)|(wide>>32 ? 0x20000000u:0);
+            if(ins&0x400) {
+                const bool overflow=math< -0x80000000LL || math>0x7fffffffLL;
+                s.xer=(s.xer&~0x40000000u)|(overflow ? 0xc0000000u:0);
+            }
+            s.r[rt]=result;
+            if(ins&1) record_compare(0,signed32(result),0);
         } else if(xo==28 || xo==60 || xo==444 || xo==412 || xo==316 || xo==476 || xo==124 || xo==284) {
             // X-form logical destinations are RA; read both old sources before writing.
             const uint32_t a=s.r[rt],b=s.r[rb]; uint32_t result=0;
