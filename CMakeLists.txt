@@ -191,6 +191,7 @@ add_subdirectory(cores/nes)
 add_subdirectory(cores/snes)
 add_subdirectory(cores/gb)
 add_subdirectory(cores/gba)
+add_subdirectory(cores/n64)
 
 # Shared plugin libraries
 add_subdirectory(plugins/game_plugin_common)

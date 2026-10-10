@@ -13,7 +13,7 @@ truth this document summarizes rather than duplicates.
 
 ## Repository-owned register corpora
 
-Original NES, GB, SNES, and GBA ROMs are committed with their Python source generators.
+Original NES, GB, SNES, GBA, and N64 ROMs are committed with their Python source generators.
 Build reproducibility and source/image SHA256 are checked with
 `python3 tests/roms-src/build.py --original-only --check`, without a downloaded
 ROM, Docker, or an assembler. Run the suites with
@@ -61,6 +61,16 @@ busy writes, pending-state save/resume, cancellation, and actual-plugin state
 roundtrips. DRAM refresh, DMA/HDMA, interrupts, and physical hardware remain
 unverified. SNES states now use `VSNES002`; recreate old unversioned states.
 
+The [N64 integer corpus](tests/roms-src/n64/integer_registers/README.md) executes
+20 MIPS instructions through the experimental loadable core's marked homebrew
+entry profile. It records 28,160 GPR/HI/LO observations; 28,127 defined results
+match the independent oracle and 33 undefined divide inputs are unscored.
+All three cartridge byte orders execute through frontend discovery. Mutation
+and damaged-file controls check rejection. `n64_machine_test` separately checks
+control flow/delay slots, basic exceptions, memory and plugin state continuation.
+N64 retail boot, graphics/audio/controllers, peripherals and timing remain
+unimplemented or unverified. Its trailer cycle counter measures instruction
+steps, and frames are scheduling quanta, not VI fields.
 The [GBA ARM shift corpus](tests/roms-src/gba/arm_shifts/README.md) records
 65,536 result/CPSR pairs over the `mgba` channel: four shifts, every low-byte
 amount, all C/V inputs, and 16 operand patterns. Timing and the full source

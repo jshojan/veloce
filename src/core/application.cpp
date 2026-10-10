@@ -60,7 +60,7 @@ void Application::print_usage(const char* program_name) {
     std::cout << "\n";
     std::cout << "ROM_FILE:\n";
     std::cout << "  Optional path to a ROM file to load on startup.\n";
-    std::cout << "  Supported formats: .nes (NES), .sfc/.smc (SNES), .gb/.gbc (GB), .gba (GBA)\n";
+    std::cout << "  Supported formats: .nes (NES), .sfc/.smc (SNES), .gb/.gbc (GB), .gba (GBA), .z64/.v64/.n64 (experimental N64 homebrew)\n";
     std::cout << "\n";
     std::cout << "Examples:\n";
     std::cout << "  " << program_name << " game.nes                        # Load and run a NES ROM\n";

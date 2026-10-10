@@ -44,6 +44,17 @@
       "source_type": "original",
       "suite": "arm_shifts"
     },
+    "n64/integer_registers/integer_registers.z64": {
+      "build_command": "python3 tests/roms-src/n64/integer_registers/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "1d97bfcee2800d70f441251719e7f9dd711ffcde615db7ec7fb91c87614c42d3",
+      "source_repo": "tests/roms-src/n64/integer_registers/build.py",
+      "source_sha": "224ce09c3e39fdbdcaf305b9b386e2ebe5f5e05fed27863b691f2eeb0cba921d",
+      "source_type": "original",
+      "suite": "integer_registers"
+    },
     "nes/alu_exhaustive/alu_exhaustive.nes": {
       "build_command": "python3 tests/roms-src/nes/alu_exhaustive/build.py",
       "console": "nes",

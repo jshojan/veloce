@@ -15,6 +15,21 @@
 
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
 
+add_executable(n64_machine_test cpp/n64_machine_test.cpp
+    ${CMAKE_SOURCE_DIR}/cores/n64/src/machine.cpp ${CMAKE_SOURCE_DIR}/cores/n64/src/vr4300.cpp)
+target_include_directories(n64_machine_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src
+    ${CMAKE_SOURCE_DIR}/include ${SDL2_INCLUDE_DIRS})
+target_link_libraries(n64_machine_test PRIVATE ${SDL2_LIBRARIES})
+target_compile_definitions(n64_machine_test PRIVATE SDL_MAIN_HANDLED)
+add_dependencies(n64_machine_test n64_plugin)
+add_test(NAME n64_machine_test COMMAND n64_machine_test $<TARGET_FILE:n64_plugin>
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/integer_registers/integer_registers.z64)
+set_tests_properties(n64_machine_test PROPERTIES LABELS "unit;fast" TIMEOUT 30)
+add_test(NAME n64_integer_registers COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/integer_registers/run.py --emulator $<TARGET_FILE:veloce>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_integer)
+set_tests_properties(n64_integer_registers PROPERTIES LABELS "accuracy;owned" TIMEOUT 150)
+
 add_executable(snes_math_pipeline_test cpp/snes_math_pipeline_test.cpp
     ${CMAKE_SOURCE_DIR}/cores/snes/src/bus.cpp ${CMAKE_SOURCE_DIR}/cores/snes/src/cpu.cpp
     ${CMAKE_SOURCE_DIR}/cores/snes/src/ppu.cpp ${CMAKE_SOURCE_DIR}/cores/snes/src/apu.cpp

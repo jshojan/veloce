@@ -37,8 +37,9 @@ See [Build Instructions](#building) for platform-specific details.
 | Game Boy / Color | [cores/gb](cores/gb/README.md) | In Progress | DMG and CGB, MBC1/3/5; serial register test channel |
 | Game Boy Advance | [cores/gba](cores/gba/README.md) | In Progress | ARM7TDMI, all video modes |
 | Super Nintendo | [cores/snes](cores/snes/README.md) | In Progress | 65C816, Mode 7, SPC700 |
+| Nintendo 64 | [cores/n64](cores/n64/README.md) | Experimental | Integer homebrew execution and register corpus; no retail boot, graphics, audio or controller hardware |
 
-Additional Nintendo families, including Virtual Boy, N64, DS/DSi, GameCube/Wii,
+Additional Nintendo families, including Virtual Boy, DS/DSi, GameCube/Wii,
 3DS, Wii U, and Switch, still need core plugins. Overall completion is not yet
 measured. See the [hardware coverage and remaining work](docs/HARDWARE-COVERAGE.md).
 
@@ -52,7 +53,7 @@ veloce (application)
     +-- Plugin Manager
     |       |
     |       +-- Emulator Cores (IEmulatorPlugin)
-    |       |       NES, GB, GBA, SNES
+    |       |       NES, GB, GBA, SNES, N64
     |       |
     |       +-- Audio Plugin (IAudioPlugin)
     |       |       Volume, muting, processing
@@ -102,6 +103,7 @@ Game plugin selection is configurable in Settings > Plugins.
 - [Game Boy Core](cores/gb/README.md) - Game Boy and Game Boy Color
 - [GBA Core](cores/gba/README.md) - Game Boy Advance
 - [SNES Core](cores/snes/README.md) - Super Nintendo Entertainment System
+- [N64 Core](cores/n64/README.md) - Experimental Nintendo 64 integer homebrew core
 
 ### Plugin Interfaces
 
@@ -312,9 +314,10 @@ console. Start here:
 | Console | Verified headline | Detail |
 |---------|-------------------|--------|
 | NES | ~90-94% (strongest verified coverage) | [scorecard](COMPLETENESS.md#nes) / [notes](cores/nes/README.md#testing) |
-| SNES | Original settled math: 68,864 cases verified; external visual catalog unscored | [scorecard](COMPLETENESS.md#snes) / [notes](cores/snes/README.md#testing) |
-| Game Boy | Blargg serial subset and original 2-check register probe verified; Mooneye unscored | [scorecard](COMPLETENESS.md#game-boy) / [notes](cores/gb/README.md#testing) |
+| SNES | Original settled math: 68,864 cases and 504,832 selected timing observations verified; external visual catalog unscored | [scorecard](COMPLETENESS.md#snes) / [notes](cores/snes/README.md#testing) |
+| Game Boy | Blargg serial subset, original probe, 8,388,608 ALU pairs and 73,728 unary pairs verified; Mooneye unscored | [scorecard](COMPLETENESS.md#game-boy) / [notes](cores/gb/README.md#testing) |
 | GBA | partial (CPU/memory/BIOS/saves verified) | [scorecard](COMPLETENESS.md#gba) / [notes](cores/gba/README.md#test-status) |
+| N64 | Experimental integer homebrew: 28,127 defined results verified; full platform completion unknown | [implementation and limits](cores/n64/README.md) |
 
 Run external ROM suites with `python tests/run_all.py`; see [TESTING.md](TESTING.md)
 for per-console and CI usage. The percentages above describe that measured
@@ -331,6 +334,7 @@ subset, not whole-core completion.
 | [GB unary instructions](tests/roms-src/gb/unary_exhaustive/README.md) | 73,728/73,728 A/F pairs matched (100% of 18 accumulator instructions, all bytes and all incoming flags) | `build/artifacts/owned/gb_unary/` |
 | [SNES math registers](tests/roms-src/snes/math_registers/README.md) | 65,536/65,536 multiplication pairs and 3,328 division boundary cases matched; settled results only | `build/artifacts/owned/snes_math/` |
 | [SNES math timing](tests/roms-src/snes/math_timing/README.md) | 504,832/504,832 register bytes matched across CPU phases 2–18 (100% of selected multiplicands/dividends, all 256 second operands, four result registers) | `build/artifacts/owned/snes_math_timing/` |
+| [N64 integer registers](tests/roms-src/n64/integer_registers/README.md) | 28,127/28,127 defined results matched across 20 instructions and selected patterns; 33 undefined division inputs observed but unscored; full core incomplete | `build/artifacts/owned/n64_integer/` |
 | [GBA ARM register shifts](tests/roms-src/gba/arm_shifts/README.md) | 65,536/65,536 result/CPSR pairs matched; all low-byte amounts and C/V inputs, 16 selected operands | `build/artifacts/owned/gba_shifts/` |
 
 ```bash
@@ -345,6 +349,9 @@ or malformed register files are rejected. The SNES ROM streams products,
 quotients, and remainders through `$21FE` for its independent host oracle.
 The GBA ROM records ARM shift results and CPSR flags through mGBA debug
 registers, with an independent host oracle and file-channel boundary controls.
+The experimental N64 ROM outputs observed GPR/HI/LO values through an emulator
+debug register. Its marked homebrew loader bypasses retail boot; it provides
+integer execution evidence, with no N64 graphics/audio/controller claim.
 Original suites retain raw
 register output and reports; CI builds the actual core plugins, runs these tests,
 and uploads the files. Source generators and ROM images are stored in this repo.
@@ -384,6 +391,7 @@ veloce/
         gb/                   Game Boy emulator
         gba/                  GBA emulator
         snes/                 SNES emulator
+        n64/                  Experimental N64 integer homebrew emulator
     plugins/                  Auxiliary plugins
         audio_default/        Audio backend
         input_default/        Input backend
