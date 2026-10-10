@@ -36,3 +36,11 @@ were read, not copied or executed here. RSP scalar/vector instructions,
 BREAK production, running-PC behavior, IO-full and physical clock validation
 remain incomplete. This corpus proves its declared observations, not whole-RSP
 accuracy or retail compatibility.
+
+## RSP execution update
+
+The current cartridge waits two CPU NOPs after status commands so single-step
+RSP NOP execution settles HALT before sampling, then sets HALT before testing
+PC write/read masking. All IMEM bytes are reset NOPs. The independent oracle
+accounts for settled single-step HALT; it grades no physical pipeline latency.
+The 196,608 rows and negative controls remain intact.

@@ -35,6 +35,12 @@ int main(int argc,char** argv) {
              <<"\",\"epc\":\""<<s.cp0[14]<<"\",\"cause\":\""<<s.cp0[13]<<"\",\"status\":\""<<s.cp0[12]
              <<"\",\"bad_address\":\""<<s.cp0[8]<<"\",\"gpr\":[";
     for(unsigned n=0;n<32;++n) {if(n)std::cout<<',';std::cout<<'"'<<s.gpr[n]<<'"';}
-    std::cout<<"],\"retail_boot_verified\":false,\"playability_verified\":false}\n";
+    std::cout<<"],\"sp_status\":\""<<machine.sp_interface.status<<"\",\"sp_pc\":\""<<machine.sp_interface.pc
+             <<"\",\"sp_instruction\":\"";
+    uint32_t sp_word=0;for(unsigned n=0;n<4;++n)sp_word=(sp_word<<8)|machine.sp[4096+((machine.sp_interface.pc+n)&4095)];
+    std::cout<<sp_word<<"\",\"mi_mask\":\""<<unsigned(machine.mi_mask)<<"\",\"vi_registers\":[";
+    for(unsigned n=0;n<14;++n){if(n)std::cout<<',';std::cout<<'"'<<machine.video_interface.snapshot()[n]<<'"';}
+    std::cout<<"],\"rsp_instructions\":"<<std::dec<<machine.rsp.instructions<<",\"rsp_blocked\":"<<(machine.rsp.blocked?"true":"false")
+             <<",\"rsp_blocked_word\":\""<<std::hex<<machine.rsp.blocked_word<<"\",\"retail_boot_verified\":false,\"playability_verified\":false}\n";
     return 0;
 }

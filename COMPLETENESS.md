@@ -1,6 +1,6 @@
 # Veloce Accuracy Scorecard
 
-Current N64 evidence: [FPU arithmetic and current Mario evidence](#fpu-arithmetic-family). Earlier increment reports are historical.
+Current N64 evidence: [RSP scalar execution and current Mario evidence](#rsp-scalar-execution). Earlier increment reports are historical.
 
 This is the project's honest, evidence-based statement of how complete and
 cycle-accurate each emulator core is. Legacy headline percentages are produced by the
@@ -49,7 +49,7 @@ headlines or original-ROM domain pass fractions.
 | [SNES](#snes) | 67 external tests / 19 suites, plus 2 original ROMs | 68,864 settled math cases and 504,832 timing bytes verified | Original multiplication domain is exhaustive; division covers boundaries; timing covers declared patterns/phases; external catalog remains unscored |
 | [Game Boy](#game-boy) | 225 external tests / 31 suites, plus 3 original ROMs | Verified subset only | Blargg serial subset, 2 WRAM checks, 8,388,608 ALU pairs and 73,728 unary pairs verified; Mooneye remains unverified |
 | [GBA](#gba) | 132 external tests / 29 suites, plus 1 original ROM | Partial; 65,536 original ARM shift cases verified | Legacy CPU/memory/BIOS/saves subsets verified; timing/PPU and remaining original hardware corpus pending |
-| N64 | 24 original ROMs; no external catalog | Declared integer/merge/controller/interrupt/PI/RI/MI/device/cache/SP/AI/FPU-control/data/conversion/arithmetic/TLB/VI domains verified | Experimental homebrew/native handoff; retail boot pending; full hardware completion unknown; [limits](cores/n64/README.md) |
+| N64 | 26 original ROMs; no external catalog | Declared integer/merge/controller/interrupt/PI/RI/MI/device/cache/SP/AI/FPU-control/data/conversion/arithmetic/TLB/VI/RSP-scalar domains verified | Experimental homebrew/native handoff; retail boot pending; full hardware completion unknown; [limits](cores/n64/README.md) |
 | Virtual Boy | 7 original ROMs; no external catalog | 6,512,640 result/PSW pairs plus 4,210,688 multiply/divide and 4,685,824 TRAP/illegal and 4,982,784 address-trap snapshots plus 17,055,744 CAXI/port and 14,680,064 arithmetic bit-string and 100,712,448 immediate-instruction snapshots | Experimental marked homebrew; remaining CPU/NVC, VIP/VSU, controllers and timing pending; [limits](cores/vb/README.md) |
 | Nintendo DS | 8 original ROMs; no external catalog | 44,238,336 integer plus 38,338,560 multiply plus 51,426,816 Thumb result/CPSR/source/PC observations matched; 49,694,208 nine-word memory and 9,437,184 eight-word long-call observations matched; 3,720,960 stack/block observations matched; 4,096/4,096 digital keypad combinations matched; 100-frame TCP host/viewer states and eight guest words match baseline/oracle; DS wireless multiplayer pending; ARM7 unpredictable multiply flags excluded | Experimental marked ARM/Thumb integer homebrew; firmware, ARM block transfers, graphics/audio, peripherals pending; DSi has a separate partial plugin; [limits](cores/nds/README.md) |
 | Nintendo DSi | 2 original ROMs; no external catalog | 387,072/387,072 RAM captures; 67,109,008 component bus observations; 100-frame TCP host/viewer states and eight guest register words match oracle | Experimental dual-CPU expanded-memory profile; firmware/retail boot, full SCFG/MBK, graphics/audio/peripherals and physical timing pending; [limits](cores/dsi/README.md) |
@@ -712,3 +712,63 @@ Commercial ROM bytes are never committed. Earlier increment reports retain
 their historical counts and blockers.
 
 Verification: **40/40 N64 CTests passed** in 246.85 seconds, including twenty-four original register-ROM gates, two production audio/video oracles and fourteen component gates. The full build and final arithmetic undefined-behavior sanitizer passed; all **73 original ROMs** reproduce against the committed image/generator ledger. Completion renderer and whitespace checks pass. CI/CD remains removed and Actions disabled.
+
+## RSP scalar execution
+
+The RSP now executes 32-bit scalar arithmetic, logic, comparisons, immediate and
+variable shifts, conditional branches/link/jumps with delay slots, byte/halfword/
+word DMEM loads/stores and shared MFC0/MTC0 SP fields. IMEM PC/targets wrap at
+4 KiB; unaligned data accesses wrap each byte within DMEM. ADD/SUB/ADDI wrap
+without CPU overflow traps. BREAK sets HALT/BROKE and the configured SP interrupt;
+MI delivers that real interrupt to the CPU. Semaphore and settled DMA use the
+same SP interface as CPU accesses. Single-step NOPs settle HALT.
+
+RSP instructions advance at two per three nominal CPU interpreter attempts;
+this is a functional scheduling approximation, not physical CPI, dual issue,
+interlocks, bus timing or debugger pipeline behavior. Missing vector/DP operations
+halt with an explicit blocked instruction and retained PC, without manufacturing
+BROKE, a task-completion IRQ or a CPU hardware exception. Illegal/undefined
+encodings and branches within delay slots are not physically graded.
+
+The [ALU cartridge](tests/roms-src/n64/rsp_scalar_alu/README.md) matches
+**704,512 rows / 4,931,584 actual captured words**, including all repeated-byte
+pairs for ten functions and all fixed/variable shifts on 256 patterns. The
+[immediate cartridge](tests/roms-src/n64/rsp_scalar_immediates/README.md) matches
+**1,572,864 rows / 11,010,048 words**: every immediate for eight forms on three
+operand patterns. Original RSP code writes actual GPRs to DMEM, and original CPU
+code streams those values plus zero, SP PC/status and MI pending. A separate
+mathematical host oracle grades every word. Each suite rejects an executed capture
+mutant, seven field mutations and seven malformed-stream controls.
+
+The component passes **4,194,304 immediate cases**, **327,680 register triples**,
+**9,437,184 byte-address/pattern/load-store cases**, **262,144 branch/BREAK cases**,
+all low-byte shift counts and all PC slots for J/JAL/JALR. It covers alias/zero
+semantics, SP control/semaphore/real DMA bridges, CPU IRQ acknowledgment, explicit
+unsupported-operation diagnostics, reset and state atomicity/replay.
+The earlier SP-control cartridge now waits for single-step NOPs to settle and
+halts before PC write/read to avoid execution races; all 196,608 rows still grade.
+
+State `VN64S014` appends 304 bytes: 32 scalar GPRs, next PC, retired count, delay
+state, blocked flag/word and the fractional clock phase. S013 and older states
+preserve implemented fields while starting neutral scalar registers/phase and
+sequential execution from the restored SP PC. Existing memory/debug prefix
+positions stay stable. RSP state rejection is atomic, including invalid zero GPR,
+word widths, alignment, flags and phase. Pending branch/BREAK replays exactly.
+
+Rules follow the SGI [RSP programmer guide](https://bukosek.si/hardware/collection/sgi-o2/n64-rsp-programmers-guide.pdf)
+and the hardware-test author's [scalar cases](https://github.com/lemmy-64/n64-systemtest/tree/main/src/tests/rsp).
+Published raw cases clarify SLTIU unsigned comparison, LWU as a word load,
+unaligned DMEM wrapping, unconditional REGIMM links and BREAK in delay slots.
+These original cartridges have not been validated on a physical console.
+Selected domains do not exhaust all independent 32-bit operands or the whole RSP.
+
+The local Mario trace reaches 12,000,000 CPU attempts with 51 nonterminal
+exception entries and no terminal CPU fault. It retires **52 RSP scalar
+instructions**, then blocks at **SP PC `090`, `MFC0 DPC_STATUS`, word `40055800`**.
+Status `41` records HALT plus interrupt-on-break, without BROKE. The production
+probe still observes uniform video and 480 audio sample pairs, which do not prove
+audible game sound. Boot/gameplay remain unverified; commercial bytes are excluded.
+N64 remains **40% (8/20 delivery milestones)**. Vector/RDP/game rendering, RSP
+audio microcode, physical timing, FPU comparisons, analog and netplay remain pending.
+
+Verification: **43/43 N64 CTests passed** in 325.15 seconds, including twenty-six original register-ROM gates, two production audio/video oracles and fifteen component gates. The corrected RSP ROM/component gates also passed in 78.34 seconds. The full build and final scalar undefined-behavior sanitizer passed; all **75 original ROMs** reproduce against the committed image/generator ledger. Completion renderer and whitespace checks pass. CI/CD remains removed and GitHub Actions disabled.

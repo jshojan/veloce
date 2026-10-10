@@ -164,7 +164,7 @@
         "register_oracle",
         "states"
       ],
-      "remaining": "Super Mario 64 passes the former DIV.S blocker and reaches the 12-million-attempt trace limit without a terminal CPU fault, but video is uniform; native boot/playability, remaining CPU/FPU/devices, RSP/RDP, VI filters and physical timing, RSP audio microcode, analog and netplay remain."
+      "remaining": "Super Mario 64 reaches the 12-million-attempt CPU trace limit; 52 RSP scalar instructions retire before unsupported DPC_STATUS access. Video stays uniform; native boot/playability, FPU comparisons/devices, RSP vectors/RDP, physical pipeline timing, RSP audio microcode, analog and netplay remain."
     },
     {
       "id": "vb",

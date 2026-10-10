@@ -407,14 +407,36 @@
       "source_type": "original",
       "suite": "ri_registers"
     },
+    "n64/rsp_scalar_alu/rsp_scalar_alu.z64": {
+      "build_command": "python3 tests/roms-src/n64/rsp_scalar_alu/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "7f1b790480ea73c945e8781cb229cffa66e1a1670d1f767d4a11ead680fc5ebd",
+      "source_repo": "tests/roms-src/n64/rsp_scalar_alu/build.py",
+      "source_sha": "f01372dac3142ed5a068090d4f5dc7af836b1950a85555d0e9d68f498a91b6d1",
+      "source_type": "original",
+      "suite": "rsp_scalar_alu"
+    },
+    "n64/rsp_scalar_immediates/rsp_scalar_immediates.z64": {
+      "build_command": "python3 tests/roms-src/n64/rsp_scalar_immediates/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "d499de12e331ebb07a31859fc8c79af4a6f937fdb27b7b5446a44041caacf83b",
+      "source_repo": "tests/roms-src/n64/rsp_scalar_immediates/build.py",
+      "source_sha": "a06bf9b67047b255dfbe66fd38e940e2b95abd003ba0674b0ac0e788b739bbe2",
+      "source_type": "original",
+      "suite": "rsp_scalar_immediates"
+    },
     "n64/sp_controls/sp_controls.z64": {
       "build_command": "python3 tests/roms-src/n64/sp_controls/build.py",
       "console": "n64",
       "license": "MIT",
       "rom_variant": "veloce",
-      "sha256": "3f8c2549c0bd780bf244a0fa08e6c64c40233599303cfc537f100db1f381e0c9",
+      "sha256": "0a10b0bea1d64a92060e39b23b5dcd3a59c73e49f9ee4693017adb60ea0a1553",
       "source_repo": "tests/roms-src/n64/sp_controls/build.py",
-      "source_sha": "8b471fa87cc6cc696b8f0c49a8ed9888ebf9d9ff1578d91b7404b445a36df935",
+      "source_sha": "43c8b5ff166b199256d924d7df76ec76a66f3c39706a9e018edbba667d8f11ff",
       "source_type": "original",
       "suite": "sp_controls"
     },

@@ -1,6 +1,6 @@
 # Veloce Testing and Accuracy Framework
 
-Current N64 evidence: [FPU arithmetic and current Mario evidence](#fpu-arithmetic-family). Earlier increment reports are historical.
+Current N64 evidence: [RSP scalar execution and current Mario evidence](#rsp-scalar-execution). Earlier increment reports are historical.
 
 This is the entry point for everything about how Veloce's emulator cores are
 tested and how the project derives a defensible "this core is N% accurate"
@@ -1327,3 +1327,63 @@ Commercial ROM bytes are never committed. Earlier increment reports retain
 their historical counts and blockers.
 
 Verification: **40/40 N64 CTests passed** in 246.85 seconds, including twenty-four original register-ROM gates, two production audio/video oracles and fourteen component gates. The full build and final arithmetic undefined-behavior sanitizer passed; all **73 original ROMs** reproduce against the committed image/generator ledger. Completion renderer and whitespace checks pass. CI/CD remains removed and Actions disabled.
+
+## RSP scalar execution
+
+The RSP now executes 32-bit scalar arithmetic, logic, comparisons, immediate and
+variable shifts, conditional branches/link/jumps with delay slots, byte/halfword/
+word DMEM loads/stores and shared MFC0/MTC0 SP fields. IMEM PC/targets wrap at
+4 KiB; unaligned data accesses wrap each byte within DMEM. ADD/SUB/ADDI wrap
+without CPU overflow traps. BREAK sets HALT/BROKE and the configured SP interrupt;
+MI delivers that real interrupt to the CPU. Semaphore and settled DMA use the
+same SP interface as CPU accesses. Single-step NOPs settle HALT.
+
+RSP instructions advance at two per three nominal CPU interpreter attempts;
+this is a functional scheduling approximation, not physical CPI, dual issue,
+interlocks, bus timing or debugger pipeline behavior. Missing vector/DP operations
+halt with an explicit blocked instruction and retained PC, without manufacturing
+BROKE, a task-completion IRQ or a CPU hardware exception. Illegal/undefined
+encodings and branches within delay slots are not physically graded.
+
+The [ALU cartridge](tests/roms-src/n64/rsp_scalar_alu/README.md) matches
+**704,512 rows / 4,931,584 actual captured words**, including all repeated-byte
+pairs for ten functions and all fixed/variable shifts on 256 patterns. The
+[immediate cartridge](tests/roms-src/n64/rsp_scalar_immediates/README.md) matches
+**1,572,864 rows / 11,010,048 words**: every immediate for eight forms on three
+operand patterns. Original RSP code writes actual GPRs to DMEM, and original CPU
+code streams those values plus zero, SP PC/status and MI pending. A separate
+mathematical host oracle grades every word. Each suite rejects an executed capture
+mutant, seven field mutations and seven malformed-stream controls.
+
+The component passes **4,194,304 immediate cases**, **327,680 register triples**,
+**9,437,184 byte-address/pattern/load-store cases**, **262,144 branch/BREAK cases**,
+all low-byte shift counts and all PC slots for J/JAL/JALR. It covers alias/zero
+semantics, SP control/semaphore/real DMA bridges, CPU IRQ acknowledgment, explicit
+unsupported-operation diagnostics, reset and state atomicity/replay.
+The earlier SP-control cartridge now waits for single-step NOPs to settle and
+halts before PC write/read to avoid execution races; all 196,608 rows still grade.
+
+State `VN64S014` appends 304 bytes: 32 scalar GPRs, next PC, retired count, delay
+state, blocked flag/word and the fractional clock phase. S013 and older states
+preserve implemented fields while starting neutral scalar registers/phase and
+sequential execution from the restored SP PC. Existing memory/debug prefix
+positions stay stable. RSP state rejection is atomic, including invalid zero GPR,
+word widths, alignment, flags and phase. Pending branch/BREAK replays exactly.
+
+Rules follow the SGI [RSP programmer guide](https://bukosek.si/hardware/collection/sgi-o2/n64-rsp-programmers-guide.pdf)
+and the hardware-test author's [scalar cases](https://github.com/lemmy-64/n64-systemtest/tree/main/src/tests/rsp).
+Published raw cases clarify SLTIU unsigned comparison, LWU as a word load,
+unaligned DMEM wrapping, unconditional REGIMM links and BREAK in delay slots.
+These original cartridges have not been validated on a physical console.
+Selected domains do not exhaust all independent 32-bit operands or the whole RSP.
+
+The local Mario trace reaches 12,000,000 CPU attempts with 51 nonterminal
+exception entries and no terminal CPU fault. It retires **52 RSP scalar
+instructions**, then blocks at **SP PC `090`, `MFC0 DPC_STATUS`, word `40055800`**.
+Status `41` records HALT plus interrupt-on-break, without BROKE. The production
+probe still observes uniform video and 480 audio sample pairs, which do not prove
+audible game sound. Boot/gameplay remain unverified; commercial bytes are excluded.
+N64 remains **40% (8/20 delivery milestones)**. Vector/RDP/game rendering, RSP
+audio microcode, physical timing, FPU comparisons, analog and netplay remain pending.
+
+Verification: **43/43 N64 CTests passed** in 325.15 seconds, including twenty-six original register-ROM gates, two production audio/video oracles and fifteen component gates. The corrected RSP ROM/component gates also passed in 78.34 seconds. The full build and final scalar undefined-behavior sanitizer passed; all **75 original ROMs** reproduce against the committed image/generator ledger. Completion renderer and whitespace checks pass. CI/CD remains removed and GitHub Actions disabled.

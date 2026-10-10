@@ -25,6 +25,9 @@ def main():
         if report['boot_trace'].get('exception_observed'):
             report['status']='boot-blocked'
             report['detail']='The cartridge loads; IPL3 reaches a CPU exception. Read the recorded EPC, Cause and fault address; retail boot/playability remain unverified.'
+        elif report['boot_trace'].get('rsp_blocked'):
+            report['status']='boot-blocked'
+            report['detail']='The CPU trace reaches its bound; the RSP stopped on an unsupported operation. Read sp_pc and rsp_blocked_word; retail boot/playability remain unverified.'
     args.output.parent.mkdir(parents=True,exist_ok=True);args.output.write_text(json.dumps(report,indent=2)+'\n')
     print(json.dumps(report,indent=2));return 0
 if __name__=='__main__':raise SystemExit(main())

@@ -14,6 +14,7 @@ def expected(rom,short=False):
     index=0
     for seed in range(4 if short else 4096):
         initial=(seed%2)+(seed//2%2)*32+(seed//4%2)*64+(seed//8%256)*128
+        if initial&32:initial|=1 # A running single-step NOP settles HALT.
         irq=seed//2048%2
         for pair in range(12):
             for command in range(4):
@@ -23,6 +24,7 @@ def expected(rom,short=False):
                 elif command in (1,2):
                     bit=(0,5,6,*range(7,15))[pair];mask=2**bit
                     after=(initial & ~mask) if command==1 else (initial|mask)
+                if after&32:after|=1
                 yield(initial,after,irq,next_irq,0,1,(index%1024)*4,next_irq*1024)
                 index+=1
 
