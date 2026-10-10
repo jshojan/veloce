@@ -756,3 +756,23 @@ add_test(NAME n64_netplay_plugin_test COMMAND ${Python3_EXECUTABLE}
     $<TARGET_FILE:n64_plugin> ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/controller_netplay/controller_netplay.z64
     ${CMAKE_BINARY_DIR}/artifacts/netplay-n64 --netplay-plugin $<TARGET_FILE:netplay_default> --console n64)
 set_tests_properties(n64_netplay_plugin_test PROPERTIES LABELS "integration;netplay;owned" TIMEOUT 180)
+
+add_executable(switch_machine_test cpp/switch_machine_test.cpp
+    ${CMAKE_SOURCE_DIR}/cores/switch/src/aarch64.cpp ${CMAKE_SOURCE_DIR}/cores/switch/src/machine.cpp)
+target_include_directories(switch_machine_test PRIVATE ${CMAKE_SOURCE_DIR}/include ${CMAKE_SOURCE_DIR}/cores/switch/src)
+target_compile_features(switch_machine_test PRIVATE cxx_std_17)
+add_test(NAME switch_machine_test COMMAND switch_machine_test
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/switch/arithmetic_registers/arithmetic_registers.nso)
+set_tests_properties(switch_machine_test PROPERTIES LABELS "unit;accuracy;owned" TIMEOUT 180)
+add_test(NAME switch_arithmetic_registers COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/switch/arithmetic_registers/run.py --emulator $<TARGET_FILE:veloce>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/switch_arithmetic)
+set_tests_properties(switch_arithmetic_registers PROPERTIES LABELS "accuracy;owned" TIMEOUT 240)
+add_executable(switch_plugin_state_test cpp/switch_plugin_state_test.cpp)
+target_include_directories(switch_plugin_state_test PRIVATE ${CMAKE_SOURCE_DIR}/include ${SDL2_INCLUDE_DIRS})
+target_link_libraries(switch_plugin_state_test PRIVATE ${SDL2_LIBRARIES})
+target_compile_definitions(switch_plugin_state_test PRIVATE SDL_MAIN_HANDLED)
+add_dependencies(switch_plugin_state_test switch_plugin)
+add_test(NAME switch_plugin_state_test COMMAND switch_plugin_state_test $<TARGET_FILE:switch_plugin>
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/switch/arithmetic_registers/arithmetic_registers.nso)
+set_tests_properties(switch_plugin_state_test PROPERTIES LABELS "integration;accuracy;owned" TIMEOUT 90)

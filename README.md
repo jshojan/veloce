@@ -17,7 +17,7 @@
 | GameCube | **25%** | 5/20 |
 | Wii | **25%** | 5/20 |
 | Wii U | **25%** | 5/20 |
-| Nintendo Switch | **0%** | 0/20 |
+| Nintendo Switch | **25%** | 5/20 |
 
 These percentages count the 20 explicit delivery milestones in [the completion ledger](docs/CORE-COMPLETION.md); partial or unverified milestones receive zero credit. Each milestone is worth 5 percentage points. **They are not percentages of native hardware accuracy or retail compatibility.** Bounded profile tests do not complete a whole CPU or hardware subsystem.
 
@@ -61,7 +61,7 @@ See [Build Instructions](#building) for platform-specific details.
 | Game Boy / Color | [cores/gb](cores/gb/README.md) | In Progress | DMG and CGB, MBC1/3/5; serial register test channel |
 | Game Boy Advance | [cores/gba](cores/gba/README.md) | In Progress | ARM7TDMI, all video modes |
 | Super Nintendo | [cores/snes](cores/snes/README.md) | In Progress | 65C816, Mode 7, SPC700 |
-| Nintendo 64 | [cores/n64](cores/n64/README.md) | Experimental | Integer homebrew, settled digital SI/PIF and interrupt gates; no retail boot, graphics, audio or analog sticks |
+| Nintendo 64 | [cores/n64](cores/n64/README.md) | Experimental | MIPS/RSP/RDP profiles, AI PCM/VI framebuffer, four digital ports and two-player TCP rollback; native boot/playability, triangles, analog and timing pending |
 | Virtual Boy | [cores/vb](cores/vb/README.md) | Experimental | V810 integer homebrew, multiply/divide, exception and arithmetic bit-string corpora; no retail games, video, audio or controller hardware |
 | Nintendo DS | [cores/nds](cores/nds/README.md) | Experimental | Dual-CPU ARM/Thumb integer, memory, long-call and stack/block homebrew with digital keypad input with shared/private RAM; no firmware/retail boot, graphics, audio or peripheral hardware |
 | Nintendo DSi | [cores/dsi](cores/dsi/README.md) | Experimental | Distinct plugin; dual-CPU integer homebrew, 16 MiB RAM/aliases and RAM-limit controls, digital keypad and TCP host/viewer replay; firmware/retail boot and most DSi peripherals pending |
@@ -69,8 +69,9 @@ See [Build Instructions](#building) for platform-specific details.
 | Wii U | [cores/wiiu](cores/wiiu/README.md) | Experimental | Distinct three-context PowerPC integer plugin, 32 MiB MEM1/2 GiB MEM2, sparse states, original input latch and TCP host/viewer replay; native boot, GPU/audio and GamePad hardware pending |
 | GameCube | [cores/ppc](cores/ppc/README.md) | Experimental | Original PowerPC arithmetic/carry, multiply/divide, memory transfers, bitwise, rotate/mask, shift/unary, branch and condition-register programs; settled digital GameCube-controller SI reads; no retail boot, graphics/audio, analog/polling or netplay |
 | Wii | [cores/ppc](cores/ppc/README.md) | Experimental | Original PowerPC arithmetic/carry, multiply/divide, memory transfers, bitwise, rotate/mask, shift/unary, branch and condition-register programs; settled digital GameCube-controller SI reads; no retail boot, MEM2, IOS, Wii Remotes, graphics/audio or netplay |
+| Nintendo Switch | [cores/switch](cores/switch/README.md) | Experimental | Uncompressed NSO0, AArch64 integer guest, independent register corpus and full profile states; full CPU/MMU/HOS, firmware, graphics/audio, peripherals and retail playability pending |
 
-Nintendo Switch still needs a core plugin. DSi enhanced hardware remains partially implemented. Native hardware accuracy/completion is not yet
+Nintendo Switch now has an experimental original AArch64/uncompressed NSO0 core; firmware, HOS and retail compatibility remain pending. DSi enhanced hardware remains partially implemented. Native hardware accuracy/completion is not yet
 measured; delivery checklist completion is reported above. See the [hardware coverage and remaining work](docs/HARDWARE-COVERAGE.md).
 
 ## Architecture
@@ -380,6 +381,7 @@ console. Start here:
 | Nintendo DS | Experimental dual-CPU homebrew: 44,238,336 integer plus 38,338,560 multiply snapshots plus 51,426,816 Thumb result/CPSR/source/PC and 49,694,208 memory plus 9,437,184 long-call snapshots matched; 3,720,960 stack/block snapshots matched; 4,096/4,096 digital keypad combinations matched; full platform completion unknown | [implementation and limits](cores/nds/README.md) |
 | Nintendo DSi | 387,072/387,072 original RAM observations matched; 67,109,008 component bus observations; 100-frame TCP host/viewer states and eight guest register words match oracle; full hardware completion unknown | [implementation and limits](cores/dsi/README.md) |
 | Nintendo 3DS | 25,165,824/25,165,824 original reversal captures matched; 36,123,648 component register snapshots and 541,065,300 RAM bus observations; 4,096 digital HID inputs; 100-frame TCP host/viewer states and twelve guest words match baseline/oracle; full hardware completion unknown | [implementation and limits](cores/3ds/README.md) |
+| Nintendo Switch | Experimental uncompressed NSO0/AArch64 profile: 1,572,864 original observations / 7,864,320 words and 13,877,248 integer component cases; full native hardware completion unknown | [implementation and limits](cores/switch/README.md) |
 | Wii U | 25,165,824/25,165,824 original ADDI/ADDIS captures matched; 28,311,552 component register snapshots and 8,724,152,428 RAM bus observations; 100-frame TCP states and twelve guest words match baseline/oracle; full hardware completion unknown | [implementation and limits](cores/wiiu/README.md) |
 | GameCube / Wii | Each profile: 49,152/49,152 arithmetic, 74,752/74,752 branch and 42,108,928/42,108,928 condition-register and 6,324,224/6,324,224 integer logical and 9,437,184/9,437,184 rotate/mask and 4,416,528/4,416,528 shift/unary and 25,168,384/25,168,384 carry arithmetic snapshots and 8,420,320/8,420,320 defined multiply/divide results matched; 1,056 undefined division rows have defined flags/preserved fields checked; 12,586,368/12,586,368 memory-transfer snapshots matched; full platform completion unknown | [implementation and limits](cores/ppc/README.md) |
 
@@ -412,6 +414,7 @@ subset, not whole-core completion.
 | [DSi RAM registers](tests/roms-src/dsi/ram_registers/README.md) | 387,072/387,072 fourteen-word captures matched: RAM modes/banks/CPU writers/aliases/widths/lanes/byte-complement patterns; timing pending | `build/artifacts/owned/dsi_ram/` |
 | [3DS ARM11 reversals](tests/roms-src/3ds/reversal_registers/README.md) | 25,165,824/25,165,824 seven-word captures matched: both ARM11s, ARM/Thumb REV/REV16/REVSH, all NZCVQ and complemented-half values; full operands/timing pending | `build/artifacts/owned/3ds_reversal/` |
 | [Wii U immediates](tests/roms-src/wiiu/immediate_registers/README.md) | 25,165,824/25,165,824 nine-word captures matched: three contexts, ADDI/ADDIS, all 16-bit immediates and XER flag combinations on four sources/zero and ordinary bases; full operands/timing pending | `build/artifacts/owned/wiiu_immediates/` |
+| [Switch AArch64 arithmetic](tests/roms-src/switch/arithmetic_registers/README.md) | 1,572,864 observations / 7,864,320 actual words matched across six forms, both widths and carry values; 13,877,248 integer component cases; native hardware scope incomplete | `build/artifacts/owned/switch_arithmetic/` |
 | [Wii U netplay probe](tests/roms-src/wiiu/netplay_probe/README.md) | 100-frame independent TCP peers match complete canonical states and twelve guest words, including high-RAM readbacks; host original input/viewer; native GamePad pending | `build/artifacts/netplay-wiiu/` |
 | [3DS netplay probe](tests/roms-src/3ds/netplay_probe/README.md) | 100-frame independent TCP peers match full 135,791,096-byte states and twelve guest words; host HID/viewer; wireless multiplayer pending | `build/artifacts/netplay-3ds/` |
 | [DSi netplay probe](tests/roms-src/dsi/netplay_probe/README.md) | 100-frame independent TCP peers match full baseline states and eight guest register words; host keypad/viewer, wireless multiplayer pending | `build/artifacts/netplay-dsi/` |
@@ -561,6 +564,7 @@ veloce/
         gba/                  GBA emulator
         snes/                 SNES emulator
         n64/                  Experimental N64 integer homebrew emulator
+        switch/               Experimental AArch64/uncompressed NSO0 process core
         vb/                   Experimental V810 integer homebrew emulator
     plugins/                  Auxiliary plugins
         audio_default/        Audio backend

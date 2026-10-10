@@ -1628,3 +1628,25 @@ new controller/netplay gates pass. All six production core network gates pass
 in **57.15 seconds**. The full build, sanitizer, completion renderer, changed
 local documentation links and whitespace checks pass. All 94 original archives
 reproduce. Production binaries were unchanged by the fixture corrections.
+
+## Switch AArch64 and native executable profile
+
+The new emulator ABI v2 [Switch plugin](cores/switch/README.md) executes an
+[original NSO0 guest](tests/roms-src/switch/arithmetic_registers/README.md).
+**1,572,864 arithmetic observations / 7,864,320 actual register words** match
+an independent unbounded-integer oracle. Its executed mutant fails all 384 short
+cases; five field and seven malformed-stream controls reject. The component
+passes **13,877,248 integer cases**, all 256 condition/NZCV combinations, SP/XZR,
+loader/map guards and complete state replay. Counts cover explicitly stated
+finite domains; they do not establish full CPU/hardware accuracy.
+
+The loader accepts a checked uncompressed NSO0 subset, rejects compression/hash
+flags, and maps text/RO/data/BSS with permissions into a fixed 4 MiB process
+profile and test stack. `VNXS0001` captures **4,194,648 bytes**, pinned to the
+image. Production ABI replay checks actual register streams and complete states.
+Firmware/HOS, compressed/hash-checked images and other formats, MMU/native RAM,
+full CPU/extensions/exceptions, GPU/audio, native devices/controllers, persistent
+saves, netplay, timing and retail playability remain pending. Original bytes
+are MIT; no firmware/keys/SDK/commercial files are included. Switch is now
+**25% = 5/20 delivery milestones**. CI/CD remains disabled; the full Nintendo
+implementation goal remains active.
