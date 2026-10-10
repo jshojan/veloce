@@ -429,6 +429,17 @@
       "source_type": "original",
       "suite": "pi_dma"
     },
+    "n64/rdp_combiner_commands/rdp_combiner_commands.z64": {
+      "build_command": "python3 tests/roms-src/n64/rdp_combiner_commands/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "3ee524463ee4011b179cf24ee80df1385dc191ed45f9b9444dfa61d3fbd52547",
+      "source_repo": "tests/roms-src/n64/rdp_combiner_commands/build.py",
+      "source_sha": "87019b6e4c6a3c4a5b6b18e609e034604b4fa40edab7d7612b48dc6a6b08c1e0",
+      "source_type": "original",
+      "suite": "rdp_combiner_commands"
+    },
     "n64/rdram_devices/rdram_devices.z64": {
       "build_command": "python3 tests/roms-src/n64/rdram_devices/build.py",
       "console": "n64",

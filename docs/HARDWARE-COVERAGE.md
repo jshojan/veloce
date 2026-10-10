@@ -1,6 +1,6 @@
 # Nintendo implementation and hardware test coverage
 
-Current N64 evidence: [FPU comparisons and current Mario evidence](#fpu-single-and-double-comparisons). Earlier increment reports are historical.
+Current N64 evidence: [RDP combiner command state and current Mario evidence](#rdp-combiner-command-state). Earlier increment reports are historical.
 
 The goal includes Nintendo core plugins, repository-owned ROMs covering the
 hardware, machine-readable register observations, netplay, seamless controllers,
@@ -26,12 +26,12 @@ are not measurements of overall hardware or product completion.
 
 The experimental N64 plugin now executes original MIPS integer homebrew ROMs.
 It accepts the documented homebrew and original/native IPL3 handoff profiles;
-Super Mario 64 passes the former DIV.S blocker and reaches the 12-million-attempt trace limit without a terminal CPU fault, with retail boot blocked at RSP DPC_STATUS access after 52 scalar instructions. Its corpus observes 28,160 GPR/HI/LO results across 20 instructions,
+Super Mario 64 passes the former DIV.S, C.LT.S, DPC_STATUS, vector multiply and SET_COMBINE command-state blockers. The longer trace reaches 200 million CPU attempts without a terminal CPU fault and retires 728,648 RSP instructions; SET_Z_IMAGE remains blocked, video stays uniform, and retail boot/playability remain unverified. Its corpus observes 28,160 GPR/HI/LO results across 20 instructions,
 with 28,127/28,127 defined selected-pattern results matching an independent
 oracle. The 33 undefined divide inputs are recorded but unscored. All low-byte
 shift amounts are covered on 16 patterns per width; full operand domains and
 full core completion are not measured. Pipeline/timing, remaining TLB/cache/full CP0 behavior,
-FPU comparisons and physical pipeline behavior, RSP/RDP, PIF/IPL/CIC boot, VI filters and retail graphics/audio, analog and multiplayer controllers,
+FPU physical pipeline behavior, remaining RSP/RDP, PIF/IPL/CIC boot, VI filters and retail graphics/audio, analog and multiplayer controllers,
 save media, remaining interrupt producers and timing, timed/peripheral DMA and N64 netplay remain. See [N64 implementation](../cores/n64/README.md)
 and its [original corpus](../tests/roms-src/n64/integer_registers/README.md).
 
@@ -1299,3 +1299,60 @@ fraction-pattern component and undefined-behavior sanitizer pass. The full build
 passes; all **84 original ROMs** reproduce against the committed image/generator
 ledger. Completion renderer and whitespace checks pass. Current executable hashes
 match both recorded native probes. CI/CD remains removed and Actions disabled.
+
+
+## RDP combiner command state
+
+SET_COMBINE (0x3C), SET_PRIM_COLOR (0x3A) and SET_ENV_COLOR (0x3B)
+now update persistent RDP command state. Both RGB/alpha selector banks are
+independently decoded. Primitive RGBA, minimum LOD and fractional LOD, and
+all environment RGBA bits are retained. These commands advance CURRENT without
+asserting DP IRQ. FullSync remains the actual IRQ producer. Source layouts are
+[SGI RDP Command Summary, tables 19, 21 and 22](https://hcs64.com/files/RDP_COMMANDS.pdf).
+Discarding unused color/primitive bits is a deterministic convention; physical
+reserved-bit behavior is ungraded.
+
+This increment stores and decodes attributes. **Color-combiner arithmetic,
+blending, texture sampling, triangle rasterization and depth operations remain
+pending.** Existing bounded fill-cycle rectangles continue using FILL_COLOR.
+Unsupported draws retain CURRENT and a real diagnostic, without fabricated
+pixels or completion interrupts.
+
+The original `rdp_combiner_commands` ROM grades **131,072 cases / 917,504
+actual 64-bit words** over all repeated 16-bit payloads and both RDRAM and
+wrapping DMEM lists. CURRENT, STATUS, MI IRQ and a RAM guard are captured before
+and after a separately extended FullSync. This proves command progression and
+IRQ behavior; internal attributes have no hardware readback in this ROM.
+The component independently checks **43,264 selector pairs** and **524,288
+command streams**, every reserved input bit, LOD/color retention, unsupported
+draw failure, frozen pending-list replay and atomic invalid-state rejection.
+An executed capture mutant, all seven field mutations and seven malformed
+stream controls must fail. The component also passes undefined-behavior
+sanitization. See the original corpus README for the exact finite scope.
+
+State **VN64S018** appends three validated 64-bit attribute slots (**24 bytes**).
+S017 and all previously accepted older versions restore neutral attributes and
+preserve their earlier fields. Plugin **0.20.0** retains ABI v2. Earlier state
+component offsets move by the appended 24 bytes.
+
+The current private Super Mario 64 (USA) probe passes the former SET_COMBINE
+blocker. At 2,000 scheduling quanta the CPU reaches **200,000,000 attempts**,
+with 444 nonterminal exception entries and no terminal fault; the RSP retires
+**728,648 instructions**, without an unsupported operation, and reaches real
+BREAK (SP PC 0x144, status 0x243). The DP next blocks at **SET_Z_IMAGE**,
+word **FE00000000000400**, CURRENT **0x227090**, reason 1. Production output
+remains uniform video and **96,646 audio sample pairs**. Sample counts do not
+prove audible game sound. Boot/playability remain unverified; no commercial
+bytes are committed. The default 120-quantum probe remains bounded at
+12,000,000 CPU attempts, 6,026 RSP instructions and 480 audio sample pairs.
+
+Delivery completion stays **40% (8/20 milestones)**. This command-state
+increment does not complete the CPU, RDP or native graphics milestone. The
+front-page and core percentages remain synchronized with the fixed ledger.
+
+Verification: **58 distinct N64 gates have passing results**. The full batch
+passed 56 gates; its AI assertion used an old state-tail offset, and the new
+ROM builder used OR instead of addition for one input address. Both were
+corrected and their targeted gates pass, including the complete original-ROM
+domain and negative controls. All **85 original ROM archives** reproduce;
+completion synchronization and whitespace checks pass. CI/CD remains disabled.

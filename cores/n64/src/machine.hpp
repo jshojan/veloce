@@ -51,6 +51,7 @@ public:
     static constexpr size_t dp_state_size=152;
     static constexpr size_t vector_state_size=536;
     static constexpr size_t accumulator_state_size=64;
+    static constexpr size_t combiner_state_size=24;
     uint64_t rsp_phase=0;
     static constexpr size_t rsp_state_size=304;
     AudioInterface audio_interface;

@@ -1,6 +1,6 @@
 # Experimental Nintendo 64 core plugin
 
-Current N64 evidence: [FPU comparisons and current Mario evidence](#fpu-single-and-double-comparisons). Earlier increment reports are historical.
+Current N64 evidence: [RDP combiner command state and current Mario evidence](#rdp-combiner-command-state). Earlier increment reports are historical.
 
 <!-- completion:start -->
 ## Completion percentage
@@ -13,7 +13,7 @@ These percentages count the 20 explicit delivery milestones in [the completion l
 
 Nintendo 64 delivered milestones: Guest sound produces audio samples, Native digital controller/keypad registers consume frontend input, Guest graphics produce rendered video, Parse a native cartridge/executable format (boot scored separately), Repository-owned ROM source and reproducible archived image, Separate core plugin and ABI entry points, Actual guest register-file output independently graded on the host, with negative controls, Complete states for the implemented profile and deterministic replay.
 
-Remaining: Super Mario 64 passes C.LT.S and reaches the 200-million-attempt trace bound without a terminal CPU fault; 728,648 RSP instructions retire. RDP SET_COMBINE remains blocked and video stays uniform. Native boot/playability, full CPU/CP0/devices, FPU physical timing, remaining RSP arithmetic/reciprocals, complete RDP/audio, analog and netplay remain.
+Remaining: Super Mario 64 passes C.LT.S and reaches the 200-million-attempt trace bound without a terminal CPU fault; 728,648 RSP instructions retire. RDP SET_COMBINE command state now passes; SET_Z_IMAGE remains blocked and video stays uniform. Native boot/playability, full CPU/CP0/devices, FPU physical timing, remaining RSP arithmetic/reciprocals, complete RDP/audio, analog and netplay remain.
 <!-- completion:end -->
 
 `n64_plugin` builds `n64.so`/`n64.dll`/`n64.dylib` and implements emulator ABI v2.
@@ -114,7 +114,7 @@ SI re-entry and pending SI/timer save-state continuation also have unit evidence
 Count still advances once per two CPU step attempts, including interrupt entry.
 This is an instruction-clock approximation. Exact PClock/pipeline timing,
 CP0 hazards, Count-write equality timing, privilege checks, other interrupt
-producers and reset/NMI/cache-error paths are unverified. The current `VN64S017` state stores Count, Compare, Cause, Status and pending SI/PI/SP/AI/VI/MI state. Device levels are resampled on the next step.
+producers and reset/NMI/cache-error paths are unverified. The current `VN64S018` state stores Count, Compare, Cause, Status and pending SI/PI/SP/AI/VI/MI state. Device levels are resampled on the next step.
 
 ## Explicit homebrew entry profile
 
@@ -184,10 +184,10 @@ cmake --build build --target veloce n64_plugin n64_machine_test n64_pi_test n64_
 ctest --test-dir build -R '^n64_' --output-on-failure
 ```
 
-`VN64S017` states store explicit big-endian scalars, all GPR/CP0 registers,
+`VN64S018` states store explicit big-endian scalars, all GPR/CP0 registers,
 HI/LO, both PCs, pending delay state, instruction/frame counters, completion,
 RAM and SP storage, PIF RAM, SI address/completion, MI mask, latched digital
-input and debug yield state, plus 13 PI registers, PI IRQ and boot mode (120 bytes), six RI controls and a current-loaded flag (56 bytes), plus MI mode and pending DP (16 bytes) and 36 device-register scalars (288 bytes), plus all cache tags/valid/dirty flags and data (40,960 bytes) and nine SP interface scalars (72 bytes), plus 15 AI scalars, five host-clock/ring scalars and 32,768 bytes of pending PCM storage (32,928 bytes). FCR31 is stored as an 8-byte validated scalar, followed by 32 TLB entries as four 8-byte scalars each (1,024 bytes). VI adds 20 validated 8-byte scalars (160 bytes), including registers, current line, crystal phase, field count, leap pattern and interrupt latch. FPR data appends 32 raw 64-bit scalars (256 bytes). S017 appends eight validated raw 48-bit accumulator lanes in 64-bit slots (64 bytes); S016 and earlier restore neutral accumulators. S016 appends 64 packed vector doublewords and three flags (536 bytes); S015 and earlier restore neutral vector storage/flags. S015 appends 19 DP scalars (152 bytes); S014 and earlier restore reset DP control/counters/pipeline while preserving previously stored IRQ state. S014 appends scalar RSP execution and its clock phase (304 bytes); legacy S013 and earlier restore neutral scalar registers/phase and resume sequentially at SP PC. Legacy `VN64S012` restores zero FPR storage. `VN64S011` restores reset VI; `VN64S010` restores neutral TLB entries; `VN64S009` restores neutral FCR31; `VN64S008` restores neutral AI/host audio; `VN64S007` restores reset SP controls; `VN64S006` restores invalid caches; `VN64S005` restores reset device registers; `VN64S004` states restore with neutral MI mode/DP; `VN64S003` states restore with neutral RI; `VN64S002` loads only for homebrew, with neutral PI/RI; `VN64S001` is rejected. ROM data is immutable and referenced by identity. Size,
+input and debug yield state, plus 13 PI registers, PI IRQ and boot mode (120 bytes), six RI controls and a current-loaded flag (56 bytes), plus MI mode and pending DP (16 bytes) and 36 device-register scalars (288 bytes), plus all cache tags/valid/dirty flags and data (40,960 bytes) and nine SP interface scalars (72 bytes), plus 15 AI scalars, five host-clock/ring scalars and 32,768 bytes of pending PCM storage (32,928 bytes). FCR31 is stored as an 8-byte validated scalar, followed by 32 TLB entries as four 8-byte scalars each (1,024 bytes). VI adds 20 validated 8-byte scalars (160 bytes), including registers, current line, crystal phase, field count, leap pattern and interrupt latch. FPR data appends 32 raw 64-bit scalars (256 bytes). S018 appends three combiner/color state scalars (24 bytes); S017 and earlier restore neutral combiner state. S017 appends eight validated raw 48-bit accumulator lanes in 64-bit slots (64 bytes); S016 and earlier restore neutral accumulators. S016 appends 64 packed vector doublewords and three flags (536 bytes); S015 and earlier restore neutral vector storage/flags. S015 appends 19 DP scalars (152 bytes); S014 and earlier restore reset DP control/counters/pipeline while preserving previously stored IRQ state. S014 appends scalar RSP execution and its clock phase (304 bytes); legacy S013 and earlier restore neutral scalar registers/phase and resume sequentially at SP PC. Legacy `VN64S012` restores zero FPR storage. `VN64S011` restores reset VI; `VN64S010` restores neutral TLB entries; `VN64S009` restores neutral FCR31; `VN64S008` restores neutral AI/host audio; `VN64S007` restores reset SP controls; `VN64S006` restores invalid caches; `VN64S005` restores reset device registers; `VN64S004` states restore with neutral MI mode/DP; `VN64S003` states restore with neutral RI; `VN64S002` loads only for homebrew, with neutral PI/RI; `VN64S001` is rejected. ROM data is immutable and referenced by identity. Size,
 version, ROM identity and basic field validation precede restoration. The
 instruction counter counts CPU step attempts including interrupt entry,
 **not actual VR4300 cycles**;
@@ -372,8 +372,8 @@ Production output remains uniform video and 480 audio sample pairs.
 
 The longer 2,000-quantum probe now reaches its 200,000,000-attempt bound without
 a terminal CPU fault and retires 728,648 RSP instructions without an unsupported
-RSP operation. C.LT.S passes. The DP still records unsupported SET_COMBINE,
-word `$FCFFFFFFFFFE793C` at CURRENT `$227018`, reason 1. Production output stays
+RSP operation. C.LT.S and SET_COMBINE command state pass. The DP records
+unsupported SET_Z_IMAGE, word `$FE00000000000400` at CURRENT `$227090`, reason 1. Production output stays
 uniform video with 96,646 audio sample pairs. Samples do not establish audible
 game sound. **Retail boot and playability remain unverified.**
 
@@ -1096,3 +1096,60 @@ fraction-pattern component and undefined-behavior sanitizer pass. The full build
 passes; all **84 original ROMs** reproduce against the committed image/generator
 ledger. Completion renderer and whitespace checks pass. Current executable hashes
 match both recorded native probes. CI/CD remains removed and Actions disabled.
+
+
+## RDP combiner command state
+
+SET_COMBINE (0x3C), SET_PRIM_COLOR (0x3A) and SET_ENV_COLOR (0x3B)
+now update persistent RDP command state. Both RGB/alpha selector banks are
+independently decoded. Primitive RGBA, minimum LOD and fractional LOD, and
+all environment RGBA bits are retained. These commands advance CURRENT without
+asserting DP IRQ. FullSync remains the actual IRQ producer. Source layouts are
+[SGI RDP Command Summary, tables 19, 21 and 22](https://hcs64.com/files/RDP_COMMANDS.pdf).
+Discarding unused color/primitive bits is a deterministic convention; physical
+reserved-bit behavior is ungraded.
+
+This increment stores and decodes attributes. **Color-combiner arithmetic,
+blending, texture sampling, triangle rasterization and depth operations remain
+pending.** Existing bounded fill-cycle rectangles continue using FILL_COLOR.
+Unsupported draws retain CURRENT and a real diagnostic, without fabricated
+pixels or completion interrupts.
+
+The original `rdp_combiner_commands` ROM grades **131,072 cases / 917,504
+actual 64-bit words** over all repeated 16-bit payloads and both RDRAM and
+wrapping DMEM lists. CURRENT, STATUS, MI IRQ and a RAM guard are captured before
+and after a separately extended FullSync. This proves command progression and
+IRQ behavior; internal attributes have no hardware readback in this ROM.
+The component independently checks **43,264 selector pairs** and **524,288
+command streams**, every reserved input bit, LOD/color retention, unsupported
+draw failure, frozen pending-list replay and atomic invalid-state rejection.
+An executed capture mutant, all seven field mutations and seven malformed
+stream controls must fail. The component also passes undefined-behavior
+sanitization. See the original corpus README for the exact finite scope.
+
+State **VN64S018** appends three validated 64-bit attribute slots (**24 bytes**).
+S017 and all previously accepted older versions restore neutral attributes and
+preserve their earlier fields. Plugin **0.20.0** retains ABI v2. Earlier state
+component offsets move by the appended 24 bytes.
+
+The current private Super Mario 64 (USA) probe passes the former SET_COMBINE
+blocker. At 2,000 scheduling quanta the CPU reaches **200,000,000 attempts**,
+with 444 nonterminal exception entries and no terminal fault; the RSP retires
+**728,648 instructions**, without an unsupported operation, and reaches real
+BREAK (SP PC 0x144, status 0x243). The DP next blocks at **SET_Z_IMAGE**,
+word **FE00000000000400**, CURRENT **0x227090**, reason 1. Production output
+remains uniform video and **96,646 audio sample pairs**. Sample counts do not
+prove audible game sound. Boot/playability remain unverified; no commercial
+bytes are committed. The default 120-quantum probe remains bounded at
+12,000,000 CPU attempts, 6,026 RSP instructions and 480 audio sample pairs.
+
+Delivery completion stays **40% (8/20 milestones)**. This command-state
+increment does not complete the CPU, RDP or native graphics milestone. The
+front-page and core percentages remain synchronized with the fixed ledger.
+
+Verification: **58 distinct N64 gates have passing results**. The full batch
+passed 56 gates; its AI assertion used an old state-tail offset, and the new
+ROM builder used OR instead of addition for one input address. Both were
+corrected and their targeted gates pass, including the complete original-ROM
+domain and negative controls. All **85 original ROM archives** reproduce;
+completion synchronization and whitespace checks pass. CI/CD remains disabled.

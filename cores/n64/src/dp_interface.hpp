@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <vector>
 #include <algorithm>
+#include "rdp_combiner.hpp"
 namespace n64 {
 // Shared CPU/RSP DP interface and bounded, functional RDP fill engine.
 // Command issue/counters are nominal clocks, not DMA FIFO or rasterizer timing.
@@ -12,6 +13,7 @@ public:
     bool start_valid=false,end_valid=false,pipeline=true,blocked=false;
     uint32_t clock=0,command_busy=0,pipe_busy=0,tmem_busy=0,blocked_reason=0,fill_color=0;
     uint64_t blocked_word=0,color_image=0,other_mode=0,scissor=0;
+    RdpCombiner combiner;
     using State=std::array<uint64_t,19>;
     void reset(){*this=DpInterface{};}
     uint32_t status() const{return flags|128u|(pipeline?40u:0u)|(current!=active_end?64u:0u)|(start_valid?1024u:0u)|(end_valid?512u:0u);}
@@ -52,6 +54,7 @@ public:
         case 45:scissor=word&0x00ffffffffffffffull;break;
         case 47:other_mode=word&0x00ffffffffffffffull;break;
         case 55:fill_color=uint32_t(word);break;
+        case 58:case 59:case 60:combiner.command(op,word);break;
         case 63:color_image=word&0x00ffffffffffffffull;break;
         case 54:reason=fill(word,ram);supported=!reason;break;
         default:supported=false;break;
