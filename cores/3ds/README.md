@@ -66,7 +66,7 @@ This is one chosen value per address, not all address/value combinations.
 Loader/state rejection, a three-context RAM-writing guest, dynamic plugin
 lifecycle, digital input and exact replay pass. The full component gate also
 passes undefined-behavior sanitization. Existing DS/DSi component regressions
-pass. All 50 original ROMs reproduce against the source/image ledger. See [testing](../../TESTING.md).
+pass. All 51 original ROMs reproduce against the source/image ledger. See [testing](../../TESTING.md).
 
 ```sh
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
@@ -109,7 +109,7 @@ Frontend controller bindings and hotplug support are shared, but physical
 Remaining CPU instructions, privileged/banked/exception state, firmware,
 MMU/caches/TCM, SMP coherency, physical timing, DMA, graphics/GPU/VRAM, DSP/audio,
 wireless, storage, services, native formats and New 3DS extensions remain
-pending. Wii U and Switch still lack core plugins. No overall hardware
+pending. Wii U now has a separate partial integer plugin; Switch still lacks a core. No overall hardware
 completion percentage is inferred from these finite test domains.
 
 Instruction definitions follow the ARM-published

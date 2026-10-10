@@ -1,5 +1,5 @@
 foreach(profile IN ITEMS gc wii)
-    add_library(${profile}_plugin SHARED src/plugin.cpp src/machine.cpp)
+    add_library(${profile}_plugin SHARED src/plugin.cpp src/machine.cpp src/cpu.cpp)
     target_include_directories(${profile}_plugin PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../include)
     target_compile_features(${profile}_plugin PRIVATE cxx_std_17)
     if(profile STREQUAL "wii")

@@ -739,7 +739,7 @@ supplied-profile byte checks, not physical chip-control/timing evidence.
 guest words matching the independent oracle. Host owns one keypad; viewer
 replay is supported, DSi wireless multiplayer is pending. DS component and
 production netplay regression gates pass. Local TCP gates require loopback
-socket permission; CI/CD remains disabled. All 50 original ROMs reproduce
+socket permission; CI/CD remains disabled. All 51 original ROMs reproduce
 against the source/image ledger. Firmware/retail boot, full SCFG/MBK and most
 DSi hardware remain pending; full platform completion is unmeasured.
 
@@ -783,7 +783,7 @@ behavior. All 4,096 digital HID inputs, readonly lanes, atomic image/state
 validation, full 135,791,096-byte state replay, a three-context writing guest,
 and the dynamic plugin lifecycle pass. The full component gate passes
 undefined-behavior sanitization; existing DS/DSi component regressions pass.
-All 50 original ROMs reproduce against the source/image ledger.
+All 51 original ROMs reproduce against the source/image ledger.
 
 ```sh
 cmake --build build --target veloce ctr_plugin ctr_machine_test -j4
@@ -826,3 +826,48 @@ states (~1.14 GiB per peer) plus core/scratch memory; compression/page sharing
 and sustained real-time performance remain unverified. The TCP gate needs
 loopback socket permission. Internet, physical devices/two machines and
 cross-platform peers remain unverified. CI/CD stays disabled.
+
+### Wii U three-context integer plugin and original immediate ROM
+
+The separately loadable `wiiu_plugin` executes repository-owned `.vwiiu`
+programs on three PowerPC integer contexts. The shared interpreter now takes
+its bus explicitly; GC/Wii loader/map/state behavior is retained. MEM1 is
+32 MiB and MEM2 is the full 2 GiB physical profile, backed by sparse 4 KiB
+pages. Missing pages represent zero bytes, with canonical nonzero-page states.
+Native boot, full CPU/GPU/audio, services, physical timing, GamePad hardware
+and Wii U netplay remain pending; overall completion is unmeasured.
+
+`wiiu_immediate_registers` matches **25,165,824/25,165,824 nine-word original
+captures**: three contexts × ADDI/ADDIS × four source values × RA=0/3 × all
+8 incoming XER flag combinations × all 65,536 immediates. The host integer
+oracle independently grades result, CR, XER, source, tested encoding, seeds,
+sentinel and context tag from the file. Shared RAM orders blocks; no guest
+verdict, image or stdout is scored. This does not exhaust 32-bit sources or
+all instructions/platform hardware. Reduced executed result/width/CR controls
+fail exactly 3,072/1,536/2,304 rows; nine field mutations and seven invalid
+streams are rejected. Identity/CRC/channel/domain/width/order/completion,
+ungraded trailer and EOF are required. Raw output (~1.85 GiB), controls and
+JSON grades stay in `build/artifacts/owned/wiiu_immediates/`.
+
+`wiiu_machine_test` matches **28,311,552 register snapshots** and
+**8,724,152,428 RAM bus observations**. Every mapped byte is written once with
+an address-derived pattern and read through all three contexts; this covers
+one chosen value per address. Selected width/endian/page/region boundaries,
+full RT/RA fields/aliases on selected sources/immediates, CR/XER/other-register
+preservation, atomic invalid images/states, complete dense RAM round trip,
+sparse continuation, high-end code, synthetic input and plugin checks pass.
+The full gate passes undefined-behavior sanitization; GC/Wii component
+regression passes after interpreter extraction. The largest canonical state
+is 2,183,168,992 bytes; dense tests need several
+GiB of memory and a 64-bit host. Digital input is an original latch convention,
+not native VPAD/KPAD/GamePad or wireless controller emulation.
+
+```sh
+cmake --build build --target veloce wiiu_plugin wiiu_machine_test ppc_machine_test -j4
+ctest --test-dir build -R '^(wiiu_|ppc_machine_test)' --output-on-failure
+python3 tests/roms-src/build.py --original-only --check
+```
+
+The full component and corpus timeouts are 1,200/1,800 seconds. CI/CD remains
+disabled. See [core scope](cores/wiiu/README.md) and
+[original domain/controls](tests/roms-src/wiiu/immediate_registers/README.md).
