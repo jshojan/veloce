@@ -95,6 +95,17 @@
       "source_sha": "9be5014016d4e90e4a80665f7995b7fe7cff79ba0e59ca18a04979e29af9056c",
       "source_type": "original",
       "suite": "math_registers"
+    },
+    "snes/math_timing/math_timing.sfc": {
+      "build_command": "python3 tests/roms-src/snes/math_timing/build.py",
+      "console": "snes",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "833c8ddf7f6779f2d61c960d4aad637fb00d528e62ee932621a8bc5afdd55f9c",
+      "source_repo": "tests/roms-src/snes/math_timing/build.py",
+      "source_sha": "a63cb40a3bb4e6144c1947cf03d104755147bf8eb43175958e6daf58ec19a97d",
+      "source_type": "original",
+      "suite": "math_timing"
     }
   },
   "tool_versions": {

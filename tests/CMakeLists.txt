@@ -15,6 +15,24 @@
 
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
 
+add_executable(snes_math_pipeline_test cpp/snes_math_pipeline_test.cpp
+    ${CMAKE_SOURCE_DIR}/cores/snes/src/bus.cpp ${CMAKE_SOURCE_DIR}/cores/snes/src/cpu.cpp
+    ${CMAKE_SOURCE_DIR}/cores/snes/src/ppu.cpp ${CMAKE_SOURCE_DIR}/cores/snes/src/apu.cpp
+    ${CMAKE_SOURCE_DIR}/cores/snes/src/dsp.cpp ${CMAKE_SOURCE_DIR}/cores/snes/src/spc700.cpp
+    ${CMAKE_SOURCE_DIR}/cores/snes/src/dma.cpp ${CMAKE_SOURCE_DIR}/cores/snes/src/cartridge.cpp)
+target_include_directories(snes_math_pipeline_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/snes/src ${CMAKE_SOURCE_DIR}/include ${SDL2_INCLUDE_DIRS})
+target_link_libraries(snes_math_pipeline_test PRIVATE ${SDL2_LIBRARIES})
+target_compile_definitions(snes_math_pipeline_test PRIVATE SDL_MAIN_HANDLED)
+add_dependencies(snes_math_pipeline_test snes_plugin)
+add_test(NAME snes_math_pipeline_test COMMAND snes_math_pipeline_test $<TARGET_FILE:snes_plugin>
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/snes/math_timing/math_timing.sfc)
+set_tests_properties(snes_math_pipeline_test PROPERTIES LABELS "unit;fast" TIMEOUT 30)
+
+add_test(NAME snes_math_timing COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/snes/math_timing/run.py --emulator $<TARGET_FILE:veloce>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/snes_math_timing)
+set_tests_properties(snes_math_timing PROPERTIES LABELS "accuracy;owned" TIMEOUT 400)
+
 add_executable(netplay_plugin_peer cpp/netplay_plugin_peer.cpp)
 target_include_directories(netplay_plugin_peer PRIVATE ${CMAKE_SOURCE_DIR}/include ${SDL2_INCLUDE_DIRS})
 target_link_libraries(netplay_plugin_peer PRIVATE ${SDL2_LIBRARIES})

@@ -42,8 +42,17 @@ The [SNES math corpus](tests/roms-src/snes/math_registers/README.md) streams
 65,536 multiplication products and 3,328 division quotient/remainder pairs through
 `$21FE`. Its integer host oracle grades every settled observation, including
 division by zero. A trigger mutation must fail and damaged files must be errors.
-Operation latency and intermediate results remain unverified; division covers
-13 boundary dividends with all 256 divisors.
+This suite checks settled results; division covers 13 boundary dividends with
+all 256 divisors. The separate [SNES math timing ROM](tests/roms-src/snes/math_timing/README.md)
+observes 504,832 individual register bytes at CPU phases 2–18: 16 multiplicand
+patterns and 13 boundary dividends, all 256 second operands, and four result
+registers. Its closed-form oracle checks intermediate and final states, including
+old quotient bits and division by zero. A changed register sample must fail;
+damaged files must be errors. `snes_math_pipeline_test` supplements it with
+every multiplication pair at phases 0–8, selected division cases at phases 0–16,
+busy writes, pending-state save/resume, cancellation, and actual-plugin state
+roundtrips. DRAM refresh, DMA/HDMA, interrupts, and physical hardware remain
+unverified. SNES states now use `VSNES002`; recreate old unversioned states.
 
 The [GBA ARM shift corpus](tests/roms-src/gba/arm_shifts/README.md) records
 65,536 result/CPSR pairs over the `mgba` channel: four shifts, every low-byte

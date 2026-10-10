@@ -82,6 +82,7 @@ artifacts/
 !tests/roms-src/nes/alu_exhaustive/alu_exhaustive.nes
 !tests/roms-src/nes/netplay_probe/netplay_probe.nes
 !tests/roms-src/snes/math_registers/math_registers.sfc
+!tests/roms-src/snes/math_timing/math_timing.sfc
 !tests/roms-src/gba/arm_shifts/arm_shifts.gba
 *-test-roms/
 mgba-suite/

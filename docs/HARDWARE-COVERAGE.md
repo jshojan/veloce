@@ -11,7 +11,7 @@ are not measurements of overall hardware or product completion.
 |---|---|---|---|
 | NES/Famicom | `nes_plugin` | ADC/SBC zero-page arithmetic: 524,288/524,288 A/P pairs verified (100% of both operands, C and D states) | Not measured; other CPU instructions/addressing/timing and peripheral corpora remain |
 | GB/CGB | `gb_plugin` | DMG WRAM/ADD probe: 2/2 checks; byte ALU E-register corpus: 8,388,608/8,388,608 A/F pairs matched (100% of eight operations, every operand pair, and all 16 incoming flag states) | Not measured; other CPU operands/instructions, timing/PPU/APU/MBC/CGB corpus remains |
-| SNES | `snes_plugin` | Settled multiplication: 65,536/65,536 operand pairs verified (100%); division: 3,328 selected boundary cases verified | Not measured; timing/intermediate math results and remaining hardware corpora pending |
+| SNES | `snes_plugin` | Settled multiplication: 65,536/65,536 operand pairs verified (100%); division: 3,328 selected boundary cases verified; math timing: 504,832/504,832 register bytes matched at CPU phases 2–18 (100% of declared patterns/phases) | Not measured; timed full operand domain, refresh/DMA interactions, and remaining hardware corpora pending |
 | GBA | `gba_plugin` | ARM MOVS register shifts: 65,536/65,536 result/CPSR pairs verified; all low-byte amounts and C/V inputs on 16 operands | Not measured; remaining CPU modes/instructions, timing and peripheral corpora pending |
 
 Run `python3 tests/roms-src/build.py --original-only --check` to reproduce the
@@ -60,6 +60,14 @@ and Switch. Famicom Disk System and other Nintendo accessories still need
 separate validation. There is no verified completion percentage for these
 missing implementations.
 
+The [SNES math timing corpus](../tests/roms-src/snes/math_timing/README.md) measures
+intermediate registers and completion boundaries for selected operand patterns.
+The core advances pending operations on CPU clock edges, and savestates retain
+operand latches, shift state, and remaining clocks. The `VSNES002` internal state
+format rejects older unversioned SNES payloads; recreate those states. The
+plugin ABI remains v2. DMA/HDMA, DRAM refresh, hardware revisions, and physical
+timing remain separate unverified domains.
+
 ## Modern feature evidence still required
 
 The SDL virtual-controller test verifies two identical pads, duplicate events,
@@ -96,4 +104,6 @@ multiplayer/link behavior before their netplay can be claimed as verified.
 The corrected NES/GB/GBA CRC32 identities can change the identifier of a ROM
 previously loaded with the mistyped table. Old savestate filenames and embedded
 ROM identifiers may therefore stop matching; recreate those states. The core
-state serialization format itself has not changed in this increment.
+state serialization formats for those three cores were unchanged by the CRC
+correction. The new SNES `VSNES002` payload is a separate format change described
+above.

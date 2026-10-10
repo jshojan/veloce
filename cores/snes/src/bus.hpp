@@ -48,6 +48,9 @@ public:
     void start_hblank();
     void start_vblank();
     void add_cycles(int master_cycles);
+    // One CPU clock edge, separate from master-clock PPU/APU bookkeeping.
+    void clock_math();
+    void cancel_math() { m_math_remaining = 0; m_math_shift = 0; }
 
     // NMI/IRQ management
     // Reference: bsnes irq.cpp - NMI uses edge detection with hold period
@@ -142,6 +145,9 @@ private:
     // Math results
     uint16_t m_rddiv = 0;      // $4214-$4215 - Division result
     uint16_t m_rdmpy = 0;      // $4216-$4217 - Multiplication result
+    uint32_t m_math_shift = 0;
+    uint8_t m_math_remaining = 0;
+    bool m_math_dividing = false;
 
     // Status
     bool m_nmi_pending = false;

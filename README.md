@@ -121,6 +121,7 @@ All plugin interfaces are defined in include/emu/:
 ### Core Features
 
 - 10 save state slots with F1-F10 hotkeys
+- SNES states use `VSNES002` to preserve pending math operations; recreate older SNES savestates.
 - Visual input configuration with interactive controller display
 - Per-platform controller bindings
 - USB gamepad support with hot-plugging
@@ -148,8 +149,8 @@ All plugin interfaces are defined in include/emu/:
 
 ### Netplay Features
 
-The plugin API, lobby UI, local session codes/chat, input-slot manager, and NES
-netplay interface exist. A [two-player rollback module](plugins/netplay_default/README.md)
+The default plugin supports direct IPv4 host/join sessions. A
+[two-player rollback module](plugins/netplay_default/README.md)
 now saves frame history, predicts input, restores/replays late corrections, and
 stalls at its speculation limit. Two delayed NES sessions match an ordinary
 100-frame run byte-for-byte, including guest register observations in files.
@@ -328,6 +329,7 @@ subset, not whole-core completion.
 | [GB CPU/WRAM probe](tests/roms-src/gb/register_probe/README.md) | 2/2 checks passed; injected wrong WRAM value fails | `build/artifacts/owned/gb_register_probe/` |
 | [GB byte ALU](tests/roms-src/gb/alu_exhaustive/README.md) | 8,388,608/8,388,608 A/F pairs matched (100% of every operand pair and incoming Z/N/H/C state for eight E-register ALU operations); timing and other operands remain unverified | `build/artifacts/owned/gb_alu/` |
 | [SNES math registers](tests/roms-src/snes/math_registers/README.md) | 65,536/65,536 multiplication pairs and 3,328 division boundary cases matched; settled results only | `build/artifacts/owned/snes_math/` |
+| [SNES math timing](tests/roms-src/snes/math_timing/README.md) | 504,832/504,832 register bytes matched across CPU phases 2–18 (100% of selected multiplicands/dividends, all 256 second operands, four result registers) | `build/artifacts/owned/snes_math_timing/` |
 | [GBA ARM register shifts](tests/roms-src/gba/arm_shifts/README.md) | 65,536/65,536 result/CPSR pairs matched; all low-byte amounts and C/V inputs, 16 selected operands | `build/artifacts/owned/gba_shifts/` |
 
 ```bash

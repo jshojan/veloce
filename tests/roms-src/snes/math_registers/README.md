@@ -45,9 +45,11 @@ are retained locally alongside the passing artifacts.
 
 ## Remaining work
 
-The current core calculates math results immediately. This suite checks settled
-values, so it cannot verify the documented operation latency, intermediate
-results, or overlapping operations. Those require timing corpora and core work.
+This suite checks settled values. The separate [timing corpus](../math_timing/README.md)
+now verifies intermediate reads and completion boundaries for selected operand
+patterns as the core advances operations on CPU clock edges. Timed exhaustive
+operand domains, refresh/DMA, interrupt overlap, and physical hardware remain
+unverified.
 It does not verify native CPU arithmetic, Mode 7 multiplication, DMA, interrupts,
 PPU/APU, cartridge hardware, or whole-core accuracy. No whole-core completion
 percentage follows from this domain's 100% multiplication coverage.

@@ -43,7 +43,8 @@ jobs:
         run: |
           python3 tests/roms-src/build.py --original-only --check
           cmake -B build -DCMAKE_BUILD_TYPE=Release
-          cmake --build build --target veloce gb_plugin nes_plugin snes_plugin gba_plugin cartridge_crc_test input_hotplug_test netplay_rollback_test netplay_network_peer netplay_plugin_peer -j
+          cmake --build build --target veloce gb_plugin nes_plugin snes_plugin gba_plugin cartridge_crc_test input_hotplug_test netplay_rollback_test netplay_network_peer netplay_plugin_peer snes_math_pipeline_test -j
+          ctest --test-dir build -R snes_math_pipeline_test --output-on-failure
           ctest --test-dir build -R cartridge_crc_test --output-on-failure
           ctest --test-dir build -L controllers --output-on-failure
       - name: Grade observed hardware registers

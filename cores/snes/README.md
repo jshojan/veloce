@@ -485,8 +485,14 @@ The optional host sink is borrowed and excluded from save states. `$21FE`
 streams bytes and `$21FF` reads `$56` or accepts completion `$01`, only in
 I/O banks `$00-$3F/$80-$BF`. WRAM and cartridge banks retain their mappings.
 A completion hint has unknown status; the host oracle determines PASS/FAIL.
-The current math implementation calculates outputs immediately; operation latency,
-intermediate values, and overlapping operations still require work and tests.
+The math unit now advances over eight multiply or sixteen divide CPU clocks,
+including intermediate register values. The separate
+[timing corpus](../../tests/roms-src/snes/math_timing/README.md) verifies 504,832
+byte reads across phases 2–18. Pending operations and operand latches are
+serialized; `snes_math_pipeline_test` checks every multiplication pair at all
+phases, selected division cases, busy writes, and save/resume behavior. SNES
+state payloads now start with `VSNES002`; recreate old unversioned states.
+DMA/HDMA, refresh, interrupt overlap, and physical timing remain unverified.
 
 ### Automated Test Suite
 

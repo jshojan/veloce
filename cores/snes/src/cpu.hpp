@@ -54,6 +54,7 @@ public:
     uint32_t get_full_pc() const { return (static_cast<uint32_t>(m_pbr) << 16) | m_pc; }
 
 private:
+    void idle(unsigned clocks = 1);
     // Memory access (adds appropriate cycles)
     uint8_t read(uint32_t address);
     void write(uint32_t address, uint8_t value);

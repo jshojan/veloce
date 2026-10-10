@@ -196,6 +196,7 @@ uint32_t SNESPlugin::get_rom_crc32() const {
 }
 
 void SNESPlugin::reset() {
+    m_bus->cancel_math();
     m_cpu->reset();
     m_ppu->reset();
     m_apu->reset();
@@ -605,6 +606,8 @@ bool SNESPlugin::save_state(std::vector<uint8_t>& data) {
     try {
         data.clear();
         data.reserve(256 * 1024);  // Reserve 256KB
+        const uint8_t magic[] = {'V','S','N','E','S','0','0','2'};
+        data.insert(data.end(), std::begin(magic), std::end(magic));
 
         // Save frame count and cycle count
         const uint8_t* fc_ptr = reinterpret_cast<const uint8_t*>(&m_frame_count);
@@ -628,11 +631,15 @@ bool SNESPlugin::save_state(std::vector<uint8_t>& data) {
 }
 
 bool SNESPlugin::load_state(const std::vector<uint8_t>& data) {
-    if (!m_rom_loaded || data.empty()) return false;
+    if (!m_rom_loaded || data.size() < 24 || std::memcmp(data.data(), "VSNES002", 8) != 0) return false;
 
     try {
-        const uint8_t* ptr = data.data();
-        size_t remaining = data.size();
+        // Fixed component layouts and SRAM size belong to the active ROM.
+        // Reject a truncated or extra-byte payload before restoring anything.
+        std::vector<uint8_t> current;
+        if (!save_state(current) || current.size() != data.size()) return false;
+        const uint8_t* ptr = data.data() + 8;
+        size_t remaining = data.size() - 8;
 
         // Load frame count and cycle count
         if (remaining < sizeof(m_frame_count) + sizeof(m_total_cycles)) {
@@ -654,7 +661,7 @@ bool SNESPlugin::load_state(const std::vector<uint8_t>& data) {
         m_bus->load_state(ptr, remaining);
         m_cartridge->load_state(ptr, remaining);
 
-        return true;
+        return remaining == 0;
     } catch (...) {
         return false;
     }
