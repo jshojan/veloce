@@ -3,6 +3,7 @@
 import argparse
 import hashlib
 import json
+from itertools import zip_longest
 import os
 from pathlib import Path
 import re
@@ -114,6 +115,18 @@ def controls(emulator,artifacts):
     result=artifacts/'control.result'; run(emulator,image,result); report=evaluate(result,baseline,False)
     require(report['status']=='pass','reduced positive failed: '+json.dumps(report))
     (artifacts/'control.json').write_text(json.dumps(report,indent=2)+'\n')
+    rom=build(False,word_output=False); image=artifacts/'legacy-byte.nds'; image.write_bytes(rom)
+    path=artifacts/'legacy-byte.result'; run(emulator,image,path); legacy=evaluate(path,rom,False)
+    require(legacy['status']=='pass','legacy byte transport failed')
+    with result.open() as native, path.open() as byte:
+        native_rows=(line for line in native if line.startswith('REG r='))
+        byte_rows=(line for line in byte if line.startswith('REG r='))
+        count=0
+        for a,b in zip_longest(native_rows,byte_rows):
+            require(a==b,'word and legacy-byte register observations differ'); count+=1
+    require(count==report['graded_cases']==legacy['graded_cases'],'transport observation count differs')
+    legacy['identical_word_transport_observations']=count
+    (artifacts/'legacy-byte.json').write_text(json.dumps(legacy,indent=2)+'\n')
     rom=build(False,wrong_adc=True); image=artifacts/'wrong-adc.nds'; image.write_bytes(rom)
     path=artifacts/'wrong-adc.result'; run(emulator,image,path); invalid=evaluate(path,rom,False)
     require(invalid['status']=='fail' and all(g['mismatches']>0 if '_adc_' in g['id'] else g['mismatches']==0 for g in invalid['groups']),'ADC-to-ADD mutation not isolated/rejected: '+json.dumps(invalid))
@@ -138,7 +151,7 @@ def main():
     args=parser.parse_args(); args.artifacts.mkdir(parents=True,exist_ok=True); references()
     rom=build(); require((HERE/'integer_registers.nds').read_bytes()==rom,'archive differs')
     controls(args.emulator,args.artifacts)
-    if args.controls_only: print('DS controls: executed mutant FAIL; 7 damaged files ERROR'); return 0
+    if args.controls_only: print('DS controls: word/legacy-byte observations identical; executed mutant FAIL; 7 damaged files ERROR'); return 0
     result=args.artifacts/'integer_registers.result'; run(args.emulator,HERE/'integer_registers.nds',result)
     report=evaluate(result,rom); (args.artifacts/'integer_registers.json').write_text(json.dumps(report,indent=2)+'\n')
     print(f"DS dual-CPU integer registers: {report['status'].upper()} {report['graded_cases']}/{report['expected_cases']} result/PSW/source snapshots; mismatches={report['mismatches']}")

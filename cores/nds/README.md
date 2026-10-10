@@ -73,7 +73,11 @@ immutable; loaded code in RAM is writable. DSi unit codes are rejected.
 Emulator-only STRB to `$04FF0000` emits an observed character. STR to `$04FF0004`
 marks that CPU finished; only both CPUs finishing terminates the frontend with
 unknown status. These addresses are not DS peripherals. The frontend owns the
-file and its identity/trailer. The host derives expectations independently; the
+file and its identity/trailer. Word STR to `$04FF0008` emits the observed
+32-bit value as exactly eight lowercase, zero-padded hex digits in one sink
+write; it adds no separator, verdict or register computation. This is another
+emulator-only transport address. The original byte port remains supported.
+The host derives expectations independently; the
 ROM contains no expected answers or pass verdict. The 16-bit memory-watch API
 accesses the first 64 KiB of main RAM.
 
@@ -115,6 +119,15 @@ matched 49,694,208/49,694,208 nine-word observations with zero mismatches for AR
 memory transfers. It captures destination/CPSR/base/offset/source, the containing
 memory word, two guards and SP. Every recorded bit is graded; no bits are excluded.
 
+The four original ROMs use the word transport for register observations and the
+byte transport for text framing. Instruction domains, snapshot fields and host
+grading are unchanged. The integer builder retains `word_output=False`, which
+reproduces the previously committed byte-output image exactly. Its reduced
+347,136 observations match byte-for-byte between both transports, with both
+streams independently graded. In that supplied scheduling profile, native word
+output used 33,910,835 instruction attempts versus 152,399,921 for byte output;
+these counts measure test-driver work, not physical DS cycles or latency.
+
 `nds_machine_test` separately checks:
 
 - 688,128 ALU cases with destination/source aliases and S set/clear. ARM9 Q
@@ -152,6 +165,10 @@ memory word, two guards and SP. Every recorded bit is graded; no bits are exclud
 - All 65,536 offsets on each CPU in each of four shared-WRAM modes, private
   fallback, bank mirroring, access rights, main-RAM coherence/mirrors, rejected
   cross-region write atomicity, byte loads and unaligned word-load lanes.
+- Word output covers every byte value at each position on both CPU buses,
+  legacy-byte equivalence, leading zeros/case/order, guest STR preservation,
+  rejected widths/addresses, write-only reads and unbound sinks. Actual plugin
+  replay emits distinct words from both CPUs and finishes only when both finish.
 - Exact dual-CPU/RAM replay through machine and actual shared-plugin states;
   nine malformed state variants and eight malformed cartridge variants, with
   rejection atomicity. Plugin dimensions and unload behavior are also checked.

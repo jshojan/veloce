@@ -77,3 +77,12 @@ transfers, long Thumb calls, cache/TCM/MPU, exceptions, bus timing and physical
 hardware comparisons remain unverified or unimplemented. Retail DS/DSi boot,
 graphics/audio/input/peripherals and DS netplay remain incomplete. Finite domain
 coverage establishes no whole-platform completion percentage.
+
+## Observation transport
+
+Guest STR to the emulator-only `$04FF0008` port serializes an observed register
+word as eight lowercase hex digits. Text framing still uses the byte port at
+`$04FF0000`. The frontend owns the file and completion trailer; the host derives
+and grades expected values independently. Native serialization changes no
+instruction domain or snapshot field. These ports are outside DS hardware and
+provide no evidence of physical timing.

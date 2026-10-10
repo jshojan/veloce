@@ -64,3 +64,17 @@ separate component evidence and do not enlarge this original-ROM domain.
 Timing, physical cache coherency, CPU extensions, Thumb, interrupts, graphics,
 audio, controls, firmware/retail boot and most platform hardware remain missing
 or unverified. Full DS completion is unknown; DSi enhanced mode is unsupported.
+
+## Observation transport
+
+Guest STR to the emulator-only `$04FF0008` port serializes an observed register
+word as eight lowercase hex digits. Text framing still uses the byte port at
+`$04FF0000`. The frontend owns the file and completion trailer; the host derives
+and grades expected values independently. Native serialization changes no
+instruction domain or snapshot field. These ports are outside DS hardware and
+provide no evidence of physical timing.
+
+`build(word_output=False)` retains the original byte-at-a-time output routine.
+The controls run both transports and independently grade all **347,136** reduced
+observations, then require every `REG` row to match exactly. The legacy image
+and its JSON/register files are retained with the other integer controls.

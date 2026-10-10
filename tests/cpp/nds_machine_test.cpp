@@ -3,6 +3,8 @@
 #include <fstream>
 #include <iostream>
 #include <iterator>
+#include <iomanip>
+#include <sstream>
 using emulator_test::require;
 constexpr uint32_t start=0x02002000;
 static int64_t signed32(uint32_t v) { return v&0x80000000 ? int64_t(v)-0x100000000LL:v; }
@@ -342,6 +344,47 @@ static void memory_instructions(nds::Machine& m) {
         require(!cpu.state.unsupported && cpu.state.r[4]==0x8001,"ARM halfword PC+8 base wrong");
     }
 }
+struct RegisterSink : emu::ITestSink {
+    std::string text;
+    std::vector<size_t> chunks;
+    unsigned finishes=0;
+    int32_t status=123;
+    void write(const char* data,size_t size) override { text.append(data,size); chunks.push_back(size); }
+    void finish(int32_t value) override { ++finishes; status=value; }
+    void note(const char*,const char*) override { require(false,"unexpected word-port metadata"); }
+    void blob(const char*,const uint8_t*,size_t) override { require(false,"unexpected word-port blob"); }
+    void request_reset() override { require(false,"unexpected word-port reset"); }
+};
+static void register_output(nds::Machine& m) {
+    RegisterSink sink; m.sink=&sink;
+    for(bool nine:{false,true}) for(unsigned lane=0;lane<4;++lane) for(unsigned byte=0;byte<256;++byte) {
+        const auto value=(0x12345678u&~(255u<<(lane*8)))|(byte<<(lane*8));
+        std::ostringstream reference; reference<<std::hex<<std::setw(8)<<std::setfill('0')<<value;
+        sink.text.clear(); sink.chunks.clear();
+        require(m.write(nine,0x04ff0008,4,value),"word register port rejected value");
+        require(sink.text==reference.str() && sink.chunks==std::vector<size_t>{8},"word register byte order/width/case wrong");
+        for(char c:reference.str()) require(m.write(nine,0x04ff0000,1,uint8_t(c)),"legacy byte port rejected character");
+        require(sink.text==reference.str()+reference.str() && !sink.finishes,"word and byte transport differ/terminate");
+    }
+    for(bool nine:{false,true}) for(auto value:patterns) {
+        instruction(m,nine,0xe5814008); auto& cpu=nine ? m.cpu9:m.cpu7;
+        cpu.state.r[1]=0x04ff0000; cpu.state.r[4]=value; cpu.state.cpsr=nine ? 0xa80000df:0xa00000df;
+        const auto original=cpu.state.r; const auto psw=cpu.state.cpsr; sink.text.clear(); cpu.step();
+        std::ostringstream reference; reference<<std::hex<<std::setw(8)<<std::setfill('0')<<value;
+        require(sink.text==reference.str() && !cpu.state.unsupported && cpu.state.cpsr==psw,"guest word store changed flags/output");
+        for(unsigned reg=0;reg<16;++reg) require(cpu.state.r[reg]==(reg==15 ? start+4:original[reg]),"guest word store changed registers");
+    }
+    std::vector<uint8_t> before,after; m.save(before); sink.text.clear(); sink.chunks.clear();
+    for(bool nine:{false,true}) {
+        for(unsigned width:{0u,1u,2u,3u,8u}) require(!m.write(nine,0x04ff0008,width,0xabcdef01),"invalid word-port width accepted");
+        for(uint32_t address:{0x04ff0007u,0x04ff0009u,0x04ff000cu}) require(!m.write(nine,address,4,0xabcdef01),"invalid word-port address accepted");
+        uint32_t value=0xdeadbeef; require(!m.read(nine,0x04ff0008,4,value) && value==0xdeadbeef,"write-only word port fabricated read");
+    }
+    m.save(after); require(before==after && sink.text.empty() && sink.chunks.empty() && !sink.finishes,"invalid word-port transaction changed state/output");
+    m.sink=nullptr;
+    require(m.write(true,0x04ff0008,4,0) && m.write(false,0x04ff0008,4,0xffffffff),"unbound word port rejected output");
+    m.save(after); require(before==after,"unbound word output changed machine state");
+}
 static void states(nds::Machine& m,const std::vector<uint8_t>& rom,const char* plugin) {
     require(m.load(rom.data(),rom.size()),"original reload failed"); m.frame(); require(!m.cpu9.state.unsupported && !m.cpu7.state.unsupported,"original execution stopped");
     std::vector<uint8_t> before,after,replay; require(m.save(before),"save failed"); m.frame(); m.save(after);
@@ -384,13 +427,28 @@ static void states(nds::Machine& m,const std::vector<uint8_t>& rom,const char* p
     require((after[183]&0x20) && (after[335]&0x20),"plugin lost Thumb state");
     require(core.load_state(before),"plugin Thumb replay restore failed"); core.run_frame({0}); core.save_state(replay);
     require(replay==after,"actual plugin Thumb continuation diverged");
+    // Both actual plugin CPUs emit a register word, then terminate. Restore
+    // and replay must reproduce the bytes, completion and whole machine state.
+    scalar(32,0); scalar(168,start); scalar(320,start); scalar(176,0xdf); scalar(328,0xdf);
+    scalar(56,0x04ff0000); scalar(208,0x04ff0000); scalar(80,0x01234567); scalar(232,0x89abcdef);
+    for(unsigned n=0;n<3;++n) {
+        const uint32_t word=n==0 ? 0xe5814008:n==1 ? 0xe5814004:0xeafffffe;
+        for(unsigned byte=0;byte<4;++byte) before[352+0x2000+n*4+byte]=uint8_t(word>>(byte*8));
+    }
+    RegisterSink sink; require(core.set_test_sink(&sink),"actual plugin rejected register sink");
+    require(core.load_state(before),"plugin word-output state rejected"); core.run_frame({0}); core.save_state(after);
+    require(sink.text=="0123456789abcdef" && sink.finishes==1 && sink.status==-1,"actual plugin word output/order/completion wrong");
+    sink.text.clear(); sink.chunks.clear(); sink.finishes=0;
+    require(core.load_state(before),"plugin word-output replay restore failed"); core.run_frame({0}); core.save_state(replay);
+    require(replay==after && sink.text=="0123456789abcdef" && sink.finishes==1 && sink.status==-1,"actual plugin word-output replay diverged");
+    require(core.set_test_sink(nullptr),"plugin sink detach failed");
     core.unload_rom(); require(!core.is_rom_loaded() && !core.save_state(replay),"unloaded plugin retained cartridge");
 }
 int main(int argc,char** argv) {
     try {
         require(argc==3,"usage: nds_machine_test plugin original.nds"); std::ifstream in(argv[2],std::ios::binary);
         std::vector<uint8_t> rom((std::istreambuf_iterator<char>(in)),{}); nds::Machine m; require(m.load(rom.data(),rom.size()),"original DS ROM rejected");
-        arithmetic(m); multiplies(m); shifts(m); control(m); thumb_alu(m); thumb_high_registers(m); thumb_control(m); memory_instructions(m); memory(m); states(m,rom,argv[1]);
+        arithmetic(m); multiplies(m); shifts(m); control(m); thumb_alu(m); thumb_high_registers(m); thumb_control(m); memory_instructions(m); memory(m); register_output(m); states(m,rom,argv[1]);
         std::cout<<"DS ARM/Thumb ALU/multiply/shifter/control/memory/state/plugin checks passed\n"; return 0;
     } catch(const std::exception& e) { std::cerr<<e.what()<<'\n'; return 1; }
 }

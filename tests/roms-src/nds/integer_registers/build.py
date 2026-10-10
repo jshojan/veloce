@@ -51,7 +51,7 @@ class Program:
                 for count in (8,16,24): words.append(0xe3800000|(reg<<16)|(reg<<12)|immediate(target&(255<<count)))
             for n,word in enumerate(words): self.data[offset+n*4:offset+n*4+4]=word.to_bytes(4,'little')
 
-def program(cpu,full=True,wrong_adc=False):
+def program(cpu,full=True,wrong_adc=False,word_output=True):
     p=Program(0x02004000 if cpu==9 else 0x03800000); domain=groups(full)
     p.constant(12,0x04ff0000); p.constant(13,0x02001000)
     if cpu==7:
@@ -65,7 +65,7 @@ def program(cpu,full=True,wrong_adc=False):
         actual=4 if wrong_adc and op=='adc' else opcode
         p.emit(0xe0104001|(actual<<21)); p.emit(0xe10f5000)  # data op S, rd4/rn0/rm1; MRS r5
         p.puts('row')
-        for reg in (4,5,0,1): p.emit(0xe1a06000|reg); p.branch('hex',link=True)
+        for reg in (4,5,0,1): p.emit(0xe1a06000|reg); p.branch('word',link=True)
         p.constant(6,10); p.memory(6,12,load=False,byte=True)
         p.emit(0xe2822001); p.emit(0xe3520000|(32 if cpu==9 else 16)); p.branch(name+'_flags',cond=1)
         p.emit(0xe28aa004); p.emit(0xe25bb001); p.branch(name+'_right',cond=1)
@@ -75,9 +75,14 @@ def program(cpu,full=True,wrong_adc=False):
     p.constant(6,0); p.memory(6,12,4,load=False); p.branch('idle'); p.mark('idle'); p.branch('idle')
     p.mark('puts'); p.memory(7,6,load=True,byte=True); p.emit(0xe3570000); p.emit(0x012fff1e)
     p.memory(7,12,load=False,byte=True); p.emit(0xe2866001); p.branch('puts')
-    p.mark('hex'); p.constant(3,28); p.mark('hex_loop')
-    p.emit(0xe1a07336); p.emit(0xe207700f); p.emit(0xe357000a); p.emit(0x32877030); p.emit(0x22877057)
-    p.memory(7,12,load=False,byte=True); p.emit(0xe2533004); p.branch('hex_loop',cond=10); p.emit(0xe12fff1e)
+    p.mark('word')
+    if word_output:
+        p.memory(6,12,8,load=False); p.emit(0xe12fff1e)
+    else:
+        # Original byte-at-a-time routine retained for transport equivalence.
+        p.constant(3,28); p.mark('word_loop')
+        p.emit(0xe1a07336); p.emit(0xe207700f); p.emit(0xe357000a); p.emit(0x32877030); p.emit(0x22877057)
+        p.memory(7,12,load=False,byte=True); p.emit(0xe2533004); p.branch('word_loop',cond=10); p.emit(0xe12fff1e)
     for name,_,_,left,right in domain:
         for label,values in ((name+'_left_values',left),(name+'_right_values',right)):
             p.mark(label)
@@ -90,8 +95,8 @@ def program(cpu,full=True,wrong_adc=False):
     while len(p.data)%4: p.data.append(0)
     p.resolve(); return bytes(p.data)
 
-def build(full=True,wrong_adc=False):
-    nine=program(9,full,wrong_adc); seven=program(7,full,wrong_adc)
+def build(full=True,wrong_adc=False,word_output=True):
+    nine=program(9,full,wrong_adc,word_output); seven=program(7,full,wrong_adc,word_output)
     offset7=(512+len(nine)+511)&~511
     rom=bytearray(offset7+len(seven)); rom[:12]=b'VELOCE ARM  '; rom[12:16]=b'VARM'; rom[0x180:0x188]=b'VDSHB001'
     for offset,fields in ((0x20,(512,0x02004000,0x02004000,len(nine))),(0x30,(offset7,0x03800000,0x03800000,len(seven)))):

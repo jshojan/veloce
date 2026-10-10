@@ -155,6 +155,13 @@ are rejected. Every missing-store case must fail at both halfword lanes. Compone
 128 ARM aliases, 524,288 Thumb register cases and 30,720 immediate/SP/PC cases.
 The byte oracle checks width, sign extension, writeback and failed-transaction
 atomicity. Odd halfwords and unaligned Thumb words are outside the hardware grade.
+All four DS corpora serialize register words through emulator-only `$04FF0008`
+while retaining byte framing and the same independent graders. Integer controls
+compare 347,136 independently graded native/legacy observations byte-for-byte;
+`legacy-byte.nds`, `.result` and `.json` remain with the integer artifacts.
+Components cover each byte position/value, invalid transactions, register/flag
+preservation and actual dual-CPU plugin output/completion replay. The transport
+reduces printing instruction attempts; it does not establish physical timing.
 Run `ctest --test-dir build -R '^nds_' --output-on-failure`.
 
 All suites retain raw output and reports under `build/artifacts/owned/`, which

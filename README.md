@@ -382,7 +382,9 @@ controllers and retail compatibility remain pending.
 The experimental DS plugin executes separate ARM9/ARM7 guest programs, capturing
 ARM/Thumb integer result/CPSR/source registers, capturing Thumb PC reads and
 using main RAM to order their output. Memory transfers capture addresses,
-source values, loaded/stored memory and guards alongside CPSR and SP. Firmware, Thumb stack/block transfers and long calls,
+source values, loaded/stored memory and guards alongside CPSR and SP. Guest
+word-output ports serialize the captured values into the same independently
+graded files; legacy byte output remains supported and checked for equivalence. Firmware, Thumb stack/block transfers and long calls,
 video, audio, peripherals and DSi enhanced mode remain pending.
 Original suites retain raw
 register output and reports; CI builds the actual core plugins, runs these tests,

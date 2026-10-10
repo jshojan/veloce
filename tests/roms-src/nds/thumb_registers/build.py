@@ -72,8 +72,8 @@ def program(cpu,full=True,wrong_adc=False):
         p.address(6,name+'_thumb'); p.emit(0xe3866001); p.address(7,name+'_return'); p.emit(0xe12fff16)
         p.mark(name+'_return'); p.emit(0xe10f5000); p.memory(6,13,4,load=False)
         p.puts('row')
-        for reg in (4,5,0,1): p.emit(0xe1a06000|reg); p.branch('hex',link=True)
-        p.memory(6,13,4); p.branch('hex',link=True)
+        for reg in (4,5,0,1): p.emit(0xe1a06000|reg); p.branch('word',link=True)
+        p.memory(6,13,4); p.branch('word',link=True)
         p.constant(6,10); p.memory(6,12,load=False,byte=True)
         p.emit(0xe2822001); p.emit(0xe3520000|(32 if cpu==9 else 16)); p.branch(name+'_flags',cond=1)
         p.emit(0xe28aa004); p.emit(0xe25bb001); p.branch(name+'_right',cond=1)
@@ -83,9 +83,7 @@ def program(cpu,full=True,wrong_adc=False):
     p.constant(6,0); p.memory(6,12,4,load=False); p.branch('idle'); p.mark('idle'); p.branch('idle')
     p.mark('puts'); p.memory(7,6,load=True,byte=True); p.emit(0xe3570000); p.emit(0x012fff1e)
     p.memory(7,12,load=False,byte=True); p.emit(0xe2866001); p.branch('puts')
-    p.mark('hex'); p.constant(3,28); p.mark('hex_loop')
-    p.emit(0xe1a07336); p.emit(0xe207700f); p.emit(0xe357000a); p.emit(0x32877030); p.emit(0x22877057)
-    p.memory(7,12,load=False,byte=True); p.emit(0xe2533004); p.branch('hex_loop',cond=10); p.emit(0xe12fff1e)
+    p.mark('word'); p.memory(6,12,8,load=False); p.emit(0xe12fff1e)
     # Structured text section marker, not expected result data. The host obtains
     # physical instruction locations from segment headers and this section.
     p.data.extend(b'VTHMB001')

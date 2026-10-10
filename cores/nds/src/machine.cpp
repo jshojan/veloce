@@ -56,6 +56,15 @@ bool Machine::write(bool arm9,uint32_t address,unsigned bytes,uint32_t value) {
     if((bytes!=1 && bytes!=2 && bytes!=4) || uint64_t(address)+bytes>0x100000000ull) return false;
     // Repository-only debug port, outside DS peripheral registers.
     if(address==0x04ff0000 && bytes==1) { const char c=char(value); if(sink) sink->write(&c,1); return true; }
+    if(address==0x04ff0008 && bytes==4) {
+        if(sink) {
+            static constexpr char digits[]="0123456789abcdef";
+            char text[8];
+            for(unsigned n=0;n<8;++n) text[n]=digits[(value>>(28-n*4))&15];
+            sink->write(text,sizeof(text));
+        }
+        return true;
+    }
     if(address==0x04ff0004 && bytes==4) { done|=arm9 ? 1:2; if(done==3 && sink) sink->finish(-1); return true; }
     if(arm9 && address==0x04000247 && bytes==1) { wramcnt=value&3; return true; }
     uint8_t* destinations[4]{};

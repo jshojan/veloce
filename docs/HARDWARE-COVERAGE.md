@@ -107,6 +107,10 @@ halfword values, byte values and immediate fields are included. Aligned words
 and halfwords are graded; odd-half and unaligned Thumb word hardware quirks
 remain unverified. Component byte oracles separately cover register aliases,
 writeback, PC alignment, store widths and rejected transactions.
+Native word serialization preserves the same captured fields and independent
+grades; 347,136 reduced integer observations also match the original byte
+transport exactly. Output ports are emulator-only and demonstrate no physical
+bus timing.
 This declares operand/flag coverage, not whole-hardware completion. Shifters,
 WRAM banks and exact saved continuation have separate component checks.
 Firmware, Thumb stack/block transfers and long calls, exceptions/interrupts, graphics/audio/controllers, most
