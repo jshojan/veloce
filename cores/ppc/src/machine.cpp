@@ -175,6 +175,31 @@ void Machine::step() {
             }
             s.r[ra]=result;
             if(ins&1) record_compare(0,signed32(result),0);
+        } else if(xo==24 || xo==536 || xo==792 || xo==824 || xo==954 || xo==922 || xo==26) {
+            const bool unary=xo==954 || xo==922 || xo==26;
+            if(unary && rb) { s.unsupported=true; return; }
+            const uint32_t source=s.r[rt]; uint32_t result=0;
+            if(xo==954 || xo==922) {
+                const uint32_t mask=xo==954 ? 255u:65535u,sign=xo==954 ? 128u:32768u;
+                result=source&mask; if(result&sign) result|=~mask;
+            } else if(xo==26) {
+                result=32;
+                for(unsigned bit=0;bit<32;++bit) if(source&(0x80000000u>>bit)) { result=bit; break; }
+            } else {
+                const unsigned shift=xo==824 ? rb:s.r[rb]&63;
+                const bool negative=(source&0x80000000u)!=0,algebraic=xo==792 || xo==824;
+                if(xo==24) result=shift<32 ? source<<shift:0;
+                else if(!algebraic) result=shift<32 ? source>>shift:0;
+                else {
+                    if(shift>=32) result=negative ? 0xffffffffu:0;
+                    else if(!shift) result=source;
+                    else result=(source>>shift)|(negative ? 0xffffffffu<<(32-shift):0);
+                    const bool discarded=shift>=32 ? source!=0:shift && (source&((1u<<shift)-1));
+                    s.xer=(s.xer&~0x20000000u)|(negative && discarded ? 0x20000000u:0);
+                }
+            }
+            s.r[ra]=result;
+            if(ins&1) record_compare(0,signed32(result),0);
         } else if(xo==339 || xo==467) {
             if(ins&1) { s.unsupported=true; return; }
             const unsigned spr=((ins>>16)&31)|((ins>>6)&992);

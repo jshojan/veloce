@@ -596,3 +596,33 @@ python3 tests/roms-src/gc/rotate_registers/run.py --controls-only
 All masks/shifts are exhausted within these patterns; full operand pairs,
 CR/XER words, physical cache/timing/exceptions and most console hardware remain
 pending. CI/CD remains disabled.
+
+### Shift, sign-extension and leading-zero corpora
+
+`gc_shift_registers` and `wii_shift_registers` each match 4,416,528 nine-word
+snapshots through the frontend: 196,608 register shifts, 8,192 SRAWI, 16,384
+EXTSB, 4,194,304 EXTSH and 1,040 CNTLZW observations. The [domain table](tests/roms-src/gc/shift_registers/README.md)
+defines full low-width/count fields and finite upper/source/CR/XER patterns.
+Independent arithmetic/bit-length grading checks every captured bit. Executed
+result/carry/count mutants fail exactly 3,856/640/1,280 reduced snapshots; the
+count mutant uses a separate 3,072-case register-shift domain. Nine field
+mutations fail one row each and seven invalid streams return ERROR. Raw files
+(~333 MiB each) and JSON reports remain in `build/artifacts/owned/gc_shifts/`
+and `build/artifacts/owned/wii_shifts/`.
+
+The component gate matches 37,042,208 shift/unary snapshots across both profiles:
+all declared patterns plus every GPR/count field and alias at boundaries,
+walking source bits/all counts, all XER byte counts, reserved unary-field
+rejection and exact machine/plugin state replay before CA changes. The machine
+and both loaded plugins pass undefined-behavior sanitization.
+
+```sh
+cmake --build build --target veloce gc_plugin wii_plugin ppc_machine_test -j4
+ctest --test-dir build -R '^(ppc_machine_test|(gc|wii)_shift_registers)$' --output-on-failure
+python3 tests/roms-src/build.py --original-only --check
+python3 tests/roms-src/gc/shift_registers/run.py --controls-only
+```
+
+This exhausts count and extension input fields within declared patterns, not
+all full 32-bit operands/CR/XER words, physical cache/timing/exceptions or console
+hardware. CI/CD remains disabled.

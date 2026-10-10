@@ -13,6 +13,9 @@ GameCube/Wii software cannot boot. Full platform completion is unknown.
   XORI/XORIS, ANDI./ANDIS. with unsigned immediates and CR0 recording.
 - RLWIMI/RLWINM/RLWNM with all immediate shifts, low-five-bit register
   counts, inclusive/wrapped masks, old-destination insertion and both Rc forms.
+- SLW/SRW, SRAW/SRAWI with six-bit register/five-bit immediate counts,
+  sign fill and arithmetic-shift CA updates; EXTSB/EXTSH and CNTLZW with
+  reserved-field validation. All accept both Rc forms and ordinary GPR0.
 - ADDI/ADDIS; big endian LWZ/LHZ/LBZ and STW/STH/STB with signed
   displacement, RA=0 address semantics and alignment diagnostics.
 - B/BL and BC, signed absolute/relative displacement; BCLR/BCCTR including
@@ -92,6 +95,20 @@ pass, including state restoration before an RA=RB rotate. Full 32-bit operand
 pairs, CR/XER words and physical console behavior are not exhaustive;
 [declared domain](../../tests/roms-src/gc/rotate_registers/README.md).
 
+The [GameCube](../../tests/roms-src/gc/shift_registers/README.md) and
+[Wii](../../tests/roms-src/wii/shift_registers/README.md) shift/unary ROMs each
+match 4,416,528 nine-word snapshots: 196,608 register-shift, 8,192 SRAWI,
+16,384 EXTSB, 4,194,304 EXTSH and 1,040 CNTLZW observations. All extension
+input bits and shift counts are covered within declared upper/source patterns,
+all XER flags and both Rc states. Independent arithmetic/bit-length grading
+checks result, CR/XER, sources, encoding/seeds and sentinel. Component checks
+match 37,042,208 additional snapshots across both profiles, including every
+GPR/count field encoding/alias at boundaries, walking source bits, all byte
+counts and exact state replay through both plugins before CA changes. Reserved
+unary RB fields diagnose without register mutation. Full 32-bit operand pairs,
+CR/XER words and physical console behavior remain unverified;
+[finite domain details](../../tests/roms-src/gc/shift_registers/README.md).
+
 Instruction references: [NXP MPC750 manual](https://www.nxp.com/docs/en/reference-manual/MPC750UM.pdf),
 [IBM addc](https://www.ibm.com/docs/en/aix/7.1.0?topic=set-addc-add-carrying-instruction),
 [IBM subfe](https://www.ibm.com/docs/en/aix/7.1.0?topic=set-subfe-sfe-subtract-from-extended-instruction),
@@ -145,6 +162,6 @@ reports attempted instructions and CPU frequency is unspecified.
 ```sh
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --target veloce gc_plugin wii_plugin ppc_machine_test -j4
-ctest --test-dir build -R '^(ppc_machine_test|(gc|wii)_(integer|branch|condition|logical|rotate)_registers)$' --output-on-failure
+ctest --test-dir build -R '^(ppc_machine_test|(gc|wii)_(integer|branch|condition|logical|rotate|shift)_registers)$' --output-on-failure
 python3 tests/roms-src/build.py --original-only --check
 ```
