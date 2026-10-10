@@ -1284,3 +1284,10 @@ The commercial ROM remains local and is not archived.
 Delivery completion stays **40% (8/20 milestones)**. The full graphics milestone
 and the overall Nintendo-platform goal remain unfinished. README percentages
 remain synchronized from the fixed ledger. CI/CD remains disabled.
+
+Verification: the full build and **63 distinct N64 gates pass**. The two new
+original corpus gates pass together in **80.43 seconds**; the remaining **61/61
+regression gates** pass in **739.91 seconds**, including the comparison component.
+All **88 original ROM archives** reproduce. The comparison component passes
+undefined-behavior sanitization. Both private retail reports match current
+executable hashes, and completion/whitespace checks pass.
