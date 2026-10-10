@@ -1,0 +1,1 @@
+{"source_type": "original", "console": "n64", "suite": "rsp_accumulate_edges", "build": {"script": "build.py", "artifact": "rsp_accumulate_edges.z64"}, "license": "MIT"}

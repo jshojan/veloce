@@ -1,6 +1,6 @@
 # Nintendo implementation and hardware test coverage
 
-Current N64 evidence: [RSP vector storage, memory transfers and current Mario evidence](#rsp-vector-storage-and-memory). Earlier increment reports are historical.
+Current N64 evidence: [RSP multiply/accumulate and current Mario evidence](#rsp-vector-multiply-and-accumulate). Earlier increment reports are historical.
 
 The goal includes Nintendo core plugins, repository-owned ROMs covering the
 hardware, machine-readable register observations, netplay, seamless controllers,
@@ -1152,3 +1152,81 @@ stream at the old execution cap; the full 786,432-case store corpus passed in
 build and undefined-behavior sanitizer passed; all **80 original ROMs** reproduce
 from the committed image/generator ledger. Completion renderer and whitespace
 checks pass. CI/CD remains removed and GitHub Actions disabled.
+
+## RSP vector multiply and accumulate
+
+The RSP vector module now implements all sixteen multiply-family encodings:
+VMULF/U, VMULQ, VMUDL/M/N/H, VMACF/U/Q, VMADL/M/N/H and VRNDP/N.
+Eight raw 48-bit accumulator lanes wrap modulo 2^48. Destination selection uses
+signed or unsigned saturation, raw low/middle slices and quantized masks as
+required by each instruction. VMUDM/VMADM multiply unsigned VS by signed VT;
+VMUDN/VMADN multiply signed VS by unsigned VT. Source lanes are captured before
+any destination writes, including aliases. All element selectors work, and
+VRNDP/N use the VS register index parity for the addend position. VMACQ preserves
+the low accumulator slice. These instructions preserve VCO/VCC/VCE.
+
+VSAR reads accumulator high/middle/low with elements 8/9/10, writes zero for the
+other elements and leaves the accumulator unchanged. Scalar/vector moves and
+memory transfers preserve the accumulator. Other vector operations, including
+VADD, still block explicitly at their PC without a fabricated BREAK or IRQ.
+
+Two new original MIT programs emit actual guest register observations with no
+guest verdict. Their independent host oracle uses unbounded integer arithmetic,
+a literal lane-selection table and separate accumulator slices:
+
+| Original cartridge | Cases | Captured 64-bit words | Declared domain |
+|---|---:|---:|---|
+| [Multiply pairs](../tests/roms-src/n64/rsp_multiply_pairs/README.md) | 917,504 | 16,515,072 | Seven load-multiply functions × 16 selectors × 256 repeated-byte VS values × 32 groups of eight repeated-byte VT values |
+| [Accumulate edges](../tests/roms-src/n64/rsp_accumulate_edges/README.md) | 294,912 | 7,372,800 | Nine accumulate/round functions × 8,192 groups of eight raw halfword values × four partner/48-bit accumulator patterns; selectors distributed through the groups |
+
+Each record captures result, all accumulator slices, source registers, flags
+and SP PC/status/MI. The edge ROM additionally captures the accumulator before
+the tested operation and scalar zero. Its six-instruction accumulator setup
+uses VMUDH, four VMADH and VMADM and is independently graded. Ordered REG chunks
+contain at most twelve words. Executed capture mutants must fail every reduced
+case, all fields have individual mutation checks and seven incomplete/malformed
+stream forms must return ERROR. Artifacts are under
+`build/artifacts/owned/n64_rsp_multiply_pairs/` and `n64_rsp_accumulate_edges/`.
+
+The component checks **16,777,216 raw-halfword/function/selector cases**,
+**8,388,608 register/function/selector cases**, **524,288 VSAR encodings** and
+all declared accumulator carry/overflow/sign/quantization boundaries. Whole
+vector banks, flags, GPRs, DMEM and IMEM are guarded. Numeric published hardware
+observations anchor thirteen multiply/accumulate instructions and even/odd VS
+rounding. They caught and corrected the mixed-product signedness during review.
+
+State `VN64S017` appends eight validated raw accumulator doublewords (**64
+bytes**) after the S016 vector bank/flags. Pending multiply replay is exact;
+nonzero upper 16 bits in any accumulator lane are rejected atomically. S016 and
+earlier restore neutral accumulators while preserving previously implemented
+fields. Plugin 0.18.0 continues ABI v2.
+
+Sources are the SGI [RSP programmer guide](https://bukosek.si/hardware/collection/sgi-o2/n64-rsp-programmers-guide.pdf)
+and the hardware-test author's [multiply](https://github.com/thelemmy/nemu64-test/blob/main/src/tests/rsp/op_vmulf.rs),
+[mixed product](https://github.com/thelemmy/nemu64-test/blob/main/src/tests/rsp/op_vmudm.rs),
+[accumulate](https://github.com/thelemmy/nemu64-test/blob/main/src/tests/rsp/op_vmadn.rs),
+[round](https://github.com/thelemmy/nemu64-test/blob/main/src/tests/rsp/op_vrndp.rs),
+[quantization](https://github.com/thelemmy/nemu64-test/blob/main/src/tests/rsp/op_vmacq.rs)
+and [VSAR](https://github.com/thelemmy/nemu64-test/blob/main/src/tests/rsp/op_vsar.rs) tests.
+These original ROMs have not run on a physical console. Their finite operand
+patterns are not the exhaustive full-width pair corpus. Physical pipeline,
+load interlocks/dual issue, remaining arithmetic/flags/reciprocal state, complete
+RDP and RSP audio remain pending. The earlier LFV caveat remains ungraded.
+
+Mario now passes VMULF and reaches a real RSP BREAK in the short probe. A longer
+trace retires **145,423 RSP instructions** without an unsupported RSP operation,
+then encounters unsupported CPU **C.LT.S** (`4608503C`, EPC `80248420`). The DP
+also records unsupported **SET_COMBINE** (`FCFFFFFFFFFE793C`). Video remains
+uniform; production output is 480 sample pairs at 120 quanta and 96,646 at
+2,000 quanta. Native boot, audible game sound and playability stay unverified.
+The private image stays local. N64 remains **40% = 8/20 delivery milestones**.
+
+Verification: **53 distinct N64 gates pass** after one harness correction.
+The 51-gate regression ran in 895.90 seconds: fifty passed and one still expected
+VMULF to be unsupported. Its corrected VADD control passed in 0.42 seconds.
+The two new original-ROM suites passed their full 917,504/294,912-case domains,
+executed mutants, all 18/25 field mutations and seven stream controls each.
+Final vector/multiply components, the full build and undefined-behavior
+sanitizer pass. All **82 original ROMs** reproduce from the committed
+image/generator ledger; completion renderer, probe budget validation and
+whitespace checks pass. CI/CD remains removed and GitHub Actions disabled.
