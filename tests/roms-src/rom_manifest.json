@@ -253,6 +253,17 @@
       "source_type": "original",
       "suite": "fpu_controls"
     },
+    "n64/fpu_conversion_edges/fpu_conversion_edges.z64": {
+      "build_command": "python3 tests/roms-src/n64/fpu_conversion_edges/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "59be08c036f90343b151fd010ff01c797746d97707a3e4cdd9366eef9a743f82",
+      "source_repo": "tests/roms-src/n64/fpu_conversion_edges/build.py",
+      "source_sha": "2c16adcb641980464762bad1cb42ad2c55e1d1e10778ba197fb5b26eea624731",
+      "source_type": "original",
+      "suite": "fpu_conversion_edges"
+    },
     "n64/fpu_data/fpu_data.z64": {
       "build_command": "python3 tests/roms-src/n64/fpu_data/build.py",
       "console": "n64",
@@ -263,6 +274,17 @@
       "source_sha": "bdc88febc7e7638ef766a0f0c3288df6d944f81eec201c86a14fddcbd755af88",
       "source_type": "original",
       "suite": "fpu_data"
+    },
+    "n64/fpu_integer_conversions/fpu_integer_conversions.z64": {
+      "build_command": "python3 tests/roms-src/n64/fpu_integer_conversions/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "bf66a54dab922f8349ccf55230bf069d31f1ab18fd2d2f7f3766be51acc62db3",
+      "source_repo": "tests/roms-src/n64/fpu_integer_conversions/build.py",
+      "source_sha": "bd5dc07f0f3e40d01e7dd5e9c17f11c0d6ecd3aad48542d4cc72f6b7c638fadf",
+      "source_type": "original",
+      "suite": "fpu_integer_conversions"
     },
     "n64/integer_registers/integer_registers.z64": {
       "build_command": "python3 tests/roms-src/n64/integer_registers/build.py",

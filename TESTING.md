@@ -1,6 +1,6 @@
 # Veloce Testing and Accuracy Framework
 
-Current N64 evidence: [FPU data transfers and current Mario blocker](#fpu-register-and-memory-data-transfers). Earlier increment reports are historical.
+Current N64 evidence: [FPU conversions and current Mario blocker](#fpu-conversion-and-fixed-rounding-family). Earlier increment reports are historical.
 
 This is the entry point for everything about how Veloce's emulator cores are
 tested and how the project derives a defensible "this core is N% accurate"
@@ -1228,3 +1228,54 @@ are never committed. Earlier increment records retain their historical blockers.
 N64 remains **40% (8/20 delivery milestones)**; the whole CPU milestone is pending.
 
 Verification: **34/34 N64 CTests passed** in 437.02 seconds, including twenty original register-ROM gates, two production audio/video oracles and twelve component gates. The full build and final FPU-data undefined-behavior sanitizer passed; all **69 original ROMs** reproduce against the committed image/generator ledger. Completion renderer and whitespace checks pass. CI/CD remains removed and Actions disabled.
+
+## FPU conversion and fixed rounding family
+
+The core now implements CVT.S/D/W/L and ROUND/TRUNC/CEIL/FLOOR W/L using integer
+bits, without host floating-point state. It supports nearest-even, toward-zero,
+positive and negative directed rounding; fixed-mode instructions preserve FCSR
+rounding controls. FCSR causes replace previous causes, sticky flags accumulate
+only on nontrapping results, and enabled exceptions/software assist suppress
+writes while preserving sources and old flags. FR views, long-target privilege,
+CU1 precedence, delay/nested/BEV exceptions and S013 state replay are tested.
+
+The [integer ROM](tests/roms-src/n64/fpu_integer_conversions/README.md) matches
+**524,288 rows / 2,621,440 captured words**. The
+[edge ROM](tests/roms-src/n64/fpu_conversion_edges/README.md) matches
+**289,536 rows / 1,447,680 captured words**, including every S/D exponent field
+on four fraction patterns and both signs, all conversion functions, selected full
+enable/FS/rounding products, integer bit boundaries and reserved source formats.
+Independent exact-rational host grading checks actual CPU/FPR/FCSR captures;
+undefined upper result bits are recorded and ungraded. Executed capture mutants,
+five field mutations per ROM and strict malformed-stream controls reject incorrect
+results. The component checks **4,194,304 exact integer/index cases**, **229,376
+exception-control combinations**, **98,304 register-pair/FR/format/function cases**,
+fixed modes, CU1/privilege, cause replacement, exception context and state replay.
+
+Rules follow the [NEC manual](https://hack64.net/docs/VR43XX.pdf), chapters 7–8,
+conversion instruction entries and Appendix D, with ambiguities resolved by the
+hardware-test author's [conversion cases](https://github.com/lemmy-64/n64-systemtest/blob/main/src/tests/cop1/mod.rs)
+and [raw constants](https://github.com/lemmy-64/n64-systemtest/blob/main/src/cop1.rs).
+Subnormal inputs require assist. Floating precision conversion preserves infinity;
+NaNs with top payload bit 1 raise invalid and return a canonical legacy value,
+while top-bit-0 NaNs require assist. Integer conversions reject both NaN types,
+infinity and out-of-range results with assist. Long inputs support [-2^55, 2^55);
+long outputs require magnitude below 2^53. Tiny results use FS/enable/rounding
+rules, including rounding to the minimum normal and signed zero.
+
+No physical console has validated these original cartridges. Their selected finite
+domains do not exhaust the full independent operand product or whole FPU.
+Undefined odd FR=0 arithmetic operands retain the RI convention; nonzero unary
+`ft` encodings use an assist convention with physical behavior ungraded. Pipeline
+hazards, precise CE timing, reverse-endian mode and FPU arithmetic/comparison
+remain pending. State stays `VN64S013`; conversions add no serialized fields.
+N64 remains **40% (8/20 delivery milestones)**; the whole CPU milestone is pending.
+
+Super Mario 64 USA now passes CVT.S.W and reaches **6,212,339 startup attempts**,
+then unsupported `DIV.S` at EPC `803259A0`, actual instruction-cache/backing word
+`460A3483`, Cause `10000028` (RI code 10). It passed 22 earlier nonterminal exception
+entries. The 120-quantum production probe still sees uniform video and zero audio
+pairs; boot/playability remain unverified. Commercial ROM bytes are never committed.
+Earlier increment reports retain their historical blockers and counts.
+
+Verification: **37/37 N64 CTests passed** in 475.97 seconds, including twenty-two original register-ROM gates, two production audio/video oracles and thirteen component gates. The full build and final conversion undefined-behavior sanitizer passed; all **71 original ROMs** reproduce against the committed image/generator ledger. Completion renderer and whitespace checks pass. CI/CD remains removed and Actions disabled.

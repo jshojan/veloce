@@ -1,4 +1,5 @@
 #include "vr4300.hpp"
+#include "fpu_conversions.hpp"
 
 namespace n64 {
 uint64_t sign32(uint32_t v) { return uint64_t(v) | ((v & 0x80000000u) ? 0xffffffff00000000ull : 0); }
@@ -353,6 +354,18 @@ void VR4300::step() {
                 }
             } else if (rs == 8 && rt < 4) {
                 branch(bool(s.fcr31 & 0x800000) == bool(rt & 1), rt & 2);
+            } else if(rs>=16 && ((fn>=8 && fn<=15) || fn==32 || fn==33 || fn==36 || fn==37)) {
+                const unsigned target=fn==32?16:fn==33?17:fn==36 || (fn>=12 && fn<=15)?20:21;
+                const unsigned mode=(s.cp0[12]&6)?0:unsigned(s.cp0[12]>>3)&3;
+                if(target==21 && mode && !(s.cp0[12]&(mode==1?64:32))) {fault(10);break;}
+                if(!fr() && ((rd|sa)&1)) {fault(10);break;} // Undefined odd FPR operation convention.
+                const unsigned rm=fn>=8 && fn<=15?fn&3:s.fcr31&3;
+                const uint64_t input=rs==16 || rs==20?fp_word(rd):s.fpr[rd];
+                const auto result=rt?FpuConversions::Result{0,32}:FpuConversions::convert(rs,target,input,rm,s.fcr31&0x1000000,(s.fcr31>>7)&31);
+                s.fcr31=(s.fcr31&~0x3f000u)|(result.causes<<12);
+                if((result.causes&32) || (result.causes&((s.fcr31>>7)&31)))fault(15);
+                else {s.fcr31|=(result.causes&31)<<2;
+                    if(target==16 || target==20)fp_put_word(sa,uint32_t(result.bits));else s.fpr[sa]=result.bits;}
             } else fault(10); // Remaining COP1 operations are explicitly unsupported.
             break;
         case 24: add(rt, a, imm, true, false, true); break;
