@@ -5,19 +5,19 @@
 
 | Platform | Delivery checklist completion | Delivered / total |
 |---|---:|---:|
-| Nintendo 64 | **25%** | 5/20 |
+| Nintendo 64 | **30%** | 6/20 |
 
 These percentages count the 20 explicit delivery milestones in [the completion ledger](../../docs/CORE-COMPLETION.md); partial or unverified milestones receive zero credit. Each milestone is worth 5 percentage points. **They are not percentages of native hardware accuracy or retail compatibility.** Bounded profile tests do not complete a whole CPU or hardware subsystem.
 
-Nintendo 64 delivered milestones: Native digital controller/keypad registers consume frontend input, Repository-owned ROM source and reproducible archived image, Separate core plugin and ABI entry points, Actual guest register-file output independently graded on the host, with negative controls, Complete states for the implemented profile and deterministic replay.
+Nintendo 64 delivered milestones: Native digital controller/keypad registers consume frontend input, Parse a native cartridge/executable format (boot scored separately), Repository-owned ROM source and reproducible archived image, Separate core plugin and ABI entry points, Actual guest register-file output independently graded on the host, with negative controls, Complete states for the implemented profile and deterministic replay.
 
-Remaining: Super Mario 64 is rejected at load; retail boot, FPU, RSP/RDP/VI/AI, remaining devices, analog and netplay remain.
+Remaining: Super Mario 64 loads but faults at RI initialization after six IPL3 instructions; retail boot, remaining CPU/FPU/devices, RSP/RDP/VI/AI, analog and netplay remain.
 <!-- completion:end -->
 
 `n64_plugin` builds `n64.so`/`n64.dll`/`n64.dylib` and implements emulator ABI v2.
 The frontend discovers it alongside the other core plugins. It executes original
 MIPS III integer homebrew ROMs with 64-bit GPRs, big-endian memory, delay slots,
-HI/LO, and basic CP0 exception context. **It does not run retail N64 games.**
+HI/LO, and basic CP0 exception context. An experimental NTSC CIC-6102 handoff accepts recognized native cartridges; **retail boot and gameplay remain unverified.**
 Full-core completion is unknown; the available corpus measures defined results
 on selected operands, not a percentage of N64 hardware implemented.
 
@@ -79,7 +79,7 @@ and hotplug system. Physical pads and rendered UI behavior remain unverified.
 ## Interrupt subset
 
 CPU interrupt gates now honor all eight Status mask bits, IE, EXL and ERL.
-Software Cause.IP0/IP1 are writable; SI drives live IP2 after MI masking.
+Software Cause.IP0/IP1 are writable; SI and PI drive live IP2 after MI masking.
 The approximate Count clock latches IP7 when an increment equals Compare;
 writing Compare acknowledges that latch. Cause writes preserve hardware/timer
 requests and exception context. Interrupt entry suppresses the current
@@ -99,21 +99,19 @@ SI re-entry and pending SI/timer save-state continuation also have unit evidence
 Count still advances once per two CPU step attempts, including interrupt entry.
 This is an instruction-clock approximation. Exact PClock/pipeline timing,
 CP0 hazards, Count-write equality timing, privilege checks, other interrupt
-producers and reset/NMI/cache-error paths are unverified. The existing `VN64S002`
-state layout already stores Count, Compare, Cause, Status and pending SI/MI state;
-no state format change is required. Device levels are resampled on the next step.
+producers and reset/NMI/cache-error paths are unverified. The current `VN64S003` state stores Count, Compare, Cause, Status and pending SI/PI/MI state. Device levels are resampled on the next step.
 
 ## Explicit homebrew entry profile
 
-Only images marked `V64HB001` at normalized header offset `$34` load. They also
+Images marked `V64HB001` at normalized header offset `$34` use direct homebrew entry. They also
 need the standard `$80371240` big-endian cartridge prefix, an aligned entry in
 KSEG0/KSEG1 RAM at header offset `$08`, and a payload starting at ROM offset
 `$1000`. The loader zeroes RAM, copies that payload to physical RAM `$400`, and
 enters the header's address with zero GPRs/HI/LO and interrupts disabled in
 kernel mode. This is a repository-defined test entry profile, **not PIF/IPL/CIC
 boot emulation**. The entry must point within the copied payload. The loader
-rejects unmarked images and malformed/truncated headers without replacing an
-already loaded machine. Maximum image size is bounded by the RAM payload size.
+rejects unsupported native variants and malformed/truncated headers without replacing an
+already loaded machine. Maximum homebrew image size is bounded by the RAM payload size. Native images are bounded at 64 MiB.
 
 `.z64` big-endian, `.v64` byte-pair swapped and `.n64` four-byte reversed images
 are normalized before execution. Test file CRC32 identifies the entire raw
@@ -167,14 +165,14 @@ executes all three archive formats through actual frontend discovery.
 ```bash
 python3 tests/roms-src/build.py --original-only --check
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build --target veloce n64_plugin n64_machine_test -j
+cmake --build build --target veloce n64_plugin n64_machine_test n64_pi_test -j
 ctest --test-dir build -R '^n64_' --output-on-failure
 ```
 
-`VN64S002` states store explicit big-endian scalars, all GPR/CP0 registers,
+`VN64S003` states store explicit big-endian scalars, all GPR/CP0 registers,
 HI/LO, both PCs, pending delay state, instruction/frame counters, completion,
 RAM and SP storage, PIF RAM, SI address/completion, MI mask, latched digital
-input and debug yield state. The previous `VN64S001` version is rejected. ROM data is immutable and referenced by identity. Size,
+input and debug yield state, plus 13 PI registers, PI IRQ and boot mode (120 appended bytes). Legacy `VN64S002` states load only for the homebrew profile, with neutral PI state; `VN64S001` is rejected. ROM data is immutable and referenced by identity. Size,
 version, ROM identity and basic field validation precede restoration. The
 instruction counter counts CPU step attempts including interrupt entry,
 **not actual VR4300 cycles**;
@@ -185,7 +183,7 @@ not an emulated VI field. The nominal metadata rate is NTSC/93.75 MHz only.
 
 PIF/IPL/CIC and retail boot, TLB/address modes, caches and pipeline timing,
 full CP0, remaining interrupt producers and timing, LL/SC, traps,
-FPU, RSP/vector instructions, RDP, VI, AI, PI/RI and their DMA, full SI/MI/PIF,
+FPU, RSP/vector instructions, RDP, VI, AI, RI and remaining PI DMA/timing, full SI/MI/PIF,
 analog and multiplayer controllers,
 save media, video/audio output, expansion devices and physical hardware
 validation remain. Unimplemented opcodes raise a reserved-instruction exception.
@@ -197,28 +195,65 @@ and digital input is routed to the first SI/PIF controller. Windows/macOS builds
 remain unverified. The external four-platform suite matrix does not yet include
 N64; its original ROM and component gates run locally with CTest; CI/CD is disabled.
 
+## Native cartridge handoff and settled PI DMA
+
+Recognized unmarked cartridges must have an aligned KSEG0 RAM entry, NTSC country
+`E` or `J`, and IPL3 CRC32 `90bb6cb5` over normalized bytes `$40..$FFF`.
+Other native boot variants reject. The original `V64IP001` marker opts a test
+image into the same handoff. Reset copies only IPL3 into SP DMEM `$40`, leaves
+RDRAM zero, and enters `$A4000040`. It supplies Status `34000000`, registers
+s3=0, s4=1, s5=0, s6=63, s7=1, SP=`A4001FF0`, RA=`A4001550`, and header-derived
+PI domain-1 timing values. This is an explicit HLE handoff; PIF ROM execution,
+CIC authentication, full reset state and successful native boot remain pending.
+The setup follows independently authored [flashcart boot code](https://github.com/Polprzewodnikowy/N64FlashcartMenu/blob/main/src/boot/boot.c)
+and [PIF handoff code](https://github.com/mikeryan/n64dev/blob/master/src/boot/pif.S).
+No firmware bytes are bundled.
+
+Aligned 32-bit PI registers support cartridge-ROM reads into 8-byte-aligned
+RDRAM with even lengths and 2-byte-aligned cartridge sources. Transfers settle
+immediately: addresses advance, WR_LEN reads 127, status bit 3/MI bit 4 latch,
+and masked PI drives CPU IP2. Status write bit 1 acknowledges PI without
+clearing SI. Domain latency/pulse/page/release fields store 8/8/4/2 bits;
+they do not model transfer delay. Unsupported transfers reject before mutation.
+Peripheral/save writes, odd/misaligned transfer quirks, busy/error timing and
+hardware measurement remain pending. The supported alignment follows
+[libdragon DMA documentation](https://github.com/DragonMinded/libdragon/blob/trunk/include/dma.h);
+register/post-transfer behavior is grounded in the authored
+[PI register model](https://github.com/ares-emulator/ares/blob/master/ares/n64/pi/io.cpp)
+and [DMA model](https://github.com/ares-emulator/ares/blob/master/ares/n64/pi/dma.cpp).
+
+The [original PI corpus](../../tests/roms-src/n64/pi_dma/README.md) matches
+524,288 cases / 8,388,608 guest values across every even length 2–65,536,
+four cartridge offsets, two RDRAM addresses and both MI mask states.
+The [original handoff corpus](../../tests/roms-src/n64/ipl3_handoff/README.md)
+matches all twelve startup captures. Executed wrong-length/seed programs,
+all captured-field mutations and seven malformed streams per corpus are rejected.
+`n64_pi_test` separately covers 1,048,576 RDRAM destinations, 32,768 even lengths,
+65,536 address masks, every byte of an 8 MiB DMA, all SI/PI/MI combinations,
+actual IRQ/ACK/ERET continuation, atomic rejection, legacy/native states,
+64 MiB formats and the loaded plugin. All nine N64 CTests pass; the component
+also passes undefined-behavior sanitization.
+
 ## Local retail regression target
 
 Super Mario 64 (USA), supplied locally by the user, was probed on 2026-10-10.
-The current plugin **rejects it before execution**: zero frames, no video/audio
-observations, playability unverified. The 8 MiB image has SHA256
+The plugin **loads it and attempts six IPL3 instructions**, then faults reading
+the missing RI register `$A470000C`. EPC is `$A4000054`, Cause is `$10`,
+and the exception vector is `$80000180`. The production ABI probe runs 120
+frontend scheduling quanta with uniform video and no audio. **Retail boot and
+playability are unverified.** The 8 MiB image has SHA256
 `17ce077343c6133f8c9f2d6d6d9a4ab62c8cd2aa57c40aea1f490b4c8bb21d91`.
-It is not included in this repository. Its reported state is distinct from
-passing original integer/controller ROMs.
+It is not included in this repository.
 
 ```bash
-cmake --build build --target retail_core_probe n64_plugin
+cmake --build build --target retail_core_probe n64_boot_trace n64_plugin
 python3 tests/n64_retail_probe.py /path/to/your/sm64.z64
 ```
 
-The optional probe loads the actual core shared library, checks ABI, attempts
-load and, if accepted, runs 120 frames while measuring video variation and
-audio sample counts. It writes hashes and observations to
+The optional probe loads the production shared library, checks ABI, measures
+video/audio and runs a bounded machine trace to the first CPU exception.
+It writes hashes, EPC, Cause, fault address and all 32 GPRs to
 `build/artifacts/retail/n64.json`; no commercial bytes are archived or copied.
-A successful probe process can report `status: blocked`; read the JSON verdict.
-A future `execution-smoke` verdict will establish execution signals only, not
-playability. Boot correctness and gameplay need additional explicit validation.
-
-The next retail-enabling work includes native boot state/cartridge transfer,
-full CPU/CP0/FPU, RSP/RDP/VI and device scheduling/interrupts, AI and save media.
-Accepting an image by itself does not make Super Mario 64 work.
+The current verdict is `boot-blocked`. A successful probe process is not a
+playability verdict. Next work includes RI/RDRAM startup, full CPU/CP0/FPU,
+RSP/RDP/VI/device scheduling, AI and save media.

@@ -6,7 +6,7 @@ class Plugin : public emu::IEmulatorPlugin {
 public:
     emu::EmulatorInfo get_info() override {
         static const char* extensions[] = {".z64", ".v64", ".n64", nullptr};
-        return {"N64", "0.1.0", "Veloce", "Experimental VR4300 integer homebrew core; digital SI/PIF controller; no retail boot, graphics, audio or analog input.",
+        return {"N64", "0.2.0", "Veloce", "Experimental integer core, settled PI/SI and CIC-6102 IPL3 handoff; retail boot/playability, graphics/audio and analog input pending.",
                 extensions, 60.0, 93750000, 320, 240};
     }
     const emu::ControllerLayoutInfo* get_controller_layout() override {
@@ -31,7 +31,7 @@ public:
         return &layout;
     }
     bool load_rom(const uint8_t* data, size_t size) override { return machine.load(data, size); }
-    void unload_rom() override { machine.rom.clear(); machine.crc = 0; machine.identity = 0; machine.entry = 0; machine.reset(); }
+    void unload_rom() override { machine.rom.clear(); machine.crc = 0; machine.identity = 0; machine.entry = 0; machine.boot_mode=Machine::BootMode::Homebrew; machine.reset(); }
     bool is_rom_loaded() const override { return !machine.rom.empty(); }
     uint32_t get_rom_crc32() const override { return machine.crc; }
     void reset() override { machine.reset(); }
