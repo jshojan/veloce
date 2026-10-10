@@ -1313,3 +1313,13 @@ playability remain unverified**; commercial ROM bytes remain local.
 N64 stays **40% = 8/20 fixed delivery milestones**. The complete graphics
 milestone and the full Nintendo-platform goal remain unfinished. Front-page
 and core README percentages are synchronized. CI/CD remains disabled.
+
+Verification: the full build and **66 distinct N64 gates pass**. Both new
+original corpora pass in **759.33 seconds**, grading **5,767,168 cases /
+103,809,024 actual 64-bit words** with zero mismatches and rejecting the executed
+capture mutants, eighteen field mutations and seven malformed streams per suite.
+The remaining **64/64 N64 regression gates** pass in **1,242.24 seconds**,
+including the new integer-ALU component. All **90 original ROM archives**
+reproduce. The component passes undefined-behavior sanitization, both private
+retail reports match current executable hashes, and completion/whitespace
+checks pass.
