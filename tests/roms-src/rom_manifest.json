@@ -451,6 +451,39 @@
       "source_type": "original",
       "suite": "rsp_scalar_immediates"
     },
+    "n64/rsp_vector_loads/rsp_vector_loads.z64": {
+      "build_command": "python3 tests/roms-src/n64/rsp_vector_loads/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "ecf3221453fc5d52ace9a5e1d836a1fe59fd7ddd07fb107b771932338db561ee",
+      "source_repo": "tests/roms-src/n64/rsp_vector_loads/build.py",
+      "source_sha": "3a3e5ccff9fcbb094278a20ebb364b252710d98ca8424c19328a8f2b1c3ca1e7",
+      "source_type": "original",
+      "suite": "rsp_vector_loads"
+    },
+    "n64/rsp_vector_stores/rsp_vector_stores.z64": {
+      "build_command": "python3 tests/roms-src/n64/rsp_vector_stores/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "4946eebf14fed43a5e410a532c4da2fd98145d0aa7d9a32a86ef2e0e1836ee58",
+      "source_repo": "tests/roms-src/n64/rsp_vector_stores/build.py",
+      "source_sha": "ec3061ffec0d70da4d3b2319c49341f23f301eaca5ac6e8561bd1589138ed670",
+      "source_type": "original",
+      "suite": "rsp_vector_stores"
+    },
+    "n64/rsp_vector_transfers/rsp_vector_transfers.z64": {
+      "build_command": "python3 tests/roms-src/n64/rsp_vector_transfers/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "6222d65ccd68db0d765dd851f2055e638d2eea1d50f472cc656efa85cbee784d",
+      "source_repo": "tests/roms-src/n64/rsp_vector_transfers/build.py",
+      "source_sha": "502d7cc057833e4924b6a3dec6951a93d2c9c818d3f2c095d62edc8de26e6eb6",
+      "source_type": "original",
+      "suite": "rsp_vector_transfers"
+    },
     "n64/sp_controls/sp_controls.z64": {
       "build_command": "python3 tests/roms-src/n64/sp_controls/build.py",
       "console": "n64",

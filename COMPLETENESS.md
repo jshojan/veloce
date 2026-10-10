@@ -1,6 +1,6 @@
 # Veloce Accuracy Scorecard
 
-Current N64 evidence: [Display-processor interface, fill engine and current Mario evidence](#display-processor-interface-and-fill-engine). Earlier increment reports are historical.
+Current N64 evidence: [RSP vector storage, memory transfers and current Mario evidence](#rsp-vector-storage-and-memory). Earlier increment reports are historical.
 
 This is the project's honest, evidence-based statement of how complete and
 cycle-accurate each emulator core is. Legacy headline percentages are produced by the
@@ -838,3 +838,79 @@ including VI scanout also passed. The full build and undefined-behavior sanitize
 passed; all **77 original ROMs** reproduce against the committed image/generator
 ledger. Completion renderer and whitespace checks pass. CI/CD remains removed
 and GitHub Actions disabled.
+
+## RSP vector storage and memory
+
+RSP scalar execution now owns 32 raw 128-bit vector registers and VCO/VCC/VCE
+flags through a separate vector storage/transfer module. It implements all twelve
+encoded load/store forms: byte/short/long/double, quad/rest, packed/fractional,
+strided, whole and transpose. LWV follows the hardware-observed no-op behavior.
+Loads truncate at the register end; stores wrap within the source register.
+All memory bytes wrap within DMEM without touching IMEM. Seven-bit offsets are
+sign-extended and scaled per opcode. Packed and transpose mappings follow the
+hardware-test author's cases rather than treating every instruction as memcpy.
+
+MTC2 discards the upper scalar halfword and truncates the last byte at element 15.
+MFC2 reads two bytes with register wrap and sign-extends the halfword. CTC2/CFC2
+share VCO/VCC/VCE storage, including all 32 selector aliases; VCE is eight bits,
+so its readback never becomes negative. Memory transfers preserve all scalar
+registers and flags. Unsupported arithmetic retains SP PC and the actual word,
+sets HALT without BROKE, and never fabricates task completion or an interrupt.
+
+Three original programs record actual guest observations, with no guest verdict:
+
+| Original cartridge | Cases | Captured 64-bit words | Declared domain |
+|---|---:|---:|---|
+| [Vector loads](tests/roms-src/n64/rsp_vector_loads/README.md) | 786,432 | 19,660,800 | Twelve forms × 16 byte elements × 16 alignments × 256 byte-pattern seeds |
+| [Vector stores](tests/roms-src/n64/rsp_vector_stores/README.md) | 786,432 | 25,952,256 | Same domain, including every byte of surrounding wrapped memory |
+| [Scalar/vector transfers](tests/roms-src/n64/rsp_vector_transfers/README.md) | 1,048,576 | 10,485,760 | Every halfword payload × every byte element, with scalar zero and flag masks/signs |
+
+For memory cartridges, seed parity selects `$900` or `$FF0`; VT is seed modulo
+32. Results include the affected eight-register group, neighboring register
+guards and actual scalar/SP/MI state. Each memory case uses three ordered REG
+chunks within the existing debug line cap. Independent destination-oriented
+integer byte mappings grade every field. Executed mutants must fail all reduced
+cases; every field has a mutation check and seven damaged stream forms must
+return ERROR in each suite. Artifacts are under `build/artifacts/owned/n64_rsp_vector_*/`.
+
+The component additionally checks **3,145,728 memory/address/element cases**
+covering every DMEM byte on two patterns, **3,145,728 signed-offset/register
+cases** covering all seven-bit offsets and vector registers, **1,048,576
+payload/element move pairs**, **2,097,152 flag alias cases**, and every GPR/vector
+encoding at every byte element. Whole register, scalar, flag, DMEM and IMEM
+guards are checked. State `VN64S016` appends 64 packed vector doublewords and
+three validated flags (**536 bytes**). Pending-operation replay is exact;
+invalid flags are rejected atomically; S015 and earlier restore neutral vector
+storage while preserving previously implemented scalar/DP state.
+
+Rules follow the SGI [RSP programmer guide](https://bukosek.si/hardware/collection/sgi-o2/n64-rsp-programmers-guide.pdf),
+and the hardware-test author's [loads](https://github.com/thelemmy/nemu64-test/blob/main/src/tests/rsp/op_vector_loads.rs),
+[stores](https://github.com/thelemmy/nemu64-test/blob/main/src/tests/rsp/op_vector_stores.rs),
+[moves](https://github.com/thelemmy/nemu64-test/blob/main/src/tests/rsp/op_mfc2_mtc2.rs)
+and [flag aliases](https://github.com/thelemmy/nemu64-test/blob/main/src/tests/rsp/op_cfc2_ctc2.rs).
+The original cartridges have not been validated on a physical console.
+LFV element 1's first packed low bit follows the author's published mapping;
+the published sequential-byte test cannot distinguish competing mappings there.
+That bit on non-linear inputs receives no physical accuracy credit. Independent
+full-width byte combinations, load interlocks, dual issue, physical DMA/pipeline
+timing, vector arithmetic, accumulator/reciprocal state and complete graphics/
+audio remain pending. These finite profiles do not establish full RSP accuracy.
+
+The local Super Mario 64 (USA) probe on 2026-10-10 now passes the former LQV
+blocker, retires **683 RSP instructions**, and blocks on **VMULF at SP PC `E5C`,
+word `4BDFDEC0`**. The CPU reaches 12,000,000 attempts with 51 nonterminal
+exception entries and no terminal CPU fault. Production output remains uniform
+video and 480 audio sample pairs across 120 scheduling quanta. Native boot,
+audible game sound and playability remain unverified. The private image remains
+local. N64 stays **40% = 8/20 delivery milestones**.
+
+Verification: **50 distinct N64 gates pass** after two harness corrections.
+The initial 46-gate regression (394.74 seconds) found stale audio-test state
+offsets; the corrected audio gate passed in 20.42 seconds. Vector loads passed
+in 386.02 seconds, scalar/vector transfers in 114.31 seconds and the final
+component in 3.08 seconds. The initial store run correctly rejected an incomplete
+stream at the old execution cap; the full 786,432-case store corpus passed in
+408.66 seconds with a larger budget, without reducing the domain. The final
+build and undefined-behavior sanitizer passed; all **80 original ROMs** reproduce
+from the committed image/generator ledger. Completion renderer and whitespace
+checks pass. CI/CD remains removed and GitHub Actions disabled.

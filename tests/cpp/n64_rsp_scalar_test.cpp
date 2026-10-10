@@ -78,8 +78,8 @@ int main(int argc,char** argv){try{
  // Pending branch, fractional phase, blocked diagnostics and all registers survive state replay.
  m.reset();opcode(m,0x10000006);step(m);for(unsigned n=0;n<4;++n)m.sp[4096+4+n]=uint8_t(13>>(24-n*8));m.rsp_phase=2;
  std::vector<uint8_t> saved,after,replay;require(m.save(saved),"RSP save");m.clock();m.save(after);require(m.restore(saved),"RSP restore");m.clock();m.save(replay);require(after==replay,"pending RSP branch/BREAK exact replay");
- for(unsigned field=0;field<38;++field){if(field==33)continue;auto bad=saved;const uint64_t invalid=field==0?1:field<32 || field==36?0x100000000ull:field==32?1:field==37?3:2;const size_t at=bad.size()-456+field*8;for(unsigned n=0;n<8;++n)bad[at+n]=uint8_t(invalid>>(56-n*8));require(m.restore(saved) && !m.restore(bad) && m.save(replay) && replay==saved,"invalid RSP state rejected atomically");}
- auto old=saved;old.resize(old.size()-456);old[7]='3';require(m.restore(old) && r.gpr==std::array<uint32_t,32>{} && !r.instructions && r.next_pc==((sp.pc+4)&4095) && !m.rsp_phase,"S013 neutral scalar/phase conversion preserves SP PC");
+ for(unsigned field=0;field<38;++field){if(field==33)continue;auto bad=saved;const uint64_t invalid=field==0?1:field<32 || field==36?0x100000000ull:field==32?1:field==37?3:2;const size_t at=bad.size()-992+field*8;for(unsigned n=0;n<8;++n)bad[at+n]=uint8_t(invalid>>(56-n*8));require(m.restore(saved) && !m.restore(bad) && m.save(replay) && replay==saved,"invalid RSP state rejected atomically");}
+ auto old=saved;old.resize(old.size()-992);old[7]='3';require(m.restore(old) && r.gpr==std::array<uint32_t,32>{} && !r.instructions && r.next_pc==((sp.pc+4)&4095) && !m.rsp_phase,"S013 neutral scalar/phase conversion preserves SP PC");
  m.reset();require(!r.instructions && !r.blocked && !m.rsp_phase && sp.status==1,"RSP reset");
  std::cout<<immediates<<" immediate, "<<registers<<" register triples, "<<memory<<" memory and "<<branches<<" branch/BREAK cases passed; shifts/JALR, controls, CPU IRQ, unsupported diagnostics, S014 replay/rejection and S013 conversion passed\n";return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}
