@@ -54,6 +54,24 @@ void Machine::step() {
         const uint32_t result=(a<b ? 8u:a>b ? 4u:2u)|((s.xer>>31)&1);
         s.cr=(s.cr&~(15u<<shift))|(result<<shift);
     };
+    const auto memory_access=[&](bool load,unsigned width,bool algebraic,bool reverse,bool update,uint32_t address) {
+        // Read all old operands before either RT or an updated base is written.
+        if((update && (!ra || (load && ra==rt))) || (address&(width-1))) return false;
+        uint32_t value=s.r[rt];
+        if(load) {
+            if(!read(address,width,value)) return false;
+        }
+        if(reverse) {
+            uint32_t swapped=0;
+            for(unsigned n=0;n<width;++n) { swapped=swapped*256+(value&255); value>>=8; }
+            value=swapped;
+        }
+        if(algebraic && (value&0x8000)) value|=0xffff0000u;
+        if(load) s.r[rt]=value;
+        else if(!write(address,width,value)) return false;
+        if(update) s.r[ra]=address;
+        return true;
+    };
     if(op==7) s.r[rt]=uint32_t(signed32(s.r[ra])*signed32(immediate));
     else if(op==8 || op==12 || op==13) {
         const uint32_t source=s.r[ra]; // Unlike ADDI, carry immediates read GPR0.
@@ -87,14 +105,11 @@ void Machine::step() {
         s.r[ra]=result;
         if(op>=28) record_compare(0,signed32(result),0); // ANDI./ANDIS. always record.
     }
-    else if(op==32 || op==34 || op==36 || op==38 || op==40 || op==44) {
-        const bool load=op==32 || op==34 || op==40;
-        const unsigned width=op==34 || op==38 ? 1:op==40 || op==44 ? 2:4;
+    else if(op>=32 && op<=45) {
+        const bool load=op<36 || (op>=40 && op<=43);
+        const unsigned width=op>=40 ? 2:op==34 || op==35 || op==38 || op==39 ? 1:4;
         const uint32_t address=(ra ? s.r[ra]:0)+immediate;
-        if(address&(width-1)) { s.unsupported=true; return; }
-        uint32_t value=s.r[rt];
-        if(!(load ? read(address,width,value):write(address,width,value))) { s.unsupported=true; return; }
-        if(load) s.r[rt]=value;
+        if(!memory_access(load,width,op==42 || op==43,false,op&1,address)) { s.unsupported=true; return; }
     } else if(op==18) {
         uint32_t delta=ins&0x03fffffc; if(delta&0x02000000) delta|=0xfc000000;
         if(ins&1) s.lr=pc+4;
@@ -144,7 +159,16 @@ void Machine::step() {
         }
     } else if(op==31) {
         const unsigned xo=(ins>>1)&1023,arithmetic=xo&511;
-        if(xo==0 || xo==32) {
+        if(xo==23 || xo==55 || xo==87 || xo==119 || xo==151 || xo==183 || xo==215 || xo==247 ||
+           xo==279 || xo==311 || xo==343 || xo==375 || xo==407 || xo==439 ||
+           xo==534 || xo==790 || xo==662 || xo==918) {
+            const bool reverse=xo==534 || xo==790 || xo==662 || xo==918;
+            const bool load=xo==23 || xo==55 || xo==87 || xo==119 || xo==279 || xo==311 || xo==343 || xo==375 || xo==534 || xo==790;
+            const unsigned width=xo==87 || xo==119 || xo==215 || xo==247 ? 1:
+                xo==279 || xo==311 || xo==343 || xo==375 || xo==407 || xo==439 || xo==790 || xo==918 ? 2:4;
+            const uint32_t address=(ra ? s.r[ra]:0)+s.r[rb];
+            if((ins&1) || !memory_access(load,width,xo==343 || xo==375,reverse,!reverse && (xo&32),address)) { s.unsupported=true; return; }
+        } else if(xo==0 || xo==32) {
             if((rt&3) || (ins&1)) { s.unsupported=true; return; }
             record_compare(rt>>2,xo==0 ? signed32(s.r[ra]):s.r[ra],xo==0 ? signed32(s.r[rb]):s.r[rb]);
         } else if(xo==512) {

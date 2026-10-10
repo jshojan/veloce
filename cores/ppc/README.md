@@ -23,8 +23,11 @@ GameCube/Wii software cannot boot. Full platform completion is unknown.
   forms, ordinary GPR0 and alias-safe operands. Invalid division chooses zero
   in this profile; undefined quotient/CR0 ordering bits are excluded from
   hardware result scoring.
-- ADDI/ADDIS; big endian LWZ/LHZ/LBZ and STW/STH/STB with signed
-  displacement, RA=0 address semantics and alignment diagnostics.
+- ADDI/ADDIS. LWZ/LHZ/LBZ/LHA and STW/STH/STB with signed displacement,
+  indexed and base-update forms; LWBRX/LHBRX/STWBRX/STHBRX byte reversal.
+  Old source/index/base values supply transfers before base updates. Invalid
+  update fields, reserved indexed Rc and invalid accesses diagnose atomically.
+  RA=0 supplies zero for ordinary addressing; indexed RB=0 reads GPR0.
 - B/BL and BC, signed absolute/relative displacement; BCLR/BCCTR including
   linked forms, CTR decrement/testing, CR bit conditions and aligned targets.
   LK updates LR even on untaken paths; old LR supplies BCLR targets.
@@ -145,6 +148,21 @@ The full component gate also passes undefined-behavior sanitization. See the
 [NXP instruction set manual](https://www.nxp.com.cn/docs/en/reference-manual/MPC82XINSET.pdf)
 for DIVW/DIVWU undefined-result rules. Console timing remains unverified.
 
+The [GameCube](../../tests/roms-src/gc/memory_registers/README.md) and
+[Wii](../../tests/roms-src/wii/memory_registers/README.md) memory ROMs each match
+12,586,368 ten-word observations. Fourteen displacement forms cover every
+aligned 16-bit displacement on eight data patterns/three RAM aliases; eighteen
+indexed forms use eight index patterns. Independent byte-array grading checks
+result, updated/preserved base, index, CR/XER, exact target bytes, surrounding
+guards, original instruction and source. Incoming CR/XER seeds are selected
+per group, not crossed with every input. Component coverage adds 27,560,000
+snapshots across both profiles: 26,356,500 valid transfers and 1,203,500
+invalid-form/access diagnostics. Complete register arrays, every field encoding,
+source/base/index aliases, reserved Rc, neighboring memory bytes, a known
+mixed-transfer guest and exact machine/plugin replay pass, including with
+undefined-behavior sanitization. Physical alignment/bus exceptions and timing
+remain unmodeled. See the linked domain tables for the finite scope.
+
 Instruction references: [NXP MPC750 manual](https://www.nxp.com/docs/en/reference-manual/MPC750UM.pdf),
 [IBM addc](https://www.ibm.com/docs/en/aix/7.1.0?topic=set-addc-add-carrying-instruction),
 [IBM subfe](https://www.ibm.com/docs/en/aix/7.1.0?topic=set-subfe-sfe-subtract-from-extended-instruction),
@@ -198,6 +216,6 @@ reports attempted instructions and CPU frequency is unspecified.
 ```sh
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --target veloce gc_plugin wii_plugin ppc_machine_test -j4
-ctest --test-dir build -R '^(ppc_machine_test|(gc|wii)_(integer|branch|condition|logical|rotate|shift|carry|multiply)_registers)$' --output-on-failure
+ctest --test-dir build -R '^(ppc_machine_test|(gc|wii)_(integer|branch|condition|logical|rotate|shift|carry|multiply|memory)_registers)$' --output-on-failure
 python3 tests/roms-src/build.py --original-only --check
 ```

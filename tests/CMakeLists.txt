@@ -389,3 +389,10 @@ foreach(profile gc wii)
         --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/${profile}_products)
     set_tests_properties(${profile}_multiply_registers PROPERTIES LABELS "accuracy;owned" TIMEOUT 1200)
 endforeach()
+
+foreach(profile gc wii)
+    add_test(NAME ${profile}_memory_registers COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_SOURCE_DIR}/tests/roms-src/${profile}/memory_registers/run.py --emulator $<TARGET_FILE:veloce>
+        --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/${profile}_memory)
+    set_tests_properties(${profile}_memory_registers PROPERTIES LABELS "accuracy;owned" TIMEOUT 1200)
+endforeach()
