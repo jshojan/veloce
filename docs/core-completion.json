@@ -155,6 +155,7 @@
       "name": "Nintendo 64",
       "readme": "cores/n64/README.md",
       "delivered": [
+        "audio",
         "digital",
         "native_media",
         "original_rom",
@@ -162,7 +163,7 @@
         "register_oracle",
         "states"
       ],
-      "remaining": "Super Mario 64 reaches 5,775,051 startup attempts, then faults at AI status; native boot, RAM remapping/calibration, remaining CPU/FPU/devices, RSP/RDP/VI/AI, analog and netplay remain."
+      "remaining": "Super Mario 64 reaches 5,896,277 startup attempts, then faults on FPU CFC1; native boot/playability, RAM remapping/calibration, remaining CPU/FPU/devices, RSP/RDP/VI, RSP audio microcode, physical AI timing, analog and netplay remain."
     },
     {
       "id": "vb",
