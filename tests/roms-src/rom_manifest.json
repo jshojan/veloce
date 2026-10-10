@@ -286,6 +286,17 @@
       "source_type": "original",
       "suite": "pi_dma"
     },
+    "n64/rdram_devices/rdram_devices.z64": {
+      "build_command": "python3 tests/roms-src/n64/rdram_devices/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "09b367e2475f8d1780cae7b43d50cc16de364c814a4839e5cb084a0a8c8da909",
+      "source_repo": "tests/roms-src/n64/rdram_devices/build.py",
+      "source_sha": "95e8cfaaad70e827496d156cccb66f4b5bfde40eab09675bbe3ec3c954693019",
+      "source_type": "original",
+      "suite": "rdram_devices"
+    },
     "n64/ri_registers/ri_registers.z64": {
       "build_command": "python3 tests/roms-src/n64/ri_registers/build.py",
       "console": "n64",
