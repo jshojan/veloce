@@ -877,6 +877,17 @@
       "source_type": "original",
       "suite": "muldiv_registers"
     },
+    "switch/select_registers/select_registers.nso": {
+      "build_command": "python3 tests/roms-src/switch/select_registers/build.py",
+      "console": "switch",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "75250db11e5fefb30ef3c4bdf46285a75adc59e1fa7b903638d6bbc5752ee85b",
+      "source_repo": "tests/roms-src/switch/select_registers/build.py",
+      "source_sha": "86efc9a14b24ade7fadc4ae079ea516ca804416c4f2b965ea706ad33a94fb5c7",
+      "source_type": "original",
+      "suite": "select_registers"
+    },
     "vb/address_traps/address_traps.vb": {
       "build_command": "python3 tests/roms-src/vb/address_traps/build.py",
       "console": "vb",

@@ -26,7 +26,7 @@ Implemented: 32/64-bit ADD/SUB immediate and shifted-register forms, flag-settin
 forms, ADC/ADCS/SBC/SBCS, AND/ORR/EOR/ANDS and inverted operands, LSL/LSR/ASR/ROR
 operand shifts, MOVN/MOVZ/MOVK, ADR/ADRP, B/BL/B.cond, CBZ/CBNZ, BR/BLR/RET,
 unsigned-offset byte/halfword/word/doubleword LDR/STR, NOP and MRS/MSR NZCV,
-MADD/MSUB, signed/unsigned long and high multiply, and SDIV/UDIV.
+MADD/MSUB, signed/unsigned long and high multiply, SDIV/UDIV, and CSEL/CSINC/CSINV/CSNEG.
 W-register results clear the upper half. SP and XZR uses follow the instruction
 family. Unsupported/reserved encodings, fetch/alignment and memory faults stop
 with a diagnostic; architectural exception entry and system registers remain
@@ -96,8 +96,8 @@ is unmeasured (zero); the debug panel reports unmeasured time without division. 
 implementation goal remains unfinished. CI/CD remains disabled.
 
 Initial integer-profile verification passed all three initial Switch gates and
-95 original archives. Current verification is recorded in the multiply/divide
-section below.
+95 original archives. Later verification is recorded in the instruction-family
+sections below.
 
 
 ## AArch64 multiply and divide
@@ -136,3 +136,40 @@ pass. Switch stays **25% = 5/20 fixed delivery milestones**: the whole CPU,
 firmware/HOS/retail boot, native memory/MMU/devices, GPU/audio, controllers,
 saves/netplay, hardware timing and exhaustive native corpus remain incomplete.
 CI/CD remains disabled. The full Nintendo implementation goal remains active.
+
+
+## AArch64 conditional select
+
+Plugin **0.3.0**, emulator ABI v2, adds 32/64-bit CSEL, CSINC, CSINV and CSNEG.
+All sixteen conditions consume actual NZCV; AL and NV select the first source.
+False conditions select the second source unchanged, incremented, inverted or
+negated. Arithmetic wraps at the result width, W writes zero-extend, both
+sources and the destination use XZR semantics, and flags/SP are preserved.
+Reserved S/bit-11 encodings stop with a diagnostic before architectural writes.
+`VNXS0001`, the 4 MiB process map and scheduling remain unchanged.
+
+The [original guest](../../tests/roms-src/switch/select_registers/README.md) passes **524,288 rows / 2,621,440 actual words**:
+all ordered pairs of sixteen boundary/mixed-bit operands, all sixteen NZCV
+inputs and all sixteen condition codes across eight forms. Real STR/MRS
+capture sources, result, flags and context; a separate boolean-table and
+unbounded-integer host oracle grades the file. It caught a boundary constant
+error in the initial builder, corrected before shipment. The executed result
+mutant fails all **8,192** short rows; five field and seven stream controls
+reject. The production ABI gate replays real output and complete states while
+this guest executes. Artifacts: `build/artifacts/owned/switch_select/`.
+
+The independent truth-mask and bit-level component passes **151,846,912
+snapshots**: 151,519,232 repeated-byte/boundary pair/form/flag/condition cases
+and 327,680 register-number, alias/XZR cases across all flag/condition inputs.
+All eight guest forms match [pinned LLVM opcode fields](../../tests/reference/switch-select/README.md); physical
+execution is unverified. The previous core failed the component and stopped
+the guest before any register row, establishing the missing instruction path.
+
+All **nine Switch gates pass** in **22.03 seconds** after the full rebuild,
+including the six existing regressions. Component UBSAN passes with warning-free
+compilation. Full build, completion renderer and whitespace pass; all **97
+original archives** reproduce. Switch stays **25% = 5/20 fixed delivery
+milestones**: full CPU/extensions/exceptions, HOS/native boot, native RAM/MMU,
+GPU/audio/controllers/devices, saves/netplay, physical timing and the complete
+original hardware corpus remain pending. CI/CD remains disabled, no commercial
+bytes are included, and the full Nintendo implementation goal remains active.
