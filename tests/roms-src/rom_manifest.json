@@ -172,6 +172,17 @@
       "source_sha": "a63cb40a3bb4e6144c1947cf03d104755147bf8eb43175958e6daf58ec19a97d",
       "source_type": "original",
       "suite": "math_timing"
+    },
+    "vb/integer_registers/integer_registers.vb": {
+      "build_command": "python3 tests/roms-src/vb/integer_registers/build.py",
+      "console": "vb",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "1f4b93452098bc83d8a702b5c51aa3c49cfa8965a2d06a52b32c54f0bc67967a",
+      "source_repo": "tests/roms-src/vb/integer_registers/build.py",
+      "source_sha": "82697f3605e0c25615f204da0110f483f32ba68ffd0af977cb7f419032cd3d82",
+      "source_type": "original",
+      "suite": "integer_registers"
     }
   },
   "tool_versions": {

@@ -14,6 +14,7 @@ are not measurements of overall hardware or product completion.
 | SNES | `snes_plugin` | Settled multiplication: 65,536/65,536 operand pairs verified (100%); division: 3,328 selected boundary cases verified; math timing: 504,832/504,832 register bytes matched at CPU phases 2–18 (100% of declared patterns/phases) | Not measured; timed full operand domain, refresh/DMA interactions, and remaining hardware corpora pending |
 | GBA | `gba_plugin` | ARM MOVS register shifts: 65,536/65,536 result/CPSR pairs verified; all low-byte amounts and C/V inputs on 16 operands | Not measured; remaining CPU modes/instructions, timing and peripheral corpora pending |
 | Nintendo 64 | `n64_plugin` (experimental homebrew only) | 28,127/28,127 defined integer results matched; 28,160 observations, with 33 undefined divide inputs unscored; doubleword multiply/divide: 262,623/262,623 defined LO/HI pairs matched on exhaustive byte pairs and full-width boundaries; merge memory: 3,158,016/3,158,016 observations matched at every lane on all repeated-byte pairs and selected full-width patterns; digital SI/PIF: 16,384/16,384 button combinations and 131,072 register values matched; interrupt gates: 65,536/65,536 cases and 524,288 register values matched | Not measured; retail boot, graphics/audio, analog/controllers beyond port 1 and most platform hardware remain |
+| Virtual Boy | `vb_plugin` (experimental homebrew only) | 6,512,640/6,512,640 result/PSW pairs matched across ADD/SUB/CMP/OR/AND/XOR repeated-byte pairs and full-width boundaries, plus SHL/SHR/SAR patterns and all low-byte amounts; all 16 incoming flag states | Not measured; remaining CPU/NVC instructions, timing, VIP/VSU, controllers and most platform hardware remain |
 
 The experimental N64 plugin now executes original MIPS integer homebrew ROMs.
 It accepts only the documented `V64HB001` entry profile and cannot run retail
@@ -55,13 +56,19 @@ logical gates including injected external requests, BD and BEV. This establishes
 logical delivery and exception state, not pipeline latency, CP0 hazards,
 physical Count timing or missing interrupt producers.
 
+The new [Virtual Boy plugin](../cores/vb/README.md) executes the original V810
+[integer corpus](../tests/roms-src/vb/integer_registers/README.md) through frontend
+discovery. All 6,512,640 pairs matched; this is 100% of the declared operand/flag
+domains, not full 32-bit operands or whole-platform completion. Video, sound,
+controller hardware, interrupts/timing and retail compatibility remain pending.
+
 Run `python3 tests/roms-src/build.py --original-only --check` to reproduce the
 original ROM images and verify their source and image SHA256 ledger. Run
 `ctest --test-dir build -L owned --output-on-failure` to execute them. Raw
 register files and reports remain in `build/artifacts/owned/`, and CI uploads
 them as `owned-hardware-registers`.
 
-The NES, GB ALU/unary, SNES, GBA and N64 corpora are graded by host integer oracles that read
+The NES, GB ALU/unary, SNES, GBA, N64 and Virtual Boy corpora are graded by host integer oracles that read
 every observed register result. The small GB WRAM probe emits its own `CHECK`
 lines alongside observed values. The GB ALU and unary ROMs use the existing SB/SC start
 observation hook without waiting for link delivery; physical serial timing and
@@ -96,7 +103,7 @@ must implement its hardware as a loadable core plugin and execute its own ROMs;
 an empty plugin or declared platform name does not count as implementation.
 
 Additional requested platform families without a core in this worktree include
-Virtual Boy, Nintendo DS/DSi, GameCube/Wii, Nintendo 3DS, Wii U,
+Nintendo DS/DSi, GameCube/Wii, Nintendo 3DS, Wii U,
 and Switch. Famicom Disk System and other Nintendo accessories still need
 separate validation. There is no verified completion percentage for these
 missing implementations.

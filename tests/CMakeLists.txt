@@ -49,6 +49,21 @@ add_test(NAME n64_interrupts COMMAND ${Python3_EXECUTABLE}
     --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_interrupts)
 set_tests_properties(n64_interrupts PROPERTIES LABELS "accuracy;owned" TIMEOUT 250)
 
+add_executable(vb_machine_test cpp/vb_machine_test.cpp
+    ${CMAKE_SOURCE_DIR}/cores/vb/src/machine.cpp ${CMAKE_SOURCE_DIR}/cores/vb/src/v810.cpp)
+target_include_directories(vb_machine_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/vb/src
+    ${CMAKE_SOURCE_DIR}/include ${SDL2_INCLUDE_DIRS})
+target_link_libraries(vb_machine_test PRIVATE ${SDL2_LIBRARIES})
+target_compile_definitions(vb_machine_test PRIVATE SDL_MAIN_HANDLED)
+add_dependencies(vb_machine_test vb_plugin)
+add_test(NAME vb_machine_test COMMAND vb_machine_test $<TARGET_FILE:vb_plugin>
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/vb/integer_registers/integer_registers.vb)
+set_tests_properties(vb_machine_test PROPERTIES LABELS "unit;fast" TIMEOUT 30)
+add_test(NAME vb_integer_registers COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/vb/integer_registers/run.py --emulator $<TARGET_FILE:veloce>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/vb_integer)
+set_tests_properties(vb_integer_registers PROPERTIES LABELS "accuracy;owned" TIMEOUT 700)
+
 add_executable(snes_math_pipeline_test cpp/snes_math_pipeline_test.cpp
     ${CMAKE_SOURCE_DIR}/cores/snes/src/bus.cpp ${CMAKE_SOURCE_DIR}/cores/snes/src/cpu.cpp
     ${CMAKE_SOURCE_DIR}/cores/snes/src/ppu.cpp ${CMAKE_SOURCE_DIR}/cores/snes/src/apu.cpp
