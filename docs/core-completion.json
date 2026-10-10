@@ -164,7 +164,7 @@
         "register_oracle",
         "states"
       ],
-      "remaining": "Super Mario 64 reaches the 12-million-attempt CPU trace limit; 308 RSP scalar instructions retire before an unsupported LQV vector load. Shared DP controls and a bounded RDP fill/sync profile work; video stays uniform. Native boot/playability, FPU comparisons/devices, RSP vectors, complete RDP, physical pipeline timing, RSP audio microcode, analog and netplay remain."
+      "remaining": "Super Mario 64 reaches the 12-million-attempt CPU trace limit; 683 RSP instructions retire before unsupported VMULF. Scalar/vector memory transfers, shared DP controls and bounded RDP fill/sync work; video stays uniform. Native boot/playability, FPU comparisons/devices, RSP vector arithmetic, complete RDP, physical pipeline timing, RSP audio microcode, analog and netplay remain."
     },
     {
       "id": "vb",

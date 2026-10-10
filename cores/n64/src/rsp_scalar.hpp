@@ -1,14 +1,16 @@
 #pragma once
 #include "sp_interface.hpp"
 #include "dp_interface.hpp"
+#include "rsp_vector.hpp"
 #include <array>
 #include <cstdint>
 namespace n64 {
-// Scalar RSP execution, sharing the real SP controls and 8 KiB memory.
-// Unimplemented vector operations report an explicit emulator block, never a fake BREAK.
+// Scalar RSP execution and vector transfers, sharing SP controls and 8 KiB memory.
+// Unimplemented vector arithmetic reports an explicit emulator block, never a fake BREAK.
 class RspScalar {
 public:
     std::array<uint32_t,32> gpr{};
+    RspVector vectors;
     uint32_t next_pc=4,blocked_word=0;
     uint64_t instructions=0;
     bool delay_slot=false,blocked=false;
@@ -62,6 +64,7 @@ public:
             if(rs==0){uint64_t value=0;if(rd>=8)put(rt,dp.read(rd-8));else if(!control.read(rd,value))supported=false;else put(rt,uint32_t(value));}
             else supported=rd>=8?dp.write(rd-8,b):control.write(rd,b,ram,memory);
             break;
+        case 18:case 50:case 58:supported=vectors.execute(ins,gpr,memory);break;
         case 32:load(1,true);break;case 33:load(2,true);break;case 35:case 39:load(4,false);break;
         case 36:load(1,false);break;case 37:load(2,false);break;
         case 40:store(1);break;case 41:store(2);break;case 43:store(4);break;
