@@ -1,5 +1,27 @@
 {
   "roms": {
+    "dsi/netplay_probe/netplay_probe.vdsi": {
+      "build_command": "python3 tests/roms-src/dsi/netplay_probe/build.py",
+      "console": "dsi",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "fc54b4a195debbc2a6bd6860935aa716234d925605fb559e307c2553f8f566bb",
+      "source_repo": "tests/roms-src/dsi/netplay_probe/build.py",
+      "source_sha": "4b0ab35bd755571e9b7312cfa13df0239cec16a09434adc2569ecb725dd0b8fe",
+      "source_type": "original",
+      "suite": "netplay_probe"
+    },
+    "dsi/ram_registers/ram_registers.vdsi": {
+      "build_command": "python3 tests/roms-src/dsi/ram_registers/build.py",
+      "console": "dsi",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "3d00529994d25d433ae78c63ea800a3fbb024a030b2f28584ff6d8f449a1b6ff",
+      "source_repo": "tests/roms-src/dsi/ram_registers/build.py",
+      "source_sha": "abb7f142093817c37c1a7eac439f9adc5503b108418c5a71351e7e12dd830cfc",
+      "source_type": "original",
+      "suite": "ram_registers"
+    },
     "gb/alu_exhaustive/alu_exhaustive.gb": {
       "build_command": "python3 tests/roms-src/gb/alu_exhaustive/build.py",
       "console": "gb",

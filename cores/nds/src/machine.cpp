@@ -6,12 +6,12 @@ static uint32_t little(const uint8_t* p) { return uint32_t(p[0])|(uint32_t(p[1])
 struct Segment { uint32_t offset,entry,address,size; };
 static Segment segment(const uint8_t* p) { return {little(p),little(p+4),little(p+8),little(p+12)}; }
 bool Machine::load(const uint8_t* data,size_t size) {
-    if(!data || size<512 || size>16*1024*1024 || data[0x12] || std::memcmp(data+0x180,"VDSHB001",8)) return false;
+    if(!data || size<512 || size>16*1024*1024 || data[0x12]!=(dsi?2:0) || std::memcmp(data+0x180,dsi?"VDSI0001":"VDSHB001",8)) return false;
     const auto nine=segment(data+0x20),seven=segment(data+0x30);
     const auto valid=[&](Segment s,bool arm9) {
         if(s.offset<512 || (s.offset&3) || !s.size || (s.size&3) || (s.address&3) || (s.entry&3) ||
            uint64_t(s.offset)+s.size>size || s.entry<s.address || uint64_t(s.entry)+4>uint64_t(s.address)+s.size) return false;
-        return (s.address>=0x02000000 && uint64_t(s.address)+s.size<=0x02400000) ||
+        return (s.address>=0x02000000 && uint64_t(s.address)+s.size<=uint64_t(0x02000000)+main.size()) ||
             (!arm9 && s.address>=0x03800000 && uint64_t(s.address)+s.size<=0x03810000);
     };
     if(!valid(nine,true) || !valid(seven,false)) return false;
@@ -24,7 +24,7 @@ bool Machine::load(const uint8_t* data,size_t size) {
 }
 void Machine::reset() {
     std::fill(main.begin(),main.end(),0); std::fill(shared.begin(),shared.end(),0); std::fill(private7.begin(),private7.end(),0);
-    frames=0; done=0; wramcnt=3; keys=0; cpu9.reset(0); cpu7.reset(0);
+    frames=0; done=0; wramcnt=3; keys=0; scfg9=0x80008000; scfg7=0x80008000; cpu9.reset(0); cpu7.reset(0);
     if(rom.empty()) return;
     for(bool nine:{true,false}) {
         const auto s=segment(rom.data()+(nine ? 0x20:0x30));
@@ -35,7 +35,10 @@ void Machine::reset() {
     }
 }
 uint8_t* Machine::byte(bool arm9,uint32_t address) {
-    if(address>=0x02000000 && address<0x03000000) return &main[address&0x3fffff];
+    const unsigned mode=dsi ? (scfg9>>14)&3:0;
+    if(address>=0x02000000 && address<0x03000000) return &main[address&(mode<2?0x3fffffu:0xffffffu)];
+    if(dsi && mode>=2 && ((address>=0x0c000000 && address<0x0d000000) ||
+       (mode==2 && address>=0x0d000000 && address<0x0e000000))) return &main[address&0xffffff];
     if(!arm9 && address>=0x03800000 && address<0x04000000) return &private7[address&0xffff];
     if(address>=0x03000000 && address<(arm9 ? 0x04000000u:0x03800000u)) {
         if(wramcnt==0) return arm9 ? &shared[address&0x7fff]:&private7[address&0xffff];
@@ -60,8 +63,26 @@ static bool keypad(bool arm9,uint32_t address,unsigned bytes,uint16_t keys,uint3
     value=bytes==2 ? input:(input>>((address&1)*8))&255;
     return true;
 }
+bool Machine::configuration(bool arm9,uint32_t address,unsigned bytes,uint32_t& value,bool write) {
+    if(!dsi || address<0x04004008 || uint64_t(address)+bytes>0x0400400c ||
+       (bytes!=1 && bytes!=2 && bytes!=4) || (address&(bytes-1))) return false;
+    auto& control=arm9?scfg9:scfg7;
+    const unsigned shift=(address-0x04004008)*8;
+    const uint32_t mask=bytes==4?0xffffffffu:((1u<<(bytes*8))-1)<<shift;
+    if(write) {
+        if(!(control&0x80000000u)) return true; // Access lock is one-way until reset.
+        const uint32_t next=(control&~mask)|((value<<shift)&mask);
+        // Other SCFG circuits are not implemented; don't advertise their enable bits.
+        if(next&~0x8000c000u) return false;
+        control=arm9?next:(next&0x80000000u)|(scfg9&0xc000u);
+        if(arm9) scfg7=(scfg7&0x80000000u)|(scfg9&0xc000u);
+    } else value=(control&0x80000000u)?(control&mask)>>shift:0;
+    return true;
+}
 bool Machine::read(bool arm9,uint32_t address,unsigned bytes,uint32_t& value) {
     if((bytes!=1 && bytes!=2 && bytes!=4) || uint64_t(address)+bytes>0x100000000ull) return false;
+    if(configuration(arm9,address,bytes,value,false)) return true;
+    if(dsi && ((scfg9>>14)&3)<2 && address>=0x0c000000 && uint64_t(address)+bytes<=0x0e000000) { value=0; return true; }
     if(bytes==1 && address==(arm9 ? 0x04000247u:0x04000241u)) { value=wramcnt; return true; }
     if(keypad(arm9,address,bytes,keys,value)) return true;
     uint32_t result=0;
@@ -70,6 +91,8 @@ bool Machine::read(bool arm9,uint32_t address,unsigned bytes,uint32_t& value) {
 }
 bool Machine::write(bool arm9,uint32_t address,unsigned bytes,uint32_t value) {
     if((bytes!=1 && bytes!=2 && bytes!=4) || uint64_t(address)+bytes>0x100000000ull) return false;
+    if(configuration(arm9,address,bytes,value,true)) return true;
+    if(dsi && ((scfg9>>14)&3)<2 && address>=0x0c000000 && uint64_t(address)+bytes<=0x0e000000) return true;
     // Repository-only debug port, outside DS peripheral registers.
     if(address==0x04ff0000 && bytes==1) { const char c=char(value); if(sink) sink->write(&c,1); return true; }
     if(address==0x04ff0008 && bytes==4) {
@@ -102,7 +125,7 @@ void Machine::frame() {
 static void append(std::vector<uint8_t>& out,uint64_t value) { for(unsigned n=0;n<8;++n) out.push_back(uint8_t(value>>(56-n*8))); }
 bool Machine::save(std::vector<uint8_t>& out) const {
     if(rom.empty()) return false;
-    out.assign({'V','N','D','S','0','0','0','2'});
+    const char* magic=dsi?"VDSI0001":"VNDS0002"; out.assign(magic,magic+8);
     for(auto v:{identity,uint64_t(crc),frames,uint64_t(done),uint64_t(wramcnt)}) append(out,v);
     for(const auto* cpu:{&cpu9,&cpu7}) {
         for(auto v:cpu->state.r) append(out,v);
@@ -110,13 +133,14 @@ bool Machine::save(std::vector<uint8_t>& out) const {
     }
     for(const auto* memory:{&main,&shared,&private7}) out.insert(out.end(),memory->begin(),memory->end());
     append(out,keys);
+    if(dsi) { append(out,scfg9); append(out,scfg7); }
     return true;
 }
 bool Machine::restore(const std::vector<uint8_t>& in) {
     constexpr size_t prefix=8+(5+2*19)*8;
     const size_t legacy_size=prefix+main.size()+shared.size()+private7.size();
-    const bool legacy=in.size()==legacy_size && !std::memcmp(in.data(),"VNDS0001",8);
-    if(rom.empty() || (!legacy && (in.size()!=legacy_size+8 || std::memcmp(in.data(),"VNDS0002",8)))) return false;
+    const bool legacy=!dsi && in.size()==legacy_size && !std::memcmp(in.data(),"VNDS0001",8);
+    if(rom.empty() || (!legacy && (in.size()!=legacy_size+(dsi?24:8) || std::memcmp(in.data(),dsi?"VDSI0001":"VNDS0002",8)))) return false;
     size_t pos=8; const auto take=[&]() { uint64_t v=0; for(unsigned n=0;n<8;++n) v=(v<<8)|in[pos++]; return v; };
     if(take()!=identity || take()!=crc) return false;
     const auto frame=take(),finished=take(),wram=take(); if(finished>3 || wram>3) return false;
@@ -129,6 +153,14 @@ bool Machine::restore(const std::vector<uint8_t>& in) {
     }
     uint64_t input=0;
     if(!legacy) { for(size_t n=legacy_size;n<legacy_size+8;++n) input=input*256+in[n]; if(input>0xfff) return false; }
+    uint64_t config9=scfg9,config7=scfg7;
+    if(dsi) {
+        config9=0; config7=0;
+        for(size_t n=legacy_size+8;n<legacy_size+16;++n) config9=config9*256+in[n];
+        for(size_t n=legacy_size+16;n<legacy_size+24;++n) config7=config7*256+in[n];
+        if((config9&~0x8000c000ull) || (config7&~0x8000c000ull) || (config9&0xc000)!=(config7&0xc000)) return false;
+    }
+    scfg9=uint32_t(config9); scfg7=uint32_t(config7);
     cpu9.state=cpus[0]; cpu7.state=cpus[1]; frames=frame; done=uint8_t(finished); wramcnt=uint8_t(wram); keys=uint16_t(input);
     for(auto* memory:{&main,&shared,&private7}) { std::copy_n(in.begin()+pos,memory->size(),memory->begin()); pos+=memory->size(); }
     return true;

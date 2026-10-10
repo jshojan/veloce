@@ -129,7 +129,7 @@ The host grades both output streams independently; an ADC-to-ADD mutation and
 seven damaged files check failure detection. Component gates cover aliases,
 shifters, WRAM banks, validation and exact plugin state replay. Firmware,
 ARM block transfers, physical timing, graphics/audio/touchscreen, physical controller use and
-DSi enhanced mode remain pending.
+DSi enhanced hardware in its separate plugin remain pending.
 The [multiply corpus](tests/roms-src/nds/multiply_registers/README.md) adds
 38,338,560 five-word observations across six multiply/accumulate forms, both S
 states, all NZCV/ARM9 Q inputs and accumulator wraparound. Full CPSR is recorded;
@@ -712,5 +712,38 @@ CI/CD stays disabled; use local gates:
 
 ```sh
 ctest --test-dir build -R '^(ppc_machine_test|(gc|wii)_memory_registers)$' --output-on-failure
+python3 tests/roms-src/build.py --original-only --check
+```
+
+## DSi plugin and original RAM evidence
+
+The [DSi plugin](cores/dsi/README.md) is now separately loadable, sharing the
+DS ARM interpreter with a distinct loader/state/controller identity and 16 MiB
+RAM profile. `dsi_ram_registers` matches 387,072 fourteen-word original captures:
+three RAM-limit modes, four banks, either writing CPU, three store/read aliases,
+all aligned width/lane pairs and 256 byte/complement patterns. An independent
+host byte-array oracle grades every field. Executed bank/width/mode mutants
+fail exactly 1,512/1,038/4,032 reduced rows; fourteen field mutations and seven
+strict invalid streams are rejected. Raw output (~44 MiB) and reports stay in
+`build/artifacts/owned/dsi_ram/`.
+
+`dsi_machine_test` matches 67,109,008 byte/width bus observations, writing each
+supplied RAM byte once with an address-derived value and reading three mirrors
+through the other CPU. Boundary widths, RAM-limit controls/locks, high-RAM
+code, atomic loader/state rejection, DS/DSi coexistence and exact replay pass.
+The component gate also passes undefined-behavior sanitization. These are
+supplied-profile byte checks, not physical chip-control/timing evidence.
+
+`dsi_netplay_plugin_test` passes production TCP rollback with two independent
+100-frame peer states matching the 16,875,896-byte solo baseline and eight
+guest words matching the independent oracle. Host owns one keypad; viewer
+replay is supported, DSi wireless multiplayer is pending. DS component and
+production netplay regression gates pass. Local TCP gates require loopback
+socket permission; CI/CD remains disabled. All 48 original ROMs reproduce
+against the source/image ledger. Firmware/retail boot, full SCFG/MBK and most
+DSi hardware remain pending; full platform completion is unmeasured.
+
+```sh
+ctest --test-dir build -R '^(dsi_|nds_machine_test|nds_netplay_plugin_test)' --output-on-failure
 python3 tests/roms-src/build.py --original-only --check
 ```

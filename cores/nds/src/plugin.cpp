@@ -3,13 +3,24 @@
 #include <array>
 #include <cstring>
 
+#ifdef NDS_PROFILE_DSI
+namespace dsi {
+using nds::Machine;
+constexpr bool enhanced=true;
+constexpr const char* platform="DSi";
+constexpr const char* extension=".vdsi";
+#else
 namespace nds {
+constexpr bool enhanced=false;
+constexpr const char* platform="DS";
+constexpr const char* extension=".nds";
+#endif
 class Plugin : public emu::IEmulatorPlugin, public emu::INetplayCapable {
 public:
     emu::EmulatorInfo get_info() override {
-        static const char* extensions[] = {".nds", nullptr};
-        return {"DS", "0.2.0", "Veloce", "Experimental dual-CPU ARM/Thumb integer homebrew core with digital keypad; firmware, video, audio and other peripherals pending.",
-                extensions, 60.0, 67000000, 256, 384};
+        static const char* extensions[] = {extension, nullptr};
+        return {platform, enhanced?"0.1.0":"0.2.0", "Veloce", "Experimental dual-CPU ARM/Thumb integer homebrew core with digital keypad; firmware, video, audio and other peripherals pending.",
+                extensions, 60.0, enhanced?0u:67000000u, 256, 384};
     }
     const emu::ControllerLayoutInfo* get_controller_layout() override {
         using emu::VirtualButton;
@@ -26,7 +37,7 @@ public:
             {VirtualButton::R,"R",.78f,.06f,.16f,.10f,false},
             {VirtualButton::Start,"Start",.52f,.75f,.12f,.06f,false},
             {VirtualButton::Select,"Select",.36f,.75f,.12f,.06f,false}};
-        static const emu::ControllerLayoutInfo layout={"DS","DS digital controls (touch pending)",
+        static const emu::ControllerLayoutInfo layout={platform,"DS/DSi digital controls (touch pending)",
             emu::ControllerShape::Modern,2.0f,buttons,12,1};
         return &layout;
     }
@@ -51,7 +62,7 @@ public:
     bool load_state(const std::vector<uint8_t>& data) override { return machine.restore(data); }
     int get_max_players() const override { return 1; }
     void run_frame_netplay(uint32_t host_buttons,uint32_t) override { run_frame({host_buttons}); }
-    size_t get_max_state_size() const override { return 360+machine.main.size()+machine.shared.size()+machine.private7.size(); }
+    size_t get_max_state_size() const override { return 360+(enhanced?16:0)+machine.main.size()+machine.shared.size()+machine.private7.size(); }
     size_t save_state_fast(uint8_t* buffer,size_t size) override {
         if(!is_rom_loaded()) return 0;
         if(!buffer) return get_max_state_size();
@@ -60,7 +71,7 @@ public:
         std::memcpy(buffer,state.data(),state.size()); return state.size();
     }
     bool load_state_fast(const uint8_t* buffer,size_t size) override {
-        if(!buffer || (size!=get_max_state_size() && size!=get_max_state_size()-8)) return false;
+        if(!buffer || (size!=get_max_state_size() && (enhanced || size!=get_max_state_size()-8))) return false;
         return machine.restore(std::vector<uint8_t>(buffer,buffer+size));
     }
     uint64_t get_state_hash() const override {
@@ -72,12 +83,18 @@ public:
     bool set_test_sink(emu::ITestSink* sink) override { machine.sink = sink; return true; }
     const char* test_channels() const override { return "dsdebug"; }
 private:
-    Machine machine;
+    Machine machine{enhanced};
     std::array<uint32_t, 256 * 384> pixels{}; // No video emulation yet.
 };
 }
 extern "C" {
-EMU_PLUGIN_EXPORT emu::IEmulatorPlugin* create_emulator_plugin() { return new nds::Plugin(); }
+EMU_PLUGIN_EXPORT emu::IEmulatorPlugin* create_emulator_plugin() {
+#ifdef NDS_PROFILE_DSI
+    return new dsi::Plugin();
+#else
+    return new nds::Plugin();
+#endif
+}
 EMU_PLUGIN_EXPORT void destroy_emulator_plugin(emu::IEmulatorPlugin* plugin) { delete plugin; }
 EMU_PLUGIN_EXPORT uint32_t get_plugin_api_version() { return EMU_PLUGIN_API_VERSION; }
 }

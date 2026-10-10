@@ -11,7 +11,7 @@ class Machine {
         bool write(uint32_t address,unsigned bytes,uint32_t value) override { return machine.write(arm9,address,bytes,value); }
     } bus9,bus7;
 public:
-    Machine():bus9(*this,true),bus7(*this,false),cpu9(bus9,true),cpu7(bus7,false),main(0x400000),shared(0x8000),private7(0x10000) {}
+    explicit Machine(bool enhanced=false):bus9(*this,true),bus7(*this,false),cpu9(bus9,true),cpu7(bus7,false),main(enhanced?0x1000000:0x400000),shared(0x8000),private7(0x10000),dsi(enhanced) {}
     bool load(const uint8_t* data,size_t size);
     void reset();
     void frame();
@@ -25,9 +25,12 @@ public:
     emu::ITestSink* sink=nullptr;
     uint32_t crc=0;
     uint64_t identity=0,frames=0;
+    const bool dsi;
+    uint32_t scfg9=0x80008000,scfg7=0x80008000; // Supplied post-boot RAM/SCFG access subset.
     uint8_t wramcnt=3,done=0;
     uint16_t keys=0; // Pressed buttons in DS KEYINPUT/X/Y order, latched per frame.
 private:
+    bool configuration(bool arm9,uint32_t address,unsigned bytes,uint32_t& value,bool write);
     uint8_t* byte(bool arm9,uint32_t address);
 };
 }

@@ -291,5 +291,7 @@ reaches the keypad registers; touchscreen and lid input remain pending.
 Dual-screen presentation, physical controllers/touchscreen, DS wireless multiplayer,
 Windows/macOS builds and physical-hardware comparison remain unverified or
 unimplemented. Other cores retain their existing controller/network behavior.
-DSi enhanced mode requires additional CPU, RAM, boot/security and peripheral
-work and remains a separate missing platform capability.
+DSi has a separate [experimental plugin](../dsi/README.md) using this ARM
+interpreter with expanded RAM and memory-size controls. Its firmware/retail
+boot and remaining enhanced hardware are still pending. This DS plugin
+continues to reject DSi unit codes and profile images.

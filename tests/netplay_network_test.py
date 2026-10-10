@@ -116,7 +116,7 @@ def main():
         reference = (args.artifacts / "baseline.state").read_bytes()
         require(reference == (args.artifacts / "network-host.state").read_bytes() ==
                 (args.artifacts / "network-client.state").read_bytes(), "independent TCP peers diverged")
-        if args.console=="nds":
+        if args.console in ("nds","dsi"):
             # Original probe: eight setup attempts then fixed seven/nine-attempt
             # loops. Derive each published sum from the load's frame, not the
             # store's frame, including transfers crossing frame boundaries.
@@ -145,9 +145,9 @@ def main():
                   "state_size": len(reference)}
         if args.netplay_plugin:
             report["production_netplay_plugin"] = True
-            if args.console=="nds": report.update(controller_mode="one host-owned DS keypad, joining viewer",guest_register_words=8,guest_registers_match_independent_oracle=True,wireless_link_emulation=False)
-            if args.console=="nds": report["frontend_contract"]="fresh core after different prior histories; poll while paused; host owns keypad; viewer predicts/replays; disconnect on core replacement"
-            if args.console!="nds": report["frontend_contract"] = "fresh core after different prior histories; poll while paused; own one live frame; suppress replay audio; disconnect on core replacement"
+            if args.console in ("nds","dsi"): report.update(controller_mode=f"one host-owned {args.console.upper()} keypad, joining viewer",guest_register_words=8,guest_registers_match_independent_oracle=True,wireless_link_emulation=False)
+            if args.console in ("nds","dsi"): report["frontend_contract"]="fresh core after different prior histories; poll while paused; host owns keypad; viewer predicts/replays; disconnect on core replacement"
+            if args.console not in ("nds","dsi"): report["frontend_contract"] = "fresh core after different prior histories; poll while paused; own one live frame; suppress replay audio; disconnect on core replacement"
         (args.artifacts / "network.json").write_text(json.dumps(report, indent=2) + "\n")
         print(f"Network rollback: two independent TCP peers match complete {args.console} baseline; ROM mismatch rejected")
 
