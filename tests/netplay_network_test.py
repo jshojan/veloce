@@ -22,6 +22,7 @@ def main():
     parser.add_argument("core", type=Path)
     parser.add_argument("rom", type=Path)
     parser.add_argument("artifacts", type=Path)
+    parser.add_argument("--netplay-plugin", type=Path)
     args = parser.parse_args()
     args.artifacts.mkdir(parents=True, exist_ok=True)
     env = os.environ.copy()
@@ -29,14 +30,18 @@ def main():
         env.pop(key, None)
 
     def command(role, output, port_file, port=0, mismatch=False):
-        return [str(args.peer.resolve()), role, str(args.core.resolve()), str(args.rom.resolve()),
+        argv = [str(args.peer.resolve()), role, str(args.core.resolve()), str(args.rom.resolve()),
                 str(output.resolve()), str(port_file.resolve()), str(port), str(int(mismatch))]
+        if args.netplay_plugin:
+            argv.append(str(args.netplay_plugin.resolve()))
+        return argv
 
     with tempfile.TemporaryDirectory(prefix="veloce-network-") as temporary:
         port_file = Path(temporary) / "port"
         baseline = subprocess.run(command("baseline", args.artifacts / "baseline", port_file), env=env,
                                   capture_output=True, text=True, timeout=30)
         require(baseline.returncode == 0, baseline.stdout + baseline.stderr)
+        (args.artifacts / "baseline.log").write_text(baseline.stdout + baseline.stderr)
         for name, packet, expected in (
                 ("zero-length", struct.pack("!I", 0), "invalid message length"),
                 ("oversized", struct.pack("!I", 65), "invalid message length"),
@@ -115,6 +120,9 @@ def main():
                   "full_states_equal": True, "rom_mismatch_rejected": True,
                   "fragmented_invalid_frames_rejected": ["zero-length", "oversized", "unknown-type", "truncated"],
                   "state_size": len(reference)}
+        if args.netplay_plugin:
+            report["production_netplay_plugin"] = True
+            report["frontend_contract"] = "fresh core after different prior histories; poll while paused; own one live frame; suppress replay audio; disconnect on core replacement"
         (args.artifacts / "network.json").write_text(json.dumps(report, indent=2) + "\n")
         print("Network rollback: two independent TCP peers match complete NES baseline; ROM mismatch rejected")
 

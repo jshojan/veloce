@@ -75,8 +75,19 @@ oversized, unknown-type, and truncated messages. Reports, guest registers,
 logs, and states remain in `build/artifacts/network/`. Build `netplay_network_peer`
 and run the same netplay label. Local socket permission is required.
 
-The lobby still simulates connections; frontend integration of the transport
-and rollback modules remains. These tests do not establish working online play.
+`netplay_plugin_test` repeats those checks through the production netplay shared
+plugin with an actual NES plugin in each process. Its host fixture uses the same
+frontend contract: poll while paused, let the plugin own one live frame, and
+gate streaming audio using `is_rolling_back()`. It verifies real connection
+callbacks only after handshake, byte-identical final states, replay audio, and
+disconnect/pause when the core pointer or frame changes. Before connecting, the
+host runs 17 frames and the client runs 31; preparing a fresh core removes those
+different histories. The application uses the same fresh-core preparation while
+preserving the selected core and normal battery-save handling. Artifacts are saved in
+`build/artifacts/netplay-plugin/`; build `netplay_plugin_peer` and use the netplay
+label. The application now wires this contract into its GUI frame loop. These
+tests do not exercise physical two-machine play, the rendered GUI, or Internet
+latency/loss behavior.
 
 ## Testing philosophy
 

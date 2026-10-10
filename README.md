@@ -157,10 +157,19 @@ A nonblocking IPv4 TCP transport validates ROM/core/build/start-state agreement.
 Two independent processes over loopback TCP also match the full baseline state;
 ROM mismatches and four malformed-message cases are rejected.
 
-The default lobby still simulates connections and does not use this module.
-Frontend wiring/audio gating,
-desync recovery, and live two-machine verification remain. Internet multiplayer
-is not ready.
+The default plugin now uses both modules in the frontend. Load the same ROM in
+both apps, choose **Netplay → Host Game** on one and **Join Game** on the other,
+and enter the host's IPv4 address/TCP port. Both cores reload and pause until the
+handshake matches; play then starts automatically. The frontend polls while
+paused, runs one live frame through the plugin, and suppresses replay audio.
+Reset, ROM/core replacement, and savestate loads disconnect and pause the session.
+
+The production shared plugin passes the same two-process comparison, mismatch,
+and malformed-message tests, plus replay-audio and core/frame-change checks;
+results are saved under `build/artifacts/netplay-plugin/`. Netplay ABI is now v2;
+rebuild external netplay plugins. Relay/session codes, chat, spectators, input
+delay scheduling, reconnects, desync recovery, Windows and real two-machine
+verification remain. Internet multiplayer is not validated.
 
 ### Controller connection and bindings
 
@@ -315,7 +324,7 @@ subset, not whole-core completion.
 | Original corpus | Measured coverage | Result artifacts |
 |---|---|---|
 | [NES ADC/SBC](tests/roms-src/nes/alu_exhaustive/README.md) | 524,288/524,288 A/P observations matched (100% of all 8-bit operand pairs and C/D states, zero-page addressing) | `build/artifacts/owned/nes_alu/` |
-| [NES rollback controller probe](tests/roms-src/nes/netplay_probe/README.md) | Two delayed 100-frame sessions match the full baseline state; guest counters recorded; hardware timing unverified | `build/artifacts/rollback/` |
+| [NES rollback controller probe](tests/roms-src/nes/netplay_probe/README.md) | Execution, TCP transport, and production-plugin 100-frame checks match complete baseline states; guest counters recorded; hardware timing unverified | `build/artifacts/rollback/`, `build/artifacts/network/`, `build/artifacts/netplay-plugin/` |
 | [GB CPU/WRAM probe](tests/roms-src/gb/register_probe/README.md) | 2/2 checks passed; injected wrong WRAM value fails | `build/artifacts/owned/gb_register_probe/` |
 | [SNES math registers](tests/roms-src/snes/math_registers/README.md) | 65,536/65,536 multiplication pairs and 3,328 division boundary cases matched; settled results only | `build/artifacts/owned/snes_math/` |
 | [GBA ARM register shifts](tests/roms-src/gba/arm_shifts/README.md) | 65,536/65,536 result/CPSR pairs matched; all low-byte amounts and C/V inputs, 16 selected operands | `build/artifacts/owned/gba_shifts/` |

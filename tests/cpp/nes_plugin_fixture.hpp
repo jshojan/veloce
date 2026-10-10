@@ -27,6 +27,14 @@ struct LoadedCore {
         require(plugin && plugin->load_rom(rom.data(), rom.size()), "original controller ROM did not load");
     }
     ~LoadedCore() { if (plugin && destroy) destroy(plugin); if (handle) SDL_UnloadObject(handle); }
+    void fresh_load(const std::vector<uint8_t>& rom) {
+        if (plugin) destroy(plugin);
+        plugin = nullptr;
+        auto create = reinterpret_cast<emu::IEmulatorPlugin* (*)()>(SDL_LoadFunction(handle, "create_emulator_plugin"));
+        require(create, "core factory missing during reload");
+        plugin = create();
+        require(plugin && plugin->load_rom(rom.data(), rom.size()), "fresh original ROM load failed");
+    }
     emu::INetplayCapable& netplay() {
         auto* core = dynamic_cast<emu::INetplayCapable*>(plugin);
         require(core != nullptr, "NES plugin lacks netplay interface");

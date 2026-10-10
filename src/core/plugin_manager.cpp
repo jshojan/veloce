@@ -10,6 +10,24 @@ namespace emu {
 
 namespace fs = std::filesystem;
 
+static uint64_t hash_bytes(const uint8_t* data, size_t size) {
+    uint64_t hash = 0xcbf29ce484222325ULL;
+    for (size_t i = 0; i < size; ++i) hash = (hash ^ data[i]) * 0x100000001b3ULL;
+    return hash;
+}
+
+uint64_t PluginManager::get_core_build_hash() const {
+    if (!m_active.emulator_handle) return 0;
+    std::ifstream file(m_active.emulator_handle->path, std::ios::binary);
+    if (!file) return 0;
+    uint64_t hash = 0xcbf29ce484222325ULL;
+    char buffer[4096];
+    while (file.read(buffer, sizeof(buffer)) || file.gcount())
+        for (std::streamsize i = 0; i < file.gcount(); ++i)
+            hash = (hash ^ static_cast<uint8_t>(buffer[i])) * 0x100000001b3ULL;
+    return file.bad() ? 0 : hash;
+}
+
 // ============================================================
 // GamePluginHost implementation
 // ============================================================
@@ -1024,10 +1042,13 @@ bool PluginManager::load_rom(const uint8_t* data, size_t size) {
         return false;
     }
 
+    if (m_active.netplay) m_active.netplay->disconnect();
+    m_full_rom_hash = 0;
     bool result = m_active.emulator->load_rom(data, size);
 
     // If ROM loaded successfully, try to activate a game plugin for it
     if (result) {
+        m_full_rom_hash = hash_bytes(data, size);
         // From here on the Core Configuration window edits this instance, so
         // its config is the one to persist when it is deactivated (shared-11).
         m_active_emulator_config_authoritative = true;
@@ -1046,6 +1067,8 @@ bool PluginManager::load_rom(const uint8_t* data, size_t size) {
 }
 
 void PluginManager::unload_rom() {
+    if (m_active.netplay) m_active.netplay->disconnect();
+    m_full_rom_hash = 0;
     // Save battery-backed data before unloading
     save_battery_save();
 

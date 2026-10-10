@@ -1,5 +1,5 @@
 # Default Netplay Plugin
-# Lobby/UI plus independently tested transport and rollback modules
+# Direct multiplayer UI, transport, and rollback execution
 
 add_library(netplay_transport STATIC src/peer_connection.cpp)
 set_target_properties(netplay_transport PROPERTIES POSITION_INDEPENDENT_CODE ON)
@@ -11,7 +11,6 @@ endif()
 
 add_library(netplay_default SHARED
     src/default_netplay_plugin.cpp
-    src/netplay_input_manager.cpp
     src/rollback_session.cpp
 )
 

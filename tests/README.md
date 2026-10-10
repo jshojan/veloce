@@ -24,7 +24,12 @@ behavior. `netplay_network_test` runs two independent NES processes over
 loopback TCP, verifies identical complete states, rejects ROM mismatch and four
 fragmented malformed-message cases, and saves observations/reports/logs under
 `build/artifacts/network/`. Build `netplay_network_peer`; local socket permission
-is required. Lobby integration and live two-machine verification remain pending.
+is required. `netplay_plugin_test` repeats the network checks using the production
+netplay shared plugin and the frontend's owned-frame/audio contract, adding
+core/frame mutation checks. Build `netplay_plugin_peer`; reports and states are
+retained under `build/artifacts/netplay-plugin/`. The application wires this
+contract into its frame loop; rendered GUI and live two-machine verification
+remain pending.
 
 > **Ownership rule.** Console agents own ONLY `cores/<c>/tests/test_config.json`
 > (and a ~10-line runner shim). They do **not** edit `veloce_testkit/` or the

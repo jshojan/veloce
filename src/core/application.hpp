@@ -40,7 +40,7 @@ public:
     void shutdown();
 
     // Load a ROM file
-    bool load_rom(const std::string& path);
+    bool load_rom(const std::string& path, bool preserve_selected_core = false);
 
     // Accessors for subsystems
     WindowManager& get_window_manager() { return *m_window_manager; }
@@ -99,6 +99,10 @@ public:
     const char* get_rom_name() const override;
     uint32_t get_rom_crc32() const override;
     const char* get_platform_name() const override;
+    INetplayCapable* get_netplay_core() const override { return get_netplay_capable_emulator(); }
+    uint64_t get_full_rom_hash() const override;
+    uint64_t get_core_build_hash() const override;
+    bool prepare_netplay() override;
 
     bool save_state_to_buffer(std::vector<uint8_t>& buffer) override;
     bool load_state_from_buffer(const std::vector<uint8_t>& buffer) override;

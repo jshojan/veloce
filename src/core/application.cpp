@@ -391,6 +391,7 @@ void Application::run() {
 
         // Update input
         m_input_manager->update();
+        if (auto* netplay = m_plugin_manager->get_netplay_plugin()) netplay->poll_network();
 
         // Update target FPS from active plugin (may change when loading different ROMs)
         auto* active_plugin = m_plugin_manager->get_active_plugin();
@@ -664,42 +665,49 @@ void Application::run_emulation_frame() {
     if (!plugin || !plugin->is_rom_loaded()) {
         return;
     }
+    // A manually resumed app must still freeze the core during handshake.
+    auto* session = m_plugin_manager->get_netplay_plugin();
+    if (session && session->owns_frame_execution() &&
+        session->get_connection_state() == NetplayConnectionState::Connecting) return;
 
-    // Fast path: check cached netplay active status first
-    // This avoids expensive is_connected() call which does plugin lookup + virtual calls
+    // Cached connection status is updated by session callbacks.
     bool netplay_active = m_netplay_active_cached;
 
     if (netplay_active) {
         auto* netplay = m_plugin_manager->get_netplay_plugin();
         if (netplay) {
-            // Netplay mode: use synchronized input
-            if (!netplay->begin_frame()) {
-                // Waiting for network sync, skip this frame
-                return;
-            }
-
-            // Get synchronized inputs for all players using pre-allocated buffer
-            uint64_t frame = plugin->get_frame_count();
-            netplay->get_synchronized_inputs_fast(m_netplay_inputs_buffer, frame);
-
-            // Check if emulator supports netplay multi-player input
-            // Cache this check - it doesn't change during gameplay
-            if (m_netplay_capable_plugin) {
-                // Use N-player method for flexible player count support
-                m_netplay_capable_plugin->run_frame_netplay_n(m_netplay_inputs_buffer);
+            if (netplay->owns_frame_execution()) {
+                if (!netplay->execute_frame(m_input_manager->get_button_state())) return;
             } else {
-                // Fallback: use local player input only
-                InputState input;
-                int local_id = netplay->get_local_player_id();
-                input.buttons = (local_id >= 0 && local_id < static_cast<int>(m_netplay_inputs_buffer.size()))
-                              ? m_netplay_inputs_buffer[local_id] : 0;
-                plugin->run_frame(input);
-            }
+                // Netplay mode: use synchronized input
+                if (!netplay->begin_frame()) {
+                    // Waiting for network sync, skip this frame
+                    return;
+                }
 
-            netplay->end_frame();
+                // Get synchronized inputs for all players using pre-allocated buffer
+                uint64_t frame = plugin->get_frame_count();
+                netplay->get_synchronized_inputs_fast(m_netplay_inputs_buffer, frame);
+
+                // Check if emulator supports netplay multi-player input
+                // Cache this check - it doesn't change during gameplay
+                if (m_netplay_capable_plugin) {
+                    // Use N-player method for flexible player count support
+                    m_netplay_capable_plugin->run_frame_netplay_n(m_netplay_inputs_buffer);
+                } else {
+                    // Fallback: use local player input only
+                    InputState input;
+                    int local_id = netplay->get_local_player_id();
+                    input.buttons = (local_id >= 0 && local_id < static_cast<int>(m_netplay_inputs_buffer.size()))
+                                  ? m_netplay_inputs_buffer[local_id] : 0;
+                    plugin->run_frame(input);
+                }
+
+                netplay->end_frame();
+            }
         }
     } else {
-        // Normal single-player mode - zero netplay overhead
+        // Normal single-player execution
         InputState input;
         input.buttons = m_input_manager->get_button_state();
         plugin->run_frame(input);
@@ -750,7 +758,7 @@ void Application::render() {
     m_window_manager->swap_buffers();
 }
 
-bool Application::load_rom(const std::string& path) {
+bool Application::load_rom(const std::string& path, bool preserve_selected_core) {
     std::cout << "Loading ROM: " << path << std::endl;
 
     // A test session belongs to the ROM it was opened for. Loading another ROM
@@ -761,7 +769,10 @@ bool Application::load_rom(const std::string& path) {
     }
 
     // Find appropriate plugin for this file type
-    if (!m_plugin_manager->set_active_plugin_for_file(path)) {
+    const bool activated = preserve_selected_core
+        ? m_plugin_manager->set_active_plugin(m_plugin_manager->get_selected_plugin_name(PluginType::Emulator))
+        : m_plugin_manager->set_active_plugin_for_file(path);
+    if (!activated) {
         std::cerr << "No plugin found for file: " << path << std::endl;
         return false;
     }
@@ -835,17 +846,18 @@ bool Application::load_rom(const std::string& path) {
 
 void Application::pause() {
     m_paused = true;
-    m_audio_manager->pause();
+    if (m_audio_manager) m_audio_manager->pause();
     m_plugin_manager->set_paused(true);
 }
 
 void Application::resume() {
     m_paused = false;
-    m_audio_manager->resume();
+    if (m_audio_manager) m_audio_manager->resume();
     m_plugin_manager->set_paused(false);
 }
 
 void Application::reset() {
+    if (auto* netplay = m_plugin_manager->get_netplay_plugin()) netplay->disconnect();
     auto* plugin = m_plugin_manager->get_active_plugin();
     if (plugin && plugin->is_rom_loaded()) {
         plugin->reset();
@@ -948,6 +960,22 @@ uint32_t Application::get_rom_crc32() const {
     return emulator ? emulator->get_rom_crc32() : 0;
 }
 
+uint64_t Application::get_full_rom_hash() const {
+    return m_plugin_manager ? m_plugin_manager->get_full_rom_hash() : 0;
+}
+uint64_t Application::get_core_build_hash() const {
+    return m_plugin_manager ? m_plugin_manager->get_core_build_hash() : 0;
+}
+
+bool Application::prepare_netplay() {
+    if (!m_plugin_manager) return false;
+    const auto path = m_plugin_manager->get_current_rom_path();
+    if (path.empty()) return false;
+    const bool loaded = load_rom(path, true);
+    pause();
+    return loaded;
+}
+
 const char* Application::get_platform_name() const {
     if (!m_plugin_manager) {
         m_cached_platform_name = "";
@@ -987,6 +1015,8 @@ bool Application::load_state_from_buffer(const std::vector<uint8_t>& buffer) {
     if (!m_plugin_manager) return false;
     auto* emulator = m_plugin_manager->get_emulator_plugin();
     if (!emulator) return false;
+    if (auto* netplay = m_plugin_manager->get_netplay_plugin(); netplay && !netplay->is_rolling_back())
+        netplay->disconnect();
 
     // Try fast path first if emulator supports it
     auto* netplay_capable = get_netplay_capable_emulator();

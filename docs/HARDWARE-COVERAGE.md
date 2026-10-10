@@ -77,10 +77,16 @@ guest registers, logs, and states are saved under `build/artifacts/network/`.
 This establishes the tested local transport/replay scenarios, not whole-core
 accuracy or Internet play.
 
-The default lobby still simulates connections and game broadcasts and does not
-use the modules. Frontend wiring
-and audio gating, reconnects, desync detection/recovery, and real two-machine
-verification remain. No live multiplayer is verified.
+The default plugin now uses both modules for direct IPv4 play. The frontend
+polls while paused, lets the plugin own each live frame, and gates replay audio.
+An additional two-process production-plugin test verifies complete state
+equality, mismatch/malformed-message rejection, replay audio, and pause/disconnect
+on a replaced core or externally advanced frame. Its register observations and
+states are retained under `build/artifacts/netplay-plugin/`. Reset, ROM/core
+replacement, and savestate loads disconnect before mutating the live core.
+Rendered GUI operation, reconnects, desync detection/recovery, Windows, Internet
+conditions, and physical two-machine play remain unverified. Relay, chat,
+session codes, spectators, and input delay scheduling are not implemented.
 Other core families need complete deterministic state and appropriate
 multiplayer/link behavior before their netplay can be claimed as verified.
 

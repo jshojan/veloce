@@ -178,7 +178,9 @@ bool SavestateManager::load_state(int slot) {
         return false;
     }
 
+    // External state loads invalidate speculative frame history.
     // Load the state
+    if (auto* netplay = m_plugin_manager->get_netplay_plugin()) netplay->disconnect();
     if (!plugin->load_state(data.value())) {
         std::cerr << "Failed to deserialize emulator state" << std::endl;
         return false;
@@ -312,6 +314,7 @@ bool SavestateManager::load_state_from_file(const std::string& path) {
     }
 
     // Load the state
+    if (auto* netplay = m_plugin_manager->get_netplay_plugin()) netplay->disconnect();
     if (!plugin->load_state(data.value())) {
         std::cerr << "Failed to deserialize emulator state" << std::endl;
         return false;
