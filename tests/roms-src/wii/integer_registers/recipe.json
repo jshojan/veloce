@@ -1,0 +1,1 @@
+{"source_type": "original", "console": "wii", "suite": "integer_registers", "build": {"script": "build.py", "artifact": "integer_registers.vwi"}, "license": "MIT"}

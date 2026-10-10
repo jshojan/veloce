@@ -4,6 +4,8 @@
 #include <array>
 #include <vector>
 
+namespace emu { struct ITestSink; }
+
 namespace nes {
 
 class CPU;
@@ -108,6 +110,7 @@ public:
 
     // Test ROM support - check and print test output from $6000+
     void check_test_output();
+    void set_test_sink(emu::ITestSink* sink) { m_test_sink = sink; }
 
 private:
     // Components
@@ -139,6 +142,7 @@ private:
 
     // CPU cycle counter
     uint64_t m_cpu_cycles = 0;
+    emu::ITestSink* m_test_sink = nullptr;  // Application-owned, excluded from save states
 };
 
 } // namespace nes

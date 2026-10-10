@@ -1,0 +1,4 @@
+{
+  "source_type": "original", "console": "vb", "suite": "integer_registers",
+  "build": {"script": "build.py", "artifact": "integer_registers.vb"}, "license": "MIT"
+}

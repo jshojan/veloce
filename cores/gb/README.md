@@ -124,7 +124,8 @@ cmake --build build
 For the testing methodology and the platform-wide picture see the top-level
 [TESTING.md](../../TESTING.md) and [COMPLETENESS.md](../../COMPLETENESS.md).
 
-**Verified accuracy:** the **Blargg serial subset only**. The catalog is large
+**Verified accuracy:** the Blargg serial subset and the repository-owned
+two-check CPU/WRAM register probe. The external ROM catalog is large
 (225 tests / 31 suites) but the large Mooneye / SameSuite / Wilbertpol half
 cannot yet be scored (detection gap, below), so the published number reflects
 the verified serial subset and the rest is reported as unverified. Verified:
@@ -132,6 +133,24 @@ Blargg `cpu_instrs` 10/11 PASS (`02-interrupts` known_fail), `instr_timing` PASS
 `mem_timing` 3/3 PASS. The previous "111/111, 100%" claim was not reproducible
 and has been retired. Full justification is in
 [COMPLETENESS.md](../../COMPLETENESS.md#game-boy).
+
+The original [register probe](../../tests/roms-src/gb/register_probe/build.py)
+is built from Python source and checked into the repository. It sends actual
+WRAM and ALU observations through SB/SC and records `REG`, `CHECK`, and `END`
+in `VELOCE_TEST_OUT`. Its runtime test rebuilds the ROM, checks both passing
+observations, and injects a wrong WRAM stimulus to prove the result changes to
+FAIL. Run `python3 tests/roms-src/gb/register_probe/test_probe.py build/bin/veloce`.
+This checks two behaviors; it does not validate all SM83 instructions or timing.
+
+The original [byte ALU corpus](../../tests/roms-src/gb/alu_exhaustive/README.md)
+checks 8,388,608 A/F pairs for eight E-register binary operations, all operand
+pairs and flags. The [unary corpus](../../tests/roms-src/gb/unary_exhaustive/README.md)
+checks 73,728 A/F pairs for 18 accumulator operations, all bytes and flags,
+including DAA and rotates/shifts. Both measured 100% of their declared domains
+with independent host oracles and executed failure controls. They emit actual
+registers into files through the SB/SC debug start hook; they do not validate
+physical serial timing, retail boot, other operand locations, or full hardware
+completion. Run their `gb_alu_exhaustive` and `gb_unary_exhaustive` CTest gates.
 
 ### Test Suite
 
@@ -171,6 +190,7 @@ cd cores/gb/tests
 | Method | Suites | Status |
 |--------|--------|--------|
 | `serial` (ASCII "Passed"/"Failed") | Blargg cpu_instrs, instr_timing, mem_timing | Works (verified) |
+| `file` (SB/SC register stream) | Original register probe | 2/2 checks verified, including injected failure |
 | `serial` (Mooneye Fibonacci reg + LD B,B) | All Mooneye, SameSuite, Wilbertpol | **Not yet detected** -- see below |
 | `screenshot-crc` (CRC32 of framebuffer PNG) | Mealybug, acid2, Blargg-sound, halt_bug, interrupt_time, mem_timing-2 | Pipeline works; `reference_hash` values not yet populated |
 

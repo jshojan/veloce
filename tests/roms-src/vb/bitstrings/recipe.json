@@ -1,0 +1,4 @@
+{
+  "source_type": "original", "console": "vb", "suite": "bitstrings",
+  "build": {"script": "build.py", "artifact": "bitstrings.vb"}, "license": "MIT"
+}

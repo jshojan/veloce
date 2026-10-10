@@ -3,6 +3,7 @@
 #include "ppu.hpp"
 #include "apu.hpp"
 #include "cartridge.hpp"
+#include "emu/emulator_plugin.hpp"
 #include <cstring>
 
 namespace gb {
@@ -279,6 +280,10 @@ void Bus::write_io(uint16_t address, uint8_t value) {
             if (value == 0x81) {
                 // Blargg test ROMs use internal clock (bit 0 = 1) with transfer start (bit 7 = 1)
                 // to output characters via serial. Capture the byte for test detection.
+                if (m_test_sink) {
+                    const char byte = static_cast<char>(m_sb);
+                    m_test_sink->write(&byte, 1);
+                }
                 if (m_sb >= 0x20 && m_sb < 0x7F) {
                     m_serial_output += static_cast<char>(m_sb);
                 } else if (m_sb == '\n') {

@@ -246,6 +246,9 @@ public:
     uint32_t get_active_emulator_api_version() const {
         return m_active.emulator_handle ? m_active.emulator_handle->metadata.api_version : 0;
     }
+    uint64_t get_full_rom_hash() const { return m_full_rom_hash; }
+    std::string get_current_rom_path() const { return m_current_rom_path; }
+    uint64_t get_core_build_hash() const;
     bool set_active_plugin(const std::string& name);
     bool set_active_plugin_for_file(const std::string& filepath);
 
@@ -327,6 +330,7 @@ private:
 
     // Current ROM path for save file support
     std::string m_current_rom_path;
+    uint64_t m_full_rom_hash = 0;
 
     // Paths configuration for save directories
     PathsConfiguration* m_paths_config = nullptr;

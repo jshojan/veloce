@@ -1,0 +1,7 @@
+{
+  "source_type": "original",
+  "console": "snes",
+  "suite": "math_registers",
+  "license": "MIT",
+  "build": { "script": "build.py", "artifact": "math_registers.sfc" }
+}

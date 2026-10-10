@@ -5,7 +5,9 @@
 #include "dma.hpp"
 #include "cartridge.hpp"
 #include "debug.hpp"
+#include "emu/emulator_plugin.hpp"
 #include <cstring>
+#include <stdexcept>
 
 namespace snes {
 
@@ -128,6 +130,10 @@ uint8_t Bus::read(uint32_t address) {
 
     // Banks $00-$3F and $80-$BF (mirrors)
     if (bank <= 0x3F || (bank >= 0x80 && bank <= 0xBF)) {
+        if (m_test_sink && offset == 0x21FF) {
+            m_open_bus = 0x56;
+            return m_open_bus;
+        }
         if (offset < 0x2000) {
             // WRAM mirror (first 8KB)
             m_open_bus = m_wram[offset];
@@ -237,6 +243,16 @@ void Bus::write(uint32_t address, uint8_t value) {
 
     // Banks $00-$3F and $80-$BF
     if (bank <= 0x3F || (bank >= 0x80 && bank <= 0xBF)) {
+        if (m_test_sink && offset == 0x21FE) {
+            const char byte = static_cast<char>(value);
+            m_test_sink->write(&byte, 1);
+            return;
+        }
+        if (m_test_sink && offset == 0x21FF) {
+            // Completion alone is not a correctness verdict.
+            if (value == 1) m_test_sink->finish(-1);
+            return;
+        }
         if (offset < 0x2000) {
             // WRAM mirror
             // Debug: Log writes to $1B00-$1BFF range
@@ -669,8 +685,13 @@ void Bus::write_cpu_io(uint16_t address, uint8_t value) {
             break;
 
         case 0x4203:  // WRMPYB - Multiplication operand B (triggers multiply)
+            m_rdmpy = 0; // Busy triggers still reset the shared accumulator.
+            if (m_math_remaining) break;
             m_wrmpyb = value;
-            m_rdmpy = m_wrmpya * m_wrmpyb;
+            m_rddiv = (value << 8) | m_wrmpya;
+            m_math_shift = value;
+            m_math_dividing = false;
+            m_math_remaining = 8;
             break;
 
         case 0x4204:  // WRDIVL - Division dividend (low)
@@ -682,14 +703,12 @@ void Bus::write_cpu_io(uint16_t address, uint8_t value) {
             break;
 
         case 0x4206:  // WRDIVB - Division divisor (triggers divide)
+            m_rdmpy = m_wrdiv;
+            if (m_math_remaining) break;
             m_wrdivb = value;
-            if (m_wrdivb != 0) {
-                m_rddiv = m_wrdiv / m_wrdivb;
-                m_rdmpy = m_wrdiv % m_wrdivb;
-            } else {
-                m_rddiv = 0xFFFF;
-                m_rdmpy = m_wrdiv;
-            }
+            m_math_shift = static_cast<uint32_t>(value) << 16;
+            m_math_dividing = true;
+            m_math_remaining = 16;
             break;
 
         case 0x4207:  // HTIMEL - H-counter IRQ time (low)
@@ -949,6 +968,23 @@ void Bus::add_cycles(int master_cycles) {
     }
 }
 
+void Bus::clock_math() {
+    if (!m_math_remaining) return;
+    --m_math_remaining;
+    if (!m_math_dividing) {
+        if (m_rddiv & 1) m_rdmpy = static_cast<uint16_t>(m_rdmpy + m_math_shift);
+        m_rddiv >>= 1;
+        m_math_shift <<= 1;
+    } else {
+        m_math_shift >>= 1;
+        m_rddiv = static_cast<uint16_t>(m_rddiv * 2);
+        if (m_rdmpy >= m_math_shift) {
+            m_rdmpy = static_cast<uint16_t>(m_rdmpy - m_math_shift);
+            m_rddiv |= 1;
+        }
+    }
+}
+
 void Bus::poll_nmi() {
     // Reference: bsnes irq.cpp nmiPoll()
     //
@@ -1121,6 +1157,14 @@ void Bus::save_state(std::vector<uint8_t>& data) {
     data.push_back((m_rddiv >> 8) & 0xFF);
     data.push_back(m_rdmpy & 0xFF);
     data.push_back((m_rdmpy >> 8) & 0xFF);
+    data.push_back(m_wrmpya);
+    data.push_back(m_wrmpyb);
+    data.push_back(m_wrdiv & 0xFF);
+    data.push_back(m_wrdiv >> 8);
+    data.push_back(m_wrdivb);
+    data.push_back(m_math_dividing ? 1 : 0);
+    data.push_back(m_math_remaining);
+    for (unsigned byte = 0; byte < 4; ++byte) data.push_back(m_math_shift >> (byte * 8));
 
     // Save NMI/IRQ state
     data.push_back(m_nmi_pending ? 1 : 0);
@@ -1157,6 +1201,8 @@ void Bus::save_state(std::vector<uint8_t>& data) {
 }
 
 void Bus::load_state(const uint8_t*& data, size_t& remaining) {
+    constexpr size_t serialized_size = 0x20000 + 9 + 4 + 11 + 12 + 8 + 5 + 3;
+    if (remaining < serialized_size) throw std::runtime_error("truncated SNES bus state");
     // Load WRAM
     std::memcpy(m_wram.data(), data, m_wram.size());
     data += m_wram.size(); remaining -= m_wram.size();
@@ -1182,6 +1228,17 @@ void Bus::load_state(const uint8_t*& data, size_t& remaining) {
     data += 2; remaining -= 2;
     m_rdmpy = data[0] | (data[1] << 8);
     data += 2; remaining -= 2;
+    m_wrmpya = *data++; m_wrmpyb = *data++;
+    m_wrdiv = data[0] | (data[1] << 8); data += 2;
+    m_wrdivb = *data++;
+    const auto dividing = *data++;
+    m_math_remaining = *data++;
+    if (dividing > 1 || m_math_remaining > (dividing ? 16 : 8))
+        throw std::runtime_error("invalid SNES pending math state");
+    m_math_dividing = dividing != 0;
+    m_math_shift = 0;
+    for (unsigned byte = 0; byte < 4; ++byte) m_math_shift |= static_cast<uint32_t>(*data++) << (byte * 8);
+    remaining -= 11;
 
     // Load NMI/IRQ state
     m_nmi_pending = (*data++ != 0); remaining--;

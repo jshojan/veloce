@@ -1,9 +1,35 @@
 # Veloce Unified Test & Accuracy Framework
 
 This directory is the **shared, cross-console** test + accuracy-measurement
-framework. The four per-console agents (NES, SNES, GB, GBA) build on it. It is
+framework. The NES, SNES, GB, GBA and experimental N64 cores build on it. It is
 the single source of truth for the config schema, result-detection protocols,
 and the completeness-scoring methodology.
+
+Repository-owned ROMs live in `roms-src/gb/register_probe/`, `roms-src/gb/alu_exhaustive/`, `roms-src/gb/unary_exhaustive/`, and
+`roms-src/nes/alu_exhaustive/`, `roms-src/nes/netplay_probe/`,
+`roms-src/snes/math_registers/`, `roms-src/snes/math_timing/`, and
+`roms-src/gba/arm_shifts/` and `roms-src/n64/integer_registers/`, `roms-src/n64/muldiv64/`, `roms-src/n64/merge_memory/`. Verify their binaries and source ledger with
+`python3 tests/roms-src/build.py --original-only --check`; execute them with
+`ctest --test-dir build -L owned --output-on-failure`. The NES, GB ALU/unary, SNES, GBA and N64 runners grade raw
+register observations using independent host oracles. The GB probe uses the
+shared file detector on ROM-emitted checks. All include failure controls and
+retain register files under `build/artifacts/owned/`. Their exact domain coverage
+is documented in [HARDWARE-COVERAGE.md](../docs/HARDWARE-COVERAGE.md).
+
+The separate C++ `netplay_rollback_test` runs the controller probe through the
+actual NES plugin and checks two delayed sessions against an ordinary 100-frame
+baseline, including full serialized state equality. It records guest registers
+and states under `build/artifacts/rollback/`. This measures execution/replay
+behavior. `netplay_network_test` runs two independent NES processes over
+loopback TCP, verifies identical complete states, rejects ROM mismatch and four
+fragmented malformed-message cases, and saves observations/reports/logs under
+`build/artifacts/network/`. Build `netplay_network_peer`; local socket permission
+is required. `netplay_plugin_test` repeats the network checks using the production
+netplay shared plugin and the frontend's owned-frame/audio contract, adding
+core/frame mutation checks. Build `netplay_plugin_peer`; reports and states are
+retained under `build/artifacts/netplay-plugin/`. The application wires this
+contract into its frame loop; rendered GUI and live two-machine verification
+remain pending.
 
 > **Ownership rule.** Console agents own ONLY `cores/<c>/tests/test_config.json`
 > (and a ~10-line runner shim). They do **not** edit `veloce_testkit/` or the
@@ -19,7 +45,7 @@ tests/
     runner.py            reference per-console CLI (run_console_main)
     selftest.py          pure-logic unit test (no ROMs/emulator)
   run_all.py             root orchestrator: all cores -> aggregate scorecard
-  validate_configs.py    CI schema validation of every test_config.json
+  validate_configs.py    Local schema validation of every test_config.json
   CMakeLists.txt         CTest registration (fast gates + accuracy suites)
 ```
 
@@ -140,6 +166,6 @@ uncovered-subsystem caveat. `tests/run_all.py` renders the cross-console roll-up
    `veloce_testkit.runner.run_console_main(<console>, Path(__file__).parent,
    rom_provider=...)`.
 3. `run_tests.sh --json` must emit the scorecard JSON last on stdout
-   (`scorecard_to_dict`) so `tests/run_all.py` and CI can aggregate it.
+   (`scorecard_to_dict`) so `tests/run_all.py` can aggregate it locally.
 
 Fast sanity check for the framework itself: `python tests/veloce_testkit/selftest.py`.

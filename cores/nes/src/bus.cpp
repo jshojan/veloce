@@ -5,6 +5,7 @@
 #include "cartridge.hpp"
 #include "mappers/mapper.hpp"
 #include "debug.hpp"
+#include "emu/emulator_plugin.hpp"
 
 #include <cstdio>
 #include <cstring>
@@ -137,6 +138,7 @@ uint8_t Bus::cpu_peek(uint16_t address) const {
     }
     else if (address < 0x4020) {
         // APU and I/O registers
+        if (address == 0x401F && m_test_sink) return 0x56;
         if (address == 0x4016) {
             return const_cast<Bus*>(this)->read_controller(0);
         }
@@ -157,6 +159,20 @@ uint8_t Bus::cpu_peek(uint16_t address) const {
 void Bus::cpu_write(uint16_t address, uint8_t value) {
     // Tick PPU/APU for this memory access cycle
     tick();
+
+    // Optional ROM-facing test registers. Normal operation continues through
+    // the existing I/O path when no sink is attached.
+    if (m_test_sink && address == 0x401E) {
+        const char byte = static_cast<char>(value);
+        m_test_sink->write(&byte, 1);
+        return;
+    }
+    if (m_test_sink && address == 0x401F) {
+        // This is a completion hint, not a pass/fail claim. Raw register
+        // corpora obtain their verdict from the host's independent oracle.
+        if (value == 1) m_test_sink->finish(-1);
+        return;
+    }
 
     if (address < 0x2000) {
         // Internal RAM (mirrored)

@@ -1,0 +1,7 @@
+{
+  "source_type": "original",
+  "console": "n64",
+  "suite": "merge_memory",
+  "build": {"script": "build.py", "artifact": "merge_memory.z64"},
+  "license": "MIT"
+}

@@ -77,6 +77,20 @@ Recording captures input snapshots each frame:
 3. Call stop_recording() to finish
 4. Use get_recording() to retrieve InputSnapshot vector
 
+## Controller reconnect evidence
+
+The frontend `InputManager` now keeps identical gamepads separate and persists
+custom binding GUIDs plus available serial numbers. An unambiguous reconnect
+or config reload restores the binding; multiple indistinguishable pads require
+manual mapping. Numeric-only per-device configs need remapping once to save
+identity metadata. This is frontend polling behavior; it does not establish
+working multiplayer routing or the input plugin recording/playback paths.
+
+`ctest --test-dir build -L controllers --output-on-failure` uses SDL virtual
+pads to verify duplicate events, identical pads, custom bindings, capture,
+reconnect, persistence, selection after removal, ambiguity, and axis endpoints.
+Physical USB/Bluetooth and driver behavior remain unverified.
+
 ## Building
 
 Built automatically as part of Veloce. See main README for build instructions.

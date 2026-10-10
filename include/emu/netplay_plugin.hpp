@@ -14,7 +14,7 @@
     #define EMU_PLUGIN_EXPORT
 #endif
 
-#define EMU_NETPLAY_PLUGIN_API_VERSION 1
+#define EMU_NETPLAY_PLUGIN_API_VERSION 2
 
 namespace emu {
 
@@ -84,6 +84,8 @@ public:
         run_frame_netplay(p1, p2);
     }
 
+    // A single-controller core may return 1: direct sessions give the host
+    // its one controller and the other peer mirrors host input as a viewer.
     // Get maximum number of players supported by this core
     // Override in emulator implementations to support more than 2 players.
     // Examples:
@@ -463,6 +465,14 @@ enum class NetplayNotificationType {
 class INetplayHost {
 public:
     virtual ~INetplayHost() = default;
+    // ABI v2: the session owns speculative execution on this core. The host
+    // must disconnect before replacing it or mutating its state externally.
+    virtual INetplayCapable* get_netplay_core() const { return nullptr; }
+    virtual uint64_t get_full_rom_hash() const { return 0; }
+    virtual uint64_t get_core_build_hash() const { return 0; }
+    // Prepare a canonical fresh core/ROM before identity capture. Reacquire
+    // the core pointer after this operation, since the instance may change.
+    virtual bool prepare_netplay() { return false; }
 
     // Emulation control
     virtual void pause_emulator() = 0;
@@ -530,6 +540,14 @@ using HostCallback = std::function<void(bool success, const char* session_code, 
 class INetplayPlugin {
 public:
     virtual ~INetplayPlugin() = default;
+    // ABI v2: poll every UI tick, including pauses. Owned execution runs the
+    // live frame itself; false means stalled/failed and must not run locally.
+    virtual void poll_network() {}
+    virtual bool owns_frame_execution() const { return false; }
+    virtual bool execute_frame(uint32_t local_buttons) { (void)local_buttons; return false; }
+    virtual uint16_t get_listening_port() const { return 0; }
+    virtual uint64_t get_confirmed_remote_frames() const { return 0; }
+    virtual bool has_pending_output() const { return false; }
 
     // Plugin information
     virtual NetplayPluginInfo get_info() = 0;
@@ -543,7 +561,7 @@ public:
     // =========================================================================
 
     // Host a new session
-    // port: UDP port to listen on (0 = any available)
+    // port: transport-specific port to listen on (0 = any available)
     // player_name: Display name for the host
     // is_public: List in public lobbies (if supported)
     // Returns: true if hosting started successfully
@@ -559,7 +577,7 @@ public:
 
     // Join an existing session
     // host: IP address or hostname
-    // port: UDP port
+    // port: transport-specific port
     // player_name: Display name for the joining player
     // Returns: true if connection started successfully
     virtual bool join_session(const char* host, uint16_t port, const char* player_name) = 0;

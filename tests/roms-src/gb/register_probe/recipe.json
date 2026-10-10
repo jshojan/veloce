@@ -1,0 +1,7 @@
+{
+  "source_type": "original",
+  "console": "gb",
+  "suite": "register_probe",
+  "build": {"script": "build.py", "artifact": "register_probe.gb"},
+  "license": "MIT"
+}

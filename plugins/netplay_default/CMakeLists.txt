@@ -1,9 +1,17 @@
 # Default Netplay Plugin
-# Provides rollback netplay with GUI integration
+# Direct multiplayer UI, transport, and rollback execution
+
+add_library(netplay_transport STATIC src/peer_connection.cpp)
+set_target_properties(netplay_transport PROPERTIES POSITION_INDEPENDENT_CODE ON)
+target_include_directories(netplay_transport PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_include_directories(netplay_transport PRIVATE ${CMAKE_SOURCE_DIR}/include)
+if(WIN32)
+    target_link_libraries(netplay_transport PUBLIC ws2_32)
+endif()
 
 add_library(netplay_default SHARED
     src/default_netplay_plugin.cpp
-    src/netplay_input_manager.cpp
+    src/rollback_session.cpp
 )
 
 target_include_directories(netplay_default PRIVATE
@@ -15,6 +23,7 @@ target_include_directories(netplay_default PRIVATE
 target_link_libraries(netplay_default PRIVATE
     imgui
     nlohmann_json::nlohmann_json
+    netplay_transport
 )
 
 # Set output directory

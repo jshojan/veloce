@@ -1,0 +1,494 @@
+#include "machine.hpp"
+#include "nes_plugin_fixture.hpp"
+#include <fstream>
+#include <iostream>
+#include <iterator>
+using emulator_test::require;
+constexpr uint32_t start=0x05000000;
+static uint16_t reg(unsigned op,unsigned r1=0,unsigned r2=0) { return uint16_t(op<<10|r2<<5|r1); }
+static void code(vb::Machine& m,std::initializer_list<uint16_t> words) {
+    m.reset(); uint32_t address=start;
+    for(auto word:words) { require(m.write(address,2,word),"code store failed"); address+=2; }
+    m.cpu.state.pc=start;
+}
+static void control(vb::Machine& m) {
+    for(unsigned flags=0;flags<16;++flags) for(unsigned cond=0;cond<16;++cond) {
+        const bool z=flags&1,s=flags&2,ov=flags&4,cy=flags&8;
+        const bool expected[]={ov,cy,z,cy||z,s,true,s!=ov,z||(s!=ov),!ov,!cy,!z,!(cy||z),!s,false,s==ov,!z&&(s==ov)};
+        for(int displacement:{-256,-2,0,2,254}) {
+            code(m,{uint16_t(0x8000|(cond<<9)|(displacement&0x1fe))}); m.cpu.state.sr[5]=flags;
+            m.cpu.step(); require(m.cpu.state.pc==start+(expected[cond] ? displacement:2),"branch condition/relative base wrong");
+            require(m.cpu.state.sr[5]==flags,"branch changed flags");
+        }
+        code(m,{reg(0x12,cond,2)}); m.cpu.state.sr[5]=flags; m.cpu.step();
+        require(m.cpu.state.gpr[2]==expected[cond] && m.cpu.state.sr[5]==flags,"SETF wrong");
+    }
+    code(m,{reg(6,1)}); m.cpu.state.gpr[1]=start+0x21; m.cpu.step();
+    require(m.cpu.state.pc==start+0x20,"JMP low bit not masked");
+    for(bool link:{false,true}) for(int offset:{-0x2000000,-2,0,4,0x1fffffe}) {
+        code(m,{uint16_t((link ? 0x2b:0x2a)<<10|((uint32_t(offset)>>16)&0x3ff)),uint16_t(offset)});
+        m.cpu.step(); require(m.cpu.state.pc==start+offset,"JR/JAL displacement wrong");
+        require(m.cpu.state.gpr[31]==(link ? start+4:0),"JAL link wrong");
+    }
+    code(m,{reg(0x10,31,1),reg(0x11,1,1),reg(0x11,1,0)});
+    m.cpu.step(); require(m.cpu.state.gpr[1]==0xffffffff,"MOV imm5 sign wrong");
+    m.cpu.step(); require(m.cpu.state.gpr[1]==0 && (m.cpu.state.sr[5]&15)==9,"ADD immediate flags wrong");
+    m.cpu.step(); require(m.cpu.state.gpr[0]==0,"r0 writable");
+    code(m,{reg(1,1,1)}); m.cpu.state.gpr[1]=0x80000000; m.cpu.step();
+    require(m.cpu.state.gpr[1]==0 && (m.cpu.state.sr[5]&15)==13,"aliased ADD wrong");
+    code(m,{reg(4,1,2)}); m.cpu.state.gpr[1]=32; m.cpu.state.gpr[2]=0x80000001; m.cpu.state.sr[5]=0x800f;
+    m.cpu.step(); require(m.cpu.state.gpr[2]==0x80000001 && m.cpu.state.sr[5]==0x8002,"zero-count shift carry/high flags wrong");
+    code(m,{reg(0xf,1,2)}); m.cpu.state.gpr[1]=0; m.cpu.state.sr[5]=0x800c; m.cpu.step();
+    require(m.cpu.state.gpr[2]==0xffffffff && m.cpu.state.sr[5]==0x800a,"NOT source/carry wrong");
+    code(m,{reg(0x1a),reg(0x10,1,2)}); m.cpu.step(); const auto steps=m.cpu.state.steps;
+    m.cpu.step(); require(m.cpu.state.halted && m.cpu.state.steps==steps && m.cpu.state.gpr[2]==0,"HALT did not stop");
+    code(m,{reg(0x16)}); m.cpu.step(); require(m.cpu.state.unsupported,"unsupported instruction silently executed");
+}
+static void muldiv(vb::Machine& m) {
+    struct Vector { unsigned op; uint32_t a,b,lo,hi,flags; };
+    for(auto v:{Vector{8,2,0xffffffff,0xfffffffe,0xffffffff,10},
+                Vector{8,0xffffffff,0x80000000,0x80000000,0,14},
+                Vector{10,0xffffffff,0xffffffff,1,0xfffffffe,12},
+                Vector{9,3,0xfffffff9,0xfffffffe,0xffffffff,10},
+                Vector{9,0xffffffff,0x80000000,0x80000000,0,14},
+                Vector{11,2,1,0,1,9}}) {
+        for(unsigned destination:{0u,2u,30u}) {
+            code(m,{reg(v.op,1,destination)}); auto& s=m.cpu.state;
+            s.gpr[1]=v.a; s.gpr[destination]=destination ? v.b:0; s.sr[5]=0x800f;
+            m.cpu.step();
+            require(s.gpr[1]==v.a && !s.unsupported,"multiply/divide source changed");
+            if(destination) {
+                require(s.gpr[destination]==v.lo && s.gpr[30]==(destination==30 ? v.lo:v.hi)
+                        && s.sr[5]==(0x8000|v.flags),"multiply/divide result/alias/PSW wrong");
+            } else require(s.gpr[0]==0 && s.gpr[30]==0 && s.sr[5]==0x8009,"r0 multiply/divide flags wrong");
+        }
+    }
+    for(unsigned op:{8u,9u,10u,11u}) {
+        const bool multiply=op==8 || op==10;
+        code(m,{reg(op,30,2)}); m.cpu.state.gpr[30]=3; m.cpu.state.gpr[2]=7; m.cpu.state.sr[5]=15;
+        m.cpu.step(); require(m.cpu.state.gpr[2]==(multiply ? 21u:2u) && m.cpu.state.gpr[30]==(multiply ? 0u:1u),
+                             "r30 source overwritten before use");
+        code(m,{reg(op,2,2)}); m.cpu.state.gpr[2]=7; m.cpu.state.sr[5]=15; m.cpu.step();
+        require(m.cpu.state.gpr[2]==(multiply ? 49u:1u) && m.cpu.state.gpr[30]==0 && m.cpu.state.sr[5]==8,
+                "multiply/divide same source/destination wrong");
+    }
+    for(unsigned op:{9u,11u}) for(unsigned bits=0;bits<16;++bits) for(bool nested:{false,true}) for(bool ae:{false,true}) {
+        code(m,{reg(op,1,2),reg(0x19)}); auto& s=m.cpu.state;
+        const uint32_t original=0xa0000|bits|(nested ? 0x4000:0)|(ae ? 0x2000:0);
+        s.gpr[2]=0x89abcdef; s.gpr[30]=0x13579bdf; s.sr[5]=original;
+        s.sr[4]=0x12345678; s.sr[0]=start+0x80; s.sr[1]=0x101;
+        s.sr[2]=start+0x90; s.sr[3]=0x202;
+        m.cpu.step(); const unsigned saved=nested ? 2:0;
+        require(s.pc==(nested ? 0xffffffd0:0xffffff80) && s.sr[saved]==start && s.sr[saved+1]==original,
+                "divide-zero saved context/vector wrong");
+        require(s.sr[4]==(nested ? 0xff805678:0x1234ff80) && s.sr[5]==((original|(nested ? 0x9000:0x5000))&~0x2000u),
+                "divide-zero ECR/entry PSW wrong");
+        require(s.gpr[2]==0x89abcdef && s.gpr[30]==0x13579bdf && !s.unsupported,"divide-zero changed result");
+        require(s.sr[nested ? 0:2]==start+(nested ? 0x80:0x90),"divide-zero destroyed other saved context");
+        // Save while in the handler, then verify RETI continuation is identical.
+        s.pc=start+2; s.sr[saved]=start+4;
+        std::vector<uint8_t> snapshot,after,replay; require(m.save(snapshot),"exception save failed");
+        m.cpu.step(); require(s.pc==start+4 && s.sr[5]==original,"RETI restore/NP priority wrong");
+        m.save(after); require(m.restore(snapshot),"exception restore failed"); m.cpu.step(); m.save(replay);
+        require(after==replay,"saved exception continuation diverged");
+    }
+    struct FatalBus : vb::Memory {
+        std::vector<std::pair<uint32_t,uint32_t>> writes;
+        bool read(uint32_t,unsigned bytes,uint32_t& value) override { value=reg(9,1,2); return bytes==2; }
+        bool write(uint32_t address,unsigned bytes,uint32_t value) override {
+            require(bytes==4,"fatal fault write width wrong"); writes.emplace_back(address,value); return false;
+        }
+    } bus;
+    vb::V810 cpu(bus); cpu.reset(); cpu.state.pc=start; cpu.state.sr[5]=0xe00f;
+    cpu.state.gpr[2]=123; cpu.state.gpr[30]=456; const auto sr=cpu.state.sr;
+    cpu.step(); require(cpu.state.halted && !cpu.state.unsupported && cpu.state.pc==start && cpu.state.sr==sr,
+                        "fatal exception state wrong");
+    require(bus.writes==std::vector<std::pair<uint32_t,uint32_t>>{{0,0xffffff80},{4,0xe00f},{8,start}},
+            "fatal exception bus order/context wrong");
+    require(cpu.state.gpr[2]==123 && cpu.state.gpr[30]==456,"fatal fault changed operands");
+    cpu.step(); require(cpu.state.steps==1 && bus.writes.size()==3,"fatal fault did not halt until reset");
+}
+static void exceptions() {
+    struct Bus : vb::Memory {
+        uint16_t word=0; unsigned reads=0;
+        std::vector<std::pair<uint32_t,uint32_t>> writes;
+        bool read(uint32_t address,unsigned bytes,uint32_t& value) override {
+            ++reads; require(bytes==2,"exception fetch width wrong");
+            if(address==start) { value=word; return true; }
+            if(address==start+2) { value=reg(0x19); return true; }
+            return false;
+        }
+        bool write(uint32_t address,unsigned bytes,uint32_t value) override {
+            require(bytes==4,"machine-fault bus width wrong"); writes.emplace_back(address,value); return true;
+        }
+    } bus;
+    vb::V810 cpu(bus);
+    // Every encoding of the three unassigned major opcodes, every TRAP
+    // vector, and all condition flags/control combinations. Sticky FPU flags
+    // and interrupt level boundaries are covered here; the guest corpus
+    // exhausts all their values for nonfatal exception entry.
+    std::vector<uint16_t> words;
+    for(unsigned vector=0;vector<32;++vector) words.push_back(reg(0x18,vector));
+    for(unsigned op:{0x1bu,0x32u,0x36u}) for(unsigned low=0;low<1024;++low) words.push_back(uint16_t(op<<10|low));
+    for(uint16_t word:words) for(unsigned controls=0;controls<64;++controls) for(unsigned flags=0;flags<16;++flags) {
+        const bool np=controls&1,ep=controls&2;
+        const uint32_t psw=flags|(np ? 0x8000:0)|(ep ? 0x4000:0)|(controls&4 ? 0x2000:0)|
+                           (controls&8 ? 0x1000:0)|(controls&16 ? 0x3f0:0)|(controls&32 ? 0xf0000:0);
+        cpu.reset(); auto& s=cpu.state; s.pc=start; s.sr[5]=psw; s.sr[4]=0x12345678;
+        s.sr[0]=start+0x100; s.sr[1]=0x101; s.sr[2]=start+0x200; s.sr[3]=0x202;
+        for(unsigned n=1;n<32;++n) s.gpr[n]=n*0x1234567u;
+        const auto before=s; bus.word=word; bus.reads=0; bus.writes.clear(); cpu.step();
+        const bool trap=(word>>10)==0x18;
+        const uint32_t code=trap ? 0xffa0+(word&31):0xff90;
+        const uint32_t saved_pc=start+(trap ? 2:0);
+        require(!s.unsupported && s.gpr==before.gpr && bus.reads==1,"exception clobbered GPRs or fetched an illegal tail");
+        if(np) {
+            require(s.halted && s.pc==start && s.sr==before.sr,"fatal TRAP/illegal fault changed context");
+            require(bus.writes==std::vector<std::pair<uint32_t,uint32_t>>{{0,0xffff0000|code},{4,psw},{8,start}},
+                    "fatal TRAP/illegal fault bus context/order wrong");
+            cpu.step(); require(s.steps==1,"fatal exception resumed without reset");
+        } else {
+            auto sr=before.sr; const unsigned saved=ep ? 2:0;
+            sr[saved]=saved_pc; sr[saved+1]=psw;
+            sr[4]=ep ? (code<<16)|0x5678 : 0x12340000|code;
+            sr[5]=(psw|(ep ? 0x9000:0x5000))&~0x2000u;
+            const uint32_t vector=ep ? 0xffffffd0 : trap ? ((word&31)<16 ? 0xffffffa0:0xffffffb0) : 0xffffff90;
+            require(!s.halted && s.pc==vector && s.sr==sr && bus.writes.empty(),"TRAP/illegal exception entry wrong");
+            s.pc=start+2; cpu.step();
+            require(s.pc==saved_pc && s.sr[5]==psw && s.gpr==before.gpr,"TRAP/illegal RETI context wrong");
+        }
+    }
+}
+static void address_traps(vb::Machine& m) {
+    struct Bus : vb::Memory {
+        unsigned reads=0,count=0;
+        std::array<std::pair<uint32_t,uint32_t>,3> writes{};
+        bool read(uint32_t,unsigned bytes,uint32_t& value) override {
+            ++reads; require(bytes==2,"address trap fetched wrong width"); value=reg(0,1,2); return true;
+        }
+        bool write(uint32_t address,unsigned bytes,uint32_t value) override {
+            require(bytes==4 && count<3,"address fault bus sequence wrong"); writes[count++]={address,value}; return false;
+        }
+    } bus;
+    vb::V810 cpu(bus);
+    // All writable PSW combinations, six address relationships, eight full-PC
+    // boundaries. NP-set fatal paths are separate from the returning ROM gate.
+    for(uint32_t pc:{0u,2u,0x7ffffffeu,0x80000000u,0xfffffffeu,0x05003000u,0x85003000u,0xfd003000u}) {
+        for(uint32_t address:{pc,pc|1u,pc+2,pc-2,pc^0x80000000u,pc+0x10000}) {
+            for(uint32_t index=0;index<262144;++index) {
+                const uint32_t psw=(index&1023)|((index&0x3fc00)<<2);
+                cpu.reset(); auto& s=cpu.state; s.pc=pc; s.sr[5]=psw; s.sr[25]=address&~1u;
+                s.sr[4]=0x12345678; s.sr[0]=start+0x100; s.sr[1]=0x101; s.sr[2]=start+0x200; s.sr[3]=0x202;
+                s.gpr[1]=0x12345678; s.gpr[2]=0x89abcdef;
+                const auto before=s; bus.reads=0; bus.count=0; cpu.step();
+                const bool hit=(psw&0x2000) && (address&~1u)==pc;
+                require(!s.unsupported,"address trap marked unsupported");
+                if(!hit) {
+                    auto regs=before.gpr; regs[2]=regs[1];
+                    require(bus.reads==1 && bus.count==0 && s.gpr==regs && s.pc==pc+2 && s.sr==before.sr && !s.halted,
+                            "nonmatching/disabled address trap changed execution");
+                } else if(psw&0x8000) {
+                    const std::array<std::pair<uint32_t,uint32_t>,3> writes={{{0,0xffffffc0},{4,psw},{8,pc}}};
+                    require(bus.reads==0 && bus.count==3 && bus.writes==writes && s.halted && s.pc==pc && s.sr==before.sr
+                            && s.gpr==before.gpr,"fatal address trap state/bus context wrong");
+                } else {
+                    const bool nested=psw&0x4000; auto sr=before.sr; const unsigned saved=nested ? 2:0;
+                    sr[saved]=pc; sr[saved+1]=psw;
+                    sr[4]=nested ? 0xffc05678:0x1234ffc0;
+                    sr[5]=(psw|(nested ? 0x9000:0x5000))&~0x2000u;
+                    require(bus.reads==0 && bus.count==0 && s.pc==(nested ? 0xffffffd0:0xffffffc0) && s.sr==sr && !s.halted
+                            && s.gpr==before.gpr,"address trap failed before fetch or destroyed saved context");
+                }
+            }
+        }
+    }
+    // Persist the armed breakpoint itself and then its exception context.
+    code(m,{reg(0,1,2),reg(0x19)}); auto& s=m.cpu.state; s.gpr[1]=123; s.sr[5]=0x200f; s.sr[25]=start;
+    std::vector<uint8_t> armed,entered,replay,after; m.save(armed); m.cpu.step(); m.save(entered);
+    require(m.restore(armed),"armed address trap restore failed"); m.cpu.step(); m.save(replay);
+    require(entered==replay,"armed breakpoint state replay diverged");
+    s.pc=start+2; s.sr[1]&=~0x2000u; m.save(entered); m.cpu.step(); m.save(after);
+    require(s.pc==start && s.sr[5]==15,"address trap RETI context wrong");
+    require(m.restore(entered),"entered address trap restore failed"); m.cpu.step(); m.save(replay);
+    require(after==replay,"address trap handler state replay diverged");
+}
+static void transactions(vb::Machine& m) {
+    struct Bus : vb::Memory {
+        uint16_t first=0,tail=0xffef;
+        uint32_t old=0,address=0,compare=0,replacement=0,output=0;
+        unsigned width=0,ports=0,atomics=0,data=0;
+        bool allowed=true;
+        void clear() { ports=atomics=data=0; allowed=true; }
+        bool read(uint32_t addr,unsigned bytes,uint32_t& value) override {
+            if(bytes==2 && (addr==start || addr==start+2)) { value=addr==start ? first:tail; return true; }
+            ++data; return false;
+        }
+        bool write(uint32_t,unsigned,uint32_t) override { ++data; return false; }
+        bool read_port(uint32_t addr,unsigned bytes,uint32_t& value) override {
+            ++ports; address=addr; width=bytes; value=0xffffffff; return allowed;
+        }
+        bool write_port(uint32_t addr,unsigned bytes,uint32_t value) override {
+            ++ports; address=addr; width=bytes; output=value; return allowed;
+        }
+        bool compare_exchange(uint32_t addr,uint32_t expected,uint32_t next,uint32_t& previous) override {
+            ++atomics; address=addr; compare=expected; replacement=next; previous=old;
+            output=expected==old ? next:old; return allowed;
+        }
+    } bus;
+    vb::V810 cpu(bus);
+    const uint32_t values[]={0,1,2,15,16,127,128,255,0x7fff,0x8000,0x7fffffff,0x80000000,
+                            0xfffffffe,0xffffffff,0x55555555,0x89abcdef};
+    const auto signed_word=[](uint32_t word) -> int64_t { return word<0x80000000 ? word:int64_t(word)-0x100000000LL; };
+    for(auto pair:{std::pair<unsigned,unsigned>{1,2},{2,2},{30,2},{1,30},{1,0}}) {
+        for(uint32_t old:values) for(uint32_t compare:values) for(uint32_t replacement:values)
+            for(unsigned lane=0;lane<4;++lane) for(unsigned flags=0;flags<16;++flags) {
+                cpu.reset(); auto& s=cpu.state; s.pc=start; s.sr[5]=0x8000|flags;
+                s.gpr[1]=start+0x103+lane; s.gpr[2]=compare; s.gpr[30]=replacement;
+                const auto before=s; bus.clear(); bus.first=reg(0x3a,pair.first,pair.second); bus.old=old;
+                const uint32_t cmp=before.gpr[pair.second],next=before.gpr[30];
+                const uint32_t expected_address=(before.gpr[pair.first]-17)&~3u;
+                cpu.step(); const uint32_t difference=cmp-old;
+                const int64_t mathematical=signed_word(cmp)-signed_word(old);
+                const uint32_t psw=0x8000|(difference==0 ? 1:0)|(difference&0x80000000 ? 2:0)|
+                    (mathematical<-0x80000000LL || mathematical>0x7fffffffLL ? 4:0)|(cmp<old ? 8:0);
+                auto regs=before.gpr; if(pair.second) regs[pair.second]=old;
+                require(!s.unsupported && s.gpr==regs && s.sr[5]==psw && s.pc==start+4,"CAXI flags/result/alias wrong");
+                require(bus.atomics==1 && bus.ports==0 && bus.data==0 && bus.address==expected_address
+                        && bus.compare==cmp && bus.replacement==next && bus.output==(cmp==old ? next:old),
+                        "CAXI did not issue one aligned transaction with original operands");
+            }
+    }
+    for(unsigned op:{0x38u,0x39u,0x3bu,0x3cu,0x3du,0x3fu}) for(unsigned lane=0;lane<4;++lane)
+        for(unsigned index=0;index<262144;++index) {
+            cpu.reset(); auto& s=cpu.state; s.pc=start; s.sr[5]=(index&1023)|((index&0x3fc00)<<2);
+            s.gpr[1]=start+0x100+lane; s.gpr[2]=0x89abcdef;
+            const auto before=s; bus.clear(); bus.first=reg(op,1,2); cpu.step();
+            const bool input=op<0x3c; const unsigned bytes=(op&3)==0 ? 1:(op&3)==1 ? 2:4;
+            const uint32_t mask=bytes==4 ? 0xffffffff:(1u<<(bytes*8))-1;
+            auto regs=before.gpr; if(input) regs[2]=mask;
+            require(!s.unsupported && s.gpr==regs && s.sr==before.sr && s.pc==start+4,"port extension/PSW preservation wrong");
+            require(bus.ports==1 && bus.atomics==0 && bus.data==0 && bus.width==bytes
+                    && bus.address==((before.gpr[1]-17)&~uint32_t(bytes-1)) && (input || bus.output==(0x89abcdef&mask)),
+                    "port transaction used wrong space/address/width/output");
+        }
+    // Every displacement, with a wrapping full-PC-independent port address.
+    for(unsigned immediate=0;immediate<65536;++immediate) for(unsigned op:{0x38u,0x39u,0x3bu,0x3cu,0x3du,0x3fu}) {
+        cpu.reset(); auto& s=cpu.state; s.pc=start; s.gpr[1]=0xfffffff0; s.gpr[2]=0x89abcdef;
+        bus.clear(); bus.first=reg(op,1,2); bus.tail=uint16_t(immediate); cpu.step();
+        const int64_t displacement=immediate<32768 ? immediate:int64_t(immediate)-65536;
+        const unsigned bytes=(op&3)==0 ? 1:(op&3)==1 ? 2:4;
+        require(bus.address==(uint32_t(int64_t(0xfffffff0u)+displacement)&~uint32_t(bytes-1)),"port displacement/wrap wrong");
+    }
+    bus.tail=0xffef;
+    for(unsigned op:{0x38u,0x39u,0x3bu}) for(unsigned destination:{0u,1u}) {
+        cpu.reset(); auto& s=cpu.state; s.pc=start; s.gpr[1]=start+0x100; s.sr[5]=0x800f;
+        bus.clear(); bus.first=reg(op,1,destination); cpu.step();
+        const unsigned bytes=(op&3)==0 ? 1:(op&3)==1 ? 2:4;
+        require(bus.ports==1 && bus.address==((start+0x100-17)&~uint32_t(bytes-1)) && s.gpr[0]==0 && s.sr[5]==0x800f,
+                "r0/base-aliased port read skipped transaction or changed flags");
+        if(destination) require(s.gpr[1]==(bytes==4 ? 0xffffffff:(1u<<(bytes*8))-1),"port base alias clobbered address before read");
+    }
+    for(unsigned op:{0x38u,0x3cu,0x3au}) {
+        cpu.reset(); auto& s=cpu.state; s.pc=start; s.sr[5]=0x800f; s.gpr[1]=start+0x100; s.gpr[2]=123; s.gpr[30]=456;
+        const auto before=s; bus.clear(); bus.allowed=false; bus.first=reg(op,1,2); cpu.step();
+        require(s.unsupported && s.gpr==before.gpr && s.sr==before.sr,"failed transaction committed CPU output");
+    }
+    struct TraceMachine : vb::Machine {
+        std::vector<char> events;
+        bool read(uint32_t address,unsigned bytes,uint32_t& value) override {
+            if(bytes==4) events.push_back('R');
+            return vb::Machine::read(address,bytes,value);
+        }
+        bool write(uint32_t address,unsigned bytes,uint32_t value) override {
+            if(bytes==4) events.push_back('W');
+            return vb::Machine::write(address,bytes,value);
+        }
+    } traced;
+    for(uint32_t compare:{123u,124u}) {
+        traced.write(start,4,123); traced.events.clear(); uint32_t previous=0;
+        require(traced.compare_exchange(start,compare,456,previous) && previous==123
+                && traced.events==std::vector<char>{'R','W'},"CAXI profile skipped mismatch write-back or reversed bus order");
+        uint32_t stored=0; traced.read(start,4,stored); require(stored==(compare==123 ? 456u:123u),"CAXI profile stored wrong word");
+    }
+    code(m,{reg(0x3a,1,2),0,reg(0x39,1,3),0}); m.cpu.state.gpr[1]=start+0x101; m.cpu.state.gpr[2]=0x12348000;
+    m.cpu.state.gpr[30]=0xabcd8001; m.write(start+0x100,4,0x12348000);
+    std::vector<uint8_t> initial,after,replay; m.save(initial); m.cpu.step(); m.cpu.step(); m.save(after);
+    require(m.cpu.state.gpr[2]==0x12348000 && m.cpu.state.gpr[3]==0x8001,"profile CAXI/unsigned port continuation wrong");
+    require(m.restore(initial),"transaction state restore failed"); m.cpu.step(); m.cpu.step(); m.save(replay);
+    require(after==replay,"transaction continuation state diverged");
+}
+static void bitstrings(vb::Machine& m) {
+    struct Bus : vb::Memory {
+        std::array<uint8_t,128> bytes{};
+        unsigned opcode=11,fetches=0,reads=0,writes=0;
+        bool read(uint32_t address,unsigned width,uint32_t& value) override {
+            if(address==start && width==2) { ++fetches; value=reg(0x1f,opcode); return true; }
+            ++reads;
+            if(width!=4 || address<start+0x100 || uint64_t(address)+width>uint64_t(start)+0x180) return false;
+            value=0; for(unsigned n=0;n<4;++n) value|=uint32_t(bytes[address-start-0x100+n])<<(8*n); return true;
+        }
+        bool write(uint32_t address,unsigned width,uint32_t value) override {
+            ++writes;
+            if(width!=4 || address<start+0x100 || uint64_t(address)+width>uint64_t(start)+0x180) return false;
+            for(unsigned n=0;n<4;++n) bytes[address-start-0x100+n]=uint8_t(value>>(8*n));
+            return true;
+        }
+        void word(unsigned offset,uint32_t value) { for(unsigned n=0;n<4;++n) bytes[offset+n]=uint8_t(value>>(8*n)); }
+    } bus;
+    vb::V810 cpu(bus);
+    const uint32_t patterns[]={0,0xffffffff,0x55555555,0x89abcdef};
+    for(unsigned op=8;op<16;++op) for(uint32_t source:patterns) for(uint32_t destination:patterns)
+        for(unsigned so=0;so<32;++so) for(unsigned d=0;d<32;++d)
+            for(unsigned length:{0u,1u,7u,8u,15u,16u,31u,32u,33u,63u,64u,65u}) for(unsigned flags:{0u,15u}) {
+                bus.bytes.fill(0xa6); bus.word(0,source); bus.word(4,~source); bus.word(8,source^0x55555555);
+                bus.word(64,destination); bus.word(68,~destination); bus.word(72,destination^0xa5a5a5a5); bus.word(76,destination^0x89abcdef);
+                auto expected=bus.bytes;
+                for(unsigned n=0;n<length;++n) {
+                    const unsigned sb=so+n,db=512+d+n;
+                    const bool s=(bus.bytes[sb/8]>>(sb%8))&1,dest=(expected[db/8]>>(db%8))&1;
+                    const bool results[]={dest||s,dest&&s,dest!=s,s,dest||!s,dest&&!s,dest==s,!s};
+                    const uint8_t mask=uint8_t(1u<<(db%8));
+                    expected[db/8]=uint8_t((expected[db/8]&~mask)|(results[op-8] ? mask:0));
+                }
+                cpu.reset(); auto& c=cpu.state; c.pc=start; c.sr[5]=0x8000|flags;
+                c.gpr[26]=d; c.gpr[27]=so; c.gpr[28]=length; c.gpr[29]=start+0x140; c.gpr[30]=start+0x100;
+                bus.opcode=op; bus.fetches=bus.reads=bus.writes=0;
+                unsigned quanta=0; do { cpu.step(); require(++quanta<=7,"bit string failed bounded progress"); } while(c.bitstring.active);
+                require(!c.unsupported && c.pc==start+2 && bus.bytes==expected && c.sr[5]==(0x8000|flags),"bit-string memory/flags wrong");
+                require(c.gpr[26]==(d+length)%32 && c.gpr[27]==(so+length)%32 && c.gpr[28]==0
+                    && c.gpr[29]==start+0x140+((d+length)/32)*4 && c.gpr[30]==start+0x100+((so+length)/32)*4,"bit-string progress registers wrong");
+                require(bus.fetches==1 && (!length ? bus.reads==0 && bus.writes==0 : true),"bit string refetched opcode or accessed zero-length operands");
+            }
+    // Preserve every writable PSW, including sticky flags and all mode fields.
+    for(unsigned op=8;op<16;++op) for(unsigned index=0;index<262144;++index) {
+        cpu.reset(); auto& c=cpu.state; c.pc=start; c.sr[5]=(index&1023)|((index&0x3fc00)<<2);
+        const auto psw=c.sr[5]; c.gpr[28]=32; c.gpr[29]=start+0x140; c.gpr[30]=start+0x100; bus.opcode=op;
+        cpu.step(); require(!c.bitstring.active && c.sr[5]==psw,"bit-string changed writable PSW");
+    }
+    cpu.reset(); cpu.state.pc=start; cpu.state.gpr[28]=0xffffffff; cpu.state.gpr[29]=start+0x140; cpu.state.gpr[30]=start+0x100;
+    bus.opcode=11; cpu.step(); require(cpu.state.bitstring.active && cpu.state.pc==start && cpu.state.gpr[28]==0xffffffdf,"long bit-string quantum blocked or retired early");
+    // Both an unflushed destination and a retained source word must survive.
+    for(unsigned so:{0u,1u}) for(unsigned d:{0u,1u}) {
+        code(m,{reg(0x1f,11)}); auto& c=m.cpu.state; c.sr[5]=0x800f;
+        for(unsigned n=0;n<3;++n) { m.write(start+0x100+n*4,4,0x89abcdef^(n*0x1234567u)); m.write(start+0x200+n*4,4,0x13579bdf); }
+        c.gpr[26]=d; c.gpr[27]=so; c.gpr[28]=65; c.gpr[29]=start+0x200; c.gpr[30]=start+0x100; m.cpu.step();
+        require(c.bitstring.active,"partial bit string retired early"); std::vector<uint8_t> pending,after,replay;
+        require(m.save(pending),"pending bit-string save failed");
+        while(c.bitstring.active) m.cpu.step();
+        m.save(after);
+        require(m.restore(pending),"pending bit-string restore failed"); while(c.bitstring.active) m.cpu.step(); m.save(replay);
+        require(after==replay,"pending bit-string buffers lost on state continuation");
+        for(unsigned mutation=0;mutation<6;++mutation) {
+            auto bad=pending;
+            if(mutation==0) bad[591]=2;
+            if(mutation==1) bad[599]=2;
+            if(mutation==2) bad[607]=2;
+            if(mutation==3) bad[615]=7;
+            if(mutation==4) bad[616]=1;
+            if(mutation==5) bad[7]='1';
+            require(!m.restore(bad),"invalid/legacy bit-string state accepted"); m.save(replay); require(after==replay,"rejected bit-string state changed machine");
+        }
+    }
+    // A diagnostic bus stop also remains serializable and non-retiring.
+    code(m,{reg(0x1f,11)}); m.cpu.state.gpr[28]=32; m.cpu.state.gpr[29]=start+0x100; m.cpu.state.gpr[30]=0x02000000;
+    m.cpu.step(); std::vector<uint8_t> stopped,replay; require(m.cpu.state.unsupported && m.save(stopped) && m.restore(stopped),"stopped bit-string state was not restorable");
+    m.cpu.step(); m.save(replay); require(stopped==replay,"stopped bit string resumed unexpectedly");
+}
+static void immediates(vb::Machine& m) {
+    // Decode immediate forms through a different encoding, then compare with the
+    // register operations independently graded by the original ROM.
+    const uint32_t values[]={0u,1u,0x7fffffffu,0x80000000u,0xffffffffu,0x89abcdefu};
+    for(unsigned immediate=0;immediate<32;++immediate) for(uint32_t value:values) for(unsigned flags=0;flags<16;++flags) {
+        for(auto pair:{std::pair<unsigned,unsigned>{0x11,1},{0x13,3},{0x14,4},{0x15,5},{0x17,7}}) {
+            code(m,{reg(pair.first,immediate,2)}); m.cpu.state.gpr[2]=value; m.cpu.state.sr[5]=0x8000|flags; m.cpu.step();
+            const auto result=m.cpu.state.gpr[2], psw=m.cpu.state.sr[5];
+            code(m,{reg(pair.second,1,2)}); m.cpu.state.gpr[1]=pair.first==0x11 || pair.first==0x13 ? vb::extend(immediate,5):immediate;
+            m.cpu.state.gpr[2]=value; m.cpu.state.sr[5]=0x8000|flags; m.cpu.step();
+            require(result==m.cpu.state.gpr[2] && psw==m.cpu.state.sr[5],"immediate/register decoding differs");
+        }
+        code(m,{reg(0x10,immediate,2)}); m.cpu.state.sr[5]=0x8000|flags; m.cpu.step();
+        require(m.cpu.state.gpr[2]==vb::extend(immediate,5) && m.cpu.state.sr[5]==(0x8000|flags),"MOV immediate changed flags/sign");
+    }
+    struct Vector {unsigned op; uint32_t source; uint16_t imm; uint32_t result,psw;};
+    for(auto v:{Vector{0x28,20,0xfff0,4,0x800f},Vector{0x2f,0x1234,0x8000,0x80001234,0x800f},
+                Vector{0x29,0x7fffffff,1,0x80000000,0x8006},Vector{0x29,0,0xffff,0xffffffff,0x8002},
+                Vector{0x2c,0x80000000,1,0x80000001,0x800a},Vector{0x2d,0xffffffff,0x8000,0x8000,0x8008},
+                Vector{0x2d,0xffffffff,0,0,0x8009},Vector{0x2e,0x80000000,0xffff,0x8000ffff,0x800a}}) {
+        for(bool alias:{false,true}) {
+            const unsigned source=alias ? 2:1;
+            code(m,{reg(v.op,source,2),v.imm}); m.cpu.state.gpr[source]=v.source; m.cpu.state.sr[5]=0x800f;
+            m.cpu.step(); require(m.cpu.state.gpr[2]==v.result && m.cpu.state.sr[5]==v.psw,"wide immediate/alias result wrong");
+        }
+    }
+}
+static void memory(vb::Machine& m) {
+    code(m,{reg(0x30,1,2),0,reg(0x31,1,3),0,reg(0x33,1,4),0,reg(0x35,1,5),0});
+    m.cpu.state.gpr[1]=start+0x103; m.cpu.state.gpr[5]=0x1234;
+    require(m.write(start+0x100,4,0x80817fff),"memory fixture write failed");
+    m.cpu.step(); require(m.cpu.state.gpr[2]==0xffffff80,"LD.B sign wrong");
+    m.cpu.step(); require(m.cpu.state.gpr[3]==0xffff8081,"LD.H alignment/sign wrong");
+    m.cpu.step(); require(m.cpu.state.gpr[4]==0x80817fff,"LD.W low bits not masked");
+    m.cpu.step(); uint32_t v=0;
+    require(m.read(start+0x100,4,v) && v==0x12347fff,"ST.H alignment/byte order wrong");
+    require(m.read(0xfd000100,4,v) && v==0x12347fff && m.read(0x05010100,4,v) && v==0x12347fff,"WRAM/27-bit aliases wrong");
+    require(m.write(0x0500ffff,4,0x12345678) && m.ram[0xffff]==0x78 && m.ram[0]==0x56 && m.ram[2]==0x12,"WRAM local mirror boundary wrong");
+    const auto before=m.ram;
+    require(!m.write(0x05ffffff,4,1) && m.ram==before,"invalid cross-region write mutated RAM");
+    require(!m.write(0x07000000,4,1) && !m.read(0x02000000,4,v),"ROM protection/unmapped read wrong");
+    for(unsigned id:{0u,2u,25u}) {
+        code(m,{reg(0x1c,id,1),reg(0x1d,id,2)}); m.cpu.state.gpr[1]=0xffffffff;
+        m.cpu.step(); m.cpu.step(); require(m.cpu.state.gpr[2]==0xfffffffe,"system PC alignment wrong");
+    }
+    code(m,{reg(0x1c,5,1),reg(0x1d,5,2)}); m.cpu.state.gpr[1]=0xffffffff;
+    m.cpu.step(); m.cpu.step(); require(m.cpu.state.gpr[2]==0xff3ff,"PSW reserved bits writable");
+    code(m,{reg(0x1c,4,1),reg(0x1d,4,2)}); m.cpu.state.gpr[1]=0xffffffff;
+    m.cpu.step(); m.cpu.step(); require(m.cpu.state.gpr[2]==0xfff0,"ECR reset/read-only wrong");
+}
+static void states(vb::Machine& m,const std::vector<uint8_t>& rom,const char* library) {
+    code(m,{reg(1,1,2),reg(7,1,2)}); m.cpu.state.gpr[1]=1; m.cpu.state.gpr[2]=0x7fffffff;
+    m.cpu.step(); m.frames=123; m.ram[0xffff]=99;
+    std::vector<uint8_t> saved,after,replay;
+    require(m.save(saved),"state save failed"); m.cpu.step(); m.save(after);
+    require(m.restore(saved),"state restore failed"); m.cpu.step(); m.save(replay);
+    require(after==replay,"state continuation diverged");
+    for(unsigned mutation=0;mutation<7;++mutation) {
+        auto bad=after;
+        if(mutation==0) bad.pop_back();
+        if(mutation==1) bad[0]^=1;
+        if(mutation==2) bad[8]^=1;
+        if(mutation==3) bad[39]=2;
+        if(mutation==4) bad[47]=1; // r0
+        if(mutation==5) bad[40]=1; // GPR upper half
+        if(mutation==6) bad[559]=1; // PC low bit
+        require(!m.restore(bad),"invalid state accepted"); m.save(replay); require(replay==after,"rejected state mutated machine");
+    }
+    auto bad=rom; bad[bad.size()-0x200]=0;
+    require(!m.load(bad.data(),bad.size()) && !m.load(nullptr,rom.size()) && !m.load(rom.data(),rom.size()-1),"invalid cartridge accepted");
+    m.save(replay); require(after==replay,"failed load replaced active machine");
+    emulator_test::LoadedCore core(library,rom);
+    require(core.plugin->get_info().name && std::string(core.plugin->get_info().name)=="VB","plugin identity wrong");
+    auto other_rom=rom; other_rom.back()^=1;
+    vb::Machine other; require(other.load(other_rom.data(),other_rom.size()),"second marked image rejected");
+    std::vector<uint8_t> other_before,other_after; other.save(other_before);
+    require(!other.restore(after),"state from another full cartridge accepted"); other.save(other_after);
+    require(other_before==other_after,"wrong-ROM state changed active machine");
+    core.plugin->run_frame({}); require(core.plugin->save_state(saved),"plugin save failed");
+    for(unsigned n=0;n<2;++n) core.plugin->run_frame({});
+    core.plugin->save_state(after);
+    require(core.plugin->load_state(saved),"plugin restore failed");
+    for(unsigned n=0;n<2;++n) core.plugin->run_frame({});
+    core.plugin->save_state(replay);
+    require(after==replay,"shared plugin continuation diverged");
+    core.plugin->unload_rom(); require(!core.plugin->is_rom_loaded() && !core.plugin->save_state(replay),"unload failed");
+}
+int main(int argc,char** argv) {
+    try {
+        require(argc==3,"usage: vb_machine_test plugin ROM");
+        std::ifstream file(argv[2],std::ios::binary); std::vector<uint8_t> rom((std::istreambuf_iterator<char>(file)),{});
+        vb::Machine m; require(m.load(rom.data(),rom.size()),"original cartridge load failed");
+        require(m.cpu.state.pc==0xfffffff0 && m.cpu.state.sr[5]==0x8000 && m.cpu.state.sr[4]==0xfff0,"reset state wrong");
+        m.cpu.step(); m.cpu.step(); require(m.cpu.state.pc==0x07000000,"reset vector did not reach original entry");
+        control(m); muldiv(m); exceptions(); address_traps(m); transactions(m); bitstrings(m); immediates(m); memory(m); states(m,rom,argv[1]);
+        std::cout<<"VB control/memory/state/plugin checks passed\n"; return 0;
+    } catch(const std::exception& e) { std::cerr<<e.what()<<'\n'; return 1; }
+}

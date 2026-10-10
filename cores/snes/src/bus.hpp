@@ -5,6 +5,8 @@
 #include <vector>
 #include "debug.hpp"
 
+namespace emu { class ITestSink; }
+
 namespace snes {
 
 class CPU;
@@ -34,6 +36,9 @@ public:
     uint8_t read(uint32_t address);
     void write(uint32_t address, uint8_t value);
 
+    // Borrowed host observation sink; excluded from serialized hardware state.
+    void set_test_sink(emu::ITestSink* sink) { m_test_sink = sink; }
+
     // Controller input
     void set_controller_state(int controller, uint32_t buttons);
 
@@ -43,6 +48,9 @@ public:
     void start_hblank();
     void start_vblank();
     void add_cycles(int master_cycles);
+    // One CPU clock edge, separate from master-clock PPU/APU bookkeeping.
+    void clock_math();
+    void cancel_math() { m_math_remaining = 0; m_math_shift = 0; }
 
     // NMI/IRQ management
     // Reference: bsnes irq.cpp - NMI uses edge detection with hold period
@@ -92,6 +100,8 @@ public:
     void load_state(const uint8_t*& data, size_t& remaining);
 
 private:
+    emu::ITestSink* m_test_sink = nullptr;
+
     // Components
     CPU* m_cpu = nullptr;
     PPU* m_ppu = nullptr;
@@ -135,6 +145,9 @@ private:
     // Math results
     uint16_t m_rddiv = 0;      // $4214-$4215 - Division result
     uint16_t m_rdmpy = 0;      // $4216-$4217 - Multiplication result
+    uint32_t m_math_shift = 0;
+    uint8_t m_math_remaining = 0;
+    bool m_math_dividing = false;
 
     // Status
     bool m_nmi_pending = false;

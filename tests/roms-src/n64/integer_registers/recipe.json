@@ -1,0 +1,7 @@
+{
+  "source_type": "original",
+  "console": "n64",
+  "suite": "integer_registers",
+  "build": {"script": "build.py", "artifact": "integer_registers.z64"},
+  "license": "MIT"
+}

@@ -1,3 +1,5 @@
+#include <charconv>
+#include <stdexcept>
 #include "application.hpp"
 #include "window_manager.hpp"
 #include "renderer.hpp"
@@ -60,7 +62,7 @@ void Application::print_usage(const char* program_name) {
     std::cout << "\n";
     std::cout << "ROM_FILE:\n";
     std::cout << "  Optional path to a ROM file to load on startup.\n";
-    std::cout << "  Supported formats: .nes (NES), .sfc/.smc (SNES), .gb/.gbc (GB), .gba (GBA)\n";
+    std::cout << "  Supported formats: .nes (NES), .sfc/.smc (SNES), .gb/.gbc (GB), .gba (GBA), .z64/.v64/.n64 (experimental N64 homebrew)\n";
     std::cout << "\n";
     std::cout << "Examples:\n";
     std::cout << "  " << program_name << " game.nes                        # Load and run a NES ROM\n";
@@ -304,23 +306,45 @@ void Application::run() {
             return;
         }
 
-        // Parse INPUT environment variable for button injection
+        // Parse INPUT or the bounded INPUT_FILE for button injection
         // Format: "frame:buttons,frame:buttons,..." where buttons is a hex mask
         // Example: "200:40,201:0,400:40,401:0" (press Start at frame 200 and 400)
         // Button bits: A=1, B=2, X=4, Y=8, L=16, R=32, Start=64, Select=128, Up=256, Down=512, Left=1024, Right=2048
         std::unordered_map<int, uint32_t> input_schedule;
         const char* input_env = std::getenv("INPUT");
-        if (input_env) {
-            std::string input_str(input_env);
+        std::string input_text = input_env ? input_env : "";
+        if (const char* input_file = std::getenv("INPUT_FILE")) {
+            if (input_env) throw std::runtime_error("Use either INPUT or INPUT_FILE");
+            std::ifstream stream(input_file, std::ios::binary);
+            if (!stream || std::filesystem::file_size(input_file) > 8 * 1024 * 1024) {
+                throw std::runtime_error("Cannot read input schedule (maximum 8 MiB)");
+            }
+            input_text.resize(8 * 1024 * 1024 + 1);
+            stream.read(input_text.data(), static_cast<std::streamsize>(input_text.size()));
+            input_text.resize(static_cast<size_t>(stream.gcount()));
+            if (stream.bad() || input_text.size() > 8 * 1024 * 1024)
+                throw std::runtime_error("Cannot read input schedule (maximum 8 MiB)");
+        }
+        if (!input_text.empty()) {
+            std::string input_str(input_text);
             size_t pos = 0;
             while (pos < input_str.length()) {
                 size_t colon = input_str.find(':', pos);
-                if (colon == std::string::npos) break;
+                if (colon == std::string::npos) throw std::runtime_error("Invalid input schedule: missing colon");
                 size_t comma = input_str.find(',', colon);
                 if (comma == std::string::npos) comma = input_str.length();
 
-                int frame = std::stoi(input_str.substr(pos, colon - pos));
-                uint32_t buttons = std::stoul(input_str.substr(colon + 1, comma - colon - 1), nullptr, 16);
+                int frame = 0;
+                uint32_t buttons = 0;
+                const auto* begin = input_str.data();
+                const auto parsed_frame = std::from_chars(begin + pos, begin + colon, frame);
+                size_t mask_start = colon + 1;
+                if (comma - mask_start >= 2 && input_str[mask_start] == '0' &&
+                    (input_str[mask_start + 1] == 'x' || input_str[mask_start + 1] == 'X')) mask_start += 2;
+                const auto parsed_buttons = std::from_chars(begin + mask_start, begin + comma, buttons, 16);
+                if (parsed_frame.ec != std::errc{} || parsed_frame.ptr != begin + colon || frame < 0 ||
+                    parsed_buttons.ec != std::errc{} || parsed_buttons.ptr != begin + comma)
+                    throw std::runtime_error("Invalid input schedule: expected nonnegative frame:32-bit hex mask");
                 input_schedule[frame] = buttons;
 
                 pos = comma + 1;
@@ -391,6 +415,7 @@ void Application::run() {
 
         // Update input
         m_input_manager->update();
+        if (auto* netplay = m_plugin_manager->get_netplay_plugin()) netplay->poll_network();
 
         // Update target FPS from active plugin (may change when loading different ROMs)
         auto* active_plugin = m_plugin_manager->get_active_plugin();
@@ -664,42 +689,49 @@ void Application::run_emulation_frame() {
     if (!plugin || !plugin->is_rom_loaded()) {
         return;
     }
+    // A manually resumed app must still freeze the core during handshake.
+    auto* session = m_plugin_manager->get_netplay_plugin();
+    if (session && session->owns_frame_execution() &&
+        session->get_connection_state() == NetplayConnectionState::Connecting) return;
 
-    // Fast path: check cached netplay active status first
-    // This avoids expensive is_connected() call which does plugin lookup + virtual calls
+    // Cached connection status is updated by session callbacks.
     bool netplay_active = m_netplay_active_cached;
 
     if (netplay_active) {
         auto* netplay = m_plugin_manager->get_netplay_plugin();
         if (netplay) {
-            // Netplay mode: use synchronized input
-            if (!netplay->begin_frame()) {
-                // Waiting for network sync, skip this frame
-                return;
-            }
-
-            // Get synchronized inputs for all players using pre-allocated buffer
-            uint64_t frame = plugin->get_frame_count();
-            netplay->get_synchronized_inputs_fast(m_netplay_inputs_buffer, frame);
-
-            // Check if emulator supports netplay multi-player input
-            // Cache this check - it doesn't change during gameplay
-            if (m_netplay_capable_plugin) {
-                // Use N-player method for flexible player count support
-                m_netplay_capable_plugin->run_frame_netplay_n(m_netplay_inputs_buffer);
+            if (netplay->owns_frame_execution()) {
+                if (!netplay->execute_frame(m_input_manager->get_button_state())) return;
             } else {
-                // Fallback: use local player input only
-                InputState input;
-                int local_id = netplay->get_local_player_id();
-                input.buttons = (local_id >= 0 && local_id < static_cast<int>(m_netplay_inputs_buffer.size()))
-                              ? m_netplay_inputs_buffer[local_id] : 0;
-                plugin->run_frame(input);
-            }
+                // Netplay mode: use synchronized input
+                if (!netplay->begin_frame()) {
+                    // Waiting for network sync, skip this frame
+                    return;
+                }
 
-            netplay->end_frame();
+                // Get synchronized inputs for all players using pre-allocated buffer
+                uint64_t frame = plugin->get_frame_count();
+                netplay->get_synchronized_inputs_fast(m_netplay_inputs_buffer, frame);
+
+                // Check if emulator supports netplay multi-player input
+                // Cache this check - it doesn't change during gameplay
+                if (m_netplay_capable_plugin) {
+                    // Use N-player method for flexible player count support
+                    m_netplay_capable_plugin->run_frame_netplay_n(m_netplay_inputs_buffer);
+                } else {
+                    // Fallback: use local player input only
+                    InputState input;
+                    int local_id = netplay->get_local_player_id();
+                    input.buttons = (local_id >= 0 && local_id < static_cast<int>(m_netplay_inputs_buffer.size()))
+                                  ? m_netplay_inputs_buffer[local_id] : 0;
+                    plugin->run_frame(input);
+                }
+
+                netplay->end_frame();
+            }
         }
     } else {
-        // Normal single-player mode - zero netplay overhead
+        // Normal single-player execution
         InputState input;
         input.buttons = m_input_manager->get_button_state();
         plugin->run_frame(input);
@@ -750,7 +782,7 @@ void Application::render() {
     m_window_manager->swap_buffers();
 }
 
-bool Application::load_rom(const std::string& path) {
+bool Application::load_rom(const std::string& path, bool preserve_selected_core) {
     std::cout << "Loading ROM: " << path << std::endl;
 
     // A test session belongs to the ROM it was opened for. Loading another ROM
@@ -761,7 +793,10 @@ bool Application::load_rom(const std::string& path) {
     }
 
     // Find appropriate plugin for this file type
-    if (!m_plugin_manager->set_active_plugin_for_file(path)) {
+    const bool activated = preserve_selected_core
+        ? m_plugin_manager->set_active_plugin(m_plugin_manager->get_selected_plugin_name(PluginType::Emulator))
+        : m_plugin_manager->set_active_plugin_for_file(path);
+    if (!activated) {
         std::cerr << "No plugin found for file: " << path << std::endl;
         return false;
     }
@@ -835,17 +870,18 @@ bool Application::load_rom(const std::string& path) {
 
 void Application::pause() {
     m_paused = true;
-    m_audio_manager->pause();
+    if (m_audio_manager) m_audio_manager->pause();
     m_plugin_manager->set_paused(true);
 }
 
 void Application::resume() {
     m_paused = false;
-    m_audio_manager->resume();
+    if (m_audio_manager) m_audio_manager->resume();
     m_plugin_manager->set_paused(false);
 }
 
 void Application::reset() {
+    if (auto* netplay = m_plugin_manager->get_netplay_plugin()) netplay->disconnect();
     auto* plugin = m_plugin_manager->get_active_plugin();
     if (plugin && plugin->is_rom_loaded()) {
         plugin->reset();
@@ -948,6 +984,22 @@ uint32_t Application::get_rom_crc32() const {
     return emulator ? emulator->get_rom_crc32() : 0;
 }
 
+uint64_t Application::get_full_rom_hash() const {
+    return m_plugin_manager ? m_plugin_manager->get_full_rom_hash() : 0;
+}
+uint64_t Application::get_core_build_hash() const {
+    return m_plugin_manager ? m_plugin_manager->get_core_build_hash() : 0;
+}
+
+bool Application::prepare_netplay() {
+    if (!m_plugin_manager) return false;
+    const auto path = m_plugin_manager->get_current_rom_path();
+    if (path.empty()) return false;
+    const bool loaded = load_rom(path, true);
+    pause();
+    return loaded;
+}
+
 const char* Application::get_platform_name() const {
     if (!m_plugin_manager) {
         m_cached_platform_name = "";
@@ -987,6 +1039,8 @@ bool Application::load_state_from_buffer(const std::vector<uint8_t>& buffer) {
     if (!m_plugin_manager) return false;
     auto* emulator = m_plugin_manager->get_emulator_plugin();
     if (!emulator) return false;
+    if (auto* netplay = m_plugin_manager->get_netplay_plugin(); netplay && !netplay->is_rolling_back())
+        netplay->disconnect();
 
     // Try fast path first if emulator supports it
     auto* netplay_capable = get_netplay_capable_emulator();

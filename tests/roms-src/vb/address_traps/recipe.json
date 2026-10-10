@@ -1,0 +1,4 @@
+{
+  "source_type": "original", "console": "vb", "suite": "address_traps",
+  "build": {"script": "build.py", "artifact": "address_traps.vb"}, "license": "MIT"
+}

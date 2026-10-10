@@ -12,7 +12,7 @@ A cross-platform, plugin-based emulator framework built for speedrunners and TAS
 
 ## Overview
 
-Veloce is a modular emulator platform that combines cycle-accurate console emulation with advanced features for speedrunning and tool-assisted speedruns (TAS). The architecture follows a Project64-style plugin system where emulator cores, audio backends, input handlers, and TAS tools are all swappable components.
+Veloce is a modular emulator platform that combines Nintendo console emulation with features for speedrunning and tool-assisted speedruns (TAS). The architecture follows a Project64-style plugin system where emulator cores, audio backends, input handlers, and TAS tools are all swappable components.
 
 The framework prioritizes accuracy where it matters for speedrunning (timing-sensitive operations, RNG behavior) while maintaining playable performance on modern hardware.
 
@@ -34,9 +34,18 @@ See [Build Instructions](#building) for platform-specific details.
 | System | Core | Status | Notes |
 |--------|------|--------|-------|
 | NES/Famicom | [cores/nes](cores/nes/README.md) | Playable | 20+ mappers, ~90% library coverage |
-| Game Boy / Color | [cores/gb](cores/gb/README.md) | In Progress | DMG and CGB, MBC1/3/5 |
+| Game Boy / Color | [cores/gb](cores/gb/README.md) | In Progress | DMG and CGB, MBC1/3/5; serial register test channel |
 | Game Boy Advance | [cores/gba](cores/gba/README.md) | In Progress | ARM7TDMI, all video modes |
 | Super Nintendo | [cores/snes](cores/snes/README.md) | In Progress | 65C816, Mode 7, SPC700 |
+| Nintendo 64 | [cores/n64](cores/n64/README.md) | Experimental | Integer homebrew, settled digital SI/PIF and interrupt gates; no retail boot, graphics, audio or analog sticks |
+| Virtual Boy | [cores/vb](cores/vb/README.md) | Experimental | V810 integer homebrew, multiply/divide, exception and arithmetic bit-string corpora; no retail games, video, audio or controller hardware |
+| Nintendo DS | [cores/nds](cores/nds/README.md) | Experimental | Dual-CPU ARM/Thumb integer, memory, long-call and stack/block homebrew with digital keypad input with shared/private RAM; no firmware/retail boot, graphics, audio or peripheral hardware |
+| GameCube | [cores/ppc](cores/ppc/README.md) | Experimental | Original PowerPC integer and conditional-branch programs; no retail boot, graphics/audio, controllers or netplay |
+| Wii | [cores/ppc](cores/ppc/README.md) | Experimental | Original PowerPC integer and conditional-branch programs; no retail boot, MEM2, IOS, graphics/audio, controllers or netplay |
+
+Additional Nintendo families, including DSi enhanced mode,
+3DS, Wii U, and Switch, still need core plugins. Overall completion is not yet
+measured. See the [hardware coverage and remaining work](docs/HARDWARE-COVERAGE.md).
 
 ## Architecture
 
@@ -48,7 +57,7 @@ veloce (application)
     +-- Plugin Manager
     |       |
     |       +-- Emulator Cores (IEmulatorPlugin)
-    |       |       NES, GB, GBA, SNES
+    |       |       NES, GB, GBA, SNES, N64, VB
     |       |
     |       +-- Audio Plugin (IAudioPlugin)
     |       |       Volume, muting, processing
@@ -98,6 +107,10 @@ Game plugin selection is configurable in Settings > Plugins.
 - [Game Boy Core](cores/gb/README.md) - Game Boy and Game Boy Color
 - [GBA Core](cores/gba/README.md) - Game Boy Advance
 - [SNES Core](cores/snes/README.md) - Super Nintendo Entertainment System
+- [N64 Core](cores/n64/README.md) - Experimental Nintendo 64 integer homebrew core
+- [Nintendo DS Core](cores/nds/README.md) - Experimental dual-CPU ARM homebrew core
+- [GameCube/Wii Cores](cores/ppc/README.md) - Experimental shared PowerPC integer profiles
+- [Virtual Boy Core](cores/vb/README.md) - Experimental V810 integer homebrew core
 
 ### Plugin Interfaces
 
@@ -117,6 +130,7 @@ All plugin interfaces are defined in include/emu/:
 ### Core Features
 
 - 10 save state slots with F1-F10 hotkeys
+- SNES states use `VSNES002` to preserve pending math operations; recreate older SNES savestates.
 - Visual input configuration with interactive controller display
 - Per-platform controller bindings
 - USB gamepad support with hot-plugging
@@ -144,11 +158,48 @@ All plugin interfaces are defined in include/emu/:
 
 ### Netplay Features
 
-- GGPO-style rollback netcode
-- Delay-based mode for stable connections
-- Session codes for easy joining
-- In-game chat with timestamps
-- Desync detection and recovery
+The default plugin supports direct IPv4 host/join sessions. A
+[rollback module](plugins/netplay_default/README.md)
+now saves frame history, predicts input, restores/replays late corrections, and
+stalls at its speculation limit. Two delayed NES sessions match an ordinary
+100-frame run byte-for-byte, including guest register observations in files.
+A nonblocking IPv4 TCP transport validates ROM/core/build/start-state agreement.
+Two independent processes over loopback TCP also match the full baseline state;
+ROM mismatches and four malformed-message cases are rejected.
+
+The default plugin now uses both modules in the frontend. Load the same ROM in
+both apps, choose **Netplay → Host Game** on one and **Join Game** on the other,
+and enter the host's IPv4 address/TCP port. Both cores reload and pause until the
+handshake matches; play then starts automatically. The frontend polls while
+paused, runs one live frame through the plugin, and suppresses replay audio.
+Reset, ROM/core replacement, and savestate loads disconnect and pause the session.
+
+The production shared plugin passes the same two-process comparison, mismatch,
+and malformed-message tests, plus replay-audio and core/frame-change checks;
+results are saved under `build/artifacts/netplay-plugin/`. Netplay ABI is now v2;
+rebuild external netplay plugins. Single-controller cores now support a host
+and one joining viewer. The DS host owns its keypad; the viewer predicts and
+corrects host input, with complete states and eight guest words matching a
+100-frame baseline. This mirrors one DS instance; DS wireless multiplayer
+remains pending. Reports remain in `build/artifacts/netplay-nds/`.
+Relay/session codes, chat, additional spectators, input
+delay scheduling, reconnects, desync recovery, Windows and real two-machine
+verification remain. Internet multiplayer is not validated.
+
+### Controller connection and bindings
+
+Identical SDL gamepads remain separate devices. Custom gamepad bindings now save
+the model GUID and serial when available and restore after an unambiguous
+reconnect or restart. Devices of the same model without unique serials may
+require remapping when several are connected. Legacy configurations containing
+only numeric connection IDs need remapping once to gain saved identities.
+
+The SDL virtual-controller integration test covers identical pads, duplicate
+events, remapping, capture mode, disconnect/reconnect, saved bindings, selection
+after removal, ambiguous identities, and normalized axis endpoints:
+`ctest --test-dir build -L controllers --output-on-failure`.
+Physical USB/Bluetooth, cross-platform driver behavior, and multiplayer routing
+still require verification.
 
 ## Building
 
@@ -275,16 +326,107 @@ console. Start here:
 | Console | Verified headline | Detail |
 |---------|-------------------|--------|
 | NES | ~90-94% (strongest verified coverage) | [scorecard](COMPLETENESS.md#nes) / [notes](cores/nes/README.md#testing) |
-| SNES | low until reference hashes land | [scorecard](COMPLETENESS.md#snes) / [notes](cores/snes/README.md#testing) |
-| Game Boy | Blargg serial subset verified | [scorecard](COMPLETENESS.md#game-boy) / [notes](cores/gb/README.md#testing) |
+| SNES | Original settled math: 68,864 cases and 504,832 selected timing observations verified; external visual catalog unscored | [scorecard](COMPLETENESS.md#snes) / [notes](cores/snes/README.md#testing) |
+| Game Boy | Blargg serial subset, original probe, 8,388,608 ALU pairs and 73,728 unary pairs verified; Mooneye unscored | [scorecard](COMPLETENESS.md#game-boy) / [notes](cores/gb/README.md#testing) |
 | GBA | partial (CPU/memory/BIOS/saves verified) | [scorecard](COMPLETENESS.md#gba) / [notes](cores/gba/README.md#test-status) |
+| N64 | Experimental integer homebrew: 28,127 integer, 262,623 doubleword multiply/divide and 3,158,016 merge-memory results and all 16,384 digital controller combinations and 65,536 interrupt gates verified; full platform completion unknown | [implementation and limits](cores/n64/README.md) |
+| Virtual Boy | Experimental integer homebrew: 6,512,640 result/PSW pairs plus 4,210,688 multiply/divide and 4,685,824 TRAP/illegal and 4,982,784 address-trap snapshots, plus 17,055,744 CAXI/port and 14,680,064 arithmetic bit-string snapshots, plus 100,712,448 immediate-instruction snapshots; full platform completion unknown | [implementation and limits](cores/vb/README.md) |
+| Nintendo DS | Experimental dual-CPU homebrew: 44,238,336 integer plus 38,338,560 multiply snapshots plus 51,426,816 Thumb result/CPSR/source/PC and 49,694,208 memory plus 9,437,184 long-call snapshots matched; 3,720,960 stack/block snapshots matched; 4,096/4,096 digital keypad combinations matched; full platform completion unknown | [implementation and limits](cores/nds/README.md) |
+| GameCube / Wii | Each profile: 49,152/49,152 arithmetic and 74,752/74,752 conditional-branch snapshots matched; full platform completion unknown | [implementation and limits](cores/ppc/README.md) |
 
-Run everything with `python tests/run_all.py`; see [TESTING.md](TESTING.md) for
-per-console and CI usage.
+Run external ROM suites with `python tests/run_all.py`; see [TESTING.md](TESTING.md)
+for per-console and local usage. The percentages above describe that measured
+subset, not whole-core completion.
+
+### Original register-output ROMs
+
+| Original corpus | Measured coverage | Result artifacts |
+|---|---|---|
+| [NES ADC/SBC](tests/roms-src/nes/alu_exhaustive/README.md) | 524,288/524,288 A/P observations matched (100% of all 8-bit operand pairs and C/D states, zero-page addressing) | `build/artifacts/owned/nes_alu/` |
+| [NES rollback controller probe](tests/roms-src/nes/netplay_probe/README.md) | Execution, TCP transport, and production-plugin 100-frame checks match complete baseline states; guest counters recorded; hardware timing unverified | `build/artifacts/rollback/`, `build/artifacts/network/`, `build/artifacts/netplay-plugin/` |
+| [GB CPU/WRAM probe](tests/roms-src/gb/register_probe/README.md) | 2/2 checks passed; injected wrong WRAM value fails | `build/artifacts/owned/gb_register_probe/` |
+| [GB byte ALU](tests/roms-src/gb/alu_exhaustive/README.md) | 8,388,608/8,388,608 A/F pairs matched (100% of every operand pair and incoming Z/N/H/C state for eight E-register ALU operations); timing and other operands remain unverified | `build/artifacts/owned/gb_alu/` |
+| [GB unary instructions](tests/roms-src/gb/unary_exhaustive/README.md) | 73,728/73,728 A/F pairs matched (100% of 18 accumulator instructions, all bytes and all incoming flags) | `build/artifacts/owned/gb_unary/` |
+| [SNES math registers](tests/roms-src/snes/math_registers/README.md) | 65,536/65,536 multiplication pairs and 3,328 division boundary cases matched; settled results only | `build/artifacts/owned/snes_math/` |
+| [SNES math timing](tests/roms-src/snes/math_timing/README.md) | 504,832/504,832 register bytes matched across CPU phases 2–18 (100% of selected multiplicands/dividends, all 256 second operands, four result registers) | `build/artifacts/owned/snes_math_timing/` |
+| [Virtual Boy integer registers](tests/roms-src/vb/integer_registers/README.md) | 6,512,640/6,512,640 pairs matched; six arithmetic/logic operations on all repeated-byte pairs and boundaries, three register shifts, all incoming flags; platform hardware/timing pending | `build/artifacts/owned/vb_integer/` |
+| [Virtual Boy multiply/divide](tests/roms-src/vb/muldiv/README.md) | 4,210,688 nine-word snapshots, including 8,704 zero-divisor exception/RETI cases; all signed/unsigned byte pairs, full-width boundaries and incoming flags | `build/artifacts/owned/vb_muldiv/` |
+| [Virtual Boy exceptions](tests/roms-src/vb/exceptions/README.md) | 4,685,824/4,685,824 thirteen-word snapshots matched: all TRAP parameters, three illegal opcode families, every writable nonfatal PSW combination and complete low-bit encoding sweeps; entry/RETI context | `build/artifacts/owned/vb_exceptions/` |
+| [Virtual Boy address traps](tests/roms-src/vb/address_traps/README.md) | 4,982,784/4,982,784 fourteen-word snapshots matched: full nonfatal PSWs on six addresses, every single-bit PC flip and low-half offset; 131,168 matching enabled cases, entry/RETI context and nonmatching execution | `build/artifacts/owned/vb_address_traps/` |
+| [Virtual Boy memory transactions](tests/roms-src/vb/memory_ops/README.md) | 17,055,744/17,055,744 nine-word snapshots matched: CAXI byte comparisons/replacements/full-width triples and OUT/IN byte/half/word pairs; all low-bit lanes and incoming flags; storage-profile ports, physical wiring/timing pending | `build/artifacts/owned/vb_memory_ops/` |
+| [Virtual Boy arithmetic bit strings](tests/roms-src/vb/bitstrings/README.md) | 14,680,064/14,680,064 fourteen-word snapshots matched: eight operations, every byte pair, all offsets and twelve lengths; memory/progress/PSW observations; overlap and timing unverified | `build/artifacts/owned/vb_bitstrings/` |
+| [Virtual Boy immediate instructions](tests/roms-src/vb/immediates/README.md) | 100,712,448/100,712,448 three-word snapshots matched: all wide/short immediates for twelve instructions on 16 operand patterns and all incoming flags; full operands and timing unverified | `build/artifacts/owned/vb_immediates/` |
+| [Nintendo DS dual-CPU integer registers](tests/roms-src/nds/integer_registers/README.md) | 44,238,336/44,238,336 four-word snapshots matched: all sixteen data-processing operations, repeated-byte pairs and full-width boundaries, all NZCV and ARM9 Q states; firmware, timing and most hardware pending | `build/artifacts/owned/nds_integer/` |
+| [Nintendo DS multiply registers](tests/roms-src/nds/multiply_registers/README.md) | 38,338,560/38,338,560 five-word observations matched: six multiply/accumulate forms, S clear/set, all NZCV/ARM9 Q, byte pairs and boundary/accumulator seeds; unpredictable ARM7 flags unscored, timing pending | `build/artifacts/owned/nds_multiply/` |
+| [Nintendo DS Thumb registers](tests/roms-src/nds/thumb_registers/README.md) | 51,426,816/51,426,816 five-word observations matched: all low ALU operations, register ADD/SUB, all shift and low register ALU immediates, all NZCV/ARM9 Q and observed Thumb PC; ARM7 MUL C unscored, timing pending | `build/artifacts/owned/nds_thumb/` |
+| [Nintendo DS memory registers](tests/roms-src/nds/memory_registers/README.md) | 49,694,208/49,694,208 nine-word snapshots matched: ARM halfword/signed and Thumb transfers, all halfword values and immediate fields; physical timing pending | `build/artifacts/owned/nds_memory/` |
+| [Nintendo DS long calls](tests/roms-src/nds/long_calls/README.md) | 9,437,184/9,437,184 eight-word snapshots matched: adjacent BL/ARM9 BLX pairs, every high and valid low field individually, both halfword positions, all NZCV/ARM9 Q; physical cache coherence/timing pending | `build/artifacts/owned/nds_long_calls/` |
+| [Nintendo DS stack/block registers](tests/roms-src/nds/multiple_registers/README.md) | 3,720,960/3,720,960 twenty-five-word snapshots matched: every defined list/base encoding, sixteen register/memory seeds, all NZCV/ARM9 Q and POP-PC target states; physical abort/timing pending | `build/artifacts/owned/nds_multiple/` |
+| [Nintendo DS keypad](tests/roms-src/nds/keypad/README.md) | 4,096/4,096 digital combinations matched through the actual frontend schedule, both CPU KEYINPUT and ARM7 X/Y halfword/byte captures; unknown/reserved bits unscored; physical timing pending | `build/artifacts/owned/nds_keypad/` |
+| [Nintendo DS netplay probe](tests/roms-src/nds/netplay_probe/README.md) | Production-plugin TCP host/viewer: 100 frames match complete baseline states and eight independently graded guest words; DS wireless link remains pending | `build/artifacts/netplay-nds/` |
+| [GameCube integer registers](tests/roms-src/gc/integer_registers/README.md) | 49,152/49,152 six-word snapshots matched; six arithmetic families, sixteen operand patterns, all incoming XER flags and OE/Rc forms; most hardware pending | `build/artifacts/owned/gc_integer/` |
+| [Wii integer registers](tests/roms-src/wii/integer_registers/README.md) | 49,152/49,152 six-word snapshots matched on the supplied Broadway profile; most hardware pending | `build/artifacts/owned/wii_integer/` |
+| [GameCube branch registers](tests/roms-src/gc/branch_registers/README.md) | 74,752/74,752 seven-word BC/BCLR/BCCTR snapshots matched: canonical BO/all BI, CTR/CR boundaries, LK and indirect target alignments; physical timing pending | `build/artifacts/owned/gc_branches/` |
+| [Wii branch registers](tests/roms-src/wii/branch_registers/README.md) | 74,752/74,752 seven-word conditional-branch snapshots matched on the supplied profile; most hardware pending | `build/artifacts/owned/wii_branches/` |
+| [N64 interrupt gates](tests/roms-src/n64/interrupts/README.md) | 65,536/65,536 cases matched; 524,288 guest values for software/SI/timer, MI/CPU masks and IE/EXL/ERL; pipeline and physical timer timing pending | `build/artifacts/owned/n64_interrupts/` |
+| [N64 digital controller](tests/roms-src/n64/controller_serial/README.md) | 16,384/16,384 combinations matched; 131,072 guest values for digital input, identity, absent port and settled SI/MI registers; analog and physical timing pending | `build/artifacts/owned/n64_controller/` |
+| [N64 merge memory](tests/roms-src/n64/merge_memory/README.md) | 3,158,016/3,158,016 observations matched; eight instructions, every byte lane, all repeated-byte pairs and full-width boundaries; full multi-byte domains/timing unverified | `build/artifacts/owned/n64_merge_memory/` |
+| [N64 doubleword multiply/divide](tests/roms-src/n64/muldiv64/README.md) | 262,623/262,623 defined LO/HI pairs matched; every signed/unsigned byte pair and 16×16 full-width boundaries; 545 undefined inputs observed but unscored | `build/artifacts/owned/n64_muldiv64/` |
+| [N64 integer registers](tests/roms-src/n64/integer_registers/README.md) | 28,127/28,127 defined results matched across 20 instructions and selected patterns; 33 undefined division inputs observed but unscored; full core incomplete | `build/artifacts/owned/n64_integer/` |
+| [GBA ARM register shifts](tests/roms-src/gba/arm_shifts/README.md) | 65,536/65,536 result/CPSR pairs matched; all low-byte amounts and C/V inputs, 16 selected operands | `build/artifacts/owned/gba_shifts/` |
+
+```bash
+python3 tests/roms-src/build.py --original-only --check
+ctest --test-dir build -L owned --output-on-failure
+```
+
+The NES ROM writes every observed accumulator/status pair to `$401E`; its host
+oracle grades the captured file using independent arithmetic expectations. The
+ROM itself makes no pass claim. Its small opcode mutation must fail, and missing
+or malformed register files are rejected. The SNES ROM streams products,
+quotients, and remainders through `$21FE` for its independent host oracle.
+The GBA ROM records ARM shift results and CPSR flags through mGBA debug
+registers, with an independent host oracle and file-channel boundary controls.
+The experimental N64 ROM outputs observed GPR/HI/LO values through an emulator
+debug register. Its marked homebrew loader bypasses retail boot; it provides
+integer execution and settled digital SI/PIF controller evidence. N64 graphics,
+audio, analog sticks, serial/pipeline timing and other interrupt producers remain
+pending.
+The experimental Virtual Boy ROMs record V810 result/PSW pairs, full
+multiply/divide results and divide-zero/TRAP/illegal/address-trap exception context and CAXI/port and arithmetic bit-string results through an
+emulator debug channel. It runs original reset-vector code; video, audio,
+controllers and retail compatibility remain pending.
+The experimental DS plugin executes separate ARM9/ARM7 guest programs, capturing
+ARM/Thumb integer result/CPSR/source registers, capturing Thumb PC reads and
+using main RAM to order their output. Memory transfers capture addresses,
+source values, loaded/stored memory and guards alongside CPSR and SP. Adjacent
+Thumb long calls capture tagged LR, target PC and ARM9 interworking state.
+Stack/block transfers capture all low registers, SP/LR, target PC and memory
+words with guards. Twelve digital controls reach the keypad registers; ARM7
+also reads X/Y, with a core-supplied controller layout and serialized input latch. Guest
+word-output ports serialize the captured values into the same independently
+graded files; legacy byte output remains supported and checked for equivalence. Firmware, ARM block transfers,
+video, audio, peripherals and DSi enhanced mode remain pending.
+Original suites retain raw
+register output and reports under `build/artifacts/`. Source generators and ROM
+images are stored in this repo. CI/CD is disabled for now; run verification locally.
+
+The repository now includes an original Game Boy ROM at
+[`tests/roms-src/gb/register_probe/register_probe.gb`](tests/roms-src/gb/register_probe/register_probe.gb).
+Its [source generator](tests/roms-src/gb/register_probe/build.py) produces the
+same 32 KiB ROM with Python 3. The ROM writes observed WRAM and ALU values to
+the Game Boy serial registers; the GB core forwards `SC=$81` writes to
+`VELOCE_TEST_OUT`, where the application records `REG`, `CHECK`, and `END` lines.
+Run `python3 tests/roms-src/gb/register_probe/test_probe.py build/bin/veloce`
+or `ctest --test-dir build -R gb_register_probe --output-on-failure`. The test
+also mutates the ROM's WRAM stimulus and requires a scored failure, guarding
+against a result path that always reports success. This is two CPU/memory
+checks. Most GB subsystems, the remaining NES CPU and peripheral behaviors,
+remaining SNES and GBA hardware still need repository-owned register-output ROMs.
 
 ### Headless Mode
 
-For CI/CD integration:
+For local headless execution:
 
 ```bash
 HEADLESS=1 FRAMES=600 veloce test.nes
@@ -304,6 +446,8 @@ veloce/
         gb/                   Game Boy emulator
         gba/                  GBA emulator
         snes/                 SNES emulator
+        n64/                  Experimental N64 integer homebrew emulator
+        vb/                   Experimental V810 integer homebrew emulator
     plugins/                  Auxiliary plugins
         audio_default/        Audio backend
         input_default/        Input backend

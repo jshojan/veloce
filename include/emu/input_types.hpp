@@ -29,6 +29,8 @@ enum class VirtualButton : uint32_t {
     Reset,
     Rewind,
     FastForward,
+    // Append new controls to preserve existing input masks and bindings.
+    Z, CUp, CDown, CLeft, CRight,
     COUNT
 };
 

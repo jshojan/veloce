@@ -1,5 +1,225 @@
 {
   "roms": {
+    "gb/alu_exhaustive/alu_exhaustive.gb": {
+      "build_command": "python3 tests/roms-src/gb/alu_exhaustive/build.py",
+      "console": "gb",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "ab94563c49f8d2161aab6b54ef87f0030fb316610c3432e2539e20e35d3735e2",
+      "source_repo": "tests/roms-src/gb/alu_exhaustive/build.py",
+      "source_sha": "94f95396d30c380ad86fa4570ef16a8bf7fc13e470c160e3460e9356bfa328c3",
+      "source_type": "original",
+      "suite": "alu_exhaustive"
+    },
+    "gb/register_probe/register_probe.gb": {
+      "build_command": "python3 tests/roms-src/gb/register_probe/build.py",
+      "console": "gb",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "6b1f71bbd3b57a1d4e4b73b79e89d4e588c0da5413e952b48e8caf05d6a12f90",
+      "source_repo": "tests/roms-src/gb/register_probe/build.py",
+      "source_sha": "586a713737a5d7c202d494781f9edaa069bf2a26c9416e61a9de63cee048eb21",
+      "source_type": "original",
+      "suite": "register_probe"
+    },
+    "gb/unary_exhaustive/unary_exhaustive.gb": {
+      "build_command": "python3 tests/roms-src/gb/unary_exhaustive/build.py",
+      "console": "gb",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "3e0bcf62bac31ee2a87fc01e0c19516efff32ab5472628a704b6e5bce8306406",
+      "source_repo": "tests/roms-src/gb/unary_exhaustive/build.py",
+      "source_sha": "ba53112e7e5a648ea2744586f4977e032317684a8c52001f122e8b0440318eda",
+      "source_type": "original",
+      "suite": "unary_exhaustive"
+    },
+    "gba/arm_shifts/arm_shifts.gba": {
+      "build_command": "python3 tests/roms-src/gba/arm_shifts/build.py",
+      "console": "gba",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "de6b956fd7417ef9332c47ab1367db82e1ad67ec959688fee41f5af08cb48c45",
+      "source_repo": "tests/roms-src/gba/arm_shifts/build.py",
+      "source_sha": "42689177c439e45a7dfb7938baea5dd169e93a8d408f60cff5791187bd0eceba",
+      "source_type": "original",
+      "suite": "arm_shifts"
+    },
+    "gc/branch_registers/branch_registers.vgc": {
+      "build_command": "python3 tests/roms-src/gc/branch_registers/build.py",
+      "console": "gc",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "fc8989b49db226212a3dab84c7c0abb3fde0be97bea0f2739227923912d566ef",
+      "source_repo": "tests/roms-src/gc/branch_registers/build.py",
+      "source_sha": "a5c1e62f9b492f53487794a8a3068203cfc0f73816d01b72bb483817775bd8b1",
+      "source_type": "original",
+      "suite": "branch_registers"
+    },
+    "gc/integer_registers/integer_registers.vgc": {
+      "build_command": "python3 tests/roms-src/gc/integer_registers/build.py",
+      "console": "gc",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "d75dbd8ff37544134f10053c92e7a925797c84b0f8f4afb58f1231277fc32528",
+      "source_repo": "tests/roms-src/gc/integer_registers/build.py",
+      "source_sha": "522ec9d630bf5387a43337042313bf11ed50dbc51cd830a8ee373a2acdb6367b",
+      "source_type": "original",
+      "suite": "integer_registers"
+    },
+    "n64/controller_serial/controller_serial.z64": {
+      "build_command": "python3 tests/roms-src/n64/controller_serial/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "bbb7579926b77fced979dbb98b40d8d6d991db77c595529250f79b6027baf8bc",
+      "source_repo": "tests/roms-src/n64/controller_serial/build.py",
+      "source_sha": "d41ccb4284bac23ac8c15bfec39e91f1a493a31550e3648d26e92dba3f8a8d86",
+      "source_type": "original",
+      "suite": "controller_serial"
+    },
+    "n64/integer_registers/integer_registers.z64": {
+      "build_command": "python3 tests/roms-src/n64/integer_registers/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "1d97bfcee2800d70f441251719e7f9dd711ffcde615db7ec7fb91c87614c42d3",
+      "source_repo": "tests/roms-src/n64/integer_registers/build.py",
+      "source_sha": "224ce09c3e39fdbdcaf305b9b386e2ebe5f5e05fed27863b691f2eeb0cba921d",
+      "source_type": "original",
+      "suite": "integer_registers"
+    },
+    "n64/interrupts/interrupts.z64": {
+      "build_command": "python3 tests/roms-src/n64/interrupts/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "3cffe59ddf73305fb5d87375832a99a5ed0471dca701da62b65dc45190309ad7",
+      "source_repo": "tests/roms-src/n64/interrupts/build.py",
+      "source_sha": "b56f3f00391c759191e807d221c51425fa2107e6433c4a966ed123da9037cedf",
+      "source_type": "original",
+      "suite": "interrupts"
+    },
+    "n64/merge_memory/merge_memory.z64": {
+      "build_command": "python3 tests/roms-src/n64/merge_memory/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "e1195a2dc4988b7b059c0cce63f9398a2ef56d5b63e9f750e37f26d969a862fc",
+      "source_repo": "tests/roms-src/n64/merge_memory/build.py",
+      "source_sha": "6b9f346c09f30c8af8c57e51fd97db4a72d9b808237b000e06165ed42df4ac81",
+      "source_type": "original",
+      "suite": "merge_memory"
+    },
+    "n64/muldiv64/muldiv64.z64": {
+      "build_command": "python3 tests/roms-src/n64/muldiv64/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "137c3523e96f543cb64bdd1dd467b1efbdd452888f442f093dd3b40fb3756a7f",
+      "source_repo": "tests/roms-src/n64/muldiv64/build.py",
+      "source_sha": "72a036ffcf2dd7febcd72f7a5627b2ab8d7613fc4d3cf4d763f5d8fd99f047c4",
+      "source_type": "original",
+      "suite": "muldiv64"
+    },
+    "nds/integer_registers/integer_registers.nds": {
+      "build_command": "python3 tests/roms-src/nds/integer_registers/build.py",
+      "console": "nds",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "59115969e7f06ef22fd2b198949db43a03bc4a6cf9e7c1f9ca4e7423bf775cdc",
+      "source_repo": "tests/roms-src/nds/integer_registers/build.py",
+      "source_sha": "9bd12134438b78ad2aec0957a449cd27081fcbbe1d82043eae21a53f4beb30f6",
+      "source_type": "original",
+      "suite": "integer_registers"
+    },
+    "nds/keypad/keypad.nds": {
+      "build_command": "python3 tests/roms-src/nds/keypad/build.py",
+      "console": "nds",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "358065bfa9edbba285e29a4c402b43cf91c3ec6a210506859173987beac43ba7",
+      "source_repo": "tests/roms-src/nds/keypad/build.py",
+      "source_sha": "93f1416d645015ae35e26aa688913a4c748ed5c2cc66a9feee9a0a4bbd001d07",
+      "source_type": "original",
+      "suite": "keypad"
+    },
+    "nds/long_calls/long_calls.nds": {
+      "build_command": "python3 tests/roms-src/nds/long_calls/build.py",
+      "console": "nds",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "f968b7b2c19910fb2af4cf76879a2f27f3ecf4baa07f9140d0b81592780e4892",
+      "source_repo": "tests/roms-src/nds/long_calls/build.py",
+      "source_sha": "6b785b4ae985d4eedb0fec680bc8bd97003f14c8f26f90f78e3696446c55451a",
+      "source_type": "original",
+      "suite": "long_calls"
+    },
+    "nds/memory_registers/memory_registers.nds": {
+      "build_command": "python3 tests/roms-src/nds/memory_registers/build.py",
+      "console": "nds",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "a8530a95272d6a33b21f7c3b5610671d9c631426f321ee4785dd5973f674803a",
+      "source_repo": "tests/roms-src/nds/memory_registers/build.py",
+      "source_sha": "b1b30283cd6aac95c442f47c82919253acf771f99da3fa70ffc78ff9d37a053d",
+      "source_type": "original",
+      "suite": "memory_registers"
+    },
+    "nds/multiple_registers/multiple_registers.nds": {
+      "build_command": "python3 tests/roms-src/nds/multiple_registers/build.py",
+      "console": "nds",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "a463f10277f1b83fd1ac7133e41369b21382d76b2c7c82f21e7fc50a6f23fb2b",
+      "source_repo": "tests/roms-src/nds/multiple_registers/build.py",
+      "source_sha": "daf556d570200eb51942feac07b9ce8c6e4965fe38d867abf5622fc639ad1057",
+      "source_type": "original",
+      "suite": "multiple_registers"
+    },
+    "nds/multiply_registers/multiply_registers.nds": {
+      "build_command": "python3 tests/roms-src/nds/multiply_registers/build.py",
+      "console": "nds",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "1eb622779ab770d2014f3f6ade87d642cd7e9c0dae112ad9d0b29338bd97d269",
+      "source_repo": "tests/roms-src/nds/multiply_registers/build.py",
+      "source_sha": "9d6da9708465dc1411551d4ab8af0af761b61fe3ed0a2338ea6dd0d2a5461c31",
+      "source_type": "original",
+      "suite": "multiply_registers"
+    },
+    "nds/netplay_probe/netplay_probe.nds": {
+      "build_command": "python3 tests/roms-src/nds/netplay_probe/build.py",
+      "console": "nds",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "e1f0fc430ba67edf230937103118a4d181b571ad5e8222979fb5c150c57657a7",
+      "source_repo": "tests/roms-src/nds/netplay_probe/build.py",
+      "source_sha": "50b7b7a8db21e9387421071154f073008d61834fbd752eaa5bdec18ec5b6ecc2",
+      "source_type": "original",
+      "suite": "netplay_probe"
+    },
+    "nds/thumb_registers/thumb_registers.nds": {
+      "build_command": "python3 tests/roms-src/nds/thumb_registers/build.py",
+      "console": "nds",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "b2e06cd405484bcd06db2bc05cfe102101b09238cb5738056664ef572a0b8406",
+      "source_repo": "tests/roms-src/nds/thumb_registers/build.py",
+      "source_sha": "cb990ad033bdd23d09bac062df5bcca9a8acfac06f73a7b1e2cf035b76985b96",
+      "source_type": "original",
+      "suite": "thumb_registers"
+    },
+    "nes/alu_exhaustive/alu_exhaustive.nes": {
+      "build_command": "python3 tests/roms-src/nes/alu_exhaustive/build.py",
+      "console": "nes",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "1c0fd225564c79dc66e9549e776585c06093a778f7c504397c9c3b795965121f",
+      "source_repo": "tests/roms-src/nes/alu_exhaustive/build.py",
+      "source_sha": "1a415ddc9ec681a9e52e6985390a13a05dd00eac885ba341deadc6d0373a9146",
+      "source_type": "original",
+      "suite": "alu_exhaustive"
+    },
     "nes/cpu_dummy_reads/cpu_dummy_reads.nes": {
       "console": "nes",
       "golden_gate": {
@@ -29,6 +249,138 @@
         "wla-dx": "---------------------------------------------------------------------- ---                WLA GB-Z80 Macro Assembler v10.6                --- ----------------------------------------------------------------------                 Programmed by Ville Helin in 1998-2008         In GitHub since 2014: https://github.com/vhelin/wla-dx                     : wla-gb 10.6 (19.11.2023)  USAGE: /src/wla-dx/build/binaries/wla-gb [OPTIONS] <OUTPUT> <ASM FILE>  OPTIONS: -c  Continue parsing after an error -d  Disable WLA's ability to calculate A-B where A and B are labels -h  Assume all label references are 16-bit by default (size hints     still work) -i  Add list file information -k  Keep empty sections -M  Output makefile rules -MP Create a phony target for each dependency other than the main file,     use this with -M -MF <FILE> Specify a file to write the dependencies to, use with -M -p  Pause printing after a screen full of text has been printed,     use this with -SX and -SY -q  Quiet -s  Don't create _sizeof_* and _paddingof_* definitions -SX <WIDTH> The number of characters per line in console (default 80) -SY <HEIGHT> The number of lines in console (default 24) -t  Test assemble -v  Verbose messages -v1 Verbose messages (only discard sections) -v2 Verbose messages (-v1 plus short summary) -w  Require labels to end in a colon -x  Extra compile time labels and definitions -I <DIR>  Include directory -D <DEF>  Declare definition  OUTPUT: -o <FILE>  Output object file -l <FILE>  Output library file  EXAMPLES: /src/wla-dx/build/binaries/wla-gb -M -t -o main.o main.asm /src/wla-dx/build/binaries/wla-gb -D VER=1 -D TWO=2 -v -o main.o main.asm"
       },
       "toolchain_image_id": "sha256:71c159dd80048214ea2f03bcb75b41e0a5c073b55f66a4333ed6bdbef7a3b26f"
+    },
+    "nes/netplay_probe/netplay_probe.nes": {
+      "build_command": "python3 tests/roms-src/nes/netplay_probe/build.py",
+      "console": "nes",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "61796324da6c9fe2304b4806b86f1993c05241515009cdc33ec4f6c40d9348a9",
+      "source_repo": "tests/roms-src/nes/netplay_probe/build.py",
+      "source_sha": "b056c85ade1fad480c2a8243284e853819ab175e72845e67abdb2b697ceaa4da",
+      "source_type": "original",
+      "suite": "netplay_probe"
+    },
+    "snes/math_registers/math_registers.sfc": {
+      "build_command": "python3 tests/roms-src/snes/math_registers/build.py",
+      "console": "snes",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "10ca24c4b88661d4b52f4c5b20a5822d0acbe94b45be4af89c604e92d71952b7",
+      "source_repo": "tests/roms-src/snes/math_registers/build.py",
+      "source_sha": "9be5014016d4e90e4a80665f7995b7fe7cff79ba0e59ca18a04979e29af9056c",
+      "source_type": "original",
+      "suite": "math_registers"
+    },
+    "snes/math_timing/math_timing.sfc": {
+      "build_command": "python3 tests/roms-src/snes/math_timing/build.py",
+      "console": "snes",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "833c8ddf7f6779f2d61c960d4aad637fb00d528e62ee932621a8bc5afdd55f9c",
+      "source_repo": "tests/roms-src/snes/math_timing/build.py",
+      "source_sha": "a63cb40a3bb4e6144c1947cf03d104755147bf8eb43175958e6daf58ec19a97d",
+      "source_type": "original",
+      "suite": "math_timing"
+    },
+    "vb/address_traps/address_traps.vb": {
+      "build_command": "python3 tests/roms-src/vb/address_traps/build.py",
+      "console": "vb",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "b3120c868c9df7b3d98d06c319450cb4992dc7ca0f7c2a984fefdde8768050b4",
+      "source_repo": "tests/roms-src/vb/address_traps/build.py",
+      "source_sha": "dd711c8661b3b2c845470e5d2264878492bd12ae3d95c7cc077b7cc34b8df62d",
+      "source_type": "original",
+      "suite": "address_traps"
+    },
+    "vb/bitstrings/bitstrings.vb": {
+      "build_command": "python3 tests/roms-src/vb/bitstrings/build.py",
+      "console": "vb",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "1d9355e519239e5a93e8917d6219a870975273b6f9f02d828993447a3d8cc105",
+      "source_repo": "tests/roms-src/vb/bitstrings/build.py",
+      "source_sha": "47f0bdea1a390958aa7d9eebd0539bb691a4c5ccd6737bd295c34d933cde276c",
+      "source_type": "original",
+      "suite": "bitstrings"
+    },
+    "vb/exceptions/exceptions.vb": {
+      "build_command": "python3 tests/roms-src/vb/exceptions/build.py",
+      "console": "vb",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "66959500d4f66ac393f08b75f7f7e94f73fe1589fb35ffa9e717026dc84690a5",
+      "source_repo": "tests/roms-src/vb/exceptions/build.py",
+      "source_sha": "3cccc2e37ea6ab51370a75e1ce7834e69aa01e0c07784adf1051c604cb1b6a6a",
+      "source_type": "original",
+      "suite": "exceptions"
+    },
+    "vb/immediates/immediates.vb": {
+      "build_command": "python3 tests/roms-src/vb/immediates/build.py",
+      "console": "vb",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "6f4b43645b45107f9470a9c6c58628c67c170d1e2f43f1dc40d7b8c87f82a9ff",
+      "source_repo": "tests/roms-src/vb/immediates/build.py",
+      "source_sha": "f85bcb04d6e8dafb400866bd0e05e7132b556ba56eee57d7cca1d2dd84ad3662",
+      "source_type": "original",
+      "suite": "immediates"
+    },
+    "vb/integer_registers/integer_registers.vb": {
+      "build_command": "python3 tests/roms-src/vb/integer_registers/build.py",
+      "console": "vb",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "1f4b93452098bc83d8a702b5c51aa3c49cfa8965a2d06a52b32c54f0bc67967a",
+      "source_repo": "tests/roms-src/vb/integer_registers/build.py",
+      "source_sha": "82697f3605e0c25615f204da0110f483f32ba68ffd0af977cb7f419032cd3d82",
+      "source_type": "original",
+      "suite": "integer_registers"
+    },
+    "vb/memory_ops/memory_ops.vb": {
+      "build_command": "python3 tests/roms-src/vb/memory_ops/build.py",
+      "console": "vb",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "5cba803d70e2d3a56bcf26fc65243cba9fe432a70bf819e395a899ff8171b56a",
+      "source_repo": "tests/roms-src/vb/memory_ops/build.py",
+      "source_sha": "2a8cfc7d7cfc19df9dde06a8e273005d00e20d2e8e3143ebfcd3284ce9cb37a6",
+      "source_type": "original",
+      "suite": "memory_ops"
+    },
+    "vb/muldiv/muldiv.vb": {
+      "build_command": "python3 tests/roms-src/vb/muldiv/build.py",
+      "console": "vb",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "afd515b1092e3fe64a42df6da399227019c4892dbeb7c8e640680e6121447c80",
+      "source_repo": "tests/roms-src/vb/muldiv/build.py",
+      "source_sha": "ed3046c4b31b48f91989ded6f11df166ee32b0afc88f46292708ecffd8e3a59e",
+      "source_type": "original",
+      "suite": "muldiv"
+    },
+    "wii/branch_registers/branch_registers.vwi": {
+      "build_command": "python3 tests/roms-src/wii/branch_registers/build.py",
+      "console": "wii",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "6b65eb83a30a4e0a91f8a3cd7e1789e43f1331c98c70d35fa218619e4dcce994",
+      "source_repo": "tests/roms-src/wii/branch_registers/build.py",
+      "source_sha": "6405ae92d849ad9290da3895982155ecc14e1c155f067445b234be30e705edae",
+      "source_type": "original",
+      "suite": "branch_registers"
+    },
+    "wii/integer_registers/integer_registers.vwi": {
+      "build_command": "python3 tests/roms-src/wii/integer_registers/build.py",
+      "console": "wii",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "8ae9176398ff08f28c812f3bd569b711178c9c805114750f7cfd034cb80b3bd6",
+      "source_repo": "tests/roms-src/wii/integer_registers/build.py",
+      "source_sha": "55ee945682cecc3b7b668d967af547a313aa3438d35e938072ee308b43679420",
+      "source_type": "original",
+      "suite": "integer_registers"
     }
   },
   "tool_versions": {
