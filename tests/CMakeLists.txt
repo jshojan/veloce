@@ -491,7 +491,7 @@ add_test(NAME n64_pi_test COMMAND n64_pi_test $<TARGET_FILE:n64_plugin>
     ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/integer_registers/integer_registers.z64
     ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/ipl3_handoff/ipl3_handoff.z64)
 set_tests_properties(n64_pi_test PROPERTIES LABELS "unit;accuracy;owned" TIMEOUT 180)
-foreach(suite pi_dma ipl3_handoff ri_registers mi_controls rdram_devices cache_coherence sp_controls sp_dma ai_fifo ai_pcm fpu_controls tlb_translation vi_registers vi_framebuffer fpu_data fpu_integer_conversions fpu_conversion_edges fpu_arithmetic_pairs fpu_arithmetic_edges rsp_scalar_alu rsp_scalar_immediates)
+foreach(suite pi_dma ipl3_handoff ri_registers mi_controls rdram_devices cache_coherence sp_controls sp_dma ai_fifo ai_pcm fpu_controls tlb_translation vi_registers vi_framebuffer fpu_data fpu_integer_conversions fpu_conversion_edges fpu_arithmetic_pairs fpu_arithmetic_edges rsp_scalar_alu rsp_scalar_immediates dp_registers dp_fill_rectangles)
     add_test(NAME n64_${suite} COMMAND ${Python3_EXECUTABLE}
         ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/${suite}/run.py --emulator $<TARGET_FILE:veloce>
         --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_${suite})
@@ -627,3 +627,10 @@ target_include_directories(n64_rsp_scalar_test PRIVATE ${CMAKE_SOURCE_DIR}/cores
 add_test(NAME n64_rsp_scalar_test COMMAND n64_rsp_scalar_test
     ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/rsp_scalar_alu/rsp_scalar_alu.z64)
 set_tests_properties(n64_rsp_scalar_test PROPERTIES LABELS "unit;accuracy;owned" TIMEOUT 240)
+
+add_executable(n64_dp_test cpp/n64_dp_test.cpp
+    ${CMAKE_SOURCE_DIR}/cores/n64/src/machine.cpp ${CMAKE_SOURCE_DIR}/cores/n64/src/vr4300.cpp)
+target_include_directories(n64_dp_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src ${CMAKE_SOURCE_DIR}/include)
+add_test(NAME n64_dp_test COMMAND n64_dp_test
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/dp_registers/dp_registers.z64)
+set_tests_properties(n64_dp_test PROPERTIES LABELS "unit;accuracy;owned" TIMEOUT 180)

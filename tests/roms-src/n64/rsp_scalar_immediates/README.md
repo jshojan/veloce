@@ -34,6 +34,6 @@ No physical console has validated these original cartridges. The declared finite
 domains do not exhaust independent full-width operands. Scheduling uses two RSP
 steps per three nominal CPU attempts; physical pipeline/dual issue/interlocks,
 DMA bus timing, debugger timing and undefined encodings remain ungraded. Vector
-instructions, DP control/commands and complete game graphics/audio remain pending.
+instructions, complete RDP and game graphics/audio remain pending. Shared DP controls and a bounded fill/sync profile are now implemented; see the [current core evidence](../../../../cores/n64/README.md#display-processor-interface-and-fill-engine).
 Unsupported operations block explicitly without a fake BREAK/completion IRQ.
 N64 stays 40% on the delivery checklist.

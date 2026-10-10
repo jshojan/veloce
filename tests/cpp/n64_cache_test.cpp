@@ -89,11 +89,11 @@ int main(int argc,char** argv) {
         require(c.read(m,cached(0x400000),4,observed,true,3),"pending I state");
         std::vector<uint8_t> state,after,replay;require(m.save(state),"cache save");operation(m,21,0x700000,tag);operation(m,0,0x400000,tag);m.save(after);
         require(m.restore(state),"cache restore");operation(m,21,0x700000,tag);operation(m,0,0x400000,tag);m.save(replay);require(after==replay,"dirty/stale state exact replay");
-        for(size_t at:{after.size()-75712,after.size()-75712+511*48,after.size()-51136,after.size()-34784}) {
+        for(size_t at:{after.size()-75864,after.size()-75864+511*48,after.size()-51288,after.size()-34936}) {
             auto bad=after;bad[at+5]=16;require(!m.restore(bad) && m.save(replay) && replay==after,"cache tag field rejection atomicity");
             bad=after;bad[at+15]=2;require(!m.restore(bad) && m.save(replay) && replay==after,"cache flag rejection atomicity");
         }
-        auto old=state;old.resize(old.size()-75712);old[6]='0';old[7]='6';require(m.restore(old) && m.cpu.caches.data[0].flags==0,"legacy invalid caches");
+        auto old=state;old.resize(old.size()-75864);old[6]='0';old[7]='6';require(m.restore(old) && m.cpu.caches.data[0].flags==0,"legacy invalid caches");
         // Run the real shared plugin to completion; its host oracle grades the file separately.
         emulator_test::LoadedCore core(argv[1],rom);core.plugin->run_frame({});require(core.plugin->save_state(state) && m.restore(state) && m.cpu.state.cp0[16]==3,"loaded cached plugin snapshot");
         std::cout<<"1048576 physical tags and 1048576 instruction staleness/refill cases matched; indices, dirty eviction, widths/merge masks, real DMA staleness, CPU CACHE/privilege, replay, rejected states and loaded plugin passed\n";return 0;

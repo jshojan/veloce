@@ -47,6 +47,8 @@ public:
     RdramDevices rdram_devices;
     SpInterface sp_interface;
     RspScalar rsp;
+    DpInterface dp_interface;
+    static constexpr size_t dp_state_size=152;
     uint64_t rsp_phase=0;
     static constexpr size_t rsp_state_size=304;
     AudioInterface audio_interface;
