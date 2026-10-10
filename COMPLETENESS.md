@@ -1451,3 +1451,16 @@ and the default `build/artifacts/retail/n64.json`.
 N64 remains **40% = 8/20 fixed delivery milestones**; the complete graphics
 milestone and full Nintendo-platform goal remain unfinished. Front-page and core
 README percentages stay synchronized. CI/CD remains disabled.
+
+Verification: the full build and **70 distinct N64 gates pass**. The full batch
+passes 69 of 70 in **1,803.04 seconds**. The AI component's symbolic EOF offset
+needed the same 136-byte shift as other state checks; with both rejection and
+legacy-conversion offsets corrected, that gate passes in **17.65 seconds**.
+Production code is unchanged by this correction. The new original tile suite
+passes in **10.57 seconds**, grading **131,072 cases / 917,504 actual words** with
+zero mismatches and rejecting all 16 executed capture mutants, seven field
+mutations and seven malformed streams. The divider regression also passes in
+**1,599.30 seconds**. All **92 original ROM archives** reproduce; the final
+texture component passes undefined-behavior sanitization without compiler warnings.
+Both private retail reports match current executable hashes. Completion synchronization,
+new evidence links and whitespace checks pass.
