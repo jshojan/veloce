@@ -310,3 +310,8 @@ add_test(NAME nds_long_calls COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/roms-src/nds/long_calls/run.py --emulator $<TARGET_FILE:veloce>
     --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/nds_long_calls)
 set_tests_properties(nds_long_calls PROPERTIES LABELS "accuracy;owned" TIMEOUT 1800)
+
+add_test(NAME nds_multiple_registers COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/nds/multiple_registers/run.py --emulator $<TARGET_FILE:veloce>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/nds_multiple)
+set_tests_properties(nds_multiple_registers PROPERTIES LABELS "accuracy;owned" TIMEOUT 1800)

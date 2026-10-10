@@ -42,6 +42,13 @@ Full platform completion is unknown.
   and PC-relative literal transfers, including signed byte/halfword loads.
   Odd halfwords stop diagnostically. Unaligned Thumb word alignment/rotation
   is a model choice, outside the original ROM hardware grade.
+- Thumb PUSH/POP and STMIA/LDMIA with ascending register/address order,
+  descending PUSH and increment-after POP/block transfers. LDM base-in-list
+  keeps its loaded value; STM base-in-list stores the original base when it is
+  the lowest listed register. Empty lists and other STM base aliases stop
+  diagnostically. ARM9 POP-PC interworks; ARM7 ignores bit zero and stays Thumb.
+  Unaligned addresses align each word without rotation in the supplied
+  alignment-disabled model; physical alignment/CP15 behavior is unverified.
 - 4 MiB main RAM with four mirrors, shared between CPUs; 64 KiB ARM7 private
   WRAM and mirrors; 32 KiB shared WRAM with all four WRAMCNT allocations,
   bank mirrors, ARM9 control and ARM7 status. Missing ARM9 allocation stops
@@ -132,7 +139,16 @@ LR seeds and all NZCV/ARM9 Q inputs. It observes link/CPSR/target-PC/input field
 and an ARM-target memory store of LR. It patches and restores loaded RAM under
 the supplied cache-free profile; physical instruction-cache coherence is unverified.
 
-The five original ROMs use the word transport for register observations and the
+The original [stack/block corpus](../../tests/roms-src/nds/multiple_registers/README.md)
+matched 3,720,960/3,720,960 twenty-five-word snapshots,
+zero mismatches, across every defined nonempty
+PUSH/POP list and every STMIA/LDMIA list/base combination, sixteen distinct
+register/memory seeds and all NZCV/ARM9 Q inputs. POP-PC exercises word-aligned
+ARM9 ARM targets and both Thumb halfword positions, including ARM7's even
+Thumb target. Static thunks avoid runtime code patching. The host grades every
+recorded bit; unpredictable lists are excluded from this hardware domain.
+
+The six original ROMs use the word transport for register observations and the
 byte transport for text framing. The four earlier corpora retain their instruction
 domains, snapshot fields and independent grading. The integer builder retains `word_output=False`, which
 reproduces the previously committed byte-output image exactly. Its reduced
@@ -183,6 +199,15 @@ these counts measure test-driver work, not physical DS cycles or latency.
   and low destination. Byte references check signed extension, store width,
   neighboring bytes, preserved flags, PC alignment and exact writeback.
   Reserved/unmapped transfers and failed conditions check rejection atomicity.
+- 3,327,744 defined Thumb stack/block transfers and 604,416 rejected
+  unpredictable list attempts, all NZCV/ARM9 Q, sixteen operand seeds, exact
+  register/memory ordering and guards. Another 24 unaligned model checks,
+  two undefined ARM9 POP target checks and eight injected transaction failures
+  verify alignment, rejection and the completed store prefix. Failed loads
+  commit no registers; failed stores retain earlier writes and commit no
+  registers/writeback. Those diagnostics do not model Data Abort behavior.
+  Actual shared-plugin PUSH/POP-PC loops use distinct CPU stacks and reproduce
+  whole states exactly after restore/replay.
 - All 65,536 offsets on each CPU in each of four shared-WRAM modes, private
   fallback, bank mirroring, access rights, main-RAM coherence/mirrors, rejected
   cross-region write atomicity, byte loads and unaligned word-load lanes.
@@ -210,15 +235,16 @@ ctest --test-dir build -R '^nds_' --output-on-failure
 
 Raw observations/reports remain in `build/artifacts/owned/nds_integer/`,
 `build/artifacts/owned/nds_multiply/`, `build/artifacts/owned/nds_thumb/`,
-`build/artifacts/owned/nds_memory/` and `build/artifacts/owned/nds_long_calls/`,
+`build/artifacts/owned/nds_memory/`, `build/artifacts/owned/nds_long_calls/` and
+`build/artifacts/owned/nds_multiple/`,
 and are uploaded by owned-hardware CI. Generator/image SHA256 are recorded
 in the ROM manifest. Component evidence is separate from the original-ROM domain.
 
 ## Remaining hardware and features
 
-Thumb stack/block transfers, ARM BLX immediate,
+ARM block transfers, ARM BLX immediate,
 ARM9 DSP/saturation and other architecture extensions,
-doubleword/block transfers, SWP, privileged modes,
+ARM doubleword transfers, SWP, privileged modes,
 banked registers, SPSR, exceptions/interrupts, CP15/MPU/cache/TCM, firmware and
 BIOS, gamecard/secure-area/save protocols, IPC, DMA, timers, KEYINPUT/touchscreen,
 SPI/RTC, Wi-Fi, graphics/VRAM/palette/OAM, 3D, sound and physical timing remain.

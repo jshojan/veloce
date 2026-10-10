@@ -128,7 +128,7 @@ ARM9/ARM7 share main RAM and execute from their loaded main/private segments.
 The host grades both output streams independently; an ADC-to-ADD mutation and
 seven damaged files check failure detection. Component gates cover aliases,
 shifters, WRAM banks, validation and exact plugin state replay. Firmware,
-Thumb stack/block transfers, physical timing, graphics/audio/controllers and
+ARM block transfers, physical timing, graphics/audio/controllers and
 DSi enhanced mode remain pending.
 The [multiply corpus](tests/roms-src/nds/multiply_registers/README.md) adds
 38,338,560 five-word observations across six multiply/accumulate forms, both S
@@ -168,7 +168,18 @@ frames cut after a prefix on each CPU; restored suffix execution reproduces
 whole states exactly, including ARM9 BLX. Dynamic code patches are backed up and
 restored under the cache-free test profile; physical cache coherence, exception
 handling and timing remain unverified.
-All five DS corpora serialize register words through emulator-only `$04FF0008`
+The [stack/block corpus](tests/roms-src/nds/multiple_registers/README.md) matched
+3,720,960/3,720,960 twenty-five-word snapshots, zero mismatches: every defined list/base encoding,
+sixteen register/memory seeds, all NZCV/ARM9 Q and POP-PC target states.
+Its reduced 19,200-observation ROM passes; executed missing-store and
+missing-load mutants fail 7,680 and 11,520 cases respectively, with unaffected
+groups passing. Twenty-five single-field mutations fail and seven malformed
+files return ERROR. Components cover 3,327,744 defined transfers and 604,416
+unpredictable-list diagnostics, plus unaligned model/undefined-target checks
+and injected failures. Actual plugin stack loops save/replay whole CPU/RAM
+states exactly. Static thunks avoid code patching; CP15/cache, abort behavior,
+physical ordering and timing remain unverified.
+All six DS corpora serialize register words through emulator-only `$04FF0008`
 while retaining byte framing and the same independent graders. Integer controls
 compare 347,136 independently graded native/legacy observations byte-for-byte;
 `legacy-byte.nds`, `.result` and `.json` remain with the integer artifacts.

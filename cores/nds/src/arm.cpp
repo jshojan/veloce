@@ -275,6 +275,30 @@ void Arm::thumb_step() {
     } else if((ins&0xff00)==0xb000) {
         const uint32_t offset=(ins&127)<<2;
         s.r[13]=(ins&0x80) ? s.r[13]-offset:s.r[13]+offset;
+    } else if((ins&0xf600)==0xb400 || (ins&0xf000)==0xc000) {
+        const bool stack=(ins&0xf000)==0xb000,load=ins&0x800;
+        const unsigned base=stack ? 13:(ins>>8)&7;
+        const unsigned list=(ins&255)|(stack && (ins&0x100) ? 1u<<(load ? 15:14):0);
+        if(!list || (!stack && !load && (list&(1u<<base)) && (list&((1u<<base)-1)))) {
+            s.unsupported=true; return;
+        }
+        unsigned count=0; for(unsigned reg=0;reg<16;++reg) count+=(list>>reg)&1;
+        const auto before=s.r;
+        const uint32_t begin=stack && !load ? before[base]-count*4:before[base];
+        uint32_t address=begin&~3u; auto values=before;
+        for(unsigned reg=0;reg<16;++reg) if(list&(1u<<reg)) {
+            if(!(load ? bus.read(address,4,values[reg]):bus.write(address,4,before[reg]))) {
+                s.unsupported=true; return;
+            }
+            address+=4;
+        }
+        if(load && (list&0x8000) && v5 && (values[15]&3)==2) { s.unsupported=true; return; }
+        if(load) s.r=values;
+        if(stack || !load || !(list&(1u<<base))) s.r[base]=stack && !load ? begin:before[base]+count*4;
+        if(load && (list&0x8000)) {
+            if(v5) s.cpsr=(s.cpsr&~0x20u)|((values[15]&1)<<5);
+            s.r[15]=values[15]&~1u; return;
+        }
     } else if((ins&0xf000)==0xd000) {
         const unsigned cond=(ins>>8)&15;
         if(cond>=14) { s.unsupported=true; return; }

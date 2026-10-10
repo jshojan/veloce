@@ -316,6 +316,108 @@ static void thumb_long_calls(nds::Machine& m) {
             }
         }
 }
+static void thumb_multiple(nds::Machine& m) {
+    constexpr uint32_t data=0x02010004;
+    uint64_t cases=0,diagnostics=0;
+    for(bool nine:{false,true}) for(unsigned kind=0;kind<4;++kind)
+        for(unsigned base=0;base<(kind<2 ? 1u:8u);++base)
+        for(unsigned mask=0;mask<(kind<2 ? 512u:256u);++mask) {
+            const bool stack=kind<2,load=kind==1 || kind==3;
+            const unsigned list=(mask&255)|(stack && (mask&256) ? 1u<<(load ? 15:14):0);
+            const bool invalid=!list || (kind==2 && (list&(1u<<base)) && (list&((1u<<base)-1)));
+            const uint16_t ins=(kind==0 ? 0xb400:kind==1 ? 0xbc00:kind==2 ? 0xc000:0xc800)|(stack ? mask:base<<8|mask);
+            unsigned count=0; for(unsigned reg=0;reg<16;++reg) count+=(list>>reg)&1;
+            for(unsigned seed=0;seed<16;++seed) for(unsigned flag=0;flag<(nine ? 32u:16u);++flag) {
+                require(m.write(nine,start,2,ins),"multiple instruction setup failed");
+                auto& cpu=nine ? m.cpu9:m.cpu7; cpu.reset(start); auto& s=cpu.state;
+                for(unsigned reg=0;reg<15;++reg) s.r[reg]=patterns[seed]^((reg+1)*0x01010101u);
+                s.r[stack ? 13:base]=kind==0 ? data+count*4:data;
+                s.cpsr=0xff|(flag<<(nine ? 27:28)); const auto original=s.r; const auto psw=s.cpsr;
+                std::array<uint32_t,11> words{};
+                for(unsigned n=0;n<11;++n) {
+                    words[n]=~patterns[seed]^((n+17)*0x01010101u);
+                    require(m.write(nine,data-4+n*4,4,words[n]),"multiple memory setup failed");
+                }
+                auto want=original; auto memory=words; unsigned ordinal=1;
+                for(unsigned reg=0;reg<16;++reg) if(list&(1u<<reg)) {
+                    if(load) want[reg]=words[ordinal]; else memory[ordinal]=original[reg];
+                    ++ordinal;
+                }
+                if(load && (list&0x8000)) {
+                    const unsigned bits=nine ? (seed%3==0 ? 0:seed%3==1 ? 1:3):seed%4;
+                    want[15]=0x02028000|bits;
+                    words[count]=want[15]; memory[count]=want[15];
+                    require(m.write(nine,data+(count-1)*4,4,want[15]),"POP target setup failed");
+                }
+                if(stack || !load || !(list&(1u<<base))) want[stack ? 13:base]=kind==0 ? data:data+count*4;
+                uint32_t expected_psw=psw;
+                if(load && (list&0x8000)) {
+                    if(nine) expected_psw=(psw&~0x20u)|((want[15]&1)<<5);
+                    want[15]&=~1u;
+                } else want[15]=start+2;
+                cpu.step();
+                if(invalid) {
+                    ++diagnostics;
+                    require(s.unsupported && s.r==original && s.cpsr==psw,"unpredictable list changed registers");
+                    memory=words;
+                } else {
+                    ++cases;
+                    require(!s.unsupported && s.r==want && s.cpsr==expected_psw,"multiple order/register/writeback/flags wrong");
+                }
+                for(unsigned n=0;n<11;++n) {
+                    uint32_t actual=0; require(m.read(nine,data-4+n*4,4,actual) && actual==memory[n],"multiple memory order/guard wrong");
+                }
+            }
+        }
+    require(cases==3327744 && diagnostics==604416,"multiple finite domain changed");
+    // The supplied alignment-disabled model aligns each word without rotating
+    // it and preserves the base's low bits in writeback. Not a CP15/cache grade.
+    for(bool nine:{false,true}) for(unsigned kind=0;kind<4;++kind) for(unsigned lane=1;lane<4;++lane) {
+        auto& cpu=nine ? m.cpu9:m.cpu7;
+        const uint16_t ins=kind==0 ? 0xb403:kind==1 ? 0xbc03:kind==2 ? 0xc203:0xca03;
+        require(m.write(nine,start,2,ins),"unaligned multiple setup failed"); cpu.reset(start); auto& s=cpu.state;
+        s.cpsr=0xff; s.r[0]=0x12345678; s.r[1]=0x89abcdef;
+        s.r[kind<2 ? 13:2]=data+lane+(kind==0 ? 8:0);
+        m.write(nine,data,4,0x10203040); m.write(nine,data+4,4,0x50607080); cpu.step();
+        require(!s.unsupported && s.r[kind<2 ? 13:2]==data+lane+(kind==0 ? 0:8),"unaligned multiple writeback wrong");
+        if(kind==1 || kind==3) require(s.r[0]==0x10203040 && s.r[1]==0x50607080,"multiple load rotated unaligned data");
+        else { uint32_t a=0,b=0; m.read(nine,data,4,a); m.read(nine,data+4,4,b); require(a==0x12345678 && b==0x89abcdef,"unaligned multiple store wrong"); }
+    }
+    for(unsigned list:{0x100u,0x1ffu}) {
+        require(m.write(true,start,2,0xbc00|list),"undefined POP setup failed"); m.cpu9.reset(start);
+        auto& s=m.cpu9.state; s.cpsr=0xff; s.r[13]=data;
+        for(unsigned n=0;n<9;++n) m.write(true,data+n*4,4,0x02028002);
+        const auto original=s.r; m.cpu9.step();
+        require(s.unsupported && s.r==original && s.cpsr==0xff,"unaligned ARM POP target changed registers");
+    }
+    struct FaultBus final:nds::Memory {
+        uint16_t instruction=0;
+        std::array<uint32_t,2> memory{{0x12345678,0x89abcdef}};
+        std::vector<uint32_t> attempts;
+        bool read(uint32_t address,unsigned width,uint32_t& value) override {
+            if(address==start && width==2) { value=instruction; return true; }
+            attempts.push_back(address);
+            if(width!=4 || address!=0x02010000) return false;
+            value=memory[0]; return true;
+        }
+        bool write(uint32_t address,unsigned width,uint32_t value) override {
+            attempts.push_back(address);
+            if(width!=4 || address!=0x02010000) return false;
+            memory[0]=value; return true;
+        }
+    };
+    for(bool nine:{false,true}) for(unsigned kind=0;kind<4;++kind) {
+        FaultBus bus; bus.instruction=kind==0 ? 0xb403:kind==1 ? 0xbc03:kind==2 ? 0xc203:0xca03;
+        nds::Arm cpu(bus,nine); cpu.reset(start); cpu.state.cpsr=0xff;
+        cpu.state.r[0]=0xfedcba98; cpu.state.r[1]=0x76543210;
+        cpu.state.r[kind<2 ? 13:2]=0x02010000+(kind==0 ? 8:0);
+        const auto original=cpu.state.r; cpu.step();
+        require(cpu.state.unsupported && cpu.state.r==original && cpu.state.cpsr==0xff,"failed multiple transfer committed registers/writeback");
+        require(bus.attempts==std::vector<uint32_t>{0x02010000,0x02010004},"failed multiple transfer used wrong address order");
+        require(bus.memory[0]==(kind==0 || kind==2 ? 0xfedcba98:0x12345678) && bus.memory[1]==0x89abcdef,"failed multiple transfer memory prefix wrong");
+    }
+
+}
 static uint32_t byte_load(const std::array<uint8_t,12>& bytes,unsigned lane,unsigned width,bool sign) {
     uint32_t result=0;
     for(unsigned n=0;n<width;++n) result+=uint32_t(bytes[lane+n])<<(8*n);
@@ -481,12 +583,36 @@ static void states(nds::Machine& m,const std::vector<uint8_t>& rom,const char* p
     require((after[183]&0x20) && (after[335]&0x20),"plugin lost Thumb state");
     require(core.load_state(before),"plugin Thumb replay restore failed"); core.run_frame({0}); core.save_state(replay);
     require(replay==after,"actual plugin Thumb continuation diverged");
-    // End a real plugin frame immediately after each CPU's prefix. The next
-    // frame starts at the suffix with an observable temporary LR, so replay
-    // checks actual prefix execution and the serialized partial-call context.
     const auto read_scalar=[](const std::vector<uint8_t>& data,unsigned offset) {
         uint64_t value=0; for(unsigned n=0;n<8;++n) value=value*256+data[offset+n]; return value;
     };
+    // Full-list PUSH/POP-PC loops retire real transfers in the shared plugin.
+    // Each CPU owns a distinct stack, with LR returning to the Thumb prefix.
+    scalar(168,start); scalar(320,start); scalar(176,0xf80000ff); scalar(328,0xf00000ff);
+    scalar(152,0x02018040); scalar(304,0x02018140);
+    scalar(160,start|1); scalar(312,start|1);
+    before[352+0x2000]=0xff; before[352+0x2001]=0xb5;
+    before[352+0x2002]=0xff; before[352+0x2003]=0xbd;
+    require(core.load_state(before),"plugin stack-loop setup rejected"); core.run_frame({0}); core.save_state(after);
+    require(after[183]==0xff && after[335]==0xff,"plugin POP lost Thumb state");
+    for(unsigned cpu=0;cpu<2;++cpu) {
+        const unsigned registers=48+cpu*152; const auto sp=read_scalar(before,registers+13*8);
+        require(read_scalar(after,registers+13*8)==sp && read_scalar(after,registers+15*8)==start && read_scalar(after,registers+14*8)==(start|1),"plugin stack loop lost SP/PC/LR");
+        require(read_scalar(after,registers+16*8)==read_scalar(before,registers+16*8) && read_scalar(after,registers+18*8)==0,"plugin stack loop changed flags/stopped");
+        require(read_scalar(after,registers+17*8)==read_scalar(before,registers+17*8)+(cpu==0 ? 200000:100000),"plugin stack loop instruction count wrong");
+        for(unsigned reg=0;reg<9;++reg) {
+            const auto value=read_scalar(before,registers+(reg==8 ? 14:reg)*8);
+            if(reg<8) require(read_scalar(after,registers+reg*8)==value,"plugin POP changed restored register");
+            const auto memory=352+sp-0x02000000-36+reg*4;
+            uint32_t word=0; for(unsigned byte=0;byte<4;++byte) word+=uint32_t(after[memory+byte])<<(byte*8);
+            require(word==value,"plugin PUSH memory order wrong");
+        }
+    }
+    require(core.load_state(before),"plugin stack-loop restore failed"); core.run_frame({0}); core.save_state(replay);
+    require(after==replay,"actual plugin stack/memory continuation diverged");
+    // End a real plugin frame immediately after each CPU's prefix. The next
+    // frame starts at the suffix with an observable temporary LR, so replay
+    // checks actual prefix execution and the serialized partial-call context.
     for(bool exchange:{false,true}) {
         const uint32_t bases[]={start,0x020a2000};
         const unsigned lengths[]={200000,100000};
@@ -543,7 +669,7 @@ int main(int argc,char** argv) {
     try {
         require(argc==3,"usage: nds_machine_test plugin original.nds"); std::ifstream in(argv[2],std::ios::binary);
         std::vector<uint8_t> rom((std::istreambuf_iterator<char>(in)),{}); nds::Machine m; require(m.load(rom.data(),rom.size()),"original DS ROM rejected");
-        arithmetic(m); multiplies(m); shifts(m); control(m); thumb_alu(m); thumb_high_registers(m); thumb_control(m); thumb_long_calls(m); memory_instructions(m); memory(m); register_output(m); states(m,rom,argv[1]);
+        arithmetic(m); multiplies(m); shifts(m); control(m); thumb_alu(m); thumb_high_registers(m); thumb_control(m); thumb_long_calls(m); thumb_multiple(m); memory_instructions(m); memory(m); register_output(m); states(m,rom,argv[1]);
         std::cout<<"DS ARM/Thumb ALU/multiply/shifter/control/memory/state/plugin checks passed\n"; return 0;
     } catch(const std::exception& e) { std::cerr<<e.what()<<'\n'; return 1; }
 }

@@ -100,7 +100,11 @@ The full archived image SHA256 is
 `f968b7b2c19910fb2af4cf76879a2f27f3ecf4baa07f9140d0b81592780e4892`.
 
 Physical-hardware comparison, cache/TCM/MPU, exceptions/interrupts, ARM BLX
-immediate, Thumb stack/block transfers, firmware/retail boot, graphics/audio,
+immediate, ARM block transfers, firmware/retail boot, graphics/audio,
 controllers/peripherals, DS netplay and DSi enhanced mode remain unverified or
 unimplemented. Finite arithmetic coverage establishes no whole-platform
 completion percentage.
+
+Thumb PUSH/POP/STMIA/LDMIA have a separate original
+[stack/block corpus](../multiple_registers/README.md), with defined list/base
+encodings and diagnostic component checks reported separately.

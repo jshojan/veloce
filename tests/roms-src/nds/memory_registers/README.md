@@ -72,7 +72,7 @@ ctest --test-dir build -R '^nds_memory_registers$' --output-on-failure
 
 Component checks cover register aliases, every encoded low destination,
 PC alignment, odd-half diagnostics, reserved operands and failed-transaction
-atomicity. Full 32-bit operand/offset/address domains, stack/block/doubleword
+atomicity. Full 32-bit operand/offset/address domains, ARM block/doubleword
 transfers, cache/TCM/MPU, exceptions, bus timing and physical
 hardware comparisons remain unverified or unimplemented. Retail DS/DSi boot,
 graphics/audio/input/peripherals and DS netplay remain incomplete. Finite domain
@@ -90,3 +90,7 @@ provide no evidence of physical timing.
 Adjacent Thumb BL and ARM9 BLX have a separate original
 [long-call corpus](../long_calls/README.md); its finite field domain does not
 establish physical cache coherence or exception behavior.
+
+Thumb PUSH/POP/STMIA/LDMIA have a separate original
+[stack/block corpus](../multiple_registers/README.md), with defined list/base
+encodings and diagnostic component checks reported separately.

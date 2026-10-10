@@ -132,6 +132,17 @@
       "source_type": "original",
       "suite": "memory_registers"
     },
+    "nds/multiple_registers/multiple_registers.nds": {
+      "build_command": "python3 tests/roms-src/nds/multiple_registers/build.py",
+      "console": "nds",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "a463f10277f1b83fd1ac7133e41369b21382d76b2c7c82f21e7fc50a6f23fb2b",
+      "source_repo": "tests/roms-src/nds/multiple_registers/build.py",
+      "source_sha": "daf556d570200eb51942feac07b9ce8c6e4965fe38d867abf5622fc639ad1057",
+      "source_type": "original",
+      "suite": "multiple_registers"
+    },
     "nds/multiply_registers/multiply_registers.nds": {
       "build_command": "python3 tests/roms-src/nds/multiply_registers/build.py",
       "console": "nds",

@@ -63,7 +63,7 @@ ctest --test-dir build -R '^nds_thumb_registers$' --output-on-failure
 High-register arithmetic/PC and SP address forms, conditional/unconditional
 branches, BLX register differences and exact Thumb/plugin state replay have
 separate component checks. Full 32-bit operand domains, all aliases, instruction
-latency, physical-hardware comparison, cache coherency, stack/block
+latency, physical-hardware comparison, cache coherency, ARM block
 transfers, SWI/exceptions and ARM9 DSP extensions remain unverified
 or unimplemented. Retail DS and DSi boot, peripherals, graphics/audio/input and
 DS netplay remain incomplete.
@@ -82,3 +82,7 @@ provide no evidence of physical timing.
 Adjacent Thumb BL and ARM9 BLX have a separate original
 [long-call corpus](../long_calls/README.md); its finite field domain does not
 establish physical cache coherence or exception behavior.
+
+Thumb PUSH/POP/STMIA/LDMIA have a separate original
+[stack/block corpus](../multiple_registers/README.md), with defined list/base
+encodings and diagnostic component checks reported separately.
