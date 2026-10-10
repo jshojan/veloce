@@ -866,6 +866,17 @@
       "source_type": "original",
       "suite": "arithmetic_registers"
     },
+    "switch/muldiv_registers/muldiv_registers.nso": {
+      "build_command": "python3 tests/roms-src/switch/muldiv_registers/build.py",
+      "console": "switch",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "28a61a043cebbb892c0ebbe5223dd28c9eab2fb8e1090b64c99bbe2525787946",
+      "source_repo": "tests/roms-src/switch/muldiv_registers/build.py",
+      "source_sha": "c4835e11e2056abd55a465acf9359e0813a3b2a616caa3de1107f291a1edefee",
+      "source_type": "original",
+      "suite": "muldiv_registers"
+    },
     "vb/address_traps/address_traps.vb": {
       "build_command": "python3 tests/roms-src/vb/address_traps/build.py",
       "console": "vb",

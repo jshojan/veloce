@@ -4,6 +4,25 @@ static int64_t signed_bits(uint64_t value,unsigned bits){
     const uint64_t sign=uint64_t(1)<<(bits-1);
     return int64_t(value& (sign-1))-int64_t(value&sign);
 }
+static uint64_t unsigned_product_high(uint64_t a,uint64_t b){
+    // Four 32-bit limbs; every intermediate fits an unsigned 64-bit word.
+    const uint64_t a0=uint32_t(a),a1=a>>32,b0=uint32_t(b),b1=b>>32;
+    const uint64_t low=a0*b0,middle=a1*b0+(low>>32);
+    const uint64_t cross=a0*b1+uint32_t(middle);
+    return a1*b1+(middle>>32)+(cross>>32);
+}
+static uint64_t integer_divide(uint64_t a,uint64_t b,unsigned width,bool is_signed){
+    const uint64_t mask=width==64?~uint64_t(0):0xffffffffu,sign=uint64_t(1)<<(width-1);
+    a&=mask;b&=mask;
+    if(!b)return 0;
+    if(!is_signed)return a/b;
+    const bool a_negative=a&sign,b_negative=b&sign;
+    const uint64_t left=a_negative?(-a)&mask:a,right=b_negative?(-b)&mask:b;
+    const auto quotient=left/right;
+    // Magnitudes avoid host signed MIN/-1 overflow. Architectural results
+    // truncate toward zero, retain the low width bits and leave NZCV alone.
+    return (a_negative!=b_negative?-quotient:quotient)&mask;
+}
 bool Aarch64::condition(unsigned c) const{
     const bool n=state.nzcv&8,z=state.nzcv&4,carry=state.nzcv&2,v=state.nzcv&1;
     bool result=false;
@@ -65,6 +84,26 @@ bool Aarch64::step(){
         const auto a=reg(rn)&mask,result=op==0 || op==3?a&b:op==1?a|b:a^b;
         put(rd,result);
         if(op==3)state.nzcv=unsigned(bool(result&(uint64_t(1)<<(width-1))))*8+unsigned(!result)*4;
+    }
+    else if((w&0x7fe0fc00)==0x1ac00800 || (w&0x7fe0fc00)==0x1ac00c00){
+        put(rd,integer_divide(reg(rn),reg(rm),width,bool(w&1024)));
+    }
+    else if((w&0x7f000000)==0x1b000000){
+        const unsigned type=(w>>21)&7,ra=(w>>10)&31;const bool subtract=w&32768;
+        const uint64_t a=reg(rn),b=reg(rm),accumulator=reg(ra);
+        uint64_t result=0;
+        if(type==0){const auto product=(a&mask)*(b&mask);result=(subtract?accumulator-product:accumulator+product)&mask;}
+        else if(width==64 && (type==1 || type==5)){
+            uint64_t left=uint32_t(a),right=uint32_t(b);
+            if(type==1){if(left&0x80000000u)left|=0xffffffff00000000ULL;if(right&0x80000000u)right|=0xffffffff00000000ULL;}
+            const auto product=left*right;result=subtract?accumulator-product:accumulator+product;
+        }
+        else if(width==64 && (type==2 || type==6) && !subtract && ra==31){
+            result=unsigned_product_high(a,b);
+            if(type==2){if(a>>63)result-=b;if(b>>63)result-=a;}
+        }
+        else return fail(3,pc,w);
+        put(rd,result);
     }
     else if((w&0x7c000000)==0x14000000){if(w>>31)state.x[30]=next;next=pc+uint64_t(signed_bits(w&0x3ffffff,26)*4);}
     else if((w&0xff000010)==0x54000000){if(condition(w&15))next=pc+uint64_t(signed_bits((w>>5)&0x7ffff,19)*4);}
