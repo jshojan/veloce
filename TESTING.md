@@ -739,7 +739,7 @@ supplied-profile byte checks, not physical chip-control/timing evidence.
 guest words matching the independent oracle. Host owns one keypad; viewer
 replay is supported, DSi wireless multiplayer is pending. DS component and
 production netplay regression gates pass. Local TCP gates require loopback
-socket permission; CI/CD remains disabled. All 48 original ROMs reproduce
+socket permission; CI/CD remains disabled. All 50 original ROMs reproduce
 against the source/image ledger. Firmware/retail boot, full SCFG/MBK and most
 DSi hardware remain pending; full platform completion is unmeasured.
 
@@ -753,7 +753,7 @@ python3 tests/roms-src/build.py --original-only --check
 `ctr_plugin` supplies a distinct experimental `.v3ds` core: two ARM11 integer
 contexts and one ARM9, 128 MiB FCRAM, 512 KiB AXI and 1 MiB ARM9 private RAM,
 plus twelve active-low digital HID controls. Native software/firmware boot,
-remaining CPU/hardware, graphics/audio, physical timing and 3DS netplay remain
+remaining CPU/hardware, graphics/audio, physical timing and 3DS wireless/link multiplayer remain
 pending. Overall hardware completion is not measured.
 
 `ctr_reversal_registers` matches **25,165,824/25,165,824 seven-word original
@@ -783,7 +783,7 @@ behavior. All 4,096 digital HID inputs, readonly lanes, atomic image/state
 validation, full 135,791,096-byte state replay, a three-context writing guest,
 and the dynamic plugin lifecycle pass. The full component gate passes
 undefined-behavior sanitization; existing DS/DSi component regressions pass.
-All 49 original ROMs reproduce against the source/image ledger.
+All 50 original ROMs reproduce against the source/image ledger.
 
 ```sh
 cmake --build build --target veloce ctr_plugin ctr_machine_test -j4
@@ -794,3 +794,35 @@ python3 tests/roms-src/build.py --original-only --check
 CI/CD stays disabled. Full corpus timeout is 1,800 seconds. See
 [core implementation and limitations](cores/3ds/README.md) and
 [original domain and controls](tests/roms-src/3ds/reversal_registers/README.md).
+
+### 3DS production host/viewer rollback
+
+The 3DS core now exposes `INetplayCapable` with one host-owned HID keypad and
+joining viewer. Fast states use the complete existing 135,791,096-byte format,
+writing directly into caller buffers; loads validate before mutation. Full
+canonical-state hashing includes every RAM region. Component and sanitizer
+checks cover null/short buffers, write guards, canonical bytes/hash, far RAM
+and host-input replay. The core remains an experimental integer profile.
+
+The [original probe](tests/roms-src/3ds/netplay_probe/README.md) polls HID_PAD
+on all three CPU contexts. `ctr_netplay_plugin_test` compares two independent
+production TCP peers with a 100-frame solo baseline: complete states match
+byte-for-byte, and twelve published guest words match the independent host
+arithmetic oracle. Nine words hold three sum/last/count triples; three are
+zero guards. Load/store positions crossing frame boundaries are graded.
+Executed zero-input control changes exactly six words; twelve field mutations
+and four invalid register streams fail. ROM mismatch and four fragmented
+invalid TCP messages reject. Different prior histories reset; core/frame
+replacement disconnects and pauses. This mirrors one instance, with viewer
+prediction/replay, rather than emulating 3DS wireless multiplayer.
+
+```sh
+ctest --test-dir build -R '^(ctr_machine_test|ctr_netplay_plugin_test)$' --output-on-failure
+python3 tests/roms-src/build.py --original-only --check
+```
+
+Artifacts remain in `build/artifacts/netplay-3ds/`. Window 8 stores nine full
+states (~1.14 GiB per peer) plus core/scratch memory; compression/page sharing
+and sustained real-time performance remain unverified. The TCP gate needs
+loopback socket permission. Internet, physical devices/two machines and
+cross-platform peers remain unverified. CI/CD stays disabled.

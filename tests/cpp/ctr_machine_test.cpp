@@ -120,6 +120,27 @@ static std::vector<uint8_t> guest() {
     }
     return rom;
 }
+static uint64_t reference_hash(const std::vector<uint8_t>& bytes) {
+    uint64_t hash=0xcbf29ce484222325ULL;
+    for(auto byte:bytes) hash=(hash^byte)*0x100000001b3ULL;
+    return hash;
+}
+static void fast_states(ctr::Machine& m) {
+    auto canonical=state(m);std::vector<uint8_t> fast(canonical.size()+16,0xa5);
+    require(m.save_into(nullptr,0)==canonical.size() && m.save_into(fast.data(),fast.size())==canonical.size(),"fast state size contract");
+    require(std::equal(canonical.begin(),canonical.end(),fast.begin()) && std::all_of(fast.end()-16,fast.end(),[](uint8_t x){return x==0xa5;}),"fast state canonical bytes/guard");
+    require(m.state_hash()==reference_hash(canonical),"full serialized state hash");
+    uint8_t short_buffer[16];std::fill_n(short_buffer,16,0x5a);
+    require(!m.save_into(short_buffer,16) && std::all_of(short_buffer,short_buffer+16,[](uint8_t x){return x==0x5a;}),"short fast save mutation");
+    require(!m.restore(nullptr,canonical.size()) && !m.restore(canonical.data(),canonical.size()-1) && !m.restore(fast.data(),fast.size()) && state(m)==canonical,"fast null/size load atomicity");
+    // Highest byte of every supplied RAM bank participates in rollback and hashing.
+    const auto old_hash=m.state_hash();
+    for(uint32_t address:{0x27ffffffu,0x1fffffffu,0x080fffffu}) {
+        const auto value=read(m,2,address,1);require(m.write(2,address,1,value^1),"far RAM mutation");
+        require(m.state_hash()!=old_hash && m.state_hash()==reference_hash(state(m)),"far RAM omitted from hash");
+        require(m.restore(canonical.data(),canonical.size()) && state(m)==canonical,"far RAM fast replay");
+    }
+}
 static void loaders_states(ctr::Machine& m,const std::vector<uint8_t>& image) {
     require(m.load(image.data(),image.size()),"restore original image before loader gates");const auto before=state(m);
     for(unsigned at:{0u,8u,16u,20u,24u,28u,32u,36u,40u,44u,48u,52u,56u,60u}) {
@@ -136,14 +157,17 @@ int main(int argc,char** argv) {
     try {
         require(argc==3,"usage: ctr_machine_test plugin original.v3ds");std::ifstream file(argv[2],std::ios::binary);
         std::vector<uint8_t> rom((std::istreambuf_iterator<char>(file)),{});ctr::Machine m;require(m.load(rom.data(),rom.size()),"3DS original image rejected");
-        const auto registers=reversals(m),bus=ram_and_keys(m);loaders_states(m,rom);
+        const auto registers=reversals(m),bus=ram_and_keys(m);fast_states(m);loaders_states(m,rom);
         auto probe=guest();emulator_test::LoadedCore loaded(argv[1],probe);auto& plugin=*loaded.plugin;const auto info=plugin.get_info();
         require(std::string(info.name)=="3DS" && std::string(info.file_extensions[0])==".v3ds","3DS plugin identity");
         const auto* layout=plugin.get_controller_layout();require(layout && std::string(layout->platform_name)=="3DS" && layout->button_count==12,"3DS controller layout");
         plugin.run_frame({0xfff});for(unsigned id=0;id<3;++id) require(plugin.read_memory(0x10+id*4)==id,"plugin three-context capture");
         std::vector<uint8_t> prefix,final,replay;require(plugin.save_state(prefix) && prefix.size()==135791096,"3DS plugin complete state size");
-        plugin.run_frame({0xabc});require(plugin.save_state(final) && plugin.load_state(prefix),"plugin state restore");plugin.run_frame({0xabc});require(plugin.save_state(replay) && replay==final,"plugin full state/input replay");
-        plugin.reset();require(plugin.get_cycle_count()==0 && plugin.get_frame_count()==0,"3DS reset counters");plugin.unload_rom();require(!plugin.is_rom_loaded() && !plugin.save_state(replay),"3DS unload identity");
-        std::cout<<registers<<" ARM11 reversal register snapshots and "<<bus<<" valid RAM bus observations matched; 4096 HID inputs, feature isolation, ownership, atomic loaders/states, three-context guest, replay and plugin passed\n";
+        auto& netplay=loaded.netplay();require(netplay.get_max_players()==1 && netplay.is_deterministic() && netplay.get_max_state_size()==prefix.size(),"3DS netplay identity");
+        require(emulator_test::snapshot(netplay)==prefix && netplay.get_state_hash()==reference_hash(prefix),"plugin canonical fast state/hash");
+        require(!netplay.load_state_fast(nullptr,prefix.size()) && !netplay.load_state_fast(prefix.data(),prefix.size()-1),"plugin invalid fast load");
+        plugin.run_frame({0xabc});require(plugin.save_state(final) && plugin.load_state(prefix),"plugin state restore");netplay.run_frame_netplay(0xabc,0xfff);require(plugin.save_state(replay) && replay==final,"plugin full state/input replay");
+        plugin.reset();require(plugin.get_cycle_count()==0 && plugin.get_frame_count()==0,"3DS reset counters");plugin.unload_rom();require(!plugin.is_rom_loaded() && !plugin.save_state(replay) && !netplay.save_state_fast(nullptr,0) && !netplay.load_state_fast(prefix.data(),prefix.size()) && !netplay.get_state_hash(),"3DS unload identity");
+        std::cout<<registers<<" ARM11 reversal register snapshots and "<<bus<<" valid RAM bus observations matched; 4096 HID inputs, feature isolation, ownership, atomic loaders/states, three-context guest, canonical fast-state/hash, host-owned input replay and plugin passed\n";
     } catch(const std::exception& e) { std::cerr<<e.what()<<'\n';return 1; }
 }

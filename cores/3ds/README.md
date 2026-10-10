@@ -1,7 +1,7 @@
 # Experimental Nintendo 3DS core plugin
 
 `ctr_plugin` builds `3ds.so` (or the platform library equivalent), ABI v2,
-version 0.1.0. The separately loadable core executes repository-owned `.v3ds`
+version 0.2.0. The separately loadable core executes repository-owned `.v3ds`
 integer programs on two ARM11 contexts and one ARM9 context. **Native 3DS
 software and firmware do not boot. Full platform completion is unmeasured.**
 
@@ -66,7 +66,7 @@ This is one chosen value per address, not all address/value combinations.
 Loader/state rejection, a three-context RAM-writing guest, dynamic plugin
 lifecycle, digital input and exact replay pass. The full component gate also
 passes undefined-behavior sanitization. Existing DS/DSi component regressions
-pass. All 49 original ROMs reproduce against the source/image ledger. See [testing](../../TESTING.md).
+pass. All 50 original ROMs reproduce against the source/image ledger. See [testing](../../TESTING.md).
 
 ```sh
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
@@ -81,11 +81,30 @@ CI/CD remains disabled; verification runs locally.
 
 ## Remaining hardware and modern features
 
-3DS netplay is pending: the core does not yet expose `INetplayCapable`.
-Existing NES/DS/DSi host/viewer rollback remains separate. Full snapshots are
-about 129.5 MiB, so rollback needs a suitable memory/history strategy.
+The core now exposes `INetplayCapable`: one host-owned keypad, a joining
+viewer, direct fast-state save/load and full canonical-state FNV hashing.
+Fast serialization writes into preallocated buffers without temporary vectors;
+validation completes before restoration mutates CPU/RAM/input. Fast states
+retain the existing `V3DS0001` format and all 135,791,096 bytes. Null/short
+buffers, guards, full canonical bytes/hash, far-end RAM and exact replay pass
+component and undefined-behavior sanitizer checks.
+
+The [original netplay probe](../../tests/roms-src/3ds/netplay_probe/README.md)
+passes production IPv4 TCP rollback: both independent peers' 100-frame states
+match the solo baseline byte-for-byte and twelve guest words match an
+independent arithmetic oracle. The viewer corrects host predictions. Executed
+wrong-input, field and invalid-stream controls fail; ROM mismatch, malformed
+TCP frames, different prior histories and replacement/frame-change lifecycle
+checks pass. This mirrors one 3DS instance; wireless/link multiplayer is pending.
+
+Full snapshots cost about 129.5 MiB each. Window 8 preallocates nine states,
+about 1.14 GiB per peer, in addition to core and scratch buffers. Compression,
+page sharing and sustained real-time performance are unverified. Use a smaller
+rollback window on machines with limited memory. Existing NES/DS/DSi production
+netplay regression tests pass. Internet/relay, Windows/cross-platform and
+physical two-machine sessions remain unverified.
 Frontend controller bindings and hotplug support are shared, but physical
-3DS input, analog controls, touch and cross-platform sessions are unverified.
+3DS input, analog controls, touch are unverified.
 
 Remaining CPU instructions, privileged/banked/exception state, firmware,
 MMU/caches/TCM, SMP coherency, physical timing, DMA, graphics/GPU/VRAM, DSP/audio,

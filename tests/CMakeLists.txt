@@ -429,3 +429,8 @@ add_test(NAME ctr_reversal_registers COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/roms-src/3ds/reversal_registers/run.py --emulator $<TARGET_FILE:veloce>
     --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/3ds_reversal)
 set_tests_properties(ctr_reversal_registers PROPERTIES LABELS "accuracy;owned" TIMEOUT 1800)
+add_test(NAME ctr_netplay_plugin_test COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/netplay_network_test.py $<TARGET_FILE:netplay_plugin_peer>
+    $<TARGET_FILE:ctr_plugin> ${CMAKE_SOURCE_DIR}/tests/roms-src/3ds/netplay_probe/netplay_probe.v3ds
+    ${CMAKE_BINARY_DIR}/artifacts/netplay-3ds --netplay-plugin $<TARGET_FILE:netplay_default> --console 3ds)
+set_tests_properties(ctr_netplay_plugin_test PROPERTIES LABELS "integration;netplay;owned" TIMEOUT 180)

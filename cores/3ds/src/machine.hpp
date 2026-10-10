@@ -19,6 +19,10 @@ public:
     void set_input(uint32_t buttons);
     bool read(unsigned cpu,uint32_t address,unsigned width,uint32_t& value);
     bool write(unsigned cpu,uint32_t address,unsigned width,uint32_t value);
+    size_t state_size() const { return 504+fcram.size()+axi.size()+private9.size(); }
+    size_t save_into(uint8_t*,size_t) const;
+    bool restore(const uint8_t*,size_t);
+    uint64_t state_hash() const;
     bool save(std::vector<uint8_t>&) const;
     bool restore(const std::vector<uint8_t>&);
     nds::Arm& cpu(unsigned id) { return id==0?arm0:id==1?arm1:arm9; }
@@ -31,6 +35,7 @@ public:
     uint16_t keys=0;
     uint8_t done=0;
 private:
+    void save_prefix(uint8_t*) const;
     uint8_t* byte(unsigned cpu,uint32_t address);
 };
 }
