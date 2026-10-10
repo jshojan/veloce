@@ -22,6 +22,7 @@ public:
     static uint32_t shift(uint32_t value,unsigned type,unsigned amount,bool by_register,bool& carry);
     ArmState state;
 private:
+    void thumb_step();
     Memory& bus;
     bool v5;
 };

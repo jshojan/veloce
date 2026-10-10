@@ -95,7 +95,7 @@ bool Machine::restore(const std::vector<uint8_t>& in) {
     for(unsigned index=0;index<2;++index) {
         auto& cpu=cpus[index];
         for(auto& r:cpu.r) { const auto v=take(); if(v>0xffffffff) return false; r=uint32_t(v); }
-        const auto psw=take(); if((psw&~(index==0 ? 0xf8000000ull:0xf0000000ull))!=0xdf || (cpu.r[15]&3)) return false;
+        const auto psw=take(); if((psw&~(index==0 ? 0xf8000020ull:0xf0000020ull))!=0xdf || (cpu.r[15]&((psw&0x20) ? 1:3))) return false;
         cpu.cpsr=uint32_t(psw); cpu.steps=take(); const auto stopped=take(); if(stopped>1) return false; cpu.unsupported=stopped;
     }
     cpu9.state=cpus[0]; cpu7.state=cpus[1]; frames=frame; done=uint8_t(finished); wramcnt=uint8_t(wram);

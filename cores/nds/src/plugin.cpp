@@ -6,7 +6,7 @@ class Plugin : public emu::IEmulatorPlugin {
 public:
     emu::EmulatorInfo get_info() override {
         static const char* extensions[] = {".nds", nullptr};
-        return {"DS", "0.1.0", "Veloce", "Experimental dual-CPU ARM homebrew core; firmware, Thumb, video, audio and peripherals pending.",
+        return {"DS", "0.1.0", "Veloce", "Experimental dual-CPU ARM/Thumb integer homebrew core; firmware, video, audio and peripherals pending.",
                 extensions, 60.0, 67000000, 256, 384};
     }
     bool load_rom(const uint8_t* data, size_t size) override { return machine.load(data, size); }

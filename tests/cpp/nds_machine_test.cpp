@@ -120,12 +120,111 @@ static void control(nds::Machine& m) {
         instruction(m,nine,0xe12fff10); auto& cpu=nine ? m.cpu9:m.cpu7; cpu.state.r[0]=start+0x102; cpu.step();
         require(cpu.state.r[15]==start+0x100,"BX ARM alignment wrong");
         instruction(m,nine,0xe12fff10); cpu.state.r[0]=start+1; cpu.step();
-        require(cpu.state.unsupported && cpu.state.r[15]==start,"unimplemented Thumb transfer silently executed");
+        require(!cpu.state.unsupported && cpu.state.r[15]==start && (cpu.state.cpsr&0x20),"ARM BX did not enter Thumb");
         instruction(m,nine,0xe10f4000); cpu.state.cpsr=0xf00000df; cpu.step(); require(cpu.state.r[4]==0xf00000df,"MRS wrong");
         instruction(m,nine,0xe128f004); cpu.state.r[4]=0xa0000013; cpu.step(); require(cpu.state.cpsr==0xa00000df,"MSR flags changed mode");
         instruction(m,nine,0xe128f004); cpu.state.r[4]=0xf8000000; cpu.step();
         require(cpu.state.cpsr==(nine ? 0xf80000dfu:0xf00000dfu),"ARM9 Q/ARM7 reserved flag mask wrong");
         instruction(m,nine,0xee000010); cpu.step(); require(cpu.state.unsupported,"unimplemented coprocessor silent");
+    }
+}
+static void thumb_instruction(nds::Machine& m,bool nine,uint16_t word) {
+    instruction(m,nine,0); auto& cpu=nine ? m.cpu9:m.cpu7;
+    cpu.state.cpsr|=0x20; cpu.state.r[15]=start+2;
+    require(m.write(nine,start+2,2,word),"Thumb instruction write failed");
+}
+static void thumb_alu(nds::Machine& m) {
+    for(bool nine:{false,true}) for(unsigned op=0;op<16;++op) for(auto a:patterns) for(auto b:patterns)
+        for(unsigned incoming=0;incoming<16;++incoming) for(unsigned rd:{0u,1u,4u}) {
+            thumb_instruction(m,nine,uint16_t(0x4000|(op<<6)|(1<<3)|rd)); auto& cpu=nine ? m.cpu9:m.cpu7; auto& s=cpu.state;
+            s.r[0]=a; s.r[1]=b; s.r[4]=a; s.cpsr=0xff|(incoming<<28)|(nine ? 0x08000000:0); const auto original=s.r;
+            if(op==13 && rd==1) { cpu.step(); require(s.unsupported && s.r==original,"unpredictable Thumb MUL alias executed"); continue; }
+            const auto left=original[rd],right=b; bool carry=incoming&2,overflow=incoming&1; uint32_t result=0;
+            if(op==5 || op==6 || op==9 || op==10 || op==11) {
+                const bool sub=op==6 || op==9 || op==10; const auto x=op==9 ? 0:left;
+                const unsigned extra=op==5 ? unsigned(carry):op==6 ? unsigned(!carry):0;
+                const int64_t wide=sub ? int64_t(x)-right-extra:int64_t(x)+right+extra;
+                const int64_t math=sub ? signed32(x)-signed32(right)-extra:signed32(x)+signed32(right)+extra;
+                result=uint32_t(wide); carry=sub ? wide>=0:wide>0xffffffffLL; overflow=math< -0x80000000LL || math>0x7fffffffLL;
+            } else if(op==2 || op==3 || op==4 || op==7) {
+                result=left;
+                for(unsigned count=0;count<(right&255);++count) {
+                    if(op==2) { carry=result>>31; result*=2; }
+                    else { const bool bit=result&1,top=op==4 ? result>>31:op==7 ? bit:false; result=result/2|(top ? 0x80000000:0); carry=bit; }
+                }
+            } else switch(op) {
+            case 0:case 8:result=left&right;break; case 1:result=left^right;break;
+            case 12:result=left|right;break; case 13:result=uint32_t(product_reference(left,right,false));break;
+            case 14:result=left&~right;break; case 15:result=~right;break;
+            }
+            const auto expected_psw=0xff|(nine ? 0x08000000:0)|(result&0x80000000)|(result==0 ? 0x40000000:0)|(carry ? 0x20000000:0)|(overflow ? 0x10000000:0);
+            cpu.step(); const auto mask=!nine && op==13 ? 0xdfffffff:0xffffffff;
+            require(!s.unsupported && s.r[15]==start+4 && ((s.cpsr^expected_psw)&mask)==0,"Thumb ALU flags/retirement wrong");
+            for(unsigned reg=0;reg<15;++reg) require(s.r[reg]==(reg==rd && op!=8 && op!=10 && op!=11 ? result:original[reg]),"Thumb ALU alias/source wrong");
+        }
+}
+static void thumb_high_registers(nds::Machine& m) {
+    for(bool nine:{false,true}) for(unsigned op=0;op<3;++op) for(unsigned rd=0;rd<16;++rd) for(unsigned rm=0;rm<16;++rm)
+        for(auto a:patterns) for(auto b:patterns) for(unsigned incoming=0;incoming<16;++incoming) {
+            thumb_instruction(m,nine,uint16_t(0x4400|(op<<8)|((rd&8)<<4)|(rm<<3)|(rd&7)));
+            auto& cpu=nine ? m.cpu9:m.cpu7; auto& s=cpu.state;
+            if(rd<15) s.r[rd]=a;
+            if(rm<15) s.r[rm]=b;
+            s.cpsr=0xff|(incoming<<28)|(nine ? 0x08000000:0); const auto original=s.r; const auto pc=s.r[15],psw=s.cpsr;
+            const bool invalid=(rd<8 && rm<8) || (op==1 && rd==15);
+            const uint32_t left=rd==15 ? pc+4:original[rd],right=rm==15 ? pc+4:original[rm];
+            const uint32_t result=op==2 ? right:op==0 ? left+right:left-right;
+            const int64_t math=signed32(left)-signed32(right);
+            const uint32_t want=op!=1 ? psw:(psw&0x0fffffff)|(result&0x80000000)|(result==0 ? 0x40000000:0)|(left>=right ? 0x20000000:0)|((math< -0x80000000LL || math>0x7fffffffLL) ? 0x10000000:0);
+            cpu.step(); require(s.unsupported==invalid,"Thumb high-register restriction wrong");
+            if(invalid) { require(s.r==original && s.cpsr==psw,"unpredictable high-register encoding changed state"); continue; }
+            require(s.cpsr==want && s.r[15]==(rd==15 && op!=1 ? result&~1u:pc+2),"Thumb high-register flags/PC wrong");
+            for(unsigned reg=0;reg<15;++reg) require(s.r[reg]==(reg==rd && op!=1 ? result:original[reg]),"Thumb high-register source/alias wrong");
+        }
+    for(bool nine:{false,true}) for(unsigned rd=0;rd<8;++rd) for(unsigned immediate=0;immediate<256;++immediate) for(bool sp:{false,true}) for(auto value:patterns) {
+        thumb_instruction(m,nine,uint16_t(0xa000|(sp ? 0x800:0)|(rd<<8)|immediate)); auto& cpu=nine ? m.cpu9:m.cpu7;
+        cpu.state.r[13]=value; cpu.state.cpsr=0xf80000ff & (nine ? 0xffffffff:0xf7ffffff); const auto psw=cpu.state.cpsr;
+        cpu.step(); require(cpu.state.r[rd]==(sp ? value:start+4)+immediate*4 && cpu.state.cpsr==psw,"Thumb PC/SP-relative address flags/alignment wrong");
+    }
+    for(bool nine:{false,true}) for(bool subtract:{false,true}) for(unsigned immediate=0;immediate<128;++immediate) for(auto value:patterns) {
+        thumb_instruction(m,nine,uint16_t(0xb000|(subtract ? 0x80:0)|immediate)); auto& cpu=nine ? m.cpu9:m.cpu7; cpu.state.r[13]=value; const auto psw=cpu.state.cpsr;
+        cpu.step(); require(cpu.state.r[13]==(subtract ? value-immediate*4:value+immediate*4) && cpu.state.cpsr==psw,"Thumb SP adjustment flags/wrap wrong");
+    }
+}
+static void thumb_control(nds::Machine& m) {
+    for(bool nine:{false,true}) for(unsigned cond=0;cond<14;++cond) for(unsigned flags=0;flags<16;++flags) for(unsigned encoded=0;encoded<256;++encoded) {
+        thumb_instruction(m,nine,uint16_t(0xd000|(cond<<8)|encoded)); auto& cpu=nine ? m.cpu9:m.cpu7; cpu.state.cpsr=0xff|(flags<<28);
+        const bool n=flags&8,z=flags&4,c=flags&2,v=flags&1;
+        const bool table[]={z,!z,c,!c,n,!n,v,!v,c&&!z,!c||z,n==v,n!=v,!z&&n==v,z||n!=v};
+        const int offset=encoded<128 ? int(encoded)*2:(int(encoded)-256)*2;
+        cpu.step(); require(cpu.state.r[15]==(table[cond] ? start+6+offset:start+4) && !cpu.state.unsupported,"Thumb conditional branch wrong");
+    }
+    for(bool nine:{false,true}) for(unsigned encoded=0;encoded<2048;++encoded) {
+        thumb_instruction(m,nine,uint16_t(0xe000|encoded)); auto& cpu=nine ? m.cpu9:m.cpu7;
+        const int offset=encoded<1024 ? int(encoded)*2:(int(encoded)-2048)*2;
+        cpu.step(); require(cpu.state.r[15]==start+6+offset,"Thumb unconditional branch wrong");
+    }
+    for(bool nine:{false,true}) for(bool from_thumb:{false,true}) for(bool link:{false,true}) for(unsigned lane=0;lane<4;++lane) {
+        if(from_thumb) thumb_instruction(m,nine,uint16_t(0x4700|(link ? 0x80:0)));
+        else instruction(m,nine,0xe12fff10|(link ? 0x20:0));
+        auto& cpu=nine ? m.cpu9:m.cpu7; auto& s=cpu.state; const auto pc=s.r[15],psw=s.cpsr;
+        s.r[0]=start+0x100+lane; const bool stop=(link && !nine) || (lane==2 && (from_thumb || link));
+        cpu.step(); require(s.unsupported==stop,"BX/BLX architecture/alignment wrong");
+        if(stop) require(s.r[15]==pc && s.cpsr==psw && s.r[14]==0,"rejected interworking changed state");
+        else require(s.r[15]==(lane&1 ? start+0x100+(lane&2):start+0x100) && s.cpsr==((psw&~0x20u)|((lane&1)<<5)) && s.r[14]==(link ? (from_thumb ? (pc+2)|1:pc+4):0),"BX/BLX PC/T/link wrong");
+    }
+    for(bool nine:{false,true}) for(uint16_t word:{0x4400,0x4500,0x4600,0x45ff,0x4701,0x47f8,0xde00,0xdf00,0xf000,0x6000,0xb400}) {
+        thumb_instruction(m,nine,word); auto& cpu=nine ? m.cpu9:m.cpu7; const auto original=cpu.state.r; cpu.step();
+        require(cpu.state.unsupported && cpu.state.r==original,"unsupported/unpredictable Thumb encoding retired");
+    }
+    for(bool nine:{false,true}) {
+        instruction(m,nine,0xe591f000); auto& cpu=nine ? m.cpu9:m.cpu7; cpu.state.r[1]=start+0x100; m.write(nine,start+0x100,4,start+0x203); cpu.step();
+        require(cpu.state.r[15]==(nine ? start+0x202:start+0x200) && bool(cpu.state.cpsr&0x20)==nine,"LDR PC architecture interworking wrong");
+        thumb_instruction(m,nine,0x30ff); cpu.state.r[0]=0x7fffffff;
+        std::vector<uint8_t> before,after,replay; m.save(before); cpu.step(); m.save(after);
+        require(m.restore(before),"halfword-aligned Thumb state rejected"); (nine ? m.cpu9:m.cpu7).step(); m.save(replay);
+        require(replay==after,"saved Thumb continuation diverged");
+        auto bad=before; bad[nine ? 175:327]|=1; require(!m.restore(bad),"odd Thumb PC state accepted"); m.save(replay); require(replay==after,"bad Thumb state changed machine");
     }
 }
 static void memory(nds::Machine& m) {
@@ -194,13 +293,22 @@ static void states(nds::Machine& m,const std::vector<uint8_t>& rom,const char* p
     core.run_frame({0}); require(core.save_state(before),"plugin save failed"); core.run_frame({0}); core.save_state(after);
     require(core.load_state(before),"plugin restore failed"); core.run_frame({0}); core.save_state(replay); require(after==replay,"shared-plugin state replay wrong");
     require(core.get_info().screen_width==256 && core.get_info().screen_height==384 && core.get_framebuffer().width==256,"DS plugin dimensions wrong");
+    // Continue both CPUs at a halfword-aligned Thumb self-loop through the
+    // actual plugin ABI; RAM and execution state are legitimate mutable state.
+    const auto scalar=[&](unsigned offset,uint64_t value) { for(unsigned n=0;n<8;++n) before[offset+n]=uint8_t(value>>(56-n*8)); };
+    scalar(168,start+2); scalar(320,start+2); before[183]|=0x20; before[335]|=0x20;
+    before[352+0x2002]=0xfe; before[352+0x2003]=0xe7;
+    require(core.load_state(before),"plugin Thumb state rejected"); core.run_frame({0}); core.save_state(after);
+    require((after[183]&0x20) && (after[335]&0x20),"plugin lost Thumb state");
+    require(core.load_state(before),"plugin Thumb replay restore failed"); core.run_frame({0}); core.save_state(replay);
+    require(replay==after,"actual plugin Thumb continuation diverged");
     core.unload_rom(); require(!core.is_rom_loaded() && !core.save_state(replay),"unloaded plugin retained cartridge");
 }
 int main(int argc,char** argv) {
     try {
         require(argc==3,"usage: nds_machine_test plugin original.nds"); std::ifstream in(argv[2],std::ios::binary);
         std::vector<uint8_t> rom((std::istreambuf_iterator<char>(in)),{}); nds::Machine m; require(m.load(rom.data(),rom.size()),"original DS ROM rejected");
-        arithmetic(m); multiplies(m); shifts(m); control(m); memory(m); states(m,rom,argv[1]);
-        std::cout<<"DS ALU/multiply/shifter/control/memory/state/plugin checks passed\n"; return 0;
+        arithmetic(m); multiplies(m); shifts(m); control(m); thumb_alu(m); thumb_high_registers(m); thumb_control(m); memory(m); states(m,rom,argv[1]);
+        std::cout<<"DS ARM/Thumb ALU/multiply/shifter/control/memory/state/plugin checks passed\n"; return 0;
     } catch(const std::exception& e) { std::cerr<<e.what()<<'\n'; return 1; }
 }

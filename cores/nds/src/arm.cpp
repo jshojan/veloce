@@ -39,16 +39,21 @@ uint32_t Arm::shift(uint32_t value,unsigned type,unsigned amount,bool by_registe
 void Arm::step() {
     auto& s=state; if(s.unsupported) return;
     ++s.steps;
+    if(s.cpsr&0x20) { thumb_step(); return; }
     const uint32_t pc=s.r[15]; uint32_t ins=0;
     if((pc&3) || !bus.read(pc,4,ins)) { s.unsupported=true; return; }
     const unsigned cond=ins>>28;
     if(cond==15 && v5) { s.unsupported=true; return; }
     if(!condition(cond,s.cpsr)) { s.r[15]=pc+4; return; }
     const auto operand=[&](unsigned reg,bool late=false) { return reg==15 ? pc+(late ? 12:8):s.r[reg]; };
-    if((ins&0x0ffffff0)==0x012fff10) {
+    if((ins&0x0ffffff0)==0x012fff10 || (ins&0x0ffffff0)==0x012fff30) {
+        const bool link=ins&0x20;
+        if(link && (!v5 || (ins&15)==15)) { s.unsupported=true; return; }
         const auto target=operand(ins&15);
-        if(target&1) { s.unsupported=true; return; }
-        s.r[15]=target&~3u; return;
+        if(link && (target&3)==2) { s.unsupported=true; return; }
+        if(link) s.r[14]=pc+4;
+        s.cpsr=(s.cpsr&~0x20u)|((target&1)<<5);
+        s.r[15]=target&((target&1) ? ~1u:~3u); return;
     }
     if((ins&0x0fff0fff)==0x010f0000) {
         const unsigned rd=(ins>>12)&15;
@@ -78,13 +83,14 @@ void Arm::step() {
         if(load) {
             if(!bus.read(byte ? address:address&~3u,byte ? 1:4,value)) { s.unsupported=true; return; }
             if(!byte) value=rotate(value,(address&3)*8);
-            // ARMv5 load-to-PC interworking needs Thumb; stop diagnostically.
-            if(rd==15 && v5 && (value&1)) { s.unsupported=true; return; }
         } else if(!bus.write(byte ? address:address&~3u,byte ? 1:4,rd==15 ? pc+(v5 ? 8:12):s.r[rd])) {
             s.unsupported=true; return;
         }
         if(!pre || wb) s.r[rn]=adjusted;
-        if(load) s.r[rd]=rd==15 ? value&~3u:value;
+        if(load) {
+            if(rd==15 && v5) s.cpsr=(s.cpsr&~0x20u)|((value&1)<<5);
+            s.r[rd]=rd==15 ? value&((v5 && (value&1)) ? ~1u:~3u):value;
+        }
         if(!load || rd!=15) s.r[15]=pc+4;
         return;
     }
@@ -148,5 +154,86 @@ void Arm::step() {
         (carry ? 0x20000000u:0)|(overflow ? 0x10000000u:0);
     if(!test) s.r[rd]=rd==15 ? result&~3u:result;
     if(test || rd!=15) s.r[15]=pc+4;
+}
+void Arm::thumb_step() {
+    auto& s=state; const uint32_t pc=s.r[15]; uint32_t ins=0;
+    if((pc&1) || !bus.read(pc,2,ins)) { s.unsupported=true; return; }
+    const auto operand=[&](unsigned reg) { return reg==15 ? pc+4:s.r[reg]; };
+    bool carry=(s.cpsr>>29)&1,overflow=(s.cpsr>>28)&1;
+    const auto flags=[&](uint32_t result) {
+        s.cpsr=(s.cpsr&0x0fffffff)|(result&0x80000000)|(result==0 ? 0x40000000u:0)|
+            (carry ? 0x20000000u:0)|(overflow ? 0x10000000u:0);
+    };
+    const auto arithmetic=[&](uint32_t a,uint32_t b,bool subtract,unsigned extra=0) {
+        const int64_t value=subtract ? int64_t(a)-b-extra:int64_t(a)+b+extra;
+        const uint32_t result=uint32_t(value);
+        carry=subtract ? value>=0:value>0xffffffffLL;
+        overflow=((subtract ? a^b:~(a^b))&(a^result)&0x80000000)!=0;
+        return result;
+    };
+    if((ins&0xf800)==0x1800) {
+        const bool immediate=ins&0x400,subtract=ins&0x200;
+        const unsigned rd=ins&7,rn=(ins>>3)&7,third=(ins>>6)&7;
+        const auto result=arithmetic(s.r[rn],immediate ? third:s.r[third],subtract);
+        s.r[rd]=result; flags(result);
+    } else if((ins&0xe000)==0) {
+        const unsigned type=(ins>>11)&3,rd=ins&7,rm=(ins>>3)&7;
+        const auto result=shift(s.r[rm],type,(ins>>6)&31,false,carry);
+        s.r[rd]=result; flags(result);
+    } else if((ins&0xe000)==0x2000) {
+        const unsigned op=(ins>>11)&3,rd=(ins>>8)&7; const auto immediate=ins&255;
+        const auto result=op==0 ? immediate:arithmetic(s.r[rd],immediate,op!=2);
+        if(op!=1) s.r[rd]=result;
+        flags(result);
+    } else if((ins&0xfc00)==0x4000) {
+        const unsigned op=(ins>>6)&15,rd=ins&7,rm=(ins>>3)&7;
+        if(op==13 && rd==rm) { s.unsupported=true; return; }
+        const uint32_t a=s.r[rd],b=s.r[rm]; uint32_t result=0;
+        switch(op) {
+        case 0:case 8:result=a&b;break; case 1:result=a^b;break;
+        case 2:case 3:case 4:result=shift(a,op-2,b,true,carry);break;
+        case 5:result=arithmetic(a,b,false,carry);break;
+        case 6:result=arithmetic(a,b,true,!carry);break;
+        case 7:result=shift(a,3,b,true,carry);break;
+        case 9:result=arithmetic(0,b,true);break;
+        case 10:result=arithmetic(a,b,true);break; case 11:result=arithmetic(a,b,false);break;
+        case 12:result=a|b;break; case 13:result=uint32_t(uint64_t(a)*b);break;
+        case 14:result=a&~b;break; case 15:result=~b;break;
+        }
+        if(op!=8 && op!=10 && op!=11) s.r[rd]=result;
+        // ARMv4 Thumb MUL carry is unpredictable; the model retains it.
+        flags(result);
+    } else if((ins&0xfc00)==0x4400) {
+        const unsigned op=(ins>>8)&3,rd=(ins&7)|((ins>>4)&8),rm=(ins>>3)&15;
+        if(op==3) {
+            const bool link=ins&0x80;
+            if((ins&7) || (link && (!v5 || rm==15))) { s.unsupported=true; return; }
+            const auto target=operand(rm);
+            if((target&3)==2) { s.unsupported=true; return; }
+            if(link) s.r[14]=(pc+2)|1;
+            s.cpsr=(s.cpsr&~0x20u)|((target&1)<<5);
+            s.r[15]=target&~1u; return;
+        }
+        if(!(ins&0xc0) || (op==1 && rd==15)) { s.unsupported=true; return; }
+        const auto a=operand(rd),b=operand(rm);
+        const auto result=op==1 ? arithmetic(a,b,true):op==0 ? a+b:b;
+        if(op==1) flags(result);
+        else if(rd==15) { s.r[15]=result&~1u; return; }
+        else s.r[rd]=result;
+    } else if((ins&0xf000)==0xa000) {
+        s.r[(ins>>8)&7]=((ins&0x800) ? s.r[13]:(pc+4)&~3u)+((ins&255)<<2);
+    } else if((ins&0xff00)==0xb000) {
+        const uint32_t offset=(ins&127)<<2;
+        s.r[13]=(ins&0x80) ? s.r[13]-offset:s.r[13]+offset;
+    } else if((ins&0xf000)==0xd000) {
+        const unsigned cond=(ins>>8)&15;
+        if(cond>=14) { s.unsupported=true; return; }
+        const uint32_t delta=(ins&255)<<1;
+        s.r[15]=pc+(condition(cond,s.cpsr) ? 4+ (delta|(delta&256 ? 0xfffffe00u:0)):2); return;
+    } else if((ins&0xf800)==0xe000) {
+        const uint32_t delta=(ins&2047)<<1;
+        s.r[15]=pc+4+(delta|(delta&2048 ? 0xfffff000u:0)); return;
+    } else { s.unsupported=true; return; }
+    s.r[15]=pc+2;
 }
 }

@@ -127,14 +127,25 @@ repeated-byte pairs and full-width boundaries, every NZCV and both ARM9 Q states
 ARM9/ARM7 share main RAM and execute from their loaded main/private segments.
 The host grades both output streams independently; an ADC-to-ADD mutation and
 seven damaged files check failure detection. Component gates cover aliases,
-shifters, WRAM banks, validation and exact plugin state replay. Firmware, Thumb,
-physical timing, graphics/audio/controllers and DSi enhanced mode remain pending.
+shifters, WRAM banks, validation and exact plugin state replay. Firmware,
+Thumb memory/stack/long calls, physical timing, graphics/audio/controllers and
+DSi enhanced mode remain pending.
 The [multiply corpus](tests/roms-src/nds/multiply_registers/README.md) adds
 38,338,560 five-word observations across six multiply/accumulate forms, both S
 states, all NZCV/ARM9 Q inputs and accumulator wraparound. Full CPSR is recorded;
 only architecturally unpredictable ARM7 S-form C or C/V bits are unscored.
 Executed signed/unsigned mutation, five CPSR mask controls and seven damaged
 files validate the grader. Components add 1,179,648 per-bit product/alias cases.
+The [Thumb corpus](tests/roms-src/nds/thumb_registers/README.md) matched
+51,426,816/51,426,816 observations with zero mismatches over sixteen low-register ALU operations, register
+ADD/SUB, and every immediate encoding for shifts and low register ALU operations. Every case switches to Thumb
+and back and captures a Thumb PC read alongside result/CPSR/source registers.
+The reduced 1,083,264-observation cartridge passed, its ADC-to-SBC mutant failed
+only ADC groups, and flag/PC mutations plus seven malformed files checked the
+independent grader. ARM7 MUL C is captured but unscored in 1,052,672 cases.
+Component checks cover
+high registers, PC/SP address forms, branch offsets, register BLX architecture
+differences, state alignment and actual shared-plugin Thumb replay.
 Run `ctest --test-dir build -R '^nds_' --output-on-failure`.
 
 All suites retain raw output and reports under `build/artifacts/owned/`, which

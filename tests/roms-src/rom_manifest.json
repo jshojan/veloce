@@ -121,6 +121,17 @@
       "source_type": "original",
       "suite": "multiply_registers"
     },
+    "nds/thumb_registers/thumb_registers.nds": {
+      "build_command": "python3 tests/roms-src/nds/thumb_registers/build.py",
+      "console": "nds",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "ffd69aa205804485d40f25b8f922ac8dc01d42f83f4ec0e0328ae99660cac572",
+      "source_repo": "tests/roms-src/nds/thumb_registers/build.py",
+      "source_sha": "d55828137577bf7c2d14fefc413905de33ddb6a1d9ad6edacdfcda5c4348fdfa",
+      "source_type": "original",
+      "suite": "thumb_registers"
+    },
     "nes/alu_exhaustive/alu_exhaustive.nes": {
       "build_command": "python3 tests/roms-src/nes/alu_exhaustive/build.py",
       "console": "nes",
