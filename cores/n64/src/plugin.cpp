@@ -6,7 +6,7 @@ class Plugin : public emu::IEmulatorPlugin {
 public:
     emu::EmulatorInfo get_info() override {
         static const char* extensions[] = {".z64", ".v64", ".n64", nullptr};
-        return {"N64", "0.7.0", "Veloce", "Experimental integer core with primary caches, settled PI/SI/SP, SP controls and RI/MI/RDRAM device controls and CIC-6102 IPL3 handoff; retail boot/playability, graphics/audio and analog input pending.",
+        return {"N64", "0.8.0", "Veloce", "Experimental integer core with primary caches, settled PI/SI/SP, SP controls and RI/MI/RDRAM device controls and CIC-6102 IPL3 handoff; retail boot/playability, graphics, RSP audio microcode, exact timing and analog input pending; functional AI PCM output.",
                 extensions, 60.0, 93750000, 320, 240};
     }
     const emu::ControllerLayoutInfo* get_controller_layout() override {
@@ -41,12 +41,17 @@ public:
         // Bounded frontend scheduling quantum, NOT VI/pipeline timing.
         for (unsigned i = 0; i < 100000 && !machine.done && !machine.yielded; ++i) machine.cpu.step();
         ++machine.frames;
+        if(m_audio_callback) {const auto a=get_audio();if(a.sample_count)m_audio_callback(a.samples,size_t(a.sample_count),a.sample_rate);clear_audio_buffer();}
     }
     uint64_t get_cycle_count() const override { return machine.cpu.state.instructions; }
     uint64_t get_frame_count() const override { return machine.frames; }
     emu::FrameBuffer get_framebuffer() override { return {pixels.data(), 320, 240}; }
-    emu::AudioBuffer get_audio() override { return {nullptr, 0, 48000}; }
-    void clear_audio_buffer() override {}
+    emu::AudioBuffer get_audio() override {
+        audio.resize(size_t(machine.audio_count)*2);
+        for(size_t n=0;n<audio.size();++n) {const uint16_t raw=machine.audio_samples[(machine.audio_head*2+n)%(Machine::audio_capacity*2)];const int value=raw<32768?int(raw):int(raw)-65536;audio[n]=float(value)/32768.0f;}
+        return {audio.empty()?nullptr:audio.data(),int(machine.audio_count),48000};
+    }
+    void clear_audio_buffer() override {machine.clear_audio();audio.clear();}
     uint8_t read_memory(uint16_t address) override { return machine.ram[address]; }
     void write_memory(uint16_t address, uint8_t value) override { machine.ram[address] = value; }
     bool save_state(std::vector<uint8_t>& data) override { return machine.save(data); }
@@ -55,6 +60,7 @@ public:
     const char* test_channels() const override { return "v64debug"; }
 private:
     Machine machine;
+    std::vector<float> audio;
     std::array<uint32_t, 320 * 240> pixels{}; // No video emulation yet.
 };
 }

@@ -44,7 +44,7 @@ void VR4300::step() {
     auto& s = state;
     const uint64_t pc = s.pc;
     const bool delay = s.delay_slot;
-    ++s.instructions;
+    ++s.instructions;memory.clock();
     // Count is an instruction-clock approximation; pipeline/bus timing is pending.
     if (!(s.instructions & 1)) {
         s.cp0[9] = uint32_t(s.cp0[9] + 1);

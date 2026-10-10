@@ -198,6 +198,28 @@
       "source_type": "original",
       "suite": "shift_registers"
     },
+    "n64/ai_fifo/ai_fifo.z64": {
+      "build_command": "python3 tests/roms-src/n64/ai_fifo/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "2003ae6f0b16836f16be70d30c3e910f453c4635e0a65ae215613bda2a20d55c",
+      "source_repo": "tests/roms-src/n64/ai_fifo/build.py",
+      "source_sha": "ea5f5f2bb99007bd73996df742a991b854fe8fa7a66788354ecdee37c12b5b36",
+      "source_type": "original",
+      "suite": "ai_fifo"
+    },
+    "n64/ai_pcm/ai_pcm.z64": {
+      "build_command": "python3 tests/roms-src/n64/ai_pcm/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "f735c41d46f598f6bf53d6a48c8a1bcc4c24134753f4574505dddf477e6d40d8",
+      "source_repo": "tests/roms-src/n64/ai_pcm/build.py",
+      "source_sha": "85e3ebbfbb45532b793486b87825bfb2c9d220b6516e97e6d084bcbf20d3ba3f",
+      "source_type": "original",
+      "suite": "ai_pcm"
+    },
     "n64/cache_coherence/cache_coherence.z64": {
       "build_command": "python3 tests/roms-src/n64/cache_coherence/build.py",
       "console": "n64",

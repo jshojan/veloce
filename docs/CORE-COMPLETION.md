@@ -9,7 +9,7 @@
 | SNES | **40%** | 8/20 |
 | Game Boy / Game Boy Color | **40%** | 8/20 |
 | Game Boy Advance | **40%** | 8/20 |
-| Nintendo 64 | **30%** | 6/20 |
+| Nintendo 64 | **35%** | 7/20 |
 | Virtual Boy | **20%** | 4/20 |
 | Nintendo DS | **30%** | 6/20 |
 | Nintendo DSi | **30%** | 6/20 |

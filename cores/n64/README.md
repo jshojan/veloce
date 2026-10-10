@@ -5,13 +5,13 @@
 
 | Platform | Delivery checklist completion | Delivered / total |
 |---|---:|---:|
-| Nintendo 64 | **30%** | 6/20 |
+| Nintendo 64 | **35%** | 7/20 |
 
 These percentages count the 20 explicit delivery milestones in [the completion ledger](../../docs/CORE-COMPLETION.md); partial or unverified milestones receive zero credit. Each milestone is worth 5 percentage points. **They are not percentages of native hardware accuracy or retail compatibility.** Bounded profile tests do not complete a whole CPU or hardware subsystem.
 
-Nintendo 64 delivered milestones: Native digital controller/keypad registers consume frontend input, Parse a native cartridge/executable format (boot scored separately), Repository-owned ROM source and reproducible archived image, Separate core plugin and ABI entry points, Actual guest register-file output independently graded on the host, with negative controls, Complete states for the implemented profile and deterministic replay.
+Nintendo 64 delivered milestones: Guest sound produces audio samples, Native digital controller/keypad registers consume frontend input, Parse a native cartridge/executable format (boot scored separately), Repository-owned ROM source and reproducible archived image, Separate core plugin and ABI entry points, Actual guest register-file output independently graded on the host, with negative controls, Complete states for the implemented profile and deterministic replay.
 
-Remaining: Super Mario 64 reaches 5,775,051 startup attempts, then faults at AI status; native boot, RAM remapping/calibration, remaining CPU/FPU/devices, RSP/RDP/VI/AI, analog and netplay remain.
+Remaining: Super Mario 64 reaches 5,896,277 startup attempts, then faults on FPU CFC1; native boot/playability, RAM remapping/calibration, remaining CPU/FPU/devices, RSP/RDP/VI, RSP audio microcode, physical AI timing, analog and netplay remain.
 <!-- completion:end -->
 
 `n64_plugin` builds `n64.so`/`n64.dll`/`n64.dylib` and implements emulator ABI v2.
@@ -80,7 +80,7 @@ and hotplug system. Physical pads and rendered UI behavior remain unverified.
 ## Interrupt subset
 
 CPU interrupt gates now honor all eight Status mask bits, IE, EXL and ERL.
-Software Cause.IP0/IP1 are writable; SI, PI and SP drive live IP2 after MI masking.
+Software Cause.IP0/IP1 are writable; SI, PI, SP and AI drive live IP2 after MI masking.
 The approximate Count clock latches IP7 when an increment equals Compare;
 writing Compare acknowledges that latch. Cause writes preserve hardware/timer
 requests and exception context. Interrupt entry suppresses the current
@@ -100,7 +100,7 @@ SI re-entry and pending SI/timer save-state continuation also have unit evidence
 Count still advances once per two CPU step attempts, including interrupt entry.
 This is an instruction-clock approximation. Exact PClock/pipeline timing,
 CP0 hazards, Count-write equality timing, privilege checks, other interrupt
-producers and reset/NMI/cache-error paths are unverified. The current `VN64S008` state stores Count, Compare, Cause, Status and pending SI/PI/SP/MI state. Device levels are resampled on the next step.
+producers and reset/NMI/cache-error paths are unverified. The current `VN64S009` state stores Count, Compare, Cause, Status and pending SI/PI/SP/AI/MI state. Device levels are resampled on the next step.
 
 ## Explicit homebrew entry profile
 
@@ -166,14 +166,14 @@ executes all three archive formats through actual frontend discovery.
 ```bash
 python3 tests/roms-src/build.py --original-only --check
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build --target veloce n64_plugin n64_machine_test n64_pi_test n64_ri_test n64_mi_test n64_rdram_test n64_cache_test n64_sp_test -j
+cmake --build build --target veloce n64_plugin n64_machine_test n64_pi_test n64_ri_test n64_mi_test n64_rdram_test n64_cache_test n64_sp_test n64_ai_test n64_audio_capture -j
 ctest --test-dir build -R '^n64_' --output-on-failure
 ```
 
-`VN64S008` states store explicit big-endian scalars, all GPR/CP0 registers,
+`VN64S009` states store explicit big-endian scalars, all GPR/CP0 registers,
 HI/LO, both PCs, pending delay state, instruction/frame counters, completion,
 RAM and SP storage, PIF RAM, SI address/completion, MI mask, latched digital
-input and debug yield state, plus 13 PI registers, PI IRQ and boot mode (120 bytes), six RI controls and a current-loaded flag (56 bytes), plus MI mode and pending DP (16 bytes) and 36 device-register scalars (288 bytes), plus all cache tags/valid/dirty flags and data (40,960 bytes) and nine SP interface scalars (72 bytes). Legacy `VN64S007` restores reset SP controls; `VN64S006` restores invalid caches; `VN64S005` restores reset device registers; `VN64S004` states restore with neutral MI mode/DP; `VN64S003` states restore with neutral RI; `VN64S002` loads only for homebrew, with neutral PI/RI; `VN64S001` is rejected. ROM data is immutable and referenced by identity. Size,
+input and debug yield state, plus 13 PI registers, PI IRQ and boot mode (120 bytes), six RI controls and a current-loaded flag (56 bytes), plus MI mode and pending DP (16 bytes) and 36 device-register scalars (288 bytes), plus all cache tags/valid/dirty flags and data (40,960 bytes) and nine SP interface scalars (72 bytes), plus 15 AI scalars, five host-clock/ring scalars and 32,768 bytes of pending PCM storage (32,928 bytes). Legacy `VN64S008` restores neutral AI/host audio; `VN64S007` restores reset SP controls; `VN64S006` restores invalid caches; `VN64S005` restores reset device registers; `VN64S004` states restore with neutral MI mode/DP; `VN64S003` states restore with neutral RI; `VN64S002` loads only for homebrew, with neutral PI/RI; `VN64S001` is rejected. ROM data is immutable and referenced by identity. Size,
 version, ROM identity and basic field validation precede restoration. The
 instruction counter counts CPU step attempts including interrupt entry,
 **not actual VR4300 cycles**;
@@ -184,7 +184,7 @@ not an emulated VI field. The nominal metadata rate is NTSC/93.75 MHz only.
 
 PIF/IPL/CIC and retail boot, TLB/address modes, cache errors and pipeline timing,
 full CP0, remaining interrupt producers and timing, LL/SC, traps,
-FPU, RSP/vector instructions, RDP, VI, AI, full RDRAM initialization and remaining RI/PI behavior, full SI/MI/PIF,
+FPU, RSP/vector instructions, RDP, VI, full AI/DAC physical behavior, full RDRAM initialization and remaining RI/PI behavior, full SI/MI/PIF,
 analog and multiplayer controllers,
 save media, video/audio output, expansion devices and physical hardware
 validation remain. Unimplemented opcodes raise a reserved-instruction exception.
@@ -232,7 +232,7 @@ all captured-field mutations and seven malformed streams per corpus are rejected
 `n64_pi_test` separately covers 1,048,576 RDRAM destinations, 32,768 even lengths,
 65,536 address masks, every byte of an 8 MiB DMA, all SI/PI/MI combinations,
 actual IRQ/ACK/ERET continuation, atomic rejection, legacy/native states,
-64 MiB formats and the loaded plugin. All twenty N64 CTests pass; the component
+64 MiB formats and the loaded plugin. All twenty-four N64 CTests pass; the component
 also passes undefined-behavior sanitization.
 
 ## RI configuration controls
@@ -257,7 +257,7 @@ exact continuation, legacy states, reset and the loaded plugin.
 These are functional controls. Analog current calibration, mode-dependent RAM
 access, refresh scheduling, bus contention/error production, native RAM remapping
 and physical timing remain pending. Native cartridge startup now proceeds past
-RI register configuration and reaches MI control setup; the local target now reaches the missing AI status register.
+RI register configuration and reaches MI control setup; the local target now reaches the unsupported FPU control instruction CFC1.
 
 ## MI mode and interrupt controls
 
@@ -281,7 +281,7 @@ invalid streams reject. The component passes undefined-behavior sanitization.
 
 Repeat/upper device-register effects are implemented in the RDRAM profile.
 EBus, ninth-bit RAM, repeat RAM writes and native RAM remapping remain pending.
-RSP BREAK/AI/VI/DP hardware producers and physical bus/interrupt timing remain incomplete.
+RSP BREAK/VI/DP hardware producers and physical bus/interrupt timing remain incomplete.
 
 ## RDRAM device register topology
 
@@ -349,8 +349,8 @@ verified boot. The bounded trace now allows 12,000,000 attempts, matching the
 ## Local retail regression target
 
 Super Mario 64 (USA), supplied locally by the user, was probed on 2026-10-10.
-The plugin **loads it and reaches 5,775,051 startup step attempts**, then faults writing
-the missing AI status register `$A450000C`. EPC is `$80000224`, Cause is `$14`,
+The plugin **loads it and reaches 5,896,277 startup step attempts**, then faults on
+the unsupported FPU control instruction CFC1 at PC `$80328730` (word `$4442F800`). EPC is `$80328730`, Cause is `$28`,
 and the exception vector is `$80000180`. The production ABI probe runs 120
 frontend scheduling quanta with uniform video and no audio. **Retail boot and
 playability are unverified.** The 8 MiB image has SHA256
@@ -367,8 +367,8 @@ video/audio and runs a bounded machine trace to the first CPU exception.
 It writes hashes, EPC, Cause, fault address and all 32 GPRs to
 `build/artifacts/retail/n64.json`; no commercial bytes are archived or copied.
 The current verdict is `boot-blocked`. A successful probe process is not a
-playability verdict. Next work includes AI and native RAM mapping, full CPU/CP0/FPU,
-RSP/RDP/VI/device scheduling, AI and save media.
+playability verdict. Next work includes FPU and native RAM mapping, full CPU/CP0/FPU,
+RSP/RDP/VI/device scheduling, physical AI timing and save media.
 
 
 ## SP controls and settled DMA
@@ -411,3 +411,56 @@ CPU/register/DMA chapters, and the author's hardware observations in
 and [DMA tests](https://github.com/thelemmy/nemu64-test/blob/main/src/tests/sp_memory/dma.rs).
 The C++ implementation and cartridge programs here are original; these references
 were read for behavior and have not been run or copied into the corpus.
+
+
+## AI playback and plugin audio
+
+The AI module maps six word registers at `$A4500000`–`$A4500014`. It maintains
+two DMA descriptors and consumes signed big-endian 16-bit stereo from RDRAM at
+playback time. Length writes align down to eight bytes and use 18 bits; address
+writes use 24 bits and eight-byte alignment. A full FIFO ignores further length
+writes. Write-only registers read back current length. Register reads expose
+FIFO busy/full, enable and fixed status bits; COUNT/WC/BC readback is unmodeled
+and unscored. Status writes acknowledge AI's MI source (bit 2).
+
+Activation of each FIFO descriptor raises the AI interrupt, including promotion
+of a queued buffer; draining the final buffer alone does not raise a new one.
+The documented delayed-carry bug adds 8 KiB to the following descriptor when a
+buffer ends on an 8 KiB boundary. Transfers outside implemented RAM reject before
+queue mutation, including this carry. The PCM ROM avoids those boundaries; a
+separate component checks the carry with distinct RAM values. DMA observes
+backing RAM rather than dirty CPU cache lines.
+
+DACRATE selects the crystal period `value + 1`. BITRATE zero freezes the DAC
+clock and suppresses new host samples; DMA disable freezes consumption. Exact
+serial-bit distortion for short periods, analog interpolation/filtering, dynamic
+clock-register phase rules and physical FIFO/IRQ latency remain unverified.
+The current profile uses NTSC's 48,681,818 Hz crystal against nominal 93,750,000
+CPU clocks, with one clock per interpreter attempt. That CPU/device relationship
+is an approximation; the 100,000-attempt frontend quantum is not a VI frame.
+PAL/MPAL and hardware timing need separate implementation and evidence.
+
+The core converts PCM to normalized floats and 48 kHz using deterministic sample
+holding. Buffered `get_audio()` and the existing streaming callback return
+identical samples and leave identical whole states after consumption. Pending
+host output is bounded to 8,192 stereo pairs; a stalled consumer drops the oldest
+host samples without stopping guest DMA, with a stateful drop counter. FIFO,
+partial word position, raw sample latches, clock phases and pending host output
+are included in `VN64S009`. Replay and malformed-state rejection are tested.
+
+The [FIFO ROM](../../tests/roms-src/n64/ai_fifo/README.md) matches 2,048 cases /
+22,528 guest register values. The [PCM ROM](../../tests/roms-src/n64/ai_pcm/README.md)
+matches nine FIFO/IRQ captures and the production ABI emits **66,169 stereo
+pairs covering all 65,536 signed sample values in each channel**. Independent
+host grading rejects an executed sample mutation and malformed streams. Components
+check all 262,144 length inputs, 2,097,152 aligned address fields, 262,144
+DACRATE/BITRATE combinations, all 16,384 dividers, FIFO promotion, carry,
+RAM/cache visibility, pause, IRQ/ERET, state replay and both plugin audio paths.
+These are declared functional domains; they do not establish complete AI hardware
+accuracy or RSP audio microcode. The component passes undefined-behavior sanitization.
+
+References: the [AI hardware documentation](https://n64brew.dev/wiki/Audio_Interface?action=raw),
+[libdragon register definitions](https://libdragon.dev/ref/group__lowlevel),
+and the [authors' audio driver](https://github.com/DragonMinded/libdragon/blob/trunk/src/audio.c).
+Implementation and ROM code are original. No external driver code or firmware
+is included.
