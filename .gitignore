@@ -79,6 +79,7 @@ artifacts/
 # Repository-owned, reproducible hardware probes are committed with their source.
 !tests/roms-src/gb/register_probe/register_probe.gb
 !tests/roms-src/gb/alu_exhaustive/alu_exhaustive.gb
+!tests/roms-src/gb/unary_exhaustive/unary_exhaustive.gb
 !tests/roms-src/nes/alu_exhaustive/alu_exhaustive.nes
 !tests/roms-src/nes/netplay_probe/netplay_probe.nes
 !tests/roms-src/snes/math_registers/math_registers.sfc

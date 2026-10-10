@@ -22,6 +22,17 @@
       "source_type": "original",
       "suite": "register_probe"
     },
+    "gb/unary_exhaustive/unary_exhaustive.gb": {
+      "build_command": "python3 tests/roms-src/gb/unary_exhaustive/build.py",
+      "console": "gb",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "3e0bcf62bac31ee2a87fc01e0c19516efff32ab5472628a704b6e5bce8306406",
+      "source_repo": "tests/roms-src/gb/unary_exhaustive/build.py",
+      "source_sha": "ba53112e7e5a648ea2744586f4977e032317684a8c52001f122e8b0440318eda",
+      "source_type": "original",
+      "suite": "unary_exhaustive"
+    },
     "gba/arm_shifts/arm_shifts.gba": {
       "build_command": "python3 tests/roms-src/gba/arm_shifts/build.py",
       "console": "gba",

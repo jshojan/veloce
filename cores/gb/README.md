@@ -142,6 +142,16 @@ observations, and injects a wrong WRAM stimulus to prove the result changes to
 FAIL. Run `python3 tests/roms-src/gb/register_probe/test_probe.py build/bin/veloce`.
 This checks two behaviors; it does not validate all SM83 instructions or timing.
 
+The original [byte ALU corpus](../../tests/roms-src/gb/alu_exhaustive/README.md)
+checks 8,388,608 A/F pairs for eight E-register binary operations, all operand
+pairs and flags. The [unary corpus](../../tests/roms-src/gb/unary_exhaustive/README.md)
+checks 73,728 A/F pairs for 18 accumulator operations, all bytes and flags,
+including DAA and rotates/shifts. Both measured 100% of their declared domains
+with independent host oracles and executed failure controls. They emit actual
+registers into files through the SB/SC debug start hook; they do not validate
+physical serial timing, retail boot, other operand locations, or full hardware
+completion. Run their `gb_alu_exhaustive` and `gb_unary_exhaustive` CTest gates.
+
 ### Test Suite
 
 The Game Boy core uses the shared Veloce testkit (`tests/veloce_testkit`) so its

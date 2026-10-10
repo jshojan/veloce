@@ -10,7 +10,7 @@ are not measurements of overall hardware or product completion.
 | Core family | Plugin | Original hardware evidence | Full core completion |
 |---|---|---|---|
 | NES/Famicom | `nes_plugin` | ADC/SBC zero-page arithmetic: 524,288/524,288 A/P pairs verified (100% of both operands, C and D states) | Not measured; other CPU instructions/addressing/timing and peripheral corpora remain |
-| GB/CGB | `gb_plugin` | DMG WRAM/ADD probe: 2/2 checks; byte ALU E-register corpus: 8,388,608/8,388,608 A/F pairs matched (100% of eight operations, every operand pair, and all 16 incoming flag states) | Not measured; other CPU operands/instructions, timing/PPU/APU/MBC/CGB corpus remains |
+| GB/CGB | `gb_plugin` | DMG WRAM/ADD probe: 2/2 checks; byte ALU E-register corpus: 8,388,608/8,388,608 A/F pairs matched (100% of eight operations, every operand pair, and all 16 incoming flag states); unary accumulator instructions: 73,728/73,728 A/F pairs matched (18 instructions × all bytes × all flags) | Not measured; other CPU operands/instructions, timing/PPU/APU/MBC/CGB corpus remains |
 | SNES | `snes_plugin` | Settled multiplication: 65,536/65,536 operand pairs verified (100%); division: 3,328 selected boundary cases verified; math timing: 504,832/504,832 register bytes matched at CPU phases 2–18 (100% of declared patterns/phases) | Not measured; timed full operand domain, refresh/DMA interactions, and remaining hardware corpora pending |
 | GBA | `gba_plugin` | ARM MOVS register shifts: 65,536/65,536 result/CPSR pairs verified; all low-byte amounts and C/V inputs on 16 operands | Not measured; remaining CPU modes/instructions, timing and peripheral corpora pending |
 
@@ -22,7 +22,7 @@ them as `owned-hardware-registers`.
 
 The NES, GB ALU, SNES, and GBA corpora are graded by host integer oracles that read
 every observed register result. The small GB WRAM probe emits its own `CHECK`
-lines alongside observed values. The GB ALU ROM uses the existing SB/SC start
+lines alongside observed values. The GB ALU and unary ROMs use the existing SB/SC start
 observation hook without waiting for link delivery; physical serial timing and
 retail boot are unverified.
 No original suite scores a screenshot or stdout verdict. External ROM

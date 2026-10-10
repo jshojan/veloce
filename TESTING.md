@@ -38,6 +38,13 @@ Completion has unknown status; a mutated opcode must fail, and damaged or
 false-PASS result files must be measurement errors. SB/SC writes use the existing
 test hook without waiting for physical serial delivery. Timing, other operand
 locations, CGB operation, and retail boot are not established by this corpus.
+The [GB unary corpus](tests/roms-src/gb/unary_exhaustive/README.md) observes
+73,728 A/F pairs across 18 accumulator instructions, every byte, and every
+incoming flag state. It includes all DAA inputs, accumulator and CB rotations,
+shifts, INC/DEC and flag controls. An independent host oracle grades results;
+an executed mutation and seven damaged-file controls verify failure detection.
+Other operand locations, BIT/RES/SET, timing and physical hardware remain
+separate unverified domains. The same SB/SC debug observation hook is used.
 The [SNES math corpus](tests/roms-src/snes/math_registers/README.md) streams
 65,536 multiplication products and 3,328 division quotient/remainder pairs through
 `$21FE`. Its integer host oracle grades every settled observation, including
