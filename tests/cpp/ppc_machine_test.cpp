@@ -209,20 +209,21 @@ static void loader_states(ppc::Machine& m,bool wii) {
     m.rom.clear(); m.reset(); require(!m.save(replay),"unloaded save");
 }
 #include "ppc_condition_checks.hpp"
+#include "ppc_logical_checks.hpp"
 int main(int argc,char** argv) {
     try {
-        require(argc==3,"two plugin paths required"); uint64_t count=0,branches=0,conditions=0;
+        require(argc==3,"two plugin paths required"); uint64_t count=0,branches=0,conditions=0,logical=0;
         for(bool wii:{false,true}) {
-            ppc::Machine m(wii); count+=arithmetic_checks(m); branches+=branch_checks(m); conditions+=condition_checks(m); memory_and_control(m); transport(m); loader_states(m,wii);
+            ppc::Machine m(wii); count+=arithmetic_checks(m); branches+=branch_checks(m); conditions+=condition_checks(m); logical+=logical_checks(m); memory_and_control(m); transport(m); loader_states(m,wii);
             const auto rom=image(wii); emulator_test::LoadedCore core(argv[wii?2:1],rom); auto& plugin=*core.plugin;
             const auto info=plugin.get_info(); require(std::string(info.name)==(wii?"Wii":"GameCube") && std::string(info.file_extensions[0])==(wii?".vwi":".vgc"),"plugin identity");
             std::vector<uint8_t> before,after,replay; require(plugin.save_state(before),"plugin save");
             plugin.run_frame({}); require(plugin.save_state(after),"plugin frame save"); require(plugin.load_state(before),"plugin restore"); plugin.run_frame({}); require(plugin.save_state(replay) && replay==after,"plugin replay");
             require(plugin.get_frame_count()==1 && plugin.get_cycle_count()==100000 && std::string(plugin.test_channels())=="ppcdebug","plugin counters/channel");
             require(plugin.get_framebuffer().width==640 && plugin.get_audio().sample_count==0,"blank graphics/audio metadata");
-            branch_plugin_replay(plugin,wii); condition_plugin_replay(plugin,wii);
+            branch_plugin_replay(plugin,wii); condition_plugin_replay(plugin,wii); logical_plugin_replay(plugin,wii);
             plugin.unload_rom(); plugin.run_frame({}); require(!plugin.is_rom_loaded() && plugin.get_rom_crc32()==0 && plugin.get_frame_count()==0 && !plugin.save_state(replay),"plugin unload");
         }
-        std::cout<<conditions<<" comparison/condition snapshots, "<<branches<<" conditional branch snapshots and "<<count<<" PowerPC arithmetic/register snapshots matched; loader, memory, branches, states and both plugins passed\n";
+        std::cout<<logical<<" integer logical snapshots, "<<conditions<<" comparison/condition snapshots, "<<branches<<" conditional branch snapshots and "<<count<<" PowerPC arithmetic/register snapshots matched; loader, memory, branches, states and both plugins passed\n";
     } catch(const std::exception& error) { std::cerr<<error.what()<<'\n'; return 1; }
 }
