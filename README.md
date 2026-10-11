@@ -626,6 +626,12 @@ corpus and production TCP/rollback gates pass. Supplemental ROM rebuilds do not
 establish a whole-core hardware accuracy percentage. See the [integration
 evidence](cores/nes/README.md#result-channel-branch-integration-2026-10-11).
 
+The Game Boy result-channel branch is also integrated with the original
+register corpus: 8,388,608 arithmetic and 73,728 unary observations pass, with
+actual production adapter captures saved to files. Delivery remains 40%;
+whole-platform hardware accuracy remains unmeasured. See the [GB integration
+evidence](cores/gb/README.md#result-channel-branch-integration-2026-10-11).
+
 ## Project Structure
 
 ```

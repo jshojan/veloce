@@ -18,7 +18,7 @@ M-cycle accurate Game Boy and Game Boy Color emulator for Veloce.
 
 ## Overview
 
-The Game Boy core provides high-accuracy emulation for both the original Game Boy (DMG) and Game Boy Color (CGB). It features M-cycle accurate Sharp LR35902 CPU emulation, scanline-accurate PPU timing, and four-channel audio processing, and automatically detects ROM type to configure the appropriate mode. For the current, measured accuracy status (Blargg/Mooneye/Mealybug/SameSuite coverage and known gaps) see the [Testing](#testing) section -- the previous "100%" claim has been retired pending Mooneye-aware result detection.
+The Game Boy plugin implements DMG/CGB CPU, display, audio and cartridge profiles. The fixed delivery checklist is reported above; whole-platform hardware accuracy and compatibility percentages have not been established.
 
 ## Specifications
 
@@ -32,55 +32,55 @@ The Game Boy core provides high-accuracy emulation for both the original Game Bo
 
 ## Completion Status
 
-### CPU (Fully Implemented)
+### Implemented CPU profile
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Main opcodes (256) | Complete | All standard instructions |
-| CB-prefix opcodes (256) | Complete | All bit manipulation and rotate/shift |
-| Cycle timing | Complete | M-cycle accurate |
-| HALT mode | Complete | Proper wake-on-interrupt |
-| STOP mode | Complete | Speed switching (CGB) |
-| HALT bug | Complete | IME=0 with pending interrupt quirk |
-| OAM bug | Complete | DMG OAM corruption quirk |
-| Interrupts | Complete | VBlank, LCD STAT, Timer, Serial, Joypad |
+| Main opcodes (256) | Implemented profile | All standard instructions |
+| CB-prefix opcodes (256) | Implemented profile | All bit manipulation and rotate/shift |
+| Cycle timing | Implemented profile | M-cycle accurate |
+| HALT mode | Implemented profile | Proper wake-on-interrupt |
+| STOP mode | Implemented profile | Speed switching (CGB) |
+| HALT bug | Implemented profile | IME=0 with pending interrupt quirk |
+| OAM bug | Implemented profile | DMG OAM corruption quirk |
+| Interrupts | Implemented profile | VBlank, LCD STAT, Timer, Serial, Joypad |
 
-### PPU (Fully Implemented)
+### Implemented PPU profile
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Background rendering | Complete | Tile maps, scrolling |
-| Window rendering | Complete | WX/WY positioning |
-| Sprite rendering | Complete | 8x8 and 8x16 modes, priority |
-| OAM DMA | Complete | 160-cycle transfer |
-| DMG palettes | Complete | 4-shade grayscale |
-| CGB palettes | Complete | 8 BG + 8 OBJ palettes, 32768 colors |
-| CGB VRAM banking | Complete | Bank 0/1 switching |
-| LCD STAT interrupts | Complete | Mode 0/1/2, LYC=LY |
+| Background rendering | Implemented profile | Tile maps, scrolling |
+| Window rendering | Implemented profile | WX/WY positioning |
+| Sprite rendering | Implemented profile | 8x8 and 8x16 modes, priority |
+| OAM DMA | Implemented profile | 160-cycle transfer |
+| DMG palettes | Implemented profile | 4-shade grayscale |
+| CGB palettes | Implemented profile | 8 BG + 8 OBJ palettes, 32768 colors |
+| CGB VRAM banking | Implemented profile | Bank 0/1 switching |
+| LCD STAT interrupts | Implemented profile | Mode 0/1/2, LYC=LY |
 | Pixel FIFO | Partial | Scanline-based (accurate enough for most games) |
 
-### APU (Fully Implemented)
+### Implemented APU profile
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Channel 1 (Pulse) | Complete | Sweep, envelope, duty cycle |
-| Channel 2 (Pulse) | Complete | Envelope, duty cycle |
-| Channel 3 (Wave) | Complete | 16-byte wave RAM |
-| Channel 4 (Noise) | Complete | LFSR, envelope |
-| Frame sequencer | Complete | 512 Hz, 8 steps |
-| Length counters | Complete | All 4 channels |
-| Stereo panning | Complete | NR51 register |
-| Master volume | Complete | NR50 register |
+| Channel 1 (Pulse) | Implemented profile | Sweep, envelope, duty cycle |
+| Channel 2 (Pulse) | Implemented profile | Envelope, duty cycle |
+| Channel 3 (Wave) | Implemented profile | 16-byte wave RAM |
+| Channel 4 (Noise) | Implemented profile | LFSR, envelope |
+| Frame sequencer | Implemented profile | 512 Hz, 8 steps |
+| Length counters | Implemented profile | All 4 channels |
+| Stereo panning | Implemented profile | NR51 register |
+| Master volume | Implemented profile | NR50 register |
 
 ### CGB Features
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Double-speed mode | Complete | KEY1 register |
-| HDMA transfers | Complete | General-purpose and HBlank DMA |
-| Color palettes | Complete | BCPS/BCPD, OCPS/OCPD |
-| VRAM banking | Complete | VBK register |
-| WRAM banking | Complete | SVBK register |
+| Double-speed mode | Implemented profile | KEY1 register |
+| HDMA transfers | Implemented profile | General-purpose and HBlank DMA |
+| Color palettes | Implemented profile | BCPS/BCPD, OCPS/OCPD |
+| VRAM banking | Implemented profile | VBK register |
+| WRAM banking | Implemented profile | SVBK register |
 
 ### Known Limitations
 
@@ -91,10 +91,10 @@ The Game Boy core provides high-accuracy emulation for both the original Game Bo
 
 | MBC | Features | Common Games | Status |
 |-----|----------|--------------|--------|
-| None | 32KB ROM only | Tetris | Complete |
-| MBC1 | Up to 2MB ROM, 32KB RAM | Pokemon Red/Blue, Zelda | Complete |
-| MBC3 | RTC, up to 2MB ROM | Pokemon Gold/Silver/Crystal | Complete |
-| MBC5 | Up to 8MB ROM, 128KB RAM | Pokemon Crystal, GBC games | Complete |
+| None | 32KB ROM and optional unbanked RAM profile | Tetris | Functional profile |
+| MBC1 | Up to 2MB ROM, 32KB RAM | Pokemon Red/Blue, Zelda | Implemented profile |
+| MBC3 | RTC, up to 2MB ROM | Pokemon Gold/Silver/Crystal | Implemented profile |
+| MBC5 | Up to 8MB ROM, 128KB RAM | Pokemon Crystal, GBC games | Implemented profile |
 
 ## Building
 
@@ -138,33 +138,12 @@ cmake --build build
 For the testing methodology and the platform-wide picture see the top-level
 [TESTING.md](../../TESTING.md) and [COMPLETENESS.md](../../COMPLETENESS.md).
 
-**Verified accuracy:** the Blargg serial subset and the repository-owned
-two-check CPU/WRAM register probe. The external ROM catalog is large
-(225 tests / 31 suites) but the large Mooneye / SameSuite / Wilbertpol half
-cannot yet be scored (detection gap, below), so the published number reflects
-the verified serial subset and the rest is reported as unverified. Verified:
-Blargg `cpu_instrs` 10/11 PASS (`02-interrupts` known_fail), `instr_timing` PASS,
-`mem_timing` 3/3 PASS. The previous "111/111, 100%" claim was not reproducible
-and has been retired. Full justification is in
-[COMPLETENESS.md](../../COMPLETENESS.md#game-boy).
-
-The original [register probe](../../tests/roms-src/gb/register_probe/build.py)
-is built from Python source and checked into the repository. It sends actual
-WRAM and ALU observations through SB/SC and records `REG`, `CHECK`, and `END`
-in `VELOCE_TEST_OUT`. Its runtime test rebuilds the ROM, checks both passing
-observations, and injects a wrong WRAM stimulus to prove the result changes to
-FAIL. Run `python3 tests/roms-src/gb/register_probe/test_probe.py build/bin/veloce`.
-This checks two behaviors; it does not validate all SM83 instructions or timing.
-
-The original [byte ALU corpus](../../tests/roms-src/gb/alu_exhaustive/README.md)
-checks 8,388,608 A/F pairs for eight E-register binary operations, all operand
-pairs and flags. The [unary corpus](../../tests/roms-src/gb/unary_exhaustive/README.md)
-checks 73,728 A/F pairs for 18 accumulator operations, all bytes and flags,
-including DAA and rotates/shifts. Both measured 100% of their declared domains
-with independent host oracles and executed failure controls. They emit actual
-registers into files through the SB/SC debug start hook; they do not validate
-physical serial timing, retail boot, other operand locations, or full hardware
-completion. Run their `gb_alu_exhaustive` and `gb_unary_exhaustive` CTest gates.
+**Current evidence:** the repository-owned register probe, arithmetic corpus
+and unary corpus grade actual guest output independently. Result-channel
+adapters now support the supplemental catalog. Historical catalog pass counts
+and scores require a new complete run before use as current compatibility
+results. Visual-only entries remain unscored. No whole-core hardware accuracy
+percentage is inferred from these bounded tests.
 
 ### Test Suite
 
@@ -176,18 +155,20 @@ authoritative test ROM set is the prebuilt
 runnable `.gb` ROMs). The runner downloads and unpacks it into
 `cores/gb/tests/roms/` on first run.
 
-`cores/gb/tests/test_config.json` is schema-v2 and enumerates **225 tests across
-31 suites**, organized by hardware subsystem with a per-test `result_detection`,
+`cores/gb/tests/test_config.json` is schema-v2 and enumerates **448 tests across
+41 suites** (418 scored, 30 visual), organized by hardware subsystem with a per-test `result_detection`,
 `accuracy_type`, and `priority`:
 
 | Source | Subsystems exercised |
 |--------|----------------------|
 | Blargg `cpu_instrs`, `instr_timing`, `mem_timing(-2)`, `halt_bug`, `interrupt_time`, `oam_bug`, `dmg_sound`, `cgb_sound` | CPU instr + instruction/memory timing, HALT bug, OAM bug, APU |
 | Mooneye acceptance (`timer`, `ppu`, `interrupts`, `oam_dma`, `timing`, `bits`, `serial`, boot/div) | Cycle-accurate timer/PPU/interrupt/IME/HALT/DMA/control-flow timing |
+| Mooneye `misc` (CGB hardware: boot regs/HWIO/DIV, unused HWIO, VBlank STAT IRQ) | Post-boot CGB state (`known_fail`: DMG-header carts run as DMG, see `known_issues.model_selection`) |
+| GBMicrotest (212 of 513: timer/DIV, OAM DMA, HBlank IRQ vs SCX, HALT wakeup, LCD-on STAT, VRAM/OAM lock) | Single-cycle timer/PPU/interrupt/access probes |
 | Mooneye `emulator-only` (MBC1/MBC2/MBC5) | Mappers / banking |
 | Mealybug Tearoom (DMG + CGB) | Mid-scanline (mode-3) PPU register changes, pixel-perfect |
 | Wilbertpol | PPU sub-scanline STAT/mode timing |
-| SameSuite (APU ch1-4 + DIV/registers) | Cycle-accurate APU |
+| SameSuite (APU ch1-4 + DIV/registers, CGB DMA/HDMA, EI/HALT, BGPI lock) | Cycle-accurate APU, CGB DMA, interrupts, palette access |
 | dmg-acid2 / cgb-acid2 | Pixel-perfect PPU rendering |
 
 ```bash
@@ -199,7 +180,7 @@ cd cores/gb/tests
 ./run_tests.sh --generate-refs # print measured screenshot CRC32 hashes
 ```
 
-### Result Detection (and its current limits)
+### Result Detection
 
 | Method | Suites | Status |
 |--------|--------|--------|
@@ -208,21 +189,55 @@ cd cores/gb/tests
 | `serial` (Mooneye Fibonacci reg + LD B,B) | All Mooneye, SameSuite, Wilbertpol | **Not yet detected** -- see below |
 | `screenshot-crc` (CRC32 of framebuffer PNG) | Mealybug, acid2, Blargg-sound, halt_bug, interrupt_time, mem_timing-2 | Pipeline works; `reference_hash` values not yet populated |
 
-**Mooneye detection gap (important):** Mooneye/SameSuite/Wilbertpol ROMs do not
-print ASCII pass/fail. They signal success via the Fibonacci register fingerprint
-(`B=3 C=5 D=8 E=13 H=21 L=34`) reached at an `LD B,B` software breakpoint, plus
-non-printable serial bytes (the bus only captures ASCII `0x20-0x7E`). The shared
-detector matches a `MOONEYE: PASS/FAIL` line, which the GB plugin does not yet
-emit. **Consequence:** every Mooneye/SameSuite/Wilbertpol test currently resolves
-to RUNS (unverified -- zero credit, excluded from the headline denominator), not a
-PASS. This is a measurement limitation, not necessarily an accuracy failure. The
-config marks each test's believed verdict via `expected`, so once the core emits
-a Mooneye breakpoint line the harness will score them automatically. (Fixing this
-requires a `src` change, which is out of scope for the test suite.)
+| Driver | Tier | Suites | What it writes |
+|--------|------|--------|----------------|
+| `serial` | A | ROMs built with the Veloce emitter | every byte sent with `SC=$81`, raw; the ROM's own `CHECK`/`END` lines |
+| `blarggtext` | B | Blargg `cpu_instrs`, `instr_timing`, `mem_timing` | the ROM's serial text, then `END 1/1` for a `Passed` line or `END 0/1 [code=n]` for `Failed [#n]` |
+| `a000` | B | Blargg `oam_bug`, `dmg_sound`, `cgb_sound`, `mem_timing-2`, `halt_bug`, `interrupt_time` | the `$A000` text as `LOG` lines (when not mirrored to serial), `END` from the status byte, reset request on `$81` |
+| `hram` | B | GBMicrotest (cartridge title `microtest`) | `CHECK 1 PASS/FAIL hram exp=<$FF81> got=<$FF80>` + `END` once `$FF82` is `$01`/`$FF` |
+| `mooneye` | C | Mooneye, SameSuite, Wilbertpol | `REG b= c= d= e= h= l=` + `END 1/1` (Fibonacci fingerprint at `LD B,B`) or `END 0/1 code=66` (all `$42`) |
+| `screenshot-crc` | n/a | Mealybug, acid2 | visual only (`visual_test_suites`); `reference_hash` values not populated, never scored |
 
-The measured per-suite results (the verified Blargg subset, the Mooneye RUNS
-state, and the captured acid2 CRCs) are tabulated with their justification in
+Any adapter stands down once the ROM has sent a `VELOCE 1` header or an `END`
+line over serial, and only one terminator is ever written. With a sink attached
+the cartridge RAM is zeroed when attached before the first frame, so a battery save from an earlier run can
+never be read as this run's result.
+
+```bash
+VELOCE_TEST_OUT=/tmp/t.result ./build/bin/veloce cores/gb/tests/roms/blargg/cpu_instrs/individual/01-special.gb
+cat /tmp/t.result
+# #VELOCE 1 core=GBC rom_crc32=fdf8598c channels=serial,mooneye,a000,hram,blarggtext
+# 01-special
+# ...
+# Passed
+# #VELOCE adapter=blarggtext
+# END 1/1
+# #VELOCE end reason=terminator frames=140 cycles=2457919 status=0
+```
+
+The measured per-suite results are tabulated with their justification in
 [COMPLETENESS.md](../../COMPLETENESS.md#game-boy).
+
+### Rebuilding test ROMs from source
+
+`tests/roms-src/include/gb/veloce-test.inc` (wla-gb dialect) and
+`veloce-test-rgbds.inc` (RGBDS dialect) are the `VT_BEGIN`/`VT_TEST`/
+`VT_PASS`/`VT_FAIL`/`VT_REG`/`VT_LOG`/`VT_END` emitters future patches use
+to make a suite emit `VELOCE-RESULT/1` directly (Tier A) instead of relying
+on an adapter. Both are exercised end to end by
+`tests/roms-src/gb/veloce_smoke/` (one fixture ROM per dialect, built via
+`tests/roms-src/build.py`'s toolchain image; running it twice under
+`VELOCE_TEST_OUT` is byte-for-byte deterministic, including the trailer).
+
+All **708 supplemental images** rebuild from the merged recipes: two Blargg,
+513 GBMicrotest, 115 Mooneye and 78 SameSuite images. SameSuite's obsolete
+include-guard `SET` directive is normalized to `EQU` with the same constant
+value in a declared recipe command. Its source-only pin has no shipped-binary
+golden gate. Older release-bundle comparisons in provenance are historical;
+this integration does not infer physical hardware correctness from a rebuild.
+Supplemental ROM binaries and upstream clones remain ignored. The original
+WLA/RGBDS emitter fixtures are built with their own `build.sh` and both match
+their literal source transcripts, including intentional failures.
 
 ### Populating visual reference hashes
 
@@ -290,3 +305,47 @@ Save files stored in Veloce saves directory: `~/.config/veloce/saves/`
 | src/bus.cpp/hpp | Memory bus, timer, interrupts |
 | src/cartridge.cpp/hpp | ROM loading and MBC dispatch |
 | src/mbc/ | MBC implementations (MBC1, MBC3, MBC5) |
+
+## Result-channel branch integration (2026-10-11)
+
+The older `gb/test-channel` history is reconciled with current main. One module
+owns raw serial bytes plus Mooneye, A000, title-armed HRAM and Blargg-text
+adapters. An explicit `VELOCE 1` serial stream suppresses inferred verdicts.
+RAM is cleared only when the sink is attached before the first frame; late
+attachment preserves guest state. The original probe and strict arithmetic/
+unary graders now require the actual full channel list. Instrumentation adds
+no machine state fields.
+
+**10/10 selected GB/shared harness gates pass in 101.15 seconds**, including
+**8,388,608 arithmetic** and **73,728 unary** actual register-pair observations,
+executed corrupted-capture and malformed-stream controls, and the small original
+register probe. Twelve original production-plugin fixtures execute real CPU
+stores/register loads and check adapter status, fingerprint, title gating and
+explicit serial precedence. Their actual output is written to
+`build/artifacts/owned/gb_result_channel/*.capture`.
+
+The fixture exposed the disabled RAM path for unbanked headers 08/09. Their
+functional profile now decodes the fixed A000-BFFF RAM window and recognizes
+09 battery persistence. **4,194,304 address/byte checks**, reset/state/save replay
+and out-of-window guards pass; UBSAN passes. The final address pattern also
+separates each 256-byte page. Two compiled/executed faults (disabled reads and
+256-byte address aliasing) are rejected. State layout is unchanged.
+[Pan Docs no-MBC mapping](https://github.com/gbdev/pandocs/blob/master/src/nombc.md)
+describes optional unbanked RAM. Its [header documentation](https://github.com/gbdev/pandocs/blob/master/src/The_Cartridge_Header.md#0147--cartridge-type)
+notes that licensed cartridges do not use 08/09 and their exact behavior is
+unknown. This is a tested functional homebrew profile, not physical validation
+of licensed hardware.
+
+All **708 supplemental images** rebuild. Both original WLA/RGBDS emitter
+fixtures match their source transcripts, repeat byte-for-byte, and their
+intentional **1/3 failure** is correctly detected. The SameSuite recipe's
+include-guard normalization fixes its assembler blocker; source-only/golden
+exceptions remain explicit. All **117 archived original images reproduce**.
+Build/testkit selftests, full build and completion rendering pass. Supplemental
+ROM bytes and cloned source stay out of git.
+
+Game Boy remains **40% (8/20 delivery milestones)**. Full CPU/timing/peripheral/
+mapper corpus, hardware comparison, link multiplayer/netplay and broader retail
+verification remain incomplete. The root and every core percentage stay in
+sync; N64 remains 45%; CI/CD remains disabled. GBA, SNES, older documentation
+and incomplete NES APU branches remain to reconcile.

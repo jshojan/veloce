@@ -123,7 +123,7 @@ LEGACY_ALIASES = (DetectionMethod.MEMORY, DetectionMethod.SERIAL)
 CONSOLE_CHANNELS = {
     "nes": ("port", "blargg6000"),
     "snes": ("port", "blargg6000", "stp", "sram", "spcport"),
-    "gb": ("serial", "mooneye", "a000", "hram"),
+    "gb": ("serial", "mooneye", "a000", "hram", "blarggtext"),
     "gba": ("mgba", "r12"),
 }
 TIER_A_CHANNELS = ("port", "serial", "mgba")

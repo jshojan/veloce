@@ -103,7 +103,7 @@ Partial credit is `progress = pass/total`, which feeds the existing `score_test(
 | Tier | Definition | `channel` values | Scored |
 |---|---|---|---|
 | **A** | ROM built from patched source emits `VELOCE-RESULT/1` over the console's port | `port` (NES/SNES), `serial` (GB), `mgba` (GBA) | yes; `rom_variant: veloce` |
-| **B** | ROM writes structured observed values to a fixed RAM block or hardware port; a core adapter streams or dumps it | `blargg6000` (NES/SNES), `a000`, `hram` (GB), `sram`+`stp` (SNES byuu), `spcport` (SNES gilyon) | yes; adapter recorded via `#VELOCE adapter=` |
+| **B** | ROM writes structured observed values to a fixed RAM block or hardware port; a core adapter streams or dumps it | `blargg6000` (NES/SNES), `a000`, `hram`, `blarggtext` (GB), `sram`+`stp` (SNES byuu), `spcport` (SNES gilyon) | yes; adapter recorded via `#VELOCE adapter=` |
 | **C** | Core infers a verdict from CPU registers at a stable PC | `r12` (GBA), `mooneye` (GB fingerprint) | bootstrap only; rejected in strict configs |
 | n/a | Screenshot or CRC of any kind | `screenshot-crc` | never; lives in `visual_test_suites` |
 
@@ -137,7 +137,11 @@ The GB `serial` file channel is implemented: the core forwards the SB byte when
 the ROM writes `SC=$81` to start an internal-clock transfer. The original
 [`register_probe.gb`](../../tests/roms-src/gb/register_probe/register_probe.gb)
 uses this path and emits observed register values followed by checks. The
-`mooneye`, `a000`, and `hram` adapters listed above remain planned.
+`mooneye`, `a000`, `hram` and `blarggtext` adapters are implemented. An explicit
+serial `VELOCE 1` stream suppresses inferred adapter results. `a000` requires a
+running signature block before accepting its final status; `hram` is armed only
+by the microtest title. These adapters do not replace independent original-ROM
+register/RAM oracles.
 
 The GBA `mgba` file channel is implemented. Enabled flushes stream bounded,
 NUL-terminated strings with a newline if needed. Byte writes preserve other
@@ -149,7 +153,9 @@ The legacy R12 stdout detector remains; the R12 file adapter is planned.
 
 Port and adapter on one ROM (NES): the first write to `$401E` or `$401F` silences the `blargg6000` adapter's `LOG` and `END` output for the rest of the run, so a patched blargg shell that keeps its `$6000` block does not produce a second `END`. The `0x81` reset request still works. A patched ROM should write to the port (`VT_BEGIN`, or `$401F` = `$00`) before its first `$6004` text; otherwise the adapter has already written `#VELOCE adapter=blargg6000` and `require_channel: port` scores the run as `SKIP`. The adapter follows the bytes the ROM writes to `$6000-$7FFF`, never a read of cart RAM. A battery save loaded by the host therefore cannot produce a verdict.
 
-Channel names used in `channels=`, `#VELOCE adapter=` and the config `channel` field: `port`, `serial`, `mgba`, `blargg6000`, `a000`, `hram`, `sram`, `stp`, `spcport`, `mooneye`, `r12`. Per console: NES `port, blargg6000`; SNES `port, blargg6000, stp, sram, spcport`; GB `serial, mooneye, a000, hram`; GBA `mgba, r12`.
+Channel names used in `channels=`, `#VELOCE adapter=` and the config `channel` field: `port`, `serial`, `mgba`, `blargg6000`, `a000`, `hram`, `blarggtext`, `sram`, `stp`, `spcport`, `mooneye`, `r12`. Per console: NES `port, blargg6000`; SNES `port, blargg6000, stp, sram, spcport`; GB `serial, mooneye, a000, hram, blarggtext`; GBA `mgba, r12`.
+
+On GB a serial stream that starts with a `VELOCE 1 ...` line (a Tier A ROM), or that already carried an `END` line, makes every adapter stand down, so a rebuilt ROM never gets a second, synthesised terminator. The reference implementation is `cores/gb/src/test_channel.cpp`.
 
 ## 6. Emitter vocabulary (ROM side)
 

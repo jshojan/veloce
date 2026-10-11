@@ -47,6 +47,8 @@ protected:
 class MBC0 : public MBC {
 public:
     using MBC::MBC;
+    uint8_t read_ram(uint16_t address) override;
+    void write_ram(uint16_t address, uint8_t value) override;
     void write(uint16_t address, uint8_t value) override;
 };
 

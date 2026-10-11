@@ -54,7 +54,7 @@ def main():
     good_rom.write_bytes(original)
     parsed, verdict, content = run(good_rom, args.artifacts / "good.result", emulator)
     require(verdict.status == TestStatus.PASS, verdict)
-    require(parsed.channels == ["serial"], parsed.channels)
+    require(parsed.channels == ["serial", "mooneye", "a000", "hram", "blarggtext"], parsed.channels)
     require("REG wram=5A\n" in content and "REG alu=10\n" in content, "missing observed registers")
     require([(c.id, c.name, c.passed) for c in verdict.checks] == [
         ("1", "wram_roundtrip", True), ("2", "add_result", True)], "wrong passing check set")

@@ -72,7 +72,7 @@ def evaluate(path, operands, rom):
     try:
         with path.open(encoding="ascii") as stream:
             header = stream.readline().rstrip("\n")
-            require(header == f"#VELOCE 1 core=GB rom_crc32={zlib.crc32(rom):08x} channels=serial",
+            require(header == f"#VELOCE 1 core=GB rom_crc32={zlib.crc32(rom):08x} channels=serial,mooneye,a000,hram,blarggtext",
                     "wrong core, ROM identity, or channel")
             require(stream.readline().rstrip("\n") == "VELOCE 1 gb alu_exhaustive", "missing ROM header")
             require(stream.readline().rstrip("\n") == f"INFO operands={operands} groups={len(GROUPS)}", "wrong domain")

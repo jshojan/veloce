@@ -324,6 +324,7 @@ def build_one(recipe: Recipe, *, image: str, skip_clone: bool) -> dict:
         if not built.exists():
             raise BuildError(f"{recipe.suite}: expected build output missing: {built_rel}")
         dest = out_dir / out_name
+        dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(built, dest)
         rel_key = f"{recipe.console}/{recipe.suite}/{out_name}"
         manifest_entries[rel_key] = {

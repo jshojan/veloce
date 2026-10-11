@@ -8,6 +8,7 @@
 #   rom_build_selftest  - fast unit test of build.py's Recipe/local_source logic (no docker)
 #   test_file_sink      - C++ unit test of the VELOCE_TEST_OUT sink (stub plugin)
 #   nes_test_channel    - C++ unit test of the NES $401E port + blargg6000 adapter
+#   gb_test_channel     - C++ unit test of the Game Boy result channel + adapters
 #   validate_configs    - schema validation of every test_config.json
 #   accuracy_<console>  - full per-console accuracy run (needs network for ROMs)
 #   accuracy_all        - cross-console aggregate scorecard
@@ -266,6 +267,18 @@ target_include_directories(nes_test_channel_test PRIVATE
 )
 add_test(NAME nes_test_channel COMMAND nes_test_channel_test)
 set_tests_properties(nes_test_channel PROPERTIES LABELS "unit;fast")
+# Game Boy result channel (gb::TestChannel): serial + mooneye/a000/hram/blarggtext
+# adapters against a recording sink.
+add_executable(gb_test_channel
+    ${VELOCE_TESTS_DIR}/cpp/gb_test_channel_test.cpp
+    ${CMAKE_SOURCE_DIR}/cores/gb/src/test_channel.cpp
+)
+target_include_directories(gb_test_channel PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/cores/gb/src
+)
+add_test(NAME gb_test_channel COMMAND gb_test_channel)
+set_tests_properties(gb_test_channel PROPERTIES LABELS "unit;fast")
 
 # --- per-console accuracy suites (slow: download ROMs, run emulator) ------
 foreach(console nes snes gb gba)
@@ -1197,3 +1210,25 @@ target_link_libraries(nes_test_channel_plugin_test PRIVATE ${SDL2_LIBRARIES})
 add_dependencies(nes_test_channel_plugin_test nes_plugin)
 add_test(NAME nes_test_channel_plugin_test COMMAND nes_test_channel_plugin_test $<TARGET_FILE:nes_plugin> ${CMAKE_BINARY_DIR}/artifacts/owned/nes_result_channel)
 set_tests_properties(nes_test_channel_plugin_test PROPERTIES LABELS "integration;accuracy;owned" TIMEOUT 30)
+
+add_executable(gb_test_channel_plugin_test cpp/gb_test_channel_plugin_test.cpp)
+target_include_directories(gb_test_channel_plugin_test PRIVATE ${CMAKE_SOURCE_DIR}/include ${SDL2_INCLUDE_DIRS})
+target_link_libraries(gb_test_channel_plugin_test PRIVATE ${SDL2_LIBRARIES})
+add_dependencies(gb_test_channel_plugin_test gb_plugin)
+add_test(NAME gb_test_channel_plugin_test COMMAND gb_test_channel_plugin_test $<TARGET_FILE:gb_plugin> ${CMAKE_BINARY_DIR}/artifacts/owned/gb_result_channel)
+set_tests_properties(gb_test_channel_plugin_test PROPERTIES LABELS "integration;accuracy;owned" TIMEOUT 30)
+
+add_executable(gb_unbanked_ram_test cpp/gb_unbanked_ram_test.cpp
+    ${CMAKE_SOURCE_DIR}/cores/gb/src/cartridge.cpp
+    ${CMAKE_SOURCE_DIR}/cores/gb/src/mbc/mbc.cpp
+    ${CMAKE_SOURCE_DIR}/cores/gb/src/mbc/mbc1.cpp
+    ${CMAKE_SOURCE_DIR}/cores/gb/src/mbc/mbc3.cpp
+    ${CMAKE_SOURCE_DIR}/cores/gb/src/mbc/mbc5.cpp)
+target_include_directories(gb_unbanked_ram_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/gb/src)
+add_test(NAME gb_unbanked_ram_test COMMAND gb_unbanked_ram_test)
+set_tests_properties(gb_unbanked_ram_test PROPERTIES LABELS "unit;accuracy" TIMEOUT 30)
+
+add_test(NAME gb_unbanked_ram_mutants COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/gb_unbanked_ram_mutants.py --compiler ${CMAKE_CXX_COMPILER}
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/component/gb_unbanked_ram)
+set_tests_properties(gb_unbanked_ram_mutants PROPERTIES LABELS "unit;accuracy" TIMEOUT 120)

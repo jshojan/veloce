@@ -196,40 +196,87 @@ PNG encoder; regenerate if either changes.
 
 ## Game Boy
 
-Verified headline: **the Blargg serial subset plus one original register probe.** The external catalog is large (225
-tests / 31 suites) but the large Mooneye / SameSuite / Wilbertpol half cannot yet
-be scored, so the published number reflects the verified serial subset and the
-rest is reported as unverified.
+Current evidence is the repository-owned register probe plus **8,388,608
+arithmetic** and **73,728 unary** observed register pairs, graded independently.
+The legacy file adapters are now implemented; a complete supplemental catalog
+rerun is needed before historical pass counts can be treated as current.
+Visual-only tests remain unscored. No whole-platform accuracy percentage is
+established. See the [GB integration evidence](cores/gb/README.md#result-channel-branch-integration-2026-10-11).
 
-| Subsystem area | Verified today | Basis |
-|----------------|----------------|-------|
-| CPU instructions | Blargg `cpu_instrs` **10/11 PASS** | `02-interrupts` does not signal pass even at 8000 frames -> `known_fail` (real EI/IME or IF/IE dispatch-timing bug). |
-| Instruction / memory timing | Blargg `instr_timing` PASS, `mem_timing` 3/3 PASS | `serial` ASCII detection, verified. |
-| Original CPU/WRAM probe | 2/2 checks PASS; injected wrong WRAM stimulus FAILs | SB/SC bytes to `VELOCE_TEST_OUT`; `REG` values and `CHECK` verdicts are parsed from the result file. Runs as `gb_register_probe` in CTest; not yet included in the 225-test external scorecard. |
-| Timer / PPU / interrupt cycle timing | Mooneye acceptance: **unverified (RUNS)** | Detection gap, see below. |
-| APU (cycle-accurate) | SameSuite: **unverified (RUNS)** | Same detection gap. |
-| PPU pixel-perfect | dmg-acid2 / cgb-acid2: renders, **not yet validated** | `screenshot-crc`; measured CRC `e643bbc7` / `6ddfa9c7` captured but no golden reference yet. |
+### Historical branch reports
 
-**The Mooneye detection gap (the dominant caveat).** Mooneye / SameSuite /
-Wilbertpol ROMs do not print ASCII pass/fail. They signal success via the
-Fibonacci register fingerprint at an `LD B,B` breakpoint plus non-printable
-serial bytes (the bus only captures ASCII `0x20-0x7E`). The shared detector
-matches a `MOONEYE: PASS/FAIL` line that the GB plugin does not yet emit.
-**Consequence: every Mooneye / SameSuite / Wilbertpol test currently resolves to
-RUNS** (zero credit, excluded from the denominator), not PASS. The config records
-each test's believed verdict in `expected`, so the harness will score them
-automatically once the core emits the breakpoint line. This is a measurement
-limitation, not necessarily an accuracy failure, and fixing it requires a `src`
-change that is out of scope for the test suite.
+The following reports describe the older branch's execution at that time.
+Their weighted percentages are catalog scores, not native hardware accuracy,
+and are not used by the delivery completion ledger.
+
+**What GB-3 changed.** The headline moved from 63.9% to 65.1%, with 223 new
+scored or tracked entries and no regressions.
+- `dmg_sound`, `cgb_sound` and `mem_timing-2` moved from screenshot to their
+  `$A000` result block.
+- 212 GBMicrotest ROMs were added through the `hram` adapter. These are the
+  categories named in the plan. The other 270 ROMs that report a result are
+  left for GB-7/GB-8.
+- The CGB Mooneye misc ROMs and SameSuite dma/interrupt/ppu were added.
+- `halt_bug` / `interrupt_time` now run as `rom_variant: veloce` builds. Their
+  header declared no cart RAM, which hid the `$A000` block they write. The
+  build fixes only that byte (`tests/roms-src/gb/blargg/`).
+- The core no longer prints the CGB flag byte as part of the cartridge title.
+  That byte was the "mem_timing-2 serial crash".
+
+**What this item (SH-7 gb) changed.** The headline stayed at 65.1% (no
+regressions, confirmed with `veloce_testkit.baseline --fail-on-regression`);
+this was a config-correctness pass, not a scoring change.
+- The 157 remaining `result_detection: "serial"` entries (Blargg `cpu_instrs`
+  /`instr_timing`/`mem_timing`, all 12 Mooneye acceptance suites,
+  `wilbertpol_ppu`, and the 5 SameSuite APU groups) were flipped to
+  `result_detection: "file"` with an explicit `channel` (`blarggtext` for the
+  three Blargg suites, `mooneye` for the rest), matching the adapter that was
+  already producing their real verdicts (GB-1). No bare `screenshot-crc`
+  entries were found in `test_suites`; the visual suites were already in
+  `visual_test_suites`.
+- `result_policy: "strict"` was tried and confirmed blocked: 153 tests still
+  resolve through the Tier C `mooneye` channel, which `validate_configs.py`
+  rejects under `--strict`. `result_policy` stays `"legacy"` until GB-4/GB-5
+  rebuild Mooneye/SameSuite/Wilbertpol from source. No `expected_checks`
+  values were added: every channel in use today synthesizes exactly one
+  `END` per ROM, so there is no per-ROM check count to know yet.
+- Flipping `mooneye_mbc2.bits_ramg` off the `serial` alias surfaced a real
+  measurement bug: it had been resolving `known_fail` from the harness's own
+  "Failed to load battery save data" log line via the legacy stdout-scrape
+  fallback (`detect_serial_output`'s `"Failed" in output` match), not from
+  any ROM verdict. It now correctly shows `RUNS` (unverified) -- the score is
+  unaffected (`RUNS` and `known_fail` are both excluded from the headline)
+  but the reporting is now honest.
+
+**What the review follow-up changed (2026-09-27).** The headline moved from
+65.1% to 60.5% with no regressions (`veloce_testkit.baseline
+--fail-on-regression` exits 0; the only status changes are 44
+`known_fail -> fail`). The 46 SameSuite APU entries had been `known_fail`
+since before any of them could produce a verdict (they were `RUNS` under the
+stdout era); once GB-1 gave them real verdicts, that label hid 46 measured
+failures from the headline with no documented reason. 44 are now
+`expected: pass` and count; the two that upstream's own `apu/README.md`
+lists as failing even on SameBoy / CPU-CGB-D (`channel_4_freq_change`,
+`channel_1_sweep_restart_2`) stay `known_fail` with that reason. Every other
+`known_fail` now carries a per-test reason (`oam_bug` model selection,
+MBC2 unimplemented, Wilbertpol dot timing), and `cpu_instrs/02-interrupts`,
+which passes, is no longer listed `known_fail`. `known_issues.known_fail_policy`
+records the rule.
+
+**Why the number fell earlier (GB-1).** The earlier "Blargg serial subset" headline
+(83.5%) excluded every Mooneye / SameSuite / Wilbertpol test as RUNS because
+nothing reported the `LD B,B` fingerprint. The core now does (`mooneye` adapter in
+`cores/gb/src/test_channel.cpp`), so those failures count. No previously passing
+test regressed.
 
 **Retired claim.** The previous "111/111, 100%" GB claim was not reproducible
-through the harness and has been retired: the Mooneye half was never actually
-detected, and `02-interrupts` is a real failure.
+through the harness and has been retired.
 
-**Path to a real GB headline.** Emit a `MOONEYE: PASS/FAIL` line on the `LD B,B`
-breakpoint (a `src` change) to unlock the cycle-accurate timer/PPU/interrupt/APU
-half, and capture acid2/Mealybug references on known-good hardware to validate
-the pixel-perfect PPU tests.
+**Path forward.**
+- Rebuild Mooneye / SameSuite / Blargg / GBMicrotest from patched source so they
+  emit per-check `CHECK` lines (Tier A, GB-4..GB-7) instead of adapters.
+- Add a per-test DMG/CGB model override.
+- Fix the Mooneye timing, PPU mode-3 length and DMA failures.
 
 ---
 

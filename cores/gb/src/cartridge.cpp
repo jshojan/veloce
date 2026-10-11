@@ -1,4 +1,5 @@
 #include "cartridge.hpp"
+#include <algorithm>
 #include "mbc/mbc.hpp"
 #include <cstring>
 #include <iostream>
@@ -17,12 +18,15 @@ bool Cartridge::load(const uint8_t* data, size_t size) {
     // Copy ROM
     m_rom.assign(data, data + size);
 
-    // Extract title (at 0x134, up to 16 bytes)
+    // Extract title (at 0x134, up to 16 bytes). On a CGB cart a 15-character
+    // title runs straight into the CGB flag at 0x143 ($80/$C0), which must
+    // end the title. Unsigned: with a signed char `c >= 0x80` never held, so
+    // the flag byte leaked into the title and into stdout.
     m_title.clear();
     for (int i = 0; i < 16; i++) {
-        char c = data[0x134 + i];
+        const uint8_t c = data[0x134 + i];
         if (c == 0 || c >= 0x80) break;
-        m_title += c;
+        m_title += static_cast<char>(c);
     }
 
     // Detect system type from CGB flag at 0x143
@@ -109,6 +113,9 @@ bool Cartridge::load(const uint8_t* data, size_t size) {
 void Cartridge::detect_mbc(uint8_t cart_type) {
     switch (cart_type) {
         case 0x00:  // ROM ONLY
+        case 0x08:  // ROM+RAM (unbanked functional profile)
+        case 0x09:  // ROM+RAM+BATTERY
+            m_has_battery = cart_type == 0x09;
             m_mbc_type = 0;
             break;
 
@@ -228,6 +235,10 @@ bool Cartridge::set_save_data(const std::vector<uint8_t>& data) {
     size_t copy_size = std::min(data.size(), m_ram.size());
     std::memcpy(m_ram.data(), data.data(), copy_size);
     return true;
+}
+
+void Cartridge::clear_ram() {
+    std::fill(m_ram.begin(), m_ram.end(), 0);
 }
 
 uint32_t Cartridge::calculate_crc32(const uint8_t* data, size_t size) {
