@@ -3690,3 +3690,16 @@ progression, full-title playability, native firmware boot, physical peripherals
 and timing remain unfinished. Native VI frame scheduling and practical
 normal-speed gameplay are pending. **N64 remains 45%; all fixed milestone scores
 are unchanged. CI/CD remains disabled.**
+
+## 2026-10-11: N64 scheduling integration
+
+The original `vi_field_schedule` image supplies actual CURRENT-to-RAM loop
+observations. Its production plugin file gate checks 5,160 records / 46,440
+output words across separate full horizontal/vertical domains and 40 leap/parity
+cases, with rational-clock grading and executed wrong-register/old-budget
+controls. Native S030 state persists scheduling; legacy import, bounds, termination
+and ordinary/rollback equality are covered. This integration-owned evidence
+changes frontend frame meaning for new native sessions; it does not award physical
+hardware timing accuracy or expand the fixed completion score. Private SM64 VI
+controls and 121-field movie replay supplement the original corpus. See
+`tests/roms-src/n64/vi_field_schedule/README.md` for precise exclusions.

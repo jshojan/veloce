@@ -1,4 +1,5 @@
 #include "emu/emulator_plugin.hpp"
+#include "emu/frame_scheduling.hpp"
 #include "retail_input_schedule.hpp"
 #include <SDL.h>
 #include <fstream>
@@ -15,10 +16,16 @@ static bool write_capture(const std::string& path,const std::vector<uint32_t>& p
 int main(int argc,char** argv) {
     if(argc<3)return 2;
     std::string load_state,save_state;unsigned capture_every=10000;
+    emu::FrameScheduling scheduling=emu::FrameScheduling::InstructionQuantum;
     try{for(int at=6;at<argc;at+=2){
         if(at+1>=argc)return 2;
         const std::string option=argv[at];
-        if(option=="--load-state" && load_state.empty())load_state=argv[at+1];
+        if(option=="--scheduling"){
+            const std::string mode=argv[at+1];
+            if(mode=="video-field")scheduling=emu::FrameScheduling::VideoField;
+            else if(mode=="instruction-quantum")scheduling=emu::FrameScheduling::InstructionQuantum;
+            else return 2;
+        }else if(option=="--load-state" && load_state.empty())load_state=argv[at+1];
         else if(option=="--save-state" && save_state.empty())save_state=argv[at+1];
         else if(option=="--capture-every"){
             size_t used=0;const auto n=std::stoul(argv[at+1],&used);
@@ -45,7 +52,10 @@ int main(int argc,char** argv) {
         const std::vector<uint8_t> state{std::istreambuf_iterator<char>(state_file),{}};
         if(!loaded || !plugin->load_state(state)){destroy(plugin);SDL_UnloadObject(library);return 2;}
     }
+    if(auto* control=dynamic_cast<emu::IFrameScheduling*>(plugin))control->set_frame_scheduling(scheduling);
+    else if(scheduling==emu::FrameScheduling::VideoField){destroy(plugin);SDL_UnloadObject(library);return 2;}
     const auto starting_quantum=plugin->get_frame_count();
+    const auto starting_attempts=plugin->get_cycle_count();
     if(starting_quantum>100000 || limit>100000-starting_quantum){destroy(plugin);SDL_UnloadObject(library);return 2;}
     std::vector<uint32_t> captured;std::vector<unsigned> checkpoints;int captured_width=0,captured_height=0;
     bool capture_written=false,nonuniform=false;uint64_t audio_samples=0,frames=0,capture_quantum=0;
@@ -81,6 +91,8 @@ int main(int argc,char** argv) {
     }
     // A video/audio smoke signal is evidence of execution, never a playability verdict.
     std::cout<<"{\"loaded\":"<<(loaded?"true":"false")<<",\"frames\":"<<frames
+             <<",\"scheduling\":\""<<(scheduling==emu::FrameScheduling::VideoField?"video-field":"instruction-quantum")<<'"'
+             <<",\"executed_attempts\":"<<(plugin->get_cycle_count()-starting_attempts)
              <<",\"starting_quantum\":"<<starting_quantum<<",\"requested_quanta\":"<<limit
              <<",\"state_written\":"<<(state_written?"true":"false")
              <<",\"nonuniform_video_observed\":"<<(nonuniform?"true":"false")

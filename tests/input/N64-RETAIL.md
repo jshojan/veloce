@@ -140,3 +140,24 @@ its other required arguments are shown by `--help` and the CMake original gate.
 Use a new private artifact directory, then pass it as `--movie-artifacts` to the
 courtyard grader. ROMs, states, movies containing private RAM, framebuffers and
 all retail observation files remain under ignored `build/artifacts/` paths.
+
+## Native VI scheduling (2026-10-11)
+
+New native sessions now use VI fields; old S029 checkpoints retain their
+100,000-attempt schedule. The raw `retail_core_probe` deliberately defaults to
+that old diagnostic budget, even with a new core. To migrate a private checkpoint
+explicitly, append `--scheduling video-field`; saved S030 states retain the mode.
+Its existing `starting_quantum`, `requested_quanta` and capture-label keys count
+frontend calls, which are VI fields in this mode. `executed_attempts` reports the
+actual variable CPU budget. The older `n64_retail_probe.py` paired-trace wrapper
+continues to probe instruction quanta.
+
+`tests/n64_retail_vi.py` instead checks native VI controls using a standing SM64
+US checkpoint, physical RAM plus CPU cache views, matching neutral continuations
+and raw tracing for the exact observed attempts with a constant input. It checks
+one new field per frontend call. Optional `--movie-artifacts` grades output from
+`retail_tas_checkpoint_test.py` using the saved VI-mode `ready.state`; the movie
+remains a private local file. `--check-existing` verifies existing observations
+against their input/executable fingerprints and repeats the paired raw traces.
+The current native movie gate verifies 121 fields and six seeks; these results
+support courtyard controls and deterministic replay, not whole-title playability.

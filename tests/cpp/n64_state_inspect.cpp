@@ -18,6 +18,9 @@ int main(int argc,char** argv){
     std::vector<uint8_t> rom{std::istreambuf_iterator<char>(rom_file),{}},state{std::istreambuf_iterator<char>(state_file),{}};
     n64::Machine machine;if(!machine.load(rom.data(),rom.size()) || !machine.restore(state))return 2;
     std::cout<<"{\"frames\":"<<machine.frames<<",\"cpu_pc\":"<<machine.cpu.state.pc
+        <<",\"instructions\":"<<machine.cpu.state.instructions<<",\"vi_fields\":"<<machine.video_interface.fields
+        <<",\"vi_current\":"<<machine.video_interface.current<<",\"vi_phase\":"<<machine.video_interface.phase
+        <<",\"scheduling\":\""<<(machine.frame_scheduling==emu::FrameScheduling::VideoField?"video-field":"instruction-quantum")<<'"'
         <<",\"rsp_blocked\":"<<(machine.rsp.blocked?"true":"false")
         <<",\"dp_blocked\":"<<(machine.dp_interface.blocked?"true":"false")<<",\"words\":[";
     for(unsigned n=0;n<count;++n){const uint32_t at=start+n*4;uint32_t physical=0;
