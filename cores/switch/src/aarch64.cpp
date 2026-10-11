@@ -4,6 +4,11 @@ static int64_t signed_bits(uint64_t value,unsigned bits){
     const uint64_t sign=uint64_t(1)<<(bits-1);
     return int64_t(value& (sign-1))-int64_t(value&sign);
 }
+static uint64_t low_mask(unsigned bits){return bits==64?~uint64_t(0):(uint64_t(1)<<bits)-1;}
+static uint64_t rotate_right(uint64_t value,unsigned amount,unsigned width){
+    const auto mask=low_mask(width);value&=mask;
+    return amount?((value>>amount)|(value<<(width-amount)))&mask:value;
+}
 static uint64_t unsigned_product_high(uint64_t a,uint64_t b){
     // Four 32-bit limbs; every intermediate fits an unsigned 64-bit word.
     const uint64_t a0=uint32_t(a),a1=a>>32,b0=uint32_t(b),b1=b>>32;
@@ -53,6 +58,24 @@ bool Aarch64::step(){
         if(op==1 || (width==32 && shift>=32))return fail(3,pc,w);
         const uint64_t immediate=uint64_t((w>>5)&65535)<<shift;
         put(rd,(op==0?~immediate:op==2?immediate:(reg(rd)&~(uint64_t(65535)<<shift))|immediate)&mask);
+    }
+    else if((w&0x1f800000)==0x13000000){
+        const unsigned op=(w>>29)&3,r=(w>>16)&63,end=(w>>10)&63;
+        if(op==3 || bool(w&(1u<<22))!=(width==64) || r>=width || end>=width)return fail(3,pc,w);
+        const auto source=reg(rn)&mask,old=reg(rd)&mask;
+        const auto write_mask=rotate_right(low_mask(end+1),r,width);
+        const auto top_mask=low_mask(((end-r)&(width-1))+1);
+        const auto rotated=rotate_right(source,r,width);
+        uint64_t bottom=rotated&write_mask,top=0;
+        if(op==1){bottom|=old&~write_mask;top=old;}
+        else if(op==0 && ((source>>end)&1))top=mask;
+        put(rd,((top&~top_mask)|(bottom&top_mask))&mask);
+    }
+    else if((w&0x7fa00000)==0x13800000){
+        const unsigned amount=(w>>10)&63;
+        if(bool(w&(1u<<22))!=(width==64) || amount>=width)return fail(3,pc,w);
+        const auto high=reg(rn)&mask,low=reg(rm)&mask;
+        put(rd,(amount?((low>>amount)|(high<<(width-amount))):low)&mask);
     }
     else if((w&0x1f800000)==0x11000000){
         const bool subtract=w&(1u<<30),flags=w&(1u<<29);
