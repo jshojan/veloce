@@ -42,7 +42,7 @@ static void control(vb::Machine& m) {
     require(m.cpu.state.gpr[2]==0xffffffff && m.cpu.state.sr[5]==0x800a,"NOT source/carry wrong");
     code(m,{reg(0x1a),reg(0x10,1,2)}); m.cpu.step(); const auto steps=m.cpu.state.steps;
     m.cpu.step(); require(m.cpu.state.halted && m.cpu.state.steps==steps && m.cpu.state.gpr[2]==0,"HALT did not stop");
-    code(m,{reg(0x16)}); m.cpu.step(); require(m.cpu.state.unsupported,"unsupported instruction silently executed");
+    code(m,{reg(0x3e),0}); m.cpu.step(); require(m.cpu.state.unsupported,"unsupported floating instruction silently executed");
 }
 static void muldiv(vb::Machine& m) {
     struct Vector { unsigned op; uint32_t a,b,lo,hi,flags; };

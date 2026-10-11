@@ -167,6 +167,20 @@ void V810::step() {
             if(!bus.write_port(address&~uint32_t(bytes-1),bytes,output)) c.unsupported=true;
             break;
         }
+        case 0x3e: {
+            const unsigned sub=tail>>10;
+            if((tail&1023) || (sub!=8 && sub!=9 && sub!=10 && sub!=12)){c.unsupported=true;break;}
+            if(sub==8)value=(b&0xffff0000u)|((b&255)<<8)|((b>>8)&255);
+            else if(sub==9)value=(b<<16)|(b>>16);
+            else if(sub==10){for(unsigned n=0;n<32;++n)value|=((a>>n)&1u)<<(31-n);}
+            else {
+                const uint32_t raw=a&0x1ffffu;
+                const int64_t factor=raw&0x10000u?int64_t(raw)-0x20000:raw;
+                const int64_t left=b&0x80000000u?int64_t(b)-0x100000000ll:b;
+                value=uint32_t(left*factor);
+            }
+            put(r2,value);break; // These Nintendo extensions preserve the whole PSW; r30 changes only when it is the destination.
+        }
         case 0x3a:
             if(!bus.compare_exchange(address&~3u,b,c.gpr[30],value)) c.unsupported=true;
             else { add(b,value,true,true); put(r2,value); }
@@ -218,6 +232,11 @@ void V810::step() {
         case 0x14: shift(b,r1,0); break;
         case 0x15: shift(b,r1,1); break;
         case 0x17: shift(b,r1,2); break;
+        case 0x16: case 0x1e:
+            if(first&1023)c.unsupported=true;
+            else if(op==0x16)c.sr[5]&=~0x1000u;
+            else c.sr[5]|=0x1000u;
+            break;
         case 0x18: exception(pc,c.pc,uint16_t(0xffa0+r1),r1<16 ? 0xffffffa0:0xffffffb0); break;
         case 0x19: {
             const unsigned saved=(c.sr[5]&0x8000) ? 2 : 0;

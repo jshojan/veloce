@@ -1759,3 +1759,18 @@ add_test(NAME vb_controller_serial COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/roms-src/vb/controller_serial/run.py $<TARGET_FILE:vb_controller_capture> $<TARGET_FILE:vb_plugin>
     ${CMAKE_BINARY_DIR}/artifacts/owned/vb_controller)
 set_tests_properties(vb_controller_serial PROPERTIES LABELS "integration;accuracy;owned;controllers" TIMEOUT 300)
+
+add_executable(vb_nintendo_test cpp/vb_nintendo_test.cpp
+    ${CMAKE_SOURCE_DIR}/cores/vb/src/machine.cpp ${CMAKE_SOURCE_DIR}/cores/vb/src/v810.cpp)
+target_include_directories(vb_nintendo_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/vb/src ${CMAKE_SOURCE_DIR}/include)
+target_compile_features(vb_nintendo_test PRIVATE cxx_std_17)
+add_test(NAME vb_nintendo_test COMMAND vb_nintendo_test ${CMAKE_SOURCE_DIR}/tests/roms-src/vb/nintendo_registers/nintendo_registers.vb)
+set_tests_properties(vb_nintendo_test PROPERTIES LABELS "unit;accuracy;owned" TIMEOUT 120)
+add_executable(vb_nintendo_plugin_state_test cpp/vb_nintendo_plugin_state_test.cpp)
+target_include_directories(vb_nintendo_plugin_state_test PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(vb_nintendo_plugin_state_test PRIVATE SDL2::SDL2)
+add_test(NAME vb_nintendo_registers COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/vb/nintendo_registers/run.py
+    --emulator $<TARGET_FILE:veloce> --core $<TARGET_FILE:vb_plugin> --state-test $<TARGET_FILE:vb_nintendo_plugin_state_test>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/vb_nintendo)
+set_tests_properties(vb_nintendo_registers PROPERTIES LABELS "integration;accuracy;owned" TIMEOUT 2100)

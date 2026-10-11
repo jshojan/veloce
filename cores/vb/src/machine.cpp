@@ -36,6 +36,12 @@ bool Machine::write(uint32_t address,unsigned bytes,uint32_t value) {
     if(p>=0x02000000 && p<0x03000000)return controller.write(p&63,value);
     // Repository-only debug addresses in an unimplemented board region.
     if(p==0x04000000 && bytes==1) { const char c=char(value); if(sink) sink->write(&c,1); return true; }
+    if(p==0x04000008 && bytes==4){
+        char text[8];constexpr char digits[]="0123456789abcdef";
+        for(unsigned n=0;n<8;++n)text[n]=digits[(value>>(28-n*4))&15];
+        if(sink)sink->write(text,8);
+        return true;
+    }
     if(p==0x04000004 && bytes==4) { done=true; if(sink) sink->finish(-1); return true; }
     if(p<0x05000000 || uint64_t(p)+bytes>0x06000000) return false;
     for(unsigned n=0;n<bytes;++n) ram[(p+n)&0xffff]=uint8_t(value>>(8*n));
