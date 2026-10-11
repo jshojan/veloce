@@ -1727,3 +1727,22 @@ target_compile_features(switch_input_ports_test PRIVATE cxx_std_17)
 add_test(NAME switch_input_ports_test COMMAND switch_input_ports_test
     ${CMAKE_SOURCE_DIR}/tests/roms-src/switch/netplay_probe/netplay_probe.nso)
 set_tests_properties(switch_input_ports_test PROPERTIES LABELS "unit;accuracy;owned" TIMEOUT 90)
+
+add_executable(ppc_netplay_adapter_test cpp/ppc_netplay_adapter_test.cpp)
+target_include_directories(ppc_netplay_adapter_test PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(ppc_netplay_adapter_test PRIVATE SDL2::SDL2)
+foreach(profile IN ITEMS gc wii)
+    if(profile STREQUAL "gc")
+        set(ppc_probe_extension vgc)
+    else()
+        set(ppc_probe_extension vwi)
+    endif()
+    add_test(NAME ${profile}_netplay_plugin_test COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_SOURCE_DIR}/tests/netplay_network_test.py $<TARGET_FILE:netplay_plugin_peer>
+        $<TARGET_FILE:${profile}_plugin> ${CMAKE_SOURCE_DIR}/tests/roms-src/${profile}/netplay_probe/netplay_probe.${ppc_probe_extension}
+        ${CMAKE_BINARY_DIR}/artifacts/netplay-${profile} --netplay-plugin $<TARGET_FILE:netplay_default> --console ${profile})
+    set_tests_properties(${profile}_netplay_plugin_test PROPERTIES LABELS "integration;netplay;owned" TIMEOUT 180)
+    add_test(NAME ${profile}_netplay_adapter_test COMMAND ppc_netplay_adapter_test $<TARGET_FILE:${profile}_plugin>
+        ${CMAKE_SOURCE_DIR}/tests/roms-src/${profile}/netplay_probe/netplay_probe.${ppc_probe_extension})
+    set_tests_properties(${profile}_netplay_adapter_test PROPERTIES LABELS "integration;netplay;owned" TIMEOUT 180)
+endforeach()

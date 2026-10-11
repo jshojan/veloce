@@ -14,8 +14,8 @@
 | Nintendo DS | **30%** | 6/20 |
 | Nintendo DSi | **30%** | 6/20 |
 | Nintendo 3DS | **30%** | 6/20 |
-| GameCube | **25%** | 5/20 |
-| Wii | **25%** | 5/20 |
+| GameCube | **30%** | 6/20 |
+| Wii | **30%** | 6/20 |
 | Wii U | **25%** | 5/20 |
 | Nintendo Switch | **30%** | 6/20 |
 

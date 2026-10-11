@@ -14,8 +14,8 @@
 | Nintendo DS | **30%** | 6/20 |
 | Nintendo DSi | **30%** | 6/20 |
 | Nintendo 3DS | **30%** | 6/20 |
-| GameCube | **25%** | 5/20 |
-| Wii | **25%** | 5/20 |
+| GameCube | **30%** | 6/20 |
+| Wii | **30%** | 6/20 |
 | Wii U | **25%** | 5/20 |
 | Nintendo Switch | **30%** | 6/20 |
 
@@ -109,8 +109,8 @@ See [Build Instructions](#building) for platform-specific details.
 | Nintendo DSi | [cores/dsi](cores/dsi/README.md) | Experimental | Distinct plugin; dual-CPU integer homebrew, 16 MiB RAM/aliases and RAM-limit controls, digital keypad and TCP host/viewer replay; firmware/retail boot and most DSi peripherals pending |
 | Nintendo 3DS | [cores/3ds](cores/3ds/README.md) | Experimental | Distinct plugin; two ARM11 and one ARM9 integer contexts, 128 MiB shared FCRAM, AXI/private RAM and digital HID; TCP host/viewer replay; native boot and graphics/audio pending |
 | Wii U | [cores/wiiu](cores/wiiu/README.md) | Experimental | Distinct three-context PowerPC integer plugin, 32 MiB MEM1/2 GiB MEM2, sparse states, original input latch and TCP host/viewer replay; native boot, GPU/audio and GamePad hardware pending |
-| GameCube | [cores/ppc](cores/ppc/README.md) | Experimental | Original PowerPC arithmetic/carry, multiply/divide, memory transfers, bitwise, rotate/mask, shift/unary, branch and condition-register programs; settled digital GameCube-controller SI reads; no retail boot, graphics/audio, analog/polling or netplay |
-| Wii | [cores/ppc](cores/ppc/README.md) | Experimental | Original PowerPC arithmetic/carry, multiply/divide, memory transfers, bitwise, rotate/mask, shift/unary, branch and condition-register programs; settled digital GameCube-controller SI reads; no retail boot, MEM2, IOS, Wii Remotes, graphics/audio or netplay |
+| GameCube | [cores/ppc](cores/ppc/README.md) | Experimental | Original PowerPC arithmetic/carry, multiply/divide, memory transfers, bitwise, rotate/mask, shift/unary, branch and condition-register programs; settled digital GameCube-controller SI reads and two-player production TCP rollback; no retail boot, graphics/audio or analog/polling |
+| Wii | [cores/ppc](cores/ppc/README.md) | Experimental | Original PowerPC arithmetic/carry, multiply/divide, memory transfers, bitwise, rotate/mask, shift/unary, branch and condition-register programs; settled digital GameCube-controller SI reads and two-player production TCP rollback; no retail boot, MEM2, IOS, Wii Remotes or graphics/audio |
 | Nintendo Switch | [cores/switch](cores/switch/README.md) | Experimental | Uncompressed NSO0, AArch64 integer, multiply/divide, conditional-select, shift/bit-operation, bit-field/extract, logical-immediate and conditional-compare guests, independent register corpora, full profile states and two-input production TCP rollback; full CPU/MMU/HOS, firmware, graphics/audio, peripherals and retail playability pending |
 
 Nintendo Switch now has an experimental original AArch64/uncompressed NSO0 core; firmware, HOS and retail compatibility remain pending. DSi enhanced hardware remains partially implemented. Native hardware accuracy/completion is not yet
@@ -300,7 +300,15 @@ Relay/session codes, chat, additional spectators, input
 delay scheduling, reconnects, desync recovery, Windows and real two-machine
 verification remain. Internet multiplayer is not validated.
 
-### Controller connection and bindings
+#GameCube and Wii now expose two digital player slots and production TCP rollback
+through settled native controller SI transactions. Original guests publish eight
+actual RAM words; independent host grading and offline/host/client full-state
+comparison pass over 100 confirmed frames. Analog, polling timing, four ports,
+Wii Remotes/IOS and retail boot remain pending. See the
+[GameCube probe](tests/roms-src/gc/netplay_probe/README.md) and
+[Wii probe](tests/roms-src/wii/netplay_probe/README.md).
+
+## Controller connection and bindings
 
 Identical SDL gamepads remain separate devices. Custom gamepad bindings now save
 the model GUID and serial when available and restore after an unambiguous
@@ -521,6 +529,7 @@ subset, not whole-core completion.
 | [DSi RAM registers](tests/roms-src/dsi/ram_registers/README.md) | 387,072/387,072 fourteen-word captures matched: RAM modes/banks/CPU writers/aliases/widths/lanes/byte-complement patterns; timing pending | `build/artifacts/owned/dsi_ram/` |
 | [3DS ARM11 reversals](tests/roms-src/3ds/reversal_registers/README.md) | 25,165,824/25,165,824 seven-word captures matched: both ARM11s, ARM/Thumb REV/REV16/REVSH, all NZCVQ and complemented-half values; full operands/timing pending | `build/artifacts/owned/3ds_reversal/` |
 | [Wii U immediates](tests/roms-src/wiiu/immediate_registers/README.md) | 25,165,824/25,165,824 nine-word captures matched: three contexts, ADDI/ADDIS, all 16-bit immediates and XER flag combinations on four sources/zero and ordinary bases; full operands/timing pending | `build/artifacts/owned/wiiu_immediates/` |
+| [GameCube](tests/roms-src/gc/netplay_probe/README.md) / [Wii netplay probes](tests/roms-src/wii/netplay_probe/README.md) | Each 100-frame trace matches offline/host/client full states and eight independently graded native SI-derived RAM words; executed wrong captures reject; analog/polling pending | `build/artifacts/netplay-gc/`, `build/artifacts/netplay-wii/` |
 | [Switch netplay probe](tests/roms-src/switch/netplay_probe/README.md) | 100 confirmed frames; independent TCP peers match full states and eight guest RAM words; both executed wrong-input variants reject; synthetic inputs, native HID pending | `build/artifacts/netplay-switch/` |
 | [Switch conditional comparisons](tests/roms-src/switch/ccmp_registers/README.md) | 786,432 packed rows / 3,932,160 actual words / 12,582,912 flag observations; every condition and input/fallback NZCV; 14,155,776 component snapshots | `build/artifacts/owned/switch_ccmp/` |
 | [Switch logical immediates](tests/roms-src/switch/logical_imm_registers/README.md) | 1,449,984 rows / 7,249,920 actual words across every legal encoded mask and both widths; 197,296,128 component snapshots; all 20,224 reserved controls reject | `build/artifacts/owned/switch_logical_imm/` |

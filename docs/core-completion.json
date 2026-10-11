@@ -228,12 +228,13 @@
       "readme": "cores/ppc/README.md",
       "delivered": [
         "digital",
+        "netplay",
         "original_rom",
         "plugin",
         "register_oracle",
         "states"
       ],
-      "remaining": "Remaining CPU, firmware/retail boot, polling/timing/analog/multiplayer, graphics/audio and netplay remain."
+      "remaining": "Remaining CPU, firmware/retail boot, polling/timing/analog/four-port multiplayer, graphics/audio remain. Production two-player TCP rollback now independently grades guest reads through settled native digital SI transactions; this does not complete native polling/timing, analog or wireless hardware."
     },
     {
       "id": "wii",
@@ -241,12 +242,13 @@
       "readme": "cores/ppc/README.md",
       "delivered": [
         "digital",
+        "netplay",
         "original_rom",
         "plugin",
         "register_oracle",
         "states"
       ],
-      "remaining": "Remaining CPU, MEM2/IOS/retail boot, GameCube polling, Wii Remote, graphics/audio and netplay remain."
+      "remaining": "Remaining CPU, MEM2/IOS/retail boot, GameCube polling, Wii Remote, graphics/audio remain. Production two-player TCP rollback now independently grades guest reads through settled native digital SI transactions; this does not complete native polling/timing, analog or wireless hardware."
     },
     {
       "id": "wiiu",

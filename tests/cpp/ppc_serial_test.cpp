@@ -81,7 +81,7 @@ int main(int argc,char** argv) {
             require(m.restore(saved) && m.serial.save()==peripheral,"machine peripheral restore");
             emulator_test::LoadedCore loaded(argv[profile+1],image);
             const auto* layout=loaded.plugin->get_controller_layout();
-            require(layout && layout->button_count==12 && layout->controller_count==1,"controller layout metadata");
+            require(layout && layout->button_count==12 && layout->controller_count==2,"controller layout metadata");
             bool z=false,select=false;for(int n=0;n<layout->button_count;++n) {
                 z|=layout->buttons[n].button==emu::VirtualButton::Z;select|=layout->buttons[n].button==emu::VirtualButton::Select;
             }

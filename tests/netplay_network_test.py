@@ -69,6 +69,33 @@ def switch_expected():
     return (accumulated(host,8,12),accumulated(client,9,13),last(host,8,14),last(client,9,15),
             count(17),last(host,8,19)^last(client,9,19),0,2309737967)
 
+def ppc_expected():
+    # Independent SI bit assignment and instruction-attempt positions.
+    total=10000000;quantum=100000;period=22
+    values=[];analog=[]
+    for player in range(2):
+        wire=[];low=[]
+        for frame in range(100):
+            raw=(frame*(2654435761 if player else 2246822519)+(610839777 if player else 324508639))%4294967296
+            digital=128
+            for source,target in zip((0,1,2,3,6,10,11,9,8,20,5,4),(8,9,10,11,12,0,1,2,3,4,5,6)):
+                if raw&(1<<source):digital|=1<<target
+            wire.append(digital*65536+32896)
+            low.append(2155872256+(65280 if raw&16 else 0)+(255 if raw&32 else 0))
+        values.append(wire);analog.append(low)
+    count=lambda store:(total-1-store)//period+1
+    summed=lambda v,sample,store:sum(v[(sample+period*k)//quantum] for k in range(count(store)))%4294967296
+    last=lambda v,sample,store:v[(sample+period*(count(store)-1))//quantum]
+    return (summed(values[0],12,15),summed(values[1],19,22),last(values[0],12,16),last(values[1],19,23),
+            count(25),last(values[0],12,27)^last(values[1],19,27),last(analog[1],19,29),0)
+
+def grade_ppc_registers(path):
+    content=path.read_text();lines=content.splitlines()
+    require(content.endswith("\n") and len(lines)==10 and re.fullmatch(r"#VELOCE NETWORK 1 core=(GameCube|Wii) frames=100 role=(baseline|host|client)",lines[0]) and
+            re.fullmatch(r"INFO rollbacks=\d+ replay_audio_chunks=\d+",lines[1]),"invalid PowerPC register stream")
+    expected=[f"REG address={4096+n*4} value={value}" for n,value in enumerate(ppc_expected())]
+    require(lines[2:]==expected,"PowerPC guest register oracle mismatch")
+
 def grade_switch_registers(path):
     content=path.read_text();lines=content.splitlines()
     require(content.endswith("\n") and len(lines)==10 and re.fullmatch(r"#VELOCE NETWORK 1 core=Switch frames=100 role=(baseline|host|client)",lines[0]) and
@@ -109,16 +136,20 @@ def main():
     args = parser.parse_args()
     args.artifacts.mkdir(parents=True, exist_ok=True)
     provenance = {}
-    if args.console == "switch":
+    if args.console in ("switch","gc","wii"):
         root = Path(__file__).resolve().parent.parent
         paths = [args.peer, args.core, args.rom, Path(__file__),
                  args.rom.parent / "build.py", args.rom.parent / "recipe.json"]
         if args.netplay_plugin:
             paths.append(args.netplay_plugin)
-        paths += [root / name for name in (
+        names = (
             "cores/switch/src/plugin.cpp", "cores/switch/src/machine.cpp",
             "cores/switch/src/machine.hpp", "cores/switch/src/aarch64.cpp",
-            "cores/switch/src/aarch64.hpp", "tests/cpp/netplay_plugin_peer.cpp")]
+            "cores/switch/src/aarch64.hpp", "tests/cpp/netplay_plugin_peer.cpp")
+        if args.console in ("gc","wii"):
+            names=("cores/ppc/src/plugin.cpp","cores/ppc/src/machine.cpp","cores/ppc/src/machine.hpp",
+                   "cores/ppc/src/cpu.cpp","cores/ppc/src/cpu.hpp","cores/ppc/src/serial.cpp","cores/ppc/src/serial.hpp","tests/cpp/netplay_plugin_peer.cpp")
+        paths += [root / name for name in names]
         provenance = {str(p.resolve()): hashlib.sha256(p.read_bytes()).hexdigest() for p in paths}
     env = os.environ.copy()
     for key in ("DEBUG", "TRACE", "TRACE_FILE", "INPUT", "VELOCE_TEST_OUT"):
@@ -169,34 +200,37 @@ def main():
                 try:grade_registers(path)
                 except RuntimeError:pass
                 else:raise RuntimeError("invalid original register stream escaped")
-        if args.console=="switch":
-            grade_switch_registers(args.artifacts / "baseline.result")
-            spec=importlib.util.spec_from_file_location("switch_probe_builder",args.rom.parent / "build.py")
+        if args.console in ("switch","gc","wii"):
+            grade_eight=grade_switch_registers if args.console=="switch" else grade_ppc_registers
+            expected_eight=switch_expected if args.console=="switch" else ppc_expected
+            platform_eight="Switch" if args.console=="switch" else "PowerPC"
+            grade_eight(args.artifacts / "baseline.result")
+            spec=importlib.util.spec_from_file_location("eight_word_probe_builder",args.rom.parent / "build.py")
             builder=importlib.util.module_from_spec(spec);spec.loader.exec_module(builder)
-            require(builder.build()==args.rom.read_bytes(),"Switch probe archive differs")
-            expected=[f"REG address={4096+n*4} value={value}" for n,value in enumerate(switch_expected())]
+            require(builder.build()==args.rom.read_bytes(),platform_eight+" probe archive differs")
+            expected=[f"REG address={4096+n*4} value={value}" for n,value in enumerate(expected_eight())]
             for name,option in (("wrong-host","wrong_host"),("wrong-client","wrong_client")):
                 mutant=Path(temporary)/(name+args.rom.suffix);mutant.write_bytes(builder.build(**{option:True}))
                 control=subprocess.run(command("baseline",args.artifacts / name,port_file,rom_path=mutant),env=env,capture_output=True,text=True,timeout=30)
                 require(control.returncode==0,control.stdout+control.stderr);(args.artifacts / (name+".log")).write_text(control.stdout+control.stderr)
-                try:grade_switch_registers(args.artifacts / (name+".result"))
+                try:grade_eight(args.artifacts / (name+".result"))
                 except RuntimeError as error:
-                    require(str(error)=="Switch guest register oracle mismatch","control failed for unrelated reason")
+                    require(str(error)==platform_eight+" guest register oracle mismatch","control failed for unrelated reason")
                     actual=(args.artifacts / (name+".result")).read_text().splitlines()[2:]
-                    require(len(actual)==8 and sum(a!=b for a,b in zip(actual,expected))==3,"Switch wrong-input control domain changed")
-                else:raise RuntimeError("executed Switch wrong-input control escaped")
+                    require(len(actual)==8 and sum(a!=b for a,b in zip(actual,expected))==3,platform_eight+" wrong-capture control domain changed")
+                else:raise RuntimeError(platform_eight+" executed wrong-capture control escaped")
             original=(args.artifacts / "baseline.result").read_text();records=original.splitlines()
             for field in range(8):
                 altered=records.copy();line=altered[field+2];value=int(line.split(" value=")[1]);altered[field+2]=line.split(" value=")[0]+f" value={value^1}"
                 path=args.artifacts / f"field-{field}.result";path.write_text("\n".join(altered)+"\n")
-                try:grade_switch_registers(path)
+                try:grade_eight(path)
                 except RuntimeError:pass
-                else:raise RuntimeError("Switch register field escaped")
+                else:raise RuntimeError(platform_eight+" register field escaped")
             for name,content in (("truncated",original.rsplit("\n",2)[0]+"\n"),("wrong-header",original.replace("frames=100","frames=99")),("trailing",original+"extra\n"),("unterminated",original.rstrip("\n"))):
                 path=args.artifacts / f"stream-{name}.result";path.write_text(content)
-                try:grade_switch_registers(path)
+                try:grade_eight(path)
                 except RuntimeError:pass
-                else:raise RuntimeError("invalid Switch register stream escaped")
+                else:raise RuntimeError(platform_eight+" invalid register stream escaped")
         if args.console=="n64":
             grade_n64_registers(args.artifacts / "baseline.result")
             spec=importlib.util.spec_from_file_location("n64_probe_builder",args.rom.parent / "build.py")
@@ -324,6 +358,8 @@ def main():
             for name in ("baseline","network-host","network-client"):grade_registers(args.artifacts / (name+".result"))
         if args.console=="n64":
             for name in ("baseline","network-host","network-client"):grade_n64_registers(args.artifacts / (name+".result"))
+        if args.console in ("gc","wii"):
+            for name in ("baseline","network-host","network-client"):grade_ppc_registers(args.artifacts / (name+".result"))
         if args.console=="switch":
             for name in ("baseline","network-host","network-client"):grade_switch_registers(args.artifacts / (name+".result"))
         report = {"status": "pass", "console": args.console, "frames": 100,
@@ -344,6 +380,11 @@ def main():
         if args.console=="n64":report.update(controller_mode="two independently owned digital/analog pads; ports 2/3 neutral",guest_register_words=600,guest_registers_match_independent_oracle=True,executed_wrong_capture_rejected=True,wrong_capture_mismatched_words=100,field_mutations_rejected=6,invalid_register_streams_rejected=4,native_analog_emulation=True)
         if args.console=="wiiu":report.update(state_storage="canonical nonzero RAM pages; history slots grow to actual serialized size",native_gamepad_emulation=False)
         if args.console=="switch":report.update(controller_mode="two independently owned synthetic 32-bit input words; native HID pending",guest_register_words=8,guest_registers_match_independent_oracle=True,executed_wrong_inputs_rejected=True,wrong_host_mismatched_words=3,wrong_client_mismatched_words=3,field_mutations_rejected=8,invalid_register_streams_rejected=4,native_hid_emulation=False,audio_emulation=False)
+        if args.console in ("gc","wii"):
+            report.update(controller_mode="two independently owned native settled GameCube digital SI transactions; ports 2/3 unplugged",
+                          guest_register_words=8,guest_registers_match_independent_oracle=True,executed_wrong_captures_rejected=True,
+                          wrong_host_mismatched_words=3,wrong_client_mismatched_words=3,field_mutations_rejected=8,
+                          invalid_register_streams_rejected=4,native_analog_emulation=False,audio_emulation=False)
         if provenance:
             require(all(hashlib.sha256(Path(p).read_bytes()).hexdigest() == digest
                         for p, digest in provenance.items()), "network capture inputs changed during execution")
