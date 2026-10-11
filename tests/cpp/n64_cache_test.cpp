@@ -95,7 +95,7 @@ int main(int argc,char** argv) {
         }
         auto old=state;old.resize(old.size()-1129632);old[6]='0';old[7]='6';require(m.restore(old) && m.cpu.caches.data[0].flags==0,"legacy invalid caches");
         // Run the real shared plugin to completion; its host oracle grades the file separately.
-        emulator_test::LoadedCore core(argv[1],rom);core.plugin->run_frame({});require(core.plugin->save_state(state) && m.restore(state) && m.cpu.state.cp0[16]==3,"loaded cached plugin snapshot");
+        emulator_test::LoadedCore core(argv[1],rom);core.plugin->run_frame({});require(core.plugin->save_state(state) && m.restore(state) && m.cpu.state.cp0[16]==0x0006e463,"loaded cached plugin snapshot");
         std::cout<<"1048576 physical tags and 1048576 instruction staleness/refill cases matched; indices, dirty eviction, widths/merge masks, real DMA staleness, CPU CACHE/privilege, replay, rejected states and loaded plugin passed\n";return 0;
     } catch(const std::exception& e) {std::cerr<<e.what()<<'\n';return 1;}
 }

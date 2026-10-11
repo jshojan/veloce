@@ -27,7 +27,7 @@ void VR4300::reset(uint64_t entry) {
     state.next_pc = entry + 4;
     // Explicit homebrew entry in kernel mode with interrupts off. Not a PIF/IPL reset.
     state.cp0[12] = 0;
-    state.cp0[16] = 2; // Explicit uncached homebrew entry.
+    state.cp0[16] = 0x0006e462; // Explicit big-endian uncached homebrew profile; EC=0.
     state.cp0[15] = 0x00000b22;
     state.cp0[1] = 31;
 }
@@ -387,6 +387,11 @@ void VR4300::step() {
                 else if(rd==20)s.cp0[20]=(s.cp0[20]&0x1fffffff0ull)|(value&0xfffffffe00000000ull);
                 else if(rd==13)s.cp0[13]=(s.cp0[13]&~0x300ull)|(value&0x300);
                 else if(rd==11) {s.cp0[11]=uint32_t(value);s.cp0[13]&=~0x8000ull;}
+                else if(rd==16) {
+                    // NEC Figure 5-16: preserve strapped EC; fixed fields read 06/646.
+                    // EP/BE/CU/K0 are writable. Physical EP/BE initialization timing is pending.
+                    s.cp0[16]=(s.cp0[16]&0x70000000ull)|0x00066460ull|(value&0x0f00800full);
+                }
                 else if(rd==17)s.cp0[17]=value&0x0fffffff; // Diagnostic PA31:4, no LLbit side effect.
                 else if(rd==18)s.cp0[18]=value&0xfffffffb; // PA31:3, R and W; bit 2 is reserved.
                 else if(rd==19)s.cp0[19]=value&15; // Readable compatibility PA35:32 field.

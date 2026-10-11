@@ -86,7 +86,7 @@ int main(int argc,char** argv) {
         auto legacy=after;legacy.resize(legacy.size()-1130112);legacy[6]='0';legacy[7]='2';require(m.restore(legacy) && !m.pi_interrupt && std::all_of(m.pi.begin(),m.pi.end(),[](uint32_t v){return !v;}),"legacy PI reset");
         const auto bootstrap=read_file(argv[3]);
         require(m.load(bootstrap.data(),bootstrap.size()) && m.boot_mode==n64::Machine::BootMode::OriginalIPL,"original IPL load");
-        require(m.cpu.state.pc==n64::sign32(0xa4000040) && m.cpu.state.gpr[22]==63 && m.cpu.state.cp0[12]==0x34000000,"IPL handoff state");
+        require(m.cpu.state.pc==n64::sign32(0xa4000040) && m.cpu.state.gpr[22]==63 && m.cpu.state.cp0[12]==0x34000000 && m.cpu.state.cp0[16]==0x0006e463,"IPL handoff state");
         require(std::equal(bootstrap.begin()+0x40,bootstrap.begin()+0x1000,m.sp.begin()+0x40) &&
                 std::all_of(m.ram.begin(),m.ram.end(),[](uint8_t v){return !v;}),"IPL copy / no bulk payload load");
         std::vector<uint8_t> native_state;m.save(native_state);auto invalid=bootstrap;invalid[8]=0;

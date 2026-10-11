@@ -3875,3 +3875,19 @@ metadata/preservation observations. Full Status/Config/reserved CP0 behavior,
 reset revision, physical hazards/timing and whole hardware remain pending.
 No ABI/S031 change; N64 stays 50%. See
 [source, register files and limits](../tests/roms-src/n64/cp0_readonly/README.md).
+
+## N64 Config register fields and K0 data reads (2026-10-11)
+
+N64 0.55.0 implements Config's fixed fields and writable EP/BE/CU/K0 mask while
+preserving EC. Entry profiles expose fixed fields/BE=1 and retain EC=0; physical
+board DivMode/reset behavior remains unverified. The original 16,777,216-case
+cartridge grades 201,326,592 actual RAM/register words with EP=0/BE=1 held:
+selected source domains, CU/K0 settings, write widths and direct/taken-delay
+contexts. Actual cached reads remain stale after an uncached backing-memory
+change except K0=2 bypass, which observes fresh bytes. Wrong reads, field and
+malformed streams reject; native/fast rollback records and full states match.
+The component gate checks 7,356,417 field/source/mode observations, including
+all writable-bit patterns/eight EC values. Full little/reverse endian execution,
+EP transfers, physical hazards/cache/timing and whole CPU/hardware remain pending.
+No ABI/S031 change; N64 stays 50%. See
+[source, file evidence and limits](../tests/roms-src/n64/config_fields/README.md).

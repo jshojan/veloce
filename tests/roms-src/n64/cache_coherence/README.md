@@ -2,7 +2,7 @@
 
 This MIT licensed Python assembler emits `cache_coherence.z64`, marked `V64HB001`,
 with original MIPS code and no SDK/firmware or commercial bytes. It enters KSEG1
-and enables cached KSEG0 with CP0 Config.K0=3. The production frontend/plugin
+and enables cached KSEG0 with CP0 Config.K0=3, preserving BE=1 and EP=0. The production frontend/plugin
 writes observed guest registers to a host file; the guest contains no expected
 results or pass verdict.
 

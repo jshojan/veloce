@@ -3810,3 +3810,17 @@ twelve native/fast rollback records and complete states match. The component
 gate covers 22,020,097 source/mode/preservation observations. Full CPU/CP0/
 hardware and physical timing remain unfinished; N64 stays 50%. See
 [original cartridge evidence](tests/roms-src/n64/cp0_readonly/README.md).
+
+## N64 Config fixed fields and actual cache control (2026-10-11)
+
+N64 0.55.0 corrects Config fixed/writable fields and EC preservation. The original
+16,777,216-case cartridge exports 201,326,592 actual RAM/register words with
+EP=0/BE=1 held. Both CP0 writes, selected source domains, all CU/K0 settings and
+direct/taken-delay placement are independently graded, including actual cached/
+bypass reads around an uncached mutation. Wrong reads in all 4,096 short cases,
+twelve field/sequence and six malformed-stream controls reject; twelve native/
+fast rollback records and complete states match. The component gate checks
+7,356,417 field/source/mode observations. EC=0 remains an explicit entry profile;
+physical board clock/reset, little/reverse endian execution, EP transfer patterns,
+Status/reserved CP0 and full CPU/hardware remain pending. N64 stays 50%. See
+[original cartridge](tests/roms-src/n64/config_fields/README.md).

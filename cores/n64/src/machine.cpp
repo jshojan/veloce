@@ -57,7 +57,7 @@ void Machine::reset() {
     cpu.reset(rom.empty() || boot_mode==BootMode::Homebrew?entry:sign32(0xa4000040));
     if(!rom.empty() && boot_mode!=BootMode::Homebrew) {
         // Explicit HLE handoff to IPL3, not a model of the PIF ROM/CIC exchange.
-        auto& s=cpu.state;s.cp0[12]=0x34000000;s.cp0[16]=3;
+        auto& s=cpu.state;s.cp0[12]=0x34000000;s.cp0[16]=0x0006e463;
         s.gpr[19]=0;s.gpr[20]=1;s.gpr[21]=0;s.gpr[22]=0x3f;s.gpr[23]=1;
         s.gpr[29]=sign32(0xa4001ff0);s.gpr[31]=sign32(0xa4001550);
     }
@@ -408,7 +408,7 @@ bool Machine::restore(const std::vector<uint8_t>& data) {
             std::copy_n(data.begin()+position,line.data.size(),line.data.begin());position+=line.data.size();
         }return true;};
         if(!cache(saved_caches.instruction,true) || !cache(saved_caches.data,false))return false;
-    } else if(!s.cp0[16]) s.cp0[16]=boot_mode==BootMode::Homebrew?2:3;
+    } else if(!s.cp0[16]) s.cp0[16]=boot_mode==BootMode::Homebrew?0x0006e462:0x0006e463;
     SpInterface saved_sp;
     if(!legacy && !previous && !ri_previous && !mi_previous && !devices_previous && !caches_previous) {
         SpInterface::State controls{};for(auto& reg:controls) {const auto v=take();if(v>0xffffffffu)return false;reg=uint32_t(v);}
