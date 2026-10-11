@@ -607,6 +607,7 @@ bool PluginManager::activate_input_plugin(const std::string& name) {
 }
 
 bool PluginManager::activate_tas_plugin(const std::string& name) {
+    if (!m_tas_host) { std::cerr << "TAS plugin requires an installed host" << std::endl; return false; }
     const PluginMetadata* metadata = m_registry.find_plugin(PluginType::TAS, name);
     if (!metadata) {
         std::cerr << "TAS plugin not found: " << name << std::endl;
@@ -624,6 +625,14 @@ bool PluginManager::activate_tas_plugin(const std::string& name) {
     ITASPlugin* instance = create();
     if (!instance) {
         std::cerr << "Failed to create TAS plugin instance: " << name << std::endl;
+        return false;
+    }
+
+    if (!instance->initialize(m_tas_host)) {
+        instance->shutdown();
+        using DestroyFunc = void (*)(ITASPlugin*);
+        auto destroy = reinterpret_cast<DestroyFunc>(handle->destroy_func);
+        if (destroy) destroy(instance);
         return false;
     }
 
@@ -938,6 +947,7 @@ void PluginManager::deactivate_plugin(PluginType type) {
             break;
         case PluginType::TAS:
             if (m_active.tas && m_active.tas_handle) {
+                m_active.tas->shutdown();
                 using DestroyFunc = void (*)(ITASPlugin*);
                 auto destroy = reinterpret_cast<DestroyFunc>(m_active.tas_handle->destroy_func);
                 if (destroy) destroy(m_active.tas);

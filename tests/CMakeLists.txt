@@ -1356,3 +1356,19 @@ add_dependencies(tas_registry_test tas_v1_fixture tas_default)
 add_test(NAME tas_registry_test COMMAND tas_registry_test $<TARGET_FILE:tas_v1_fixture> $<TARGET_FILE:tas_default>
     ${CMAKE_BINARY_DIR}/artifacts/tas_v1_factory_marker)
 set_tests_properties(tas_registry_test PROPERTIES LABELS "integration;fast" TIMEOUT 30)
+
+# Native movie routing through the production application and selected plugins.
+if(VELOCE_XVFB_RUN)
+    set(TAS_APPLICATION_SOURCES ${CORE_SOURCES} ${GUI_SOURCES})
+    list(REMOVE_ITEM TAS_APPLICATION_SOURCES src/core/main.cpp)
+    list(TRANSFORM TAS_APPLICATION_SOURCES PREPEND "${CMAKE_SOURCE_DIR}/")
+    add_executable(tas_frontend_test cpp/tas_frontend_test.cpp ${TAS_APPLICATION_SOURCES})
+    target_include_directories(tas_frontend_test PRIVATE ${CMAKE_SOURCE_DIR}/include ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/external ${SDL2_INCLUDE_DIRS})
+    target_link_libraries(tas_frontend_test PRIVATE ${SDL2_LIBRARIES} OpenGL::GL imgui nlohmann_json::nlohmann_json ${CMAKE_DL_LIBS})
+    add_test(NAME tas_frontend_test COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/tas_frontend_test.py
+        --test $<TARGET_FILE:tas_frontend_test> --core $<TARGET_FILE:nes_plugin>
+        --input $<TARGET_FILE:input_default> --audio $<TARGET_FILE:audio_default> --tas $<TARGET_FILE:tas_default>
+        --rom ${CMAKE_SOURCE_DIR}/tests/roms-src/nes/netplay_probe/netplay_probe.nes
+        --artifacts ${CMAKE_BINARY_DIR}/artifacts/tas_frontend --xvfb ${VELOCE_XVFB_RUN})
+    set_tests_properties(tas_frontend_test PROPERTIES LABELS "integration" TIMEOUT 100)
+endif()

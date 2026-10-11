@@ -176,7 +176,7 @@ The selected `IInputPlugin` now supplies frame input. Default Input preserves
 the built-in manager’s saved controller profiles and applies plugin overrides,
 turbo and recording/playback. Local play and netplay read one cached sample per
 logical frame. See [input integration evidence](plugins/input_default/README.md#frontend-integration).
-Alternate TAS plugin routing remains unfinished. Netplay and game plugins are driven by the frontend;
+TAS ABI 2 plugins are initialized with the live application host. Netplay and game plugins are driven by the frontend;
 netplay support depends on the active core's implemented interface and profile.
 Physical controller and audio-device validation remains pending.
 
@@ -190,21 +190,25 @@ Physical controller and audio-device validation remains pending.
 - Per-game auto-splitter support via game plugins
 - LiveSplit integration (planned)
 
-### TAS Features (frontend integration pending)
+### TAS Features
 
-`ITASPlugin` and the default implementation exist. The application frame loop
-does not drive them yet; the capabilities below are not available end to end.
-The repaired ABI2 backend passes exhaustive two-port movie mapping, portable
-TAS2 file checks and deterministic frame/seek tests. See the
-[TAS backend evidence and limits](plugins/tas_default/README.md#verified-backend-evidence).
+Open **Tools → Movie editor** with a loaded ROM and disconnected netplay.
+Record, open/save, play, pause/step, seek, edit controller masks and reset/save
+events, insert/delete frames, and undo/redo. The frontend commits movie input
+only after the core advances. Reset-start movies restore the ROM-load boundary;
+state-start movies restore their captured native state.
 
-- Frame-by-frame movie recording and playback
-- Greenzone (automatic savestate snapshots for seeking)
-- Undo/redo with 100 levels of history
-- Frame insertion, deletion, and modification
-- FM2 movie import (FCEUX format)
-- Selection, copy/cut/paste operations
-- Frame markers with descriptions
+The production NES frontend test compares **121 frames** of ordinary execution,
+recording and playback in native serialized state and cartridge RAM files.
+Six seek boundaries, state starts, reset/save events and an executed input mutant
+are checked. This establishes replay consistency for that NES profile; cross-core
+hardware accuracy, complete FM2 timing/peripherals and exact paused video previews
+remain unverified. Core completion percentages are unchanged. See the
+[TAS evidence and limits](plugins/tas_default/README.md#frontend-integration).
+
+Selection/clipboard and markers are backend APIs; the editor currently exposes
+single-frame operations. Lua scripting and complete peripheral support remain
+unfinished.
 
 ### Netplay Features
 

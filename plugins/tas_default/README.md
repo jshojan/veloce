@@ -4,7 +4,7 @@ Tool-assisted speedrun movie editor and player for Veloce.
 
 ## Overview
 
-The Default TAS Plugin implements movie operations, frame editing and seek snapshots. Its backend is tested through a deterministic host; application routing and editor controls remain unfinished.
+The Default TAS Plugin implements movie operations, frame editing and seek snapshots. Its backend is tested through a deterministic host, and production application routing is verified with an original native NES controller probe.
 
 ## Features
 
@@ -154,10 +154,56 @@ ctest --test-dir build -R '^(tas_movie_format_test|tas_runtime_test|tas_registry
 
 Artifacts remain under `build/artifacts/tas_formats/` and
 `build/artifacts/tas_runtime/`. These verify movie data and host sequencing;
-they are not native guest register/RAM hardware accuracy ROMs. Frontend/editor
-routing, native core replay/state events, cross-core state compatibility, full
-FM2 peripherals, movie identity/timing validation and physical hardware remain
-unfinished or unverified. No core completion milestone is added.
+they are not native guest register/RAM hardware accuracy ROMs. Cross-core state
+compatibility, full FM2 peripherals, complete timing identity validation and
+physical hardware remain unfinished or unverified. No core completion milestone
+is added.
+
+## Frontend integration
+
+**Tools → Movie editor** exposes new/open/save-as, playback, pause/step, seek,
+four controller masks, reset/save events, insertion/deletion and undo/redo.
+Movie controls require a core that saves a nonempty native state.
+The selected ABI 2 plugin receives a live host before activation; it shuts down
+before that host is destroyed. Failed initialization preserves the prior plugin.
+The application samples input once per logical frame and commits the movie once
+after actual execution. Unsupported nonzero controller ports or failed save events
+pause and stop playback with a notification. Netplay excludes movie execution.
+Manual reset/state load stops movie recording/playback; ROM changes close movies.
+
+Reset-start playback restores the native state captured at ROM load, including
+any battery data loaded then. It does not use a soft reset to discard previous
+movie state. A movie reset event performs the core's soft reset before its input;
+a save event saves slot 0–9 before executing that frame. Replay runs synchronously
+and suppresses streaming/batch audio; seeking clears buffered device audio.
+Seek replay ends an active register capture so repeated observations cannot be
+silently mixed into it. Native states retain core/build compatibility limits.
+
+`tas_frontend_test` runs the production Application, GUI and selected default
+input/audio/TAS plugins with the original `netplay_probe.nes`:
+
+- **121 frames** on two ports: ordinary execution, recording and reopened playback
+  match byte-for-byte native state and actual cartridge RAM at `$12/$13`.
+- Seeks at **0, 59, 60, 61, 120, 121**, plus a 30-frame state-start movie,
+  restore the ordinary boundary state. Device audio is empty after seeking.
+- A **65-frame** movie executes a reset at frame 20 and state save at frame 40;
+  playback matches ordinary state, the actual slot contains the pre-input
+  boundary, and seeking across reset reproduces the target boundary.
+- An executed one-bit input mutant changes the cartridge RAM observations.
+  Manual reset stops recording, and the real editor window renders under Xvfb.
+
+```sh
+ctest --test-dir build -R '^tas_frontend_test$' --output-on-failure
+```
+
+Artifacts: `build/artifacts/tas_frontend/ram-observations.txt`, native movie/state
+files and `frontend.log`. This verifies native input/replay/state routing for one
+NES profile; it does not independently establish hardware timing accuracy.
+Other cores, physical controllers/audio and exact video previews at snapshot-only
+seek boundaries remain unverified. Some native states omit output framebuffer
+pixels; the displayed image may remain from the prior frame until execution.
+Clipboard/selection and markers remain backend APIs without editor controls;
+Lua scripting remains unsupported. Core milestone percentages are unchanged.
 
 ## Building
 

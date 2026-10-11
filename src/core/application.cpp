@@ -6,6 +6,8 @@
 #include "input_manager.hpp"
 #include "audio_manager.hpp"
 #include "audio_pipeline.hpp"
+#include "tas_host.hpp"
+#include <algorithm>
 #include "plugin_manager.hpp"
 #include "savestate_manager.hpp"
 #include "paths_config.hpp"
@@ -256,6 +258,13 @@ bool Application::initialize(int argc, char* argv[]) {
         if (!m_plugin_manager->set_active_plugin(PluginType::Audio, selected)) {
             std::cerr << "Audio plugin unavailable; using device passthrough\n";
         }
+    }
+
+    if (!m_headless_mode) {
+        m_tas_host = std::make_unique<TASHost>(*this);
+        m_plugin_manager->set_tas_host(m_tas_host.get());
+        const auto selected = m_plugin_manager->get_selected_plugin_name(PluginType::TAS);
+        m_plugin_manager->set_active_plugin(PluginType::TAS, selected);
     }
 
     if (!m_headless_mode) {
@@ -549,6 +558,7 @@ void Application::shutdown() {
         m_plugin_manager->shutdown();
         m_plugin_manager.reset();
     }
+    m_tas_host.reset();
     m_audio_pipeline.reset();
     if (m_audio_manager) {
         m_audio_manager->shutdown();
@@ -713,16 +723,21 @@ void Application::process_events() {
     }
 }
 
-void Application::run_emulation_frame() {
+bool Application::run_emulation_frame() {
     auto* plugin = m_plugin_manager->get_active_plugin();
     if (!plugin || !plugin->is_rom_loaded()) {
-        return;
+        return false;
     }
     // A manually resumed app must still freeze the core during handshake.
     auto* session = m_plugin_manager->get_netplay_plugin();
+    if (session && session->get_connection_state() != NetplayConnectionState::Disconnected) {
+        if (auto* movie = m_plugin_manager->get_tas_plugin()) { movie->stop_recording(); movie->stop_playback(); }
+        m_injected_inputs.fill(std::nullopt);
+    }
     if (session && session->owns_frame_execution() &&
-        session->get_connection_state() == NetplayConnectionState::Connecting) return;
+        session->get_connection_state() == NetplayConnectionState::Connecting) return false;
 
+    if (auto* movie = m_plugin_manager->get_tas_plugin(); movie && movie->get_mode() != TASMode::Stopped && m_input_manager->is_input_capture_mode()) return false;
     sample_input();
     m_audio_pipeline->begin_frame();
 
@@ -730,15 +745,17 @@ void Application::run_emulation_frame() {
     bool netplay_active = m_netplay_active_cached;
 
     if (netplay_active) {
+        if (auto* tas = m_plugin_manager->get_tas_plugin()) { tas->stop_recording(); tas->stop_playback(); }
+        m_injected_inputs.fill(std::nullopt);
         auto* netplay = m_plugin_manager->get_netplay_plugin();
         if (netplay) {
             if (netplay->owns_frame_execution()) {
-                if (!netplay->execute_frame(get_local_input(0))) return;
+                if (!netplay->execute_frame(get_local_input(0))) return false;
             } else {
                 // Netplay mode: use synchronized input
                 if (!netplay->begin_frame()) {
                     // Waiting for network sync, skip this frame
-                    return;
+                    return false;
                 }
 
                 // Get synchronized inputs for all players using pre-allocated buffer
@@ -763,10 +780,25 @@ void Application::run_emulation_frame() {
             }
         }
     } else {
-        // Normal single-player execution
-        InputState input;
-        input.buttons = get_local_input(0);
-        plugin->run_frame(input);
+        auto* tas = m_plugin_manager->get_tas_plugin();
+        if (tas && tas->get_mode() != TASMode::Stopped && can_run_tas()) {
+            const auto cursor = tas->get_current_frame();
+            TASFrameData frame = tas->get_mode() == TASMode::Recording ? TASFrameData{} : tas->get_frame(cursor);
+            for (int c = 0; c < 4; ++c) frame.controller_inputs[c] = tas->on_frame(c);
+            if (!execute_tas_frame(frame, false)) return false;
+            const bool recording = tas->get_mode() == TASMode::Recording;
+            tas->on_frame_completed();
+            if (!recording && tas->get_mode() == TASMode::Stopped) pause();
+        } else {
+            TASFrameData frame{};
+            for (int c=0;c<4;++c) frame.controller_inputs[c] = get_local_input(c);
+            if (m_netplay_capable_plugin && m_netplay_capable_plugin->get_max_players()>1 &&
+                (frame.controller_inputs[1] || frame.controller_inputs[2] || frame.controller_inputs[3])) {
+                const int count=std::clamp(m_netplay_capable_plugin->get_max_players(),1,4);
+                m_netplay_capable_plugin->run_frame_netplay_n(std::vector<uint32_t>(frame.controller_inputs,frame.controller_inputs+count));
+            } else plugin->run_frame({frame.controller_inputs[0]});
+        }
+        m_injected_inputs.fill(std::nullopt);
     }
 
     // Test-result channel (GUI path): stop cleanly once the ROM is done
@@ -794,6 +826,7 @@ void Application::run_emulation_frame() {
     if (fb.pixels) {
         m_renderer->update_texture(fb.pixels, fb.width, fb.height);
     }
+    return true;
 }
 
 void Application::render() {
@@ -813,6 +846,9 @@ bool Application::load_rom(const std::string& path, bool preserve_selected_core)
     if (m_test_sink) {
         end_test_session(false);
     }
+
+    if (auto* tas = m_plugin_manager->get_tas_plugin()) tas->close_movie();
+    m_injected_inputs.fill(std::nullopt);
 
     // Find appropriate plugin for this file type
     const bool activated = preserve_selected_core
@@ -868,7 +904,7 @@ bool Application::load_rom(const std::string& path, bool preserve_selected_core)
             active_plugin->set_audio_callback(
                 [this](const float* samples, size_t count, int rate) {
                     auto* netplay = m_plugin_manager->get_netplay_plugin();
-                    const bool suppressed = netplay && netplay->is_rolling_back();
+                    const bool suppressed = m_tas_replaying || (netplay && netplay->is_rolling_back());
                     m_audio_pipeline->stream(m_plugin_manager->get_audio_plugin(),
                                              samples, count * 2, rate, suppressed);
                 });
@@ -876,6 +912,7 @@ bool Application::load_rom(const std::string& path, bool preserve_selected_core)
     }
 
     reset_input_timeline();
+    if (m_tas_host) m_tas_host->capture_reset_state();
 
     // Unpause emulation - audio will start automatically once buffer is ready
     // This prevents initial audio crackling from buffer underruns
@@ -1083,13 +1120,65 @@ bool Application::load_state_from_buffer(const std::vector<uint8_t>& buffer) {
 }
 
 void Application::set_controller_input(int controller, uint32_t buttons) {
-    // This would be used by the netplay plugin to set input for specific controllers
-    // For now, we only support single-player input via the input manager
-    (void)controller;
-    (void)buttons;
+    if (controller >= 0 && controller < 4 && can_run_tas()) m_injected_inputs[controller] = buttons;
 }
 
-void Application::reset_input_timeline() {
+bool Application::can_run_tas() const {
+    if (!m_plugin_manager || !m_audio_pipeline || !is_rom_loaded() || !m_tas_host || !m_tas_host->has_reset_state()) return false;
+    auto* netplay = m_plugin_manager->get_netplay_plugin();
+    return !netplay || netplay->get_connection_state() == NetplayConnectionState::Disconnected;
+}
+
+bool Application::step_frame() {
+    if (!m_paused || !can_run_tas()) return false;
+    return run_emulation_frame();
+}
+
+bool Application::execute_tas_frame(const TASFrameData& frame, bool replay) {
+    if (!can_run_tas()) return false;
+    auto* core = m_plugin_manager->get_active_plugin();
+    auto* ports = dynamic_cast<INetplayCapable*>(core);
+    const int count = ports ? std::clamp(ports->get_max_players(),1,4) : 1;
+    auto reject = [&] {
+        if (!replay) {
+            pause();
+            if (auto* movie=m_plugin_manager->get_tas_plugin()) { movie->stop_recording(); movie->stop_playback(); }
+            m_gui_manager->get_notification_manager().error("Movie input or state event is unsupported on this core");
+        }
+        return false;
+    };
+    for (int i=count;i<4;++i) if (frame.controller_inputs[i]) return reject();
+    if (frame.has_savestate && (frame.savestate_slot<0 || frame.savestate_slot>9)) return reject();
+    if (frame.has_reset) { core->reset(); reset_input_timeline(false); m_audio_manager->clear_buffer(); m_plugin_manager->notify_game_plugins_reset(); }
+    if (frame.has_savestate && !m_savestate_manager->save_state(frame.savestate_slot)) return reject();
+    const auto before = core->get_frame_count();
+    const bool was_replaying = m_tas_replaying;
+    m_tas_replaying = replay;
+    try {
+        if (ports) ports->run_frame_netplay_n(std::vector<uint32_t>(frame.controller_inputs,frame.controller_inputs+count));
+        else core->run_frame({frame.controller_inputs[0]});
+    } catch (...) { m_tas_replaying = was_replaying; throw; }
+    m_tas_replaying = was_replaying;
+    if (replay) core->clear_audio_buffer();
+    return core->get_frame_count() != before;
+}
+
+bool Application::run_replay_frame(const TASFrameData& frame) {
+    if (!can_run_tas()) return false;
+    // A register capture cannot contain unmarked seek/replay observations.
+    if (m_test_sink) end_test_session(false);
+    if (!execute_tas_frame(frame,true)) return false;
+    m_input_sample_valid = false;
+    auto fb = m_plugin_manager->get_active_plugin()->get_framebuffer();
+    if (fb.pixels) m_renderer->update_texture(fb.pixels,fb.width,fb.height);
+    return true;
+}
+
+void Application::reset_input_timeline(bool stop_movie) {
+    m_injected_inputs.fill(std::nullopt);
+    if (stop_movie && m_plugin_manager) {
+        if (auto* movie = m_plugin_manager->get_tas_plugin()) { movie->stop_recording(); movie->stop_playback(); }
+    }
     m_input_sample_valid = false;
     if (auto* input = m_plugin_manager ? m_plugin_manager->get_input_plugin() : nullptr) {
         input->stop_recording();
@@ -1112,6 +1201,7 @@ void Application::sample_input() {
 
 uint32_t Application::get_local_input(int controller) const {
     if (!m_input_manager || m_input_manager->is_input_capture_mode() || controller < 0 || controller >= 4) return 0;
+    if (m_injected_inputs[controller]) return *m_injected_inputs[controller];
     return m_input_sample_valid ? m_input_samples[controller] : get_mapped_input(controller);
 }
 uint64_t Application::get_frame_number() const { return get_frame_count(); }

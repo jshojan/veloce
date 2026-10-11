@@ -99,6 +99,8 @@ void GuiManager::render(Application& app, Renderer& renderer) {
     // Render main menu bar
     render_main_menu(app);
 
+    if (m_show_tas_editor) render_tas_editor(app);
+
     // Render game view
     render_game_view(app, renderer);
 
@@ -347,6 +349,7 @@ void GuiManager::render_main_menu(Application& app) {
         }
 
         if (ImGui::BeginMenu("Tools")) {
+            ImGui::MenuItem("Movie editor", nullptr, &m_show_tas_editor);
             if (ImGui::MenuItem("ImGui Demo", nullptr, m_show_demo_window)) {
                 m_show_demo_window = !m_show_demo_window;
             }
@@ -941,3 +944,47 @@ void GuiManager::render_savestate_file_browser(Application& app) {
 }
 
 } // namespace emu
+
+
+namespace emu {
+void GuiManager::render_tas_editor(Application& app) {
+    if (!ImGui::Begin("Movie editor", &m_show_tas_editor)) { ImGui::End(); return; }
+    auto* movie = app.get_plugin_manager().get_tas_plugin();
+    if (!movie) { ImGui::TextUnformatted("Select a TAS plugin in plugin settings."); ImGui::End(); return; }
+    if (!app.can_run_tas()) ImGui::TextUnformatted("Movies require a loaded ROM with native state support and disconnected netplay.");
+    ImGui::BeginDisabled(!app.can_run_tas());
+    ImGui::InputText("Movie file",m_tas_path,sizeof(m_tas_path));
+    ImGui::Checkbox("Start from current state",&m_tas_from_state);
+    auto fail = [&] { get_notification_manager().error("Movie operation failed"); };
+    if (ImGui::Button("New recording")) { app.pause(); if (!movie->new_movie(m_tas_path,m_tas_from_state)) fail(); m_tas_loaded_edit=UINT64_MAX; }
+    ImGui::SameLine();
+    if (ImGui::Button("Open")) { app.pause(); if (!movie->open_movie(m_tas_path)) fail(); m_tas_loaded_edit=UINT64_MAX; }
+    ImGui::SameLine();if (ImGui::Button("Save as")) { if (!movie->save_movie_as(m_tas_path)) fail(); }
+    const bool loaded=movie->is_movie_loaded();
+    ImGui::BeginDisabled(!loaded);
+    if (ImGui::Button("Play from start")) { movie->start_playback(); if (movie->get_mode()==TASMode::Playing) app.resume(); else fail(); }
+    ImGui::SameLine();if (ImGui::Button("Stop")) { movie->stop_recording();movie->stop_playback();app.pause(); }
+    ImGui::SameLine();if (ImGui::Button(app.is_paused()?"Resume":"Pause")) app.toggle_pause();
+    ImGui::SameLine();if (ImGui::Button("Step")) { app.pause();app.frame_advance(); }
+    ImGui::Text("Movie frame: %llu / %llu",static_cast<unsigned long long>(movie->get_current_frame()),static_cast<unsigned long long>(movie->get_total_frames()));
+    ImGui::InputScalar("Seek boundary",ImGuiDataType_U64,&m_tas_seek);
+    ImGui::SameLine();if (ImGui::Button("Seek")) { app.pause();if (!movie->seek_to_frame(m_tas_seek)) fail(); }
+    ImGui::Separator();
+    ImGui::InputScalar("Edit frame",ImGuiDataType_U64,&m_tas_edit);
+    if (m_tas_loaded_edit!=m_tas_edit) { m_tas_edit_data=movie->get_frame(m_tas_edit);m_tas_loaded_edit=m_tas_edit; }
+    const bool editable=movie->get_mode()!=TASMode::ReadOnly;
+    ImGui::BeginDisabled(!editable || m_tas_edit>=movie->get_total_frames());
+    for (int c=0;c<4;++c) { ImGui::PushID(c);ImGui::InputScalar(("Controller "+std::to_string(c+1)).c_str(),ImGuiDataType_U32,&m_tas_edit_data.controller_inputs[c],nullptr,nullptr,"%08X",ImGuiInputTextFlags_CharsHexadecimal);ImGui::PopID(); }
+    ImGui::Checkbox("Reset before frame",&m_tas_edit_data.has_reset);
+    ImGui::Checkbox("Save before frame",&m_tas_edit_data.has_savestate);
+    ImGui::InputInt("Save slot (0-9)",&m_tas_edit_data.savestate_slot);
+    if (ImGui::Button("Apply input")) { app.pause();movie->set_frame(m_tas_edit,m_tas_edit_data);movie->increment_rerecord_count(); }
+    ImGui::SameLine();if (ImGui::Button("Delete frame")) { app.pause();movie->delete_frame(m_tas_edit);m_tas_loaded_edit=UINT64_MAX; }
+    ImGui::EndDisabled();
+    ImGui::BeginDisabled(!editable);
+    if (ImGui::Button("Insert blank after")) { app.pause();movie->insert_frame(m_tas_edit);m_tas_loaded_edit=UINT64_MAX; }
+    ImGui::SameLine();ImGui::BeginDisabled(!movie->can_undo());if (ImGui::Button("Undo")) { app.pause();movie->undo();m_tas_loaded_edit=UINT64_MAX; }ImGui::EndDisabled();
+    ImGui::SameLine();ImGui::BeginDisabled(!movie->can_redo());if (ImGui::Button("Redo")) { app.pause();movie->redo();m_tas_loaded_edit=UINT64_MAX; }ImGui::EndDisabled();
+    ImGui::EndDisabled();ImGui::EndDisabled();ImGui::EndDisabled();ImGui::End();
+}
+}

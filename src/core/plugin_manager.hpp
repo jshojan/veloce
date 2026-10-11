@@ -264,6 +264,7 @@ public:
 
     // Set netplay host (for initializing netplay plugins when they're activated)
     // Install before audio activation; host outlives active audio instances.
+    void set_tas_host(ITASHost* host) { m_tas_host = host; }
     void set_input_host(IInputHost* host) { m_input_host = host; }
     void set_audio_host(IAudioHost* host) { m_audio_host = host; }
 
@@ -340,6 +341,7 @@ private:
     PathsConfiguration* m_paths_config = nullptr;
 
     // Netplay host (for initializing netplay plugins)
+    ITASHost* m_tas_host = nullptr;
     IInputHost* m_input_host = nullptr;
     IAudioHost* m_audio_host = nullptr;
     INetplayHost* m_netplay_host = nullptr;
