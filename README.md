@@ -665,6 +665,12 @@ The SNES result-channel branch is integrated: 68,864 settled math pairs and
 repeat captures. Delivery stays 40%; full hardware timing remains unverified.
 See the [SNES integration evidence](cores/snes/README.md#result-channel-branch-integration-2026-10-11).
 
+The remaining NES audio timing branch is reconciled. The eight file-reporting
+APU ROMs now pass (previously five); a new original cartridge independently
+grades 160 actual status reads around NTSC frame IRQ boundaries and rejects
+an executed mutant. NES stays 50%; complete APU timing remains unfinished.
+See the [timing evidence](cores/nes/README.md#frame-irq-timing-branch-reconciliation-2026-10-11).
+
 ## Project Structure
 
 ```

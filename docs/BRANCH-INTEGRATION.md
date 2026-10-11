@@ -12,6 +12,7 @@ owned register/RAM file capture pipeline and verified before shipping.
 | `gba/test-channel` | `0011328cf9f0b9727b543ad7c90a9036f4787d3a` | [PR 85](https://github.com/jshojan/veloce/pull/85), nine production fixtures and 65,536 result/CPSR pairs |
 | `snes/test-channel` | `a507d763c9d33c477682ee08a34ac5de31a8d193` | [PR 86](https://github.com/jshojan/veloce/pull/86), 12 production fixtures, 68,864 settled pairs and 504,832 timed captures |
 | `docs/readme-refresh` | `398a1f34b8b8accba7e0c9ddbd5cc17cc480119f` | Original README-only commit reviewed in full; current document supersedes its obsolete status, while useful build/frontend gaps and the CLI crash are reconciled below |
+| `wip/nes-apu-timing` | `d94ce23aee2c31961149dbdfc99f346e4cc0988e` | Verified CPU-cycle repair: 8/8 apu_test, 160 original status reads, executed negative controls and production netplay gates |
 
 ## README refresh reconciliation
 
@@ -35,10 +36,17 @@ these evidence-based updates:
 - Current delivery percentages and source-file evidence remain synchronized.
   CI/CD workflows remain removed and GitHub Actions stays disabled.
 
-## Remaining integration work
+## NES audio timing reconciliation
 
-`wip/nes-apu-timing` at `d94ce23aee2c31961149dbdfc99f346e4cc0988e`
-is explicitly incomplete. Its timing changes require repair and independently
-graded original observations before merging. Full hardware corpus coverage,
-physical validation and unfinished modern frontend/core features remain part
-of the active goal; the branch merges do not establish goal completion.
+The parked half-cycle draft was incomplete: its event conversion shifted clocks,
+its noise timer conflicted with the later CPU-rate fix, and its extra state byte
+was guessed from remaining component data. The integration preserves newer
+pulse/noise behavior and the current state layout. It corrects the frame period,
+three-cycle IRQ assertion window and delayed reset phase. The independent
+original [IRQ capture ROM](../tests/roms-src/nes/frame_irq/README.md) and fresh
+8/8 apu_test file verdicts verify the bounded repair before shipping.
+
+All reviewed existing branch histories are reconciled through normal merges;
+no incomplete draft is accepted verbatim as verified hardware. Full corpus
+coverage, physical validation and unfinished modern frontend/core features
+remain part of the active goal. These merges do not establish goal completion.

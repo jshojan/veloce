@@ -3470,3 +3470,18 @@ The full build, six shared/channel/math tests and 117 original archives pass.
 
 SNES remains **40% = 8/20 delivery milestones**. No whole-platform accuracy
 percentage is established. See the [core evidence](cores/snes/README.md#result-channel-branch-integration-2026-10-11).
+
+## NES frame IRQ branch reconciliation (2026-10-11)
+
+The incomplete half-cycle rewrite is superseded by a verified repair preserving
+current pulse/noise clocks and the existing serialized layout. Delayed resets
+begin at zero without the unserialized jitter-canceling offset; the four-step
+NTSC period and three-cycle IRQ reassertion window are corrected.
+
+Fresh production apu_test captures improve **5/8 to 8/8**. An original NROM
+independently grades **80 cases / 160 actual $4015 reads**, with exact repeat,
+an executed register-bit-flipping mutant and malformed-stream controls.
+The full build, 524,288 original ADC/SBC cases, channel/shared gates and three
+rollback/TCP/plugin tests pass. All **118 original archives** reproduce.
+Physical power-on phase, PAL/Dendy and complete APU domains remain unverified;
+NES stays **50% = 10/20 delivery milestones**. See [scope and source](tests/roms-src/nes/frame_irq/README.md).

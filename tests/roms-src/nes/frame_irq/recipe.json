@@ -1,0 +1,10 @@
+{
+  "console": "nes",
+  "suite": "frame_irq",
+  "source_type": "original",
+  "license": "MIT (Veloce original source)",
+  "build": {
+    "script": "build.py",
+    "artifact": "frame_irq.nes"
+  }
+}
