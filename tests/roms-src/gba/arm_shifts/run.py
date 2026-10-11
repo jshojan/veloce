@@ -79,10 +79,10 @@ def evaluate(path, amounts, rom):
                            "timing": "unverified"}}
     try:
         lines = path.read_text(encoding="ascii").splitlines()
-        require(lines[:4] == [f"#VELOCE 1 core=GBA rom_crc32={zlib.crc32(rom):08x} channels=mgba",
+        require(lines[:5] == [f"#VELOCE 1 core=GBA rom_crc32={zlib.crc32(rom):08x} channels=mgba,r12", "#VELOCE level=3",
                 "VELOCE 1 gba arm_shifts", f"INFO amounts={amounts} groups={len(GROUPS)}",
                 "REG probe=00001dea"], "wrong core, ROM identity, channel, header or handshake")
-        cursor = 4
+        cursor = 5
         for op, value, carry, overflow in GROUPS:
             name = group_name(op, value, carry, overflow)
             require(lines[cursor] == f"BEGIN {name}", "missing or reordered group")
@@ -169,7 +169,7 @@ def test_channel(emulator, artifacts):
     rom_path.write_bytes(rom)
     run_rom(emulator, rom_path, result_path)
     lines = result_path.read_text(encoding="ascii").splitlines()
-    require(lines[:-1] == [f"#VELOCE 1 core=GBA rom_crc32={zlib.crc32(rom):08x} channels=mgba",
+    require(lines[:-1] == [f"#VELOCE 1 core=GBA rom_crc32={zlib.crc32(rom):08x} channels=mgba,r12", "#VELOCE level=3",
                           "A" * 255, "INFO enabled"],
             "disabled output leaked, maximum-length message damaged, or extra newline")
     require(lines[-1].startswith("#VELOCE end reason=terminator ") and lines[-1].endswith(" status=-1"),

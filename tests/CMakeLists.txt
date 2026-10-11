@@ -1232,3 +1232,10 @@ add_test(NAME gb_unbanked_ram_mutants COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/gb_unbanked_ram_mutants.py --compiler ${CMAKE_CXX_COMPILER}
     --artifacts ${CMAKE_BINARY_DIR}/artifacts/component/gb_unbanked_ram)
 set_tests_properties(gb_unbanked_ram_mutants PROPERTIES LABELS "unit;accuracy" TIMEOUT 120)
+
+add_executable(gba_test_channel_plugin_test cpp/gba_test_channel_plugin_test.cpp)
+target_include_directories(gba_test_channel_plugin_test PRIVATE ${CMAKE_SOURCE_DIR}/include ${SDL2_INCLUDE_DIRS})
+target_link_libraries(gba_test_channel_plugin_test PRIVATE ${SDL2_LIBRARIES})
+add_dependencies(gba_test_channel_plugin_test gba_plugin)
+add_test(NAME gba_test_channel_plugin_test COMMAND gba_test_channel_plugin_test $<TARGET_FILE:gba_plugin> ${CMAKE_BINARY_DIR}/artifacts/owned/gba_result_channel)
+set_tests_properties(gba_test_channel_plugin_test PROPERTIES LABELS "integration;accuracy;owned" TIMEOUT 30)

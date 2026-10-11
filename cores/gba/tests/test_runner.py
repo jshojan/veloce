@@ -8,8 +8,9 @@ using multiple test ROM collections:
 - mgba-emu/suite: Comprehensive mGBA test suite with verbose debug output
 - nba-emu/hw-test: NanoBoyAdvance hardware tests (DMA, IRQ, timing)
 
-This runner uses the Veloce emulator directly with DEBUG=1 to run test ROMs
-and detect pass/fail based on emulator debug output.
+This runner uses the Veloce emulator directly (headless) to run test ROMs and
+reads each verdict from the VELOCE-RESULT/1 file the emulator writes to
+VELOCE_TEST_OUT (docs/testing/VELOCE-RESULT.md).
 
 Usage:
     python test_runner.py              # Run all tests
@@ -19,17 +20,17 @@ Usage:
     python test_runner.py --json       # Output results as JSON
 
 Test Result Detection:
-    The emulator outputs debug messages with [GBA] prefix:
-    - "[GBA] PASSED" indicates all tests passed
-    - "[GBA/INFO]", "[GBA/DEBUG]", etc. from mGBA debug registers
-    - "[GBA] Test result register..." shows intermediate test state
-    - Timeout or crash indicates failure
+    The GBA plugin writes the result file from two drivers:
+    - mgba: lines the ROM flushes through the mGBA debug registers
+    - r12:  ROMs parked in a `b .` loop with the failing test # in R12
+            (0 = pass) -> "END 1/1" / "END 0/1 code=<n>"
+    The file is scored by veloce_testkit.detect.detect_result_file. No
+    verdict is read from stdout/stderr; a run with no verdict is a FAIL.
 """
 
 import argparse
 import json
 import os
-import re
 import shutil
 import subprocess
 import sys
@@ -37,6 +38,9 @@ from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Optional
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "tests"))
+from veloce_testkit.detect import TestStatus, detect_result_file  # noqa: E402
 
 
 class TestResult(Enum):
@@ -239,6 +243,10 @@ class GBATestRunner:
             return TestResult.SKIP
 
         rom_path = repo_dir / test.path
+        if test.path.parts and test.path.parts[0] == "veloce":
+            # rom_variant "veloce": rebuilt by tests/roms-src/build.py into
+            # build/roms/gba/<suite>/ (runner.py reaches it via a symlink).
+            rom_path = self.project_root / "build" / "roms" / "gba" / Path(*test.path.parts[1:])
 
         if not rom_path.exists():
             test.result = TestResult.SKIP
@@ -253,7 +261,7 @@ class GBATestRunner:
             if save_file.exists():
                 save_file.unlink()
 
-        # Build command - run veloce in headless mode with DEBUG=1
+        # Build command - run veloce headless; the verdict goes to the result file
         # Use more frames for save tests which require multiple erase/write cycles
         frame_limit = self.config.get("frame_limit", 300)
         if "save" in str(test.path).lower():
@@ -265,9 +273,16 @@ class GBATestRunner:
 
         cmd = [str(self.emulator), str(rom_path)]
         env = os.environ.copy()
-        env["DEBUG"] = "1"
+        for k in ("DEBUG", "VELOCE_TEST_OUT", "VELOCE_TEST_EXIT", "VELOCE_TEST_RESETS"):
+            env.pop(k, None)
         env["HEADLESS"] = "1"
         env["FRAMES"] = str(frame_limit)
+        result_path = self.screenshots_dir / f"{test.repository}_{test.name}.result"
+        if result_path.exists():
+            result_path.unlink()
+        env["VELOCE_TEST_OUT"] = str(result_path)
+        if test.test_type == TestType.VISUAL:
+            env["VELOCE_TEST_EXIT"] = "0"  # the screenshot frame must be reached
 
         # For visual tests, capture a screenshot at the specified frame
         if test.test_type == TestType.VISUAL:
@@ -311,56 +326,15 @@ class GBATestRunner:
                     test.result = TestResult.FAIL
                 return test.result
 
-        # Analyze output for test results (automated tests)
-        # Look for [GBA] PASSED in debug output (indicates R12 == 0 in infinite loop)
-        if "[GBA] PASSED" in test.output:
+        # Automated tests: the verdict comes only from the result file.
+        det = detect_result_file(result_path, exit_code=test.exit_code)
+        if det.status == TestStatus.PASS:
             test.result = TestResult.PASS
             return TestResult.PASS
-
-        # Check for [GBA] FAILED with test number (R12 > 0 in infinite loop)
-        # Pattern: "[GBA] FAILED - Failed at test #N"
-        fail_match = re.search(r"\[GBA\] FAILED.*?test\s*#?(\d+)", test.output)
-        if fail_match:
-            test.failed_test_number = int(fail_match.group(1))
-            if test.expected == "known_fail":
-                test.result = TestResult.KNOWN_FAIL
-            else:
-                test.result = TestResult.FAIL
-            return test.result
-
-        # Check for generic pass patterns
-        output_lower = test.output.lower()
-        if any(p in output_lower for p in ["all tests passed", "tests passed"]):
-            test.result = TestResult.PASS
-            return TestResult.PASS
-
-        # Check for explicit failure with test number (legacy format)
-        fail_match = re.search(r"failed test\s*#?(\d+)", output_lower)
-        if fail_match:
-            test.failed_test_number = int(fail_match.group(1))
-            if test.expected == "known_fail":
-                test.result = TestResult.KNOWN_FAIL
-            else:
-                test.result = TestResult.FAIL
-            return test.result
-
-        # Check for other failure indicators
-        if any(p in output_lower for p in ["[gba] fail", "error"]):
-            if test.expected == "known_fail":
-                test.result = TestResult.KNOWN_FAIL
-            else:
-                test.result = TestResult.FAIL
-            return test.result
-
-        # No clear result - use exit code
-        if test.exit_code == 0:
-            test.result = TestResult.PASS
-        else:
-            if test.expected == "known_fail":
-                test.result = TestResult.KNOWN_FAIL
-            else:
-                test.result = TestResult.FAIL
-
+        if det.status_code is not None and det.status_code > 0:
+            test.failed_test_number = det.status_code
+        test.output = f"{det.status.value}: {det.detail}\n{test.output}"
+        test.result = TestResult.KNOWN_FAIL if test.expected == "known_fail" else TestResult.FAIL
         return test.result
 
     def run_suite(self, suite: TestSuite):
@@ -504,7 +478,7 @@ class GBATestRunner:
                 print(f"\nEmulator:    {self.emulator}")
                 print(f"Timeout:     {self.TIMEOUT_SECONDS}s per test")
                 print(f"Frame limit: {self.config.get('frame_limit', 300)} frames")
-                print(f"Debug mode:  Enabled (DEBUG=1, HEADLESS=1)")
+                print("Verdicts:    VELOCE_TEST_OUT result files (HEADLESS=1)")
                 repositories = self.config.get("repositories", {})
                 if repositories:
                     print(f"Repositories: {len(repositories)}")
@@ -589,7 +563,7 @@ class GBATestRunner:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="GBA Emulator Test Suite (uses Veloce directly with DEBUG=1)",
+        description="GBA Emulator Test Suite (uses Veloce directly; verdicts from VELOCE_TEST_OUT)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Categories:

@@ -2,17 +2,11 @@
 
 Current N64 evidence: [One-cycle texture rectangles and Mario intro](#one-cycle-texture-rectangles-and-mario-intro). Earlier increment reports are historical.
 
-This is the project's honest, evidence-based statement of how complete and
-cycle-accurate each emulator core is. Legacy headline percentages are produced by the
-shared scoring methodology described in [TESTING.md](TESTING.md#how-the-completeness-percentage-is-computed)
-and is reproducible by running the corresponding suite. Nothing here is a
-hand-estimated "feels done" number.
-
-Read this document alongside [TESTING.md](TESTING.md), which explains the harness,
-the result-detection protocols, and the exact formula. The rule that governs
-every number below: **only verified passes count toward the headline; tests that
-run without a readable verdict are reported as "unverified" and contribute zero,
-and documented hardware quirks are counted separately, never as passes.**
+Current delivery percentages come from the fixed 20-milestone
+[completion ledger](docs/CORE-COMPLETION.md). Older weighted catalog scores
+below are historical and do not measure current whole-core hardware accuracy.
+Fresh integration evidence is recorded in the dated sections and core READMEs.
+Only executed, independently graded observations support current claims.
 
 ## How to read these numbers
 
@@ -303,22 +297,29 @@ tests across 29 suites (23 cpu, 81 timing, 18 ppu, 4 memory, 4 mapper/saves,
 | Memory | verified | `memory_access` (`memory.gba`) PASS. |
 | Misc / BIOS | verified | `bios` (`bios.gba`) PASS (Div, Sqrt, ArcTan, CpuSet, LZ77, etc.). |
 | Mapper / saves | mostly verified | SRAM, Flash 64KB, none PASS; Flash 128KB **FAILs** at test #9 (earlier PASS reports were a detector flake). |
-| Timing (DMA / IRQ / timer / HALTCNT / bus) | **mostly failing, not verified** | Measured this build (`cd cores/gba/tests && python3 runner.py --json timing`): only 10/80 timing tests pass. Every NanoBoyAdvance DMA/IRQ/timer/HALTCNT test **FAILs** (`latch`, `start_delay`, `force_nseq_access`, `burst_into_tears`, `irq_delay`, `start_stop`, `reload`, `haltcnt`), as does the 128KB bus-boundary test (memory subsystem). NBA `start_delay`/`burst_into_tears`/`128kb-boundary` used to be reported PASS only because the ROMs crashed into Undefined mode on the Thumb `bx pc` veneer (gba-15) before printing anything, leaving R12=0; once they run, their on-screen verdicts are timing FAILs (e.g. start-delay "IMM: FAIL 7, expected 20", burst-into-tears 0/3). `timing_irq`, `timing_dma`, `timing_fifo_dma`, `timing_cpu_mem` and `prefetch` fail almost wholesale. Root cause tracked separately (instruction-granular stepping + atomic bulk-DMA catch-up, per-instruction cycle guesswork, timer remainder/cascade loss - opus-class scheduler work). |
-| PPU | partly verified, partly pending | smoke (`hello`, `shades`, `stripes`) PASS; `ppu_status_dma` and the affine visual tests need sub-scanline accuracy and are `known_fail` / visual pending references. |
+| Timing (DMA / IRQ / timer / HALTCNT / bus) | **mostly failing, not verified** | Measured this build (`cd cores/gba/tests && python3 runner.py --json timing`): only 9/81 timing tests pass (`halt_dma_irq_read_oam` is RUNS: it halts waiting for an IRQ that never arrives and never reaches its verdict loop; the old stable-PC detector read that halt as PASS). Every NanoBoyAdvance DMA/IRQ/timer/HALTCNT test **FAILs** on its own `CHECK` lines (rebuilt from source to report over the mGBA debug registers, [`tests/roms-src/gba/nba_hw_test`](tests/roms-src/gba/nba_hw_test/PROVENANCE.md)): `latch` 0/4, `start_delay` 0/1 (IMM exp 20 got 7), `force_nseq_access` 0/2, `burst_into_tears` 0/3, `irq_delay` 0/3 (IWRAM exp 92 got 64), `start_stop` 0/2, `reload` 6/7, `haltcnt` 0/6; the 128KB bus-boundary test (memory subsystem) fails 0/18. NBA `start_delay`/`burst_into_tears`/`128kb-boundary` used to be reported PASS only because the ROMs crashed into Undefined mode on the Thumb `bx pc` veneer (gba-15) before printing anything, leaving R12=0. `timing_irq`, `timing_dma`, `timing_fifo_dma`, `timing_cpu_mem` and `prefetch` fail almost wholesale. Root cause tracked separately (instruction-granular stepping + atomic bulk-DMA catch-up, per-instruction cycle guesswork, timer remainder/cascade loss - opus-class scheduler work). |
+| PPU | partly verified, partly pending | smoke (`hello`, `shades`, `stripes`) PASS; `sprite_disable_midline` and `sprite_disable_on_vram_access` are RUNS (stuck in `swi 2` Halt waiting for their LYC IRQ, never reaching the verdict loop; formerly false PASS); `ppu_status_dma` needs sub-scanline accuracy and is a measured `known_fail`: 9 of its 12 checks reported, all FAIL, and its DMA page never finishes (it waits on a DMA3 video-capture transfer). The nba `bgpd`/`bgx` affine-latch ROMs have no CPU-readable result and are non-scoring `visual_test_suites`. |
 
-**Detection method.** jsmolka / alyosha ROMs spin with `R12` holding the
-failing test number (`0` = all pass); the GBA plugin detects the stable-PC spin
-and prints `[GBA] PASSED` / `[GBA] FAILED - Failed at test #N`, parsed by the
-shared GBA register detector. The nba-hw-test ROMs do **not** use this protocol
-(they only print results to the screen), so for them the detector's R12 value
-is an arbitrary scratch register: non-zero reads as FAIL, and a PASS has only
-ever meant the ROM crashed before touching R12.
+**Detection method.** jsmolka / alyosha ROMs spin in a `b .` loop with `R12`
+holding the failing test number (`0` = all pass); the GBA plugin's `r12`
+adapter turns that into `END 1/1` / `END 0/1 code=<n>` in the
+[VELOCE-RESULT/1](docs/testing/VELOCE-RESULT.md) result file, which the harness
+reads. The nba-hw-test ROMs never used this protocol (upstream prints only to
+the screen), so the R12 value once read for them was an arbitrary scratch
+register. They now run as `rom_variant: veloce` rebuilds that write one `CHECK`
+line per expectation and an `END` line over the mGBA debug registers (Tier A,
+`channel: mgba`); their expected values are upstream's hardware numbers, and
+[`verify_windows.py`](tests/roms-src/gba/nba_hw_test/PROVENANCE.md) checks that
+every measured instruction window matches the binary those numbers were
+measured with.
 
-**Known limitation of the detector itself.** The stable-PC heuristic can also
-report a ROM that has hung or crashed into an unrelated stable state as
-`PASSED` - it does not confirm the ROM ever reached its own "all tests passed"
-spin. This is tracked as a separate finding; until it is fixed, treat every
-PASS above as measured-but-provisional, not reference-grade, and re-derive
+**Known limitation of the detector itself.** The `r12` adapter is a Tier C
+heuristic. It now requires the stable PC to be a one-instruction `b .` loop, so
+a ROM halted in an IntrWait loop or spinning in an exception vector no longer
+reads as a verdict, but it still cannot confirm that a `b .` it finds is the
+ROM's own "all tests passed" spin. Until these ROMs report `CHECK`/`END` lines
+themselves (GBA-5a), treat every PASS above as measured-but-provisional, not
+reference-grade, and re-derive
 this table from a fresh `runner.py --json` run rather than trusting hand-copied
 numbers - the previous version of this table (NBA DMA/IRQ/timer/HALTCNT all
 claimed PASS) had drifted from what the suite actually measures.
@@ -3430,3 +3431,22 @@ full build completes without warnings, component UBSAN and four executed fault
 controls pass, and **117 original archives reproduce**. The original rectangle
 capture suite and all of its negative controls pass. The private report's core,
 probe, trace, script and capture hashes match the final local artifacts.
+
+## GBA result-channel integration (2026-10-11)
+
+The old GBA branch is integrated with the current owned observation path;
+`mgba,r12` is handled by one channel module. The unknown-status completion
+register and enable handshake are preserved. Explicit completion suppresses
+inferred verdicts; the legacy macro adapter reads the actual evaluated register.
+
+The independent original shift oracle passes 65,536 result/CPSR pairs, with
+executed wrong-opcode and malformed-stream negative controls. Nine original
+production fixtures save actual captures; both original emitter dialects pass
+literal transcript, deliberate failure and exact-repeat checks. Fourteen
+supplemental/emitter images rebuild, the NBA instruction-window audit passes,
+and 117 archived original images reproduce. Earlier external catalog counts
+have not been rerun and do not establish current full hardware accuracy.
+
+GBA remains **40% = 8/20 delivery milestones**; netplay, complete CPU/device
+accuracy, full corpus grading and physical controller validation remain open.
+CI/CD remains disabled. See [core evidence](cores/gba/README.md#result-channel-branch-integration-2026-10-11).

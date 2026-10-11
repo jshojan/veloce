@@ -1,0 +1,22 @@
+{
+  "console": "gba",
+  "suite": "jsmolka_golden_arm",
+  "description": "GBA-2's FASMARM golden-gate proof: rebuilds jsmolka/gba-tests' arm/arm.gba unmodified from its pinned source and checks it against the binary jsmolka shipped at that commit. Proves tools/rom-toolchain's fasmarm stage reproduces this suite's toolchain byte-for-byte before GBA-5a patches it from source. Not the suite's real recipe (GBA-3/5a add rom_variant: veloce patches across the full 114-ROM jsmolka/alyosha collection); this one ROM exists to gate the toolchain, per docs/testing/testrom-plan.md GBA-2.",
+  "license": "MIT (Copyright 2019 Julian Smolka), see PROVENANCE.md",
+  "repo": {
+    "url": "https://github.com/jsmolka/gba-tests.git",
+    "sha": "a7113b67e63f83a9b321696ddd7042ccfad6c881"
+  },
+  "toolchain_stage": "fasmarm",
+  "golden_gate": true,
+  "rom_variant": "upstream",
+  "build": {
+    "workdir": "arm",
+    "commands": [
+      "$FASMARM arm.asm arm.gba"
+    ],
+    "artifacts": {
+      "arm/arm.gba": "arm.gba"
+    }
+  }
+}

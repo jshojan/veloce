@@ -90,12 +90,14 @@ class Recipe:
     local_source: bool = False      # Veloce-authored ROM: no upstream to clone or golden-gate
     raw: dict = field(default_factory=dict)
 
+    source_dir: str = "."         # local_source recipes may build in a subdirectory
+
     @property
     def clone_dir(self) -> Path:
         # A local_source recipe builds straight from its own committed
         # sources (tests/roms-src/<console>/<suite>/), never a cloned
         # upstream/ checkout -- there is no upstream.
-        return self.dir if self.local_source else self.dir / "upstream"
+        return self.dir / self.source_dir if self.local_source else self.dir / "upstream"
 
     @staticmethod
     def load(path: Path) -> "Recipe":
@@ -119,6 +121,7 @@ class Recipe:
             rom_variant=raw.get("rom_variant", "upstream"),
             license=raw.get("license", ""),
             local_source=local_source,
+            source_dir=raw.get("source_dir", "."),
             raw=raw,
         )
 
@@ -198,13 +201,16 @@ def _user_args() -> list[str]:
 
 
 def run_in_toolchain(image: str, clone_dir: Path, workdir: str, commands: list[str]) -> None:
+    # Preserve shared emitter paths with a read-only source-tree mount;
+    # only the active source/clone directory is writable. Keep the existing
+    # /veloce-include alias for NES recipes using an absolute include path.
     script = " && ".join(commands)
-    container_workdir = f"/work/{workdir}" if workdir not in (".", "") else "/work"
-    mounts = ["-v", f"{clone_dir.resolve()}:/work"]
-    # tests/roms-src/include/ (the "one include per assembler" vt_* emitters,
-    # docs/testing/VELOCE-RESULT.md section 6) is shared across every suite's
-    # own clone/source directory, so it gets its own read-only mount; a
-    # recipe's commands reach it with "-I /veloce-include".
+    workdir_abs = (clone_dir / workdir).resolve()
+    relative = workdir_abs.relative_to(ROMS_SRC)
+    container_workdir = "/repo/tests/roms-src/" + relative.as_posix()
+    active = "/repo/tests/roms-src/" + clone_dir.resolve().relative_to(ROMS_SRC).as_posix()
+    mounts = ["-v", f"{ROMS_SRC.resolve()}:/repo/tests/roms-src:ro",
+              "-v", f"{clone_dir.resolve()}:{active}"]
     include_dir = ROMS_SRC / "include"
     if include_dir.is_dir():
         mounts += ["-v", f"{include_dir.resolve()}:/veloce-include:ro"]

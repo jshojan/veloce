@@ -4,8 +4,7 @@
 #include "apu.hpp"
 #include "cartridge.hpp"
 #include "debug.hpp"
-#include "emu/emulator_plugin.hpp"
-#include <algorithm>
+#include "test_channel.hpp"
 #include <cstring>
 
 namespace gba {
@@ -495,16 +494,6 @@ void Bus::write8(uint32_t address, uint8_t value) {
         }
 
         case MemoryRegion::IO: {
-            // Debug strings are byte-addressable storage. The ordinary I/O
-            // merge reads zero from this write-only range and would erase the
-            // neighboring byte whenever software writes a character.
-            if (address >= 0x04FFF600 && address < 0x04FFF700) {
-                size_t offset = address - 0x04FFF600;
-                m_debug_string[offset] = static_cast<char>(value);
-                m_debug_string_pos = std::max(m_debug_string_pos, offset + 1);
-                break;
-            }
-
             // Byte writes to I/O need special handling. The generic path
             // below reconstructs a full 16-bit value by merging the new
             // byte with whatever the *other* byte currently reads back as,
@@ -517,6 +506,15 @@ void Bus::write8(uint32_t address, uint8_t value) {
             // only meant to touch the byte it actually wrote. Route IF
             // through a dedicated lane-masked ack instead: only the byte
             // lane actually written may clear IF/IF-serviced bits.
+            // mGBA debug string bytes are stored as-is. The read-merge
+            // below would otherwise clobber the neighbouring character
+            // (the string is write-only and reads back as 0), which breaks
+            // any ROM that fills the string with byte stores.
+            if (is_debug_string_address(address)) {
+                m_debug_string[(address & 0xFFFF) - 0xF600] = static_cast<char>(value);
+                break;
+            }
+
             uint32_t io_addr = address & ~1u;
             if ((io_addr & 0xFFF) == 0x202) {
                 uint16_t lane_value = (address & 1)
@@ -853,8 +851,8 @@ void Bus::write_io(uint32_t address, uint16_t value) {
     if (debug_offset >= 0xF600) {
         // Veloce-only completion hint, active only with a host sink. It
         // carries no PASS verdict and does not replace the mGBA handshake.
-        if (address == 0x04FFF782 && m_test_sink) {
-            if (value == 1) m_test_sink->finish(-1);
+        if (address == 0x04FFF782 && m_test_channel && m_test_channel->attached()) {
+            if (value == 1) m_test_channel->complete_observations();
             return;
         }
         if (debug_offset == 0xF780) {
@@ -870,17 +868,12 @@ void Bus::write_io(uint32_t address, uint16_t value) {
             }
             return;
         }
-        if (debug_offset >= 0xF600 && debug_offset < 0xF700) {
-            // REG_DEBUG_STRING - write characters to debug string buffer
+        if (is_debug_string_address(address)) {
+            // REG_DEBUG_STRING - 256-byte text buffer
             size_t buf_offset = debug_offset - 0xF600;
-            if (buf_offset < m_debug_string.size()) {
-                m_debug_string[buf_offset] = static_cast<char>(value & 0xFF);
-                if (buf_offset + 1 < m_debug_string.size()) {
-                    m_debug_string[buf_offset + 1] = static_cast<char>((value >> 8) & 0xFF);
-                }
-                // Track the written extent without exceeding the array.
-                m_debug_string_pos = std::max(m_debug_string_pos,
-                    std::min(buf_offset + 2, m_debug_string.size()));
+            m_debug_string[buf_offset] = static_cast<char>(value & 0xFF);
+            if (buf_offset + 1 < m_debug_string.size()) {
+                m_debug_string[buf_offset + 1] = static_cast<char>((value >> 8) & 0xFF);
             }
             return;
         }
@@ -1886,38 +1879,17 @@ bool Bus::load_state(const uint8_t*& data, size_t& remaining) {
 }
 
 void Bus::flush_debug_string() {
-    // Output the debug string buffer with [GBA/DEBUG] prefix
-    // This is used by test ROMs that support mGBA's debug console
-    if (m_debug_string_pos > 0) {
-        // Scan within the buffer: a full 256-byte write must never append a
-        // terminator past the array. mGBA messages end at the first NUL.
-        const size_t length = static_cast<size_t>(std::find(
-            m_debug_string.begin(), m_debug_string.end(), '\0') - m_debug_string.begin());
-        if (m_test_sink && m_debug_enabled) {
-            m_test_sink->write(m_debug_string.data(), length);
-            if (length == 0 || m_debug_string[length - 1] != '\n') m_test_sink->write("\n", 1);
-        }
-
-        // Determine log level from flags
-        const char* level = "DEBUG";
-        int log_level = m_debug_flags & 0x7;
-        switch (log_level) {
-            case 0: level = "FATAL"; break;
-            case 1: level = "ERROR"; break;
-            case 2: level = "WARN"; break;
-            case 3: level = "INFO"; break;
-            case 4: level = "DEBUG"; break;
-            default: level = "LOG"; break;
-        }
-
-        // Output the debug message
-        if (!m_test_sink) fprintf(stderr, "[GBA/%s] %.*s\n", level,
-                                  static_cast<int>(length), m_debug_string.data());
-
-        // Reset buffer for next message
-        m_debug_string.fill('\0');
-        m_debug_string_pos = 0;
+    // REG_DEBUG_FLAGS written with bit 8 set: hand the string (up to its
+    // first NUL, at most 256 bytes) and the log level (bits 0-2: FATAL 0,
+    // ERROR 1, WARN 2, INFO 3, DEBUG 4) to the test channel, then clear the
+    // buffer for the next message, as mGBA does. Without VELOCE_TEST_OUT the
+    // channel has no sink and the text is discarded.
+    size_t n = 0;
+    while (n < m_debug_string.size() && m_debug_string[n] != '\0') ++n;
+    if (m_test_channel && m_debug_enabled) {
+        m_test_channel->debug_flush(m_debug_string.data(), n, m_debug_flags & 0x7);
     }
+    m_debug_string.fill('\0');
 }
 
 } // namespace gba

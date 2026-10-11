@@ -378,6 +378,9 @@ console. Start here:
   completeness percentage is computed.
 - [COMPLETENESS.md](COMPLETENESS.md) - the per-console accuracy scorecard, every
   number justified against what is verified versus unverified.
+- [docs/testing/VELOCE-RESULT.md](docs/testing/VELOCE-RESULT.md) - the
+  `VELOCE_TEST_OUT` result-file protocol every scored verdict is built on:
+  the ROM-facing port per console, the plugin ABI, and how a core adopts it.
 
 | Console | Verified headline | Detail |
 |---------|-------------------|--------|
@@ -632,6 +635,12 @@ actual production adapter captures saved to files. Delivery remains 40%;
 whole-platform hardware accuracy remains unmeasured. See the [GB integration
 evidence](cores/gb/README.md#result-channel-branch-integration-2026-10-11).
 
+The GBA result-channel branch is integrated: 65,536 original result/CPSR pairs
+match the host oracle, and nine production fixtures capture ARM/Thumb and mGBA
+adapter behavior. Both original emitter dialects repeat exactly with a deliberate
+failure. Delivery remains 40%; timing and full compatibility remain unverified.
+See the [GBA integration evidence](cores/gba/README.md#result-channel-branch-integration-2026-10-11).
+
 ## Project Structure
 
 ```
@@ -662,6 +671,7 @@ veloce/
 - [nlohmann/json](https://github.com/nlohmann/json) - JSON library
 - [nes-test-roms](https://github.com/christopherpow/nes-test-roms) - NES emulator test ROMs
 - [gba-tests](https://github.com/jsmolka/gba-tests) - GBA emulator test ROMs by jsmolka
+- [hw-test](https://codeberg.org/nba-emu/hw-test) - GBA hardware timing tests by fleroviux (NanoBoyAdvance), rebuilt with a result-channel patch
 - [snes-tests](https://github.com/gilyon/snes-tests) - SNES emulator test ROMs by gilyon
 - [Project64](https://www.pj64-emu.com/) - Plugin architecture inspiration
 

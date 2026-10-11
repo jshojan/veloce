@@ -1,9 +1,10 @@
 {
   "schema_version": 2,
   "console": "gba",
-  "description": "Veloce GBA core authoritative test suite. Subsystem-organized, prioritized, with per-test result-detection. Goal: state with evidence how architecturally correct AND cycle-accurate the GBA core is. Detection: jsmolka/alyosha/FuzzARM ROMs spin with R12 = failing test # (0 = pass); the Veloce GBA plugin detects the stable-PC spin loop and prints '[GBA] PASSED' / '[GBA] FAILED - Failed at test #N' (parsed by the 'serial' family detector, GBA sub-variant). Visual ROMs are captured via SAVE_SCREENSHOT and CRC32-compared. Interactive ROMs (mGBA suite, armwrestler) have no headless auto-verdict and are marked known_fail/RUNS until a screenshot reference is pinned.",
-  "timeout_seconds": 60,
+  "description": "Veloce GBA core authoritative test suite. Subsystem-organized, prioritized, with per-test result-detection. Goal: state with evidence how architecturally correct AND cycle-accurate the GBA core is. Detection: every verdict comes from the VELOCE-RESULT/1 file the app writes to VELOCE_TEST_OUT. jsmolka/alyosha/FuzzARM ROMs park in a 'b .' loop with R12 = failing test # (0 = pass); the Veloce GBA plugin's r12 adapter turns that into 'END 1/1' / 'END 0/1 code=<n>' in the file ('serial' is a deprecated alias of 'file'). ROMs that print through the mGBA debug registers write their own lines (mgba channel). Visual ROMs are captured via SAVE_SCREENSHOT and CRC32-compared. Interactive ROMs (mGBA suite, armwrestler) have no headless auto-verdict and are marked known_fail/RUNS until a screenshot reference is pinned.",
+  "timeout_seconds": 180,
   "frame_limit": 1200,
+  "rom_build": {"dockerfile": "tools/rom-toolchain/Dockerfile", "recipes": "tests/roms-src/gba"},
 
   "repositories": {
     "jsmolka": {
@@ -21,11 +22,11 @@
       "description": "Extended timing/IRQ/DMA/prefetch/LDM/interaction/PSR cycle-accuracy tests (fork of jsmolka)."
     },
     "nba-hw-test": {
-      "url": "https://github.com/nba-emu/hw-test.git",
+      "url": "https://codeberg.org/nba-emu/hw-test.git",
       "dir": "nba-hw-test",
       "type": "git",
-      "license": "see upstream (NanoBoyAdvance hw-test)",
-      "description": "NanoBoyAdvance hardware tests: DMA latch/start-delay, IRQ delay, timer, PPU status IRQ/DMA, HALTCNT, bus boundary."
+      "license": "BSD-3-Clause (Copyright 2021, fleroviux)",
+      "description": "NanoBoyAdvance hardware tests (moved from GitHub to Codeberg in 2026; the GitHub repo is archived). The scored ROMs run as rom_variant veloce rebuilds (tests/roms-src/gba/nba_hw_test, veloce/nba_hw_test/*); this clone only supplies the unmodified ppu/bgpd and ppu/bgx for visual_test_suites."
     },
     "fuzzarm": {
       "url": "https://github.com/DenSinH/FuzzARM.git",
@@ -171,14 +172,14 @@
 
     "memory_bus": {
       "name": "Bus / Boundary Crossing",
-      "description": "Wait-state and access-width behavior crossing the 128KB EWRAM bank boundary mid-transfer.",
+      "description": "LDM and DMA (incrementing/decrementing) timing across memory-region and 128 KiB cartridge-ROM page boundaries (0x07FFFFF8 into ROM, 0x0801FFF8, 0x0803FFF8), where the next access is forced non-sequential.",
       "subsystem": "memory",
       "priority": "medium",
       "repo": "nba-hw-test",
       "tests": [
-        {"path": "bus/128kb-boundary/128kb-boundary.gba", "expected": "pass", "accuracy_type": "timing", "result_detection": "serial", "priority": "medium",
-         "source_url": "https://github.com/nba-emu/hw-test", "license": "see upstream",
-         "notes": "EWRAM is a 256KB chip mirrored; transfers crossing 128KB exercise the wrap."}
+        {"path": "veloce/nba_hw_test/128kb-boundary.gba", "expected": "pass", "accuracy_type": "timing", "result_detection": "file", "channel": "mgba", "require_channel": "mgba", "rom_variant": "veloce", "expected_checks": 18, "priority": "medium",
+         "source_url": "https://codeberg.org/nba-emu/hw-test", "license": "BSD-3-Clause",
+         "notes": "rom_variant veloce: rebuilt by tests/roms-src/build.py gba/nba_hw_test from the pinned Codeberg source with the Veloce patch that reports every check as a CHECK line over the mGBA debug registers (tests/roms-src/gba/nba_hw_test/PROVENANCE.md); without the build this test SKIPs. 18 checks: LDM, DMA INC and DMA DEC at six addresses each. The measured time() routine is pinned to the shipped binary's instruction sequence (see PROVENANCE.md)."}
       ]
     },
 
@@ -271,8 +272,9 @@
       "priority": "high",
       "repo": "nba-hw-test",
       "tests": [
-        {"path": "irq/irq-delay/irq-delay.gba", "expected": "pass", "accuracy_type": "cycle-accurate", "result_detection": "serial", "priority": "high",
-         "source_url": "https://github.com/nba-emu/hw-test", "license": "see upstream"}
+        {"path": "veloce/nba_hw_test/irq-delay.gba", "expected": "pass", "accuracy_type": "cycle-accurate", "result_detection": "file", "channel": "mgba", "require_channel": "mgba", "rom_variant": "veloce", "expected_checks": 3, "priority": "high",
+         "source_url": "https://codeberg.org/nba-emu/hw-test", "license": "BSD-3-Clause",
+         "notes": "rom_variant veloce: rebuilt by tests/roms-src/build.py gba/nba_hw_test from the pinned Codeberg source with the Veloce patch that reports every check as a CHECK line over the mGBA debug registers (tests/roms-src/gba/nba_hw_test/PROVENANCE.md); without the build this test SKIPs. IRQ TIME from IWRAM, EWRAM and ROM."}
       ]
     },
 
@@ -302,10 +304,18 @@
       "priority": "high",
       "repo": "nba-hw-test",
       "tests": [
-        {"path": "dma/latch/latch.gba",                       "expected": "pass", "accuracy_type": "cycle-accurate", "result_detection": "serial", "priority": "high", "source_url": "https://github.com/nba-emu/hw-test", "license": "see upstream"},
-        {"path": "dma/start-delay/start-delay.gba",           "expected": "pass", "accuracy_type": "cycle-accurate", "result_detection": "serial", "priority": "high", "source_url": "https://github.com/nba-emu/hw-test", "license": "see upstream", "notes": "2-cycle DMA start delay."},
-        {"path": "dma/force-nseq-access/force-nseq-access.gba","expected": "pass", "accuracy_type": "cycle-accurate", "result_detection": "serial", "priority": "high", "source_url": "https://github.com/nba-emu/hw-test", "license": "see upstream"},
-        {"path": "dma/burst-into-tears/burst-into-tears.gba", "expected": "pass", "accuracy_type": "cycle-accurate", "result_detection": "serial", "priority": "high", "source_url": "https://github.com/nba-emu/hw-test", "license": "see upstream"}
+        {"path": "veloce/nba_hw_test/latch.gba", "expected": "pass", "accuracy_type": "cycle-accurate", "result_detection": "file", "channel": "mgba", "require_channel": "mgba", "rom_variant": "veloce", "expected_checks": 4, "priority": "high",
+         "source_url": "https://codeberg.org/nba-emu/hw-test", "license": "BSD-3-Clause",
+         "notes": "rom_variant veloce: rebuilt by tests/roms-src/build.py gba/nba_hw_test from the pinned Codeberg source with the Veloce patch that reports every check as a CHECK line over the mGBA debug registers (tests/roms-src/gba/nba_hw_test/PROVENANCE.md); without the build this test SKIPs. Per-channel DMA data latch and open bus (DMA LATCH 0/1/2, BUS LATCH)."},
+        {"path": "veloce/nba_hw_test/start-delay.gba", "expected": "pass", "accuracy_type": "cycle-accurate", "result_detection": "file", "channel": "mgba", "require_channel": "mgba", "rom_variant": "veloce", "expected_checks": 1, "priority": "high",
+         "source_url": "https://codeberg.org/nba-emu/hw-test", "license": "BSD-3-Clause",
+         "notes": "rom_variant veloce: rebuilt by tests/roms-src/build.py gba/nba_hw_test from the pinned Codeberg source with the Veloce patch that reports every check as a CHECK line over the mGBA debug registers (tests/roms-src/gba/nba_hw_test/PROVENANCE.md); without the build this test SKIPs. Immediate DMA start delay measured with TM0 (IMM)."},
+        {"path": "veloce/nba_hw_test/force-nseq-access.gba", "expected": "pass", "accuracy_type": "cycle-accurate", "result_detection": "file", "channel": "mgba", "require_channel": "mgba", "rom_variant": "veloce", "expected_checks": 2, "priority": "high",
+         "source_url": "https://codeberg.org/nba-emu/hw-test", "license": "BSD-3-Clause",
+         "notes": "rom_variant veloce: rebuilt by tests/roms-src/build.py gba/nba_hw_test from the pinned Codeberg source with the Veloce patch that reports every check as a CHECK line over the mGBA debug registers (tests/roms-src/gba/nba_hw_test/PROVENANCE.md); without the build this test SKIPs. First DMA access forced non-sequential (EWRAM DMA, ROM DMA)."},
+        {"path": "veloce/nba_hw_test/burst-into-tears.gba", "expected": "pass", "accuracy_type": "cycle-accurate", "result_detection": "file", "channel": "mgba", "require_channel": "mgba", "rom_variant": "veloce", "expected_checks": 3, "priority": "high",
+         "source_url": "https://codeberg.org/nba-emu/hw-test", "license": "BSD-3-Clause",
+         "notes": "rom_variant veloce: rebuilt by tests/roms-src/build.py gba/nba_hw_test from the pinned Codeberg source with the Veloce patch that reports every check as a CHECK line over the mGBA debug registers (tests/roms-src/gba/nba_hw_test/PROVENANCE.md); without the build this test SKIPs. DMA3 from IWRAM end into ROM with decrementing destination: two data values and the transfer time."}
       ]
     },
 
@@ -345,8 +355,12 @@
       "priority": "high",
       "repo": "nba-hw-test",
       "tests": [
-        {"path": "timer/start-stop/start-stop.gba", "expected": "pass", "accuracy_type": "cycle-accurate", "result_detection": "serial", "priority": "high", "source_url": "https://github.com/nba-emu/hw-test", "license": "see upstream"},
-        {"path": "timer/reload/reload.gba",         "expected": "pass", "accuracy_type": "cycle-accurate", "result_detection": "serial", "priority": "high", "source_url": "https://github.com/nba-emu/hw-test", "license": "see upstream"}
+        {"path": "veloce/nba_hw_test/start-stop.gba", "expected": "pass", "accuracy_type": "cycle-accurate", "result_detection": "file", "channel": "mgba", "require_channel": "mgba", "rom_variant": "veloce", "expected_checks": 2, "priority": "high",
+         "source_url": "https://codeberg.org/nba-emu/hw-test", "license": "BSD-3-Clause",
+         "notes": "rom_variant veloce: rebuilt by tests/roms-src/build.py gba/nba_hw_test from the pinned Codeberg source with the Veloce patch that reports every check as a CHECK line over the mGBA debug registers (tests/roms-src/gba/nba_hw_test/PROVENANCE.md); without the build this test SKIPs. Timer start and stop latency (1ST, 2ND)."},
+        {"path": "veloce/nba_hw_test/reload.gba", "expected": "pass", "accuracy_type": "cycle-accurate", "result_detection": "file", "channel": "mgba", "require_channel": "mgba", "rom_variant": "veloce", "expected_checks": 7, "priority": "high",
+         "source_url": "https://codeberg.org/nba-emu/hw-test", "license": "BSD-3-Clause",
+         "notes": "rom_variant veloce: rebuilt by tests/roms-src/build.py gba/nba_hw_test from the pinned Codeberg source with the Veloce patch that reports every check as a CHECK line over the mGBA debug registers (tests/roms-src/gba/nba_hw_test/PROVENANCE.md); without the build this test SKIPs. Reload on overflow and reload-register overwrites with 16/32-bit stores at different cycles."}
       ]
     },
 
@@ -357,8 +371,9 @@
       "priority": "medium",
       "repo": "nba-hw-test",
       "tests": [
-        {"path": "haltcnt/haltcnt.gba", "expected": "pass", "accuracy_type": "timing", "result_detection": "serial", "priority": "medium",
-         "source_url": "https://github.com/nba-emu/hw-test", "license": "see upstream"}
+        {"path": "veloce/nba_hw_test/haltcnt.gba", "expected": "pass", "accuracy_type": "timing", "result_detection": "file", "channel": "mgba", "require_channel": "mgba", "rom_variant": "veloce", "expected_checks": 6, "priority": "medium",
+         "source_url": "https://codeberg.org/nba-emu/hw-test", "license": "BSD-3-Clause",
+         "notes": "rom_variant veloce: rebuilt by tests/roms-src/build.py gba/nba_hw_test from the pinned Codeberg source with the Veloce patch that reports every check as a CHECK line over the mGBA debug registers (tests/roms-src/gba/nba_hw_test/PROVENANCE.md); without the build this test SKIPs. HALT entered directly, through CpuSet and through DMA, POSTFLG preserved, and HALT with an IRQ already pending from IWRAM and ROM. The HALTCNT CPUSET DMA window is pinned to the shipped binary's instruction sequence (see PROVENANCE.md)."}
       ]
     },
 
@@ -430,27 +445,9 @@
       "priority": "high",
       "repo": "nba-hw-test",
       "tests": [
-        {"path": "ppu/status-irq-dma/status-irq-dma.gba", "expected": "known_fail", "accuracy_type": "cycle-accurate", "result_detection": "serial", "priority": "high",
-         "source_url": "https://github.com/nba-emu/hw-test", "license": "see upstream",
-         "notes": "Needs sub-scanline DISPSTAT timing; flagged known_fail until the catch-up renderer is cycle-exact."}
-      ]
-    },
-
-    "ppu_affine_visual": {
-      "name": "PPU Affine BG (visual)",
-      "description": "Affine/rotation-scaling background reference-point (BGxX) and parameter (BGxPD) registers, captured as framebuffer CRC. reference_hash must be pinned with --generate-refs before these score.",
-      "subsystem": "ppu",
-      "priority": "medium",
-      "repo": "nba-hw-test",
-      "tests": [
-        {"path": "ppu/bgpd/bgpd.gba", "expected": "known_fail", "accuracy_type": "visual", "result_detection": "screenshot-crc", "priority": "medium",
-         "screenshot_frame": 120, "reference_hash": "",
-         "source_url": "https://github.com/nba-emu/hw-test", "license": "see upstream",
-         "notes": "BGxPD affine D parameter. Pin reference_hash via --generate-refs, then set expected=pass."},
-        {"path": "ppu/bgx/bgx.gba",   "expected": "known_fail", "accuracy_type": "visual", "result_detection": "screenshot-crc", "priority": "medium",
-         "screenshot_frame": 120, "reference_hash": "",
-         "source_url": "https://github.com/nba-emu/hw-test", "license": "see upstream",
-         "notes": "BGxX affine reference point latch. Pin reference_hash to score."}
+        {"path": "veloce/nba_hw_test/status-irq-dma.gba", "expected": "known_fail", "accuracy_type": "cycle-accurate", "result_detection": "file", "channel": "mgba", "require_channel": "mgba", "rom_variant": "veloce", "expected_checks": 12, "priority": "high", "frames": 6500,
+         "source_url": "https://codeberg.org/nba-emu/hw-test", "license": "BSD-3-Clause",
+         "notes": "rom_variant veloce: rebuilt by tests/roms-src/build.py gba/nba_hw_test from the pinned Codeberg source with the Veloce patch that reports every check as a CHECK line over the mGBA debug registers (tests/roms-src/gba/nba_hw_test/PROVENANCE.md); without the build this test SKIPs. The upstream ROM is a menu; the Veloce patch runs its four pages (DISPSTAT, VCOUNT, IF, DMA) once, unattended, and emits one TEST group per page. Each page searches up to 1232 cycle offsets at about one frame per offset, so a correct core needs ~2900 frames and one whose flags never change up to ~6200; frames 6500 covers both (the reason timeout_seconds is 180, not 60: the frame budget, not wall time, is what ends a slow run). Needs sub-scanline DISPSTAT timing; flagged known_fail until the catch-up renderer is cycle-exact."}
       ]
     },
 
@@ -494,8 +491,28 @@
     }
   },
 
+  "visual_test_suites": {
+    "ppu_affine_visual": {
+      "name": "PPU Affine BG (visual, non-scoring)",
+      "description": "When BG2PD and BG2X written mid-frame by H-blank DMA are latched for the next scanline. Both registers are write-only and the ROMs assert nothing: their only result is the rendered picture (upstream's expected.png), which no CPU-readable register exposes. Kept as upstream binaries for manual/visual comparison; they never score (docs/testing/VELOCE-RESULT.md, section 4).",
+      "subsystem": "ppu",
+      "priority": "medium",
+      "repo": "nba-hw-test",
+      "tests": [
+        {"path": "ppu/bgpd/bgpd.gba", "expected": "known_fail", "accuracy_type": "visual", "result_detection": "screenshot-crc", "priority": "medium",
+         "screenshot_frame": 120, "reference_hash": "",
+         "source_url": "https://codeberg.org/nba-emu/hw-test", "license": "BSD-3-Clause",
+         "notes": "BG2PD latch timing. Non-scoring: compare against upstream ppu/bgpd/expected.png by eye. The CPU-observable part of affine-register latching belongs to the planned gba_ppu_readback_and_latch ROM (GBA-11)."},
+        {"path": "ppu/bgx/bgx.gba",   "expected": "known_fail", "accuracy_type": "visual", "result_detection": "screenshot-crc", "priority": "medium",
+         "screenshot_frame": 120, "reference_hash": "",
+         "source_url": "https://codeberg.org/nba-emu/hw-test", "license": "BSD-3-Clause",
+         "notes": "BG2X reference-point latch timing. Non-scoring: compare against upstream ppu/bgx/expected.png by eye (see ppu/bgpd)."}
+      ]
+    }
+  },
+
   "known_issues": {
-    "ppu_sub_scanline": "DISPSTAT HBlank IRQ + HBlank DMA (ppu_status_dma) and BGxX/BGxPD affine (ppu_affine_visual) need a cycle-exact / sub-scanline PPU. They are marked known_fail and excluded from the headline score until the catch-up renderer is verified cycle-accurate.",
+    "ppu_sub_scanline": "DISPSTAT HBlank IRQ + HBlank DMA (ppu_status_dma) needs a cycle-exact / sub-scanline PPU and is marked known_fail until the catch-up renderer is verified cycle-accurate. BGxX/BGxPD affine latching (visual_test_suites.ppu_affine_visual) has no CPU-readable result and never scores.",
     "fuzzarm_armwrestler": "FuzzARM and ARMWrestler report pass/fail by drawing to the framebuffer, not by spinning with R12. There is no headless auto-verdict path today, so they are marked known_fail. To score them: capture a known-good screenshot reference and switch them to screenshot-crc, or rebuild with an mGBA-debug-string-printing harness.",
     "mgba_suite_excluded": "mgba-emu/suite (suite.gba) is an interactive menu-driven ROM with no headless pass/fail signal; deliberately not in the run set. Run it manually for spot checks of timing/IO/BIOS-math/shifter sections.",
     "ags_excluded": "The AGS aging cartridge is Nintendo proprietary diagnostic firmware and is not redistributable; cannot be included. Documented for completeness only.",
@@ -506,7 +523,7 @@
     "GBATEK": "https://problemkaputt.de/gbatek.htm",
     "jsmolka/gba-tests": "https://github.com/jsmolka/gba-tests",
     "alyosha-tas/gba-tests": "https://github.com/alyosha-tas/gba-tests",
-    "nba-emu/hw-test": "https://github.com/nba-emu/hw-test",
+    "nba-emu/hw-test": "https://codeberg.org/nba-emu/hw-test",
     "DenSinH/FuzzARM": "https://github.com/DenSinH/FuzzARM",
     "destoer/armwrestler-gba-fixed": "https://github.com/destoer/armwrestler-gba-fixed",
     "mgba-emu/suite": "https://github.com/mgba-emu/suite",

@@ -3,12 +3,13 @@
 Veloce GBA test runner shim built on the shared `veloce_testkit`.
 
 This is the schema-v2 / scorecard entrypoint. It reuses the platform-wide
-detection (`detect.detect_gba_register` -> '[GBA] PASSED/FAILED') and the
-weighted completeness scoring, so the GBA accuracy number is computed the
-exact same way as every other console.
+detection (the VELOCE-RESULT/1 file the app writes to `VELOCE_TEST_OUT`, fed
+by the plugin's `mgba` channel and `r12` adapter) and the weighted
+completeness scoring, so the GBA accuracy number is computed the exact same
+way as every other console. `run_tests.sh` forwards here.
 
-The legacy `test_runner.py` remains for the older flat-summary output and is
-still wired into `run_tests.sh`; both read the same `test_config.json`.
+The legacy `test_runner.py` remains for the older flat-summary output; it
+reads the same result file and the same `test_config.json`.
 
 Usage:
     python3 runner.py                 # run all, render scorecard
@@ -20,6 +21,7 @@ Usage:
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -52,10 +54,35 @@ from veloce_testkit.schema import load_config        # noqa: E402
 # arm/arm.gba) the per-suite repo dir disambiguates via a merged view built here.
 
 
+# ROMs rebuilt by tests/roms-src/build.py land in <repo>/build/roms/gba/<suite>/.
+# Config entries with rom_variant "veloce" address them as
+# "veloce/<suite>/<rom>", through this symlink in the merged view; the harness
+# still refuses any such ROM whose sha256 is not in
+# tests/roms-src/rom_manifest.json. Without a build the link dangles and those
+# tests SKIP ("ROM not found"). Same layout as cores/gb/tests.
+VELOCE_LINK = "veloce"
+
+
+def _link_veloce_builds(merged: Path) -> None:
+    link = merged / VELOCE_LINK
+    target = Path(os.path.relpath(_REPO_ROOT / "build" / "roms" / "gba", merged))
+    try:
+        if link.is_symlink():
+            if Path(os.readlink(link)) == target:
+                return
+            link.unlink()
+        elif link.exists():
+            return  # a real directory someone put there; leave it alone
+        link.symlink_to(target, target_is_directory=True)
+    except OSError as e:
+        print(f"  warning: cannot link {link} -> {target}: {e}", file=sys.stderr)
+
+
 def _ensure_repos(script_dir: Path, keep: bool, verbose: bool) -> Path:
     cfg = load_config(script_dir / "test_config.json", "gba")
     merged = script_dir / "_roms"
     merged.mkdir(exist_ok=True)
+    _link_veloce_builds(merged)
 
     for repo_id, repo in cfg.repositories.items():
         url = repo.get("url")
