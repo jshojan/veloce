@@ -52,7 +52,7 @@ int main(){
     combiner.combine=(15ull<<37)|(15ull<<24)|(31ull<<32)|(1ull<<6)|(7ull<<21)|(7ull<<3)|(7ull<<18)|1;
     unsigned rejected=0;
     auto reject=[&](uint64_t m,const n64::RdpCombiner& c){std::vector<uint8_t> ram(160,0x5a);const auto before=ram;check(n64::RdpTriangleShade::draw(packet,image,m,scissor,c,ram,&texture,&tmem)==1 && ram==before);++rejected;};
-    const uint64_t allowed=(15ull<<36)|(63ull<<42)|0xffff0000ull|0x340;
+    const uint64_t allowed=(15ull<<36)|(63ull<<42)|(1ull<<51)|0xffff0000ull|0x340;
     for(unsigned bit=0;bit<56;++bit)if(!(allowed&(1ull<<bit)))reject(mode|(1ull<<bit),combiner);
     reject(mode&~(1ull<<43),combiner);
     // Current/next texel feedback, LOD, key, noise and conversion coefficients

@@ -1,6 +1,6 @@
 # Experimental Nintendo 64 core plugin
 
-Current N64 evidence: [SetConvert/color conversion and current Mario status](#setconvert-and-texture-color-conversion). Earlier increment reports are historical.
+Current N64 evidence: [Perspective texture division and current Mario status](#perspective-texture-division). Earlier increment reports are historical.
 
 <!-- completion:start -->
 ## Completion percentage
@@ -13,7 +13,7 @@ These percentages count the 20 explicit delivery milestones in [the completion l
 
 Nintendo 64 delivered milestones: Guest sound produces audio samples, Native digital controller/keypad registers consume frontend input, Guest graphics produce rendered video, Parse a native cartridge/executable format (boot scored separately), Actual production-plugin TCP peers pass original guest oracle and whole-state comparison, Repository-owned ROM source and reproducible archived image, Separate core plugin and ABI entry points, Actual guest register-file output independently graded on the host, with negative controls, Complete states for the implemented profile and deterministic replay.
 
-Remaining: Super Mario 64 passes SET_Z_IMAGE and real color/depth-buffer clears, then reaches the 200-million-attempt trace bound without a terminal CPU fault. RSP reciprocal/square-root/move now pass; the longer probe reports no unsupported RSP instruction and a real BREAK. RDP TMEM block/tile/palette transfers now pass; functional one-cycle RGBA32 shade/primitive/environment and affine textured/color-converted pixels pass original framebuffer/register oracles; Mario’s textured/depth-tested triangle profile remains blocked; video stays uniform. Native boot/playability, full CPU/CP0/devices, FPU physical timing, rare RSP operations and pipeline/interlock timing, complete RDP/audio, hidden coverage/depth bits, analog/accessories/presence detection, local multiplayer frontend routing and physical timing remain. Production two-player TCP rollback is verified for the implemented digital profile; four virtual PIF ports are supported.
+Remaining: Super Mario 64 passes SET_Z_IMAGE and real color/depth-buffer clears, then reaches the 200-million-attempt trace bound without a terminal CPU fault. RSP reciprocal/square-root/move now pass; the longer probe reports no unsupported RSP instruction and a real BREAK. RDP TMEM block/tile/palette transfers now pass; functional one-cycle RGBA32 shade/primitive/environment and affine/perspective textured/color-converted pixels pass original framebuffer/register oracles; Mario’s textured/depth-tested triangle profile remains blocked; video stays uniform. Native boot/playability, full CPU/CP0/devices, FPU physical timing, rare RSP operations and pipeline/interlock timing, complete RDP/audio, hidden coverage/depth bits, analog/accessories/presence detection, local multiplayer frontend routing and physical timing remain. Production two-player TCP rollback is verified for the implemented digital profile; four virtual PIF ports are supported.
 <!-- completion:end -->
 
 `n64_plugin` builds `n64.so`/`n64.dll`/`n64.dylib` and implements emulator ABI v2.
@@ -2247,3 +2247,72 @@ hidden-memory behavior, complete devices/audio, hardware-wide corpora and
 physical timing remain unfinished. The full Nintendo implementation goal
 remains active. N64 stays **45% = 9/20 delivery milestones**; CI/CD remains
 disabled.
+
+## Perspective texture division
+
+The functional one-cycle RGBA32 triangle path now divides interpolated S/T
+by W when perspective mode is enabled. A dedicated integer divider models
+15-bit W normalization, piecewise reciprocal interpolation, the exceptional
+segment-six endpoint, 17-bit coordinates and overflow/underflow flags.
+Native saturation precedes tile shifts, bounds, mask/mirror and TMEM sampling.
+Zero and negative W set the positive overflow flag, including its precedence
+over simultaneous underflow. Affine mode preserves every signed 16-bit input.
+Numerical rules were checked against the
+[pinned RDP implementation](https://github.com/ata4/angrylion-rdp-plus/blob/192ad5de5b0f50bfa55f9f97208feac4bc87f885/src/core/n64video/rdp/tcoord.c).
+Physical console measurements remain absent.
+
+The scalar gate passes all **4,294,967,296 S/W input pairs**, with complementary
+T lanes, against independently encoded reciprocal endpoints and signed
+interval overflow tests. All **524,288** 19-bit saturation encodings and all
+**65,536** affine coordinate identities also pass. This exhausts each scalar
+coordinate/W pair, not all joint S/T/W triples. A smaller 8,388,608-pair boundary
+corpus rejects all **nine compiled production faults**; compilation failures
+are not counted as oracle rejections. Warning-as-error and UBSAN runs pass
+for that boundary corpus and the varying-W framebuffer goldens.
+
+The new original
+[perspective texture ROM](https://github.com/jshojan/veloce/tree/main/tests/roms-src/n64/rdp_texture_perspective)
+passes **1,572,864 cases / 20,447,232 actual 64-bit framebuffer/guard/register
+observations**, with zero mismatches. **524,288** cases cover every W with four
+selected S/T pairs; **1,048,576** cover every S with complementary T and eight
+selected W values. Both use RDRAM and wrapping XBUS command delivery, real
+TMEM loading and FullSync. The host derives numerical division, logical grid
+colors and quarter-pixel coverage independently of command packing and the
+production implementation. The 288-case control passes, its separately
+executed wrong-capture ROM fails every row, and all thirteen field flips and
+seven malformed/domain/trailer controls are rejected. Gradient, geometry,
+format/palette/filter and joint S/T/W combinations are not exhaustive.
+
+Two component framebuffer goldens use tile seven and W changing across both
+X and Y, proving point and filtered rendering use per-pixel division. Eight
+unsupported LOD/depth/blend/cycle mode changes reject atomically. The fifteen
+existing DP/TMEM/combiner/interpolant/filter/state/replay regression gates pass,
+as do the updated textured profile gate and perspective framebuffer gate.
+The production perspective checkpoint requires programmed perspective mode
+and populated TMEM; exact subsequent actual guest output and the complete
+state replay through the netplay ABI. Existing genuine partial-packet,
+texture and conversion checkpoint gates also pass after the checkpoint
+fixture change. The full build succeeds. All **107 repository-owned ROM
+archives** reproduce and match their manifest.
+
+The divider is derived immutable state; serialized machine layout stays
+**VN64S025 / 8,478,952 bytes**, ABI v2. Plugin **0.33.0** is current. Repeat:
+
+```sh
+ctest --test-dir build -R '^n64_rdp_(texture_divider|perspective)' --output-on-failure
+python3 tests/roms-src/build.py --original-only --check
+```
+
+Artifacts: `build/artifacts/owned/n64_rdp_texture_perspective/` and
+`build/artifacts/component/n64_texture_divider/`. The private Mario probe was
+repeated with current plugin/trace binaries at **200 million CPU attempts**,
+without a terminal CPU fault. It retains the same complete **22/22-word
+CF000FFA0FFAF006 packet at 0x227160**, fetched CURRENT **0x227210** and reason 1.
+Video remains uniform; boot and playability remain unverified. Report:
+`build/artifacts/retail/n64-perspective.json` (ignored; no commercial ROM bytes
+committed).
+
+LOD/mipmapping, two-cycle/previous-texel feedback, full AA/blending/depth/hidden
+memory, complete devices/audio, physical timing and hardware-wide corpora
+remain unfinished. The full Nintendo implementation goal remains active.
+N64 stays **45% = 9/20 delivery milestones**; CI/CD remains disabled.

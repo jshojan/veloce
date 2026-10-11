@@ -969,3 +969,24 @@ add_test(NAME n64_rdp_conversion_plugin_replay_test COMMAND n64_rdp_packet_plugi
     $<TARGET_FILE:n64_plugin>
     ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/rdp_color_convert/rdp_color_convert.z64 conversion)
 set_tests_properties(n64_rdp_conversion_plugin_replay_test PROPERTIES LABELS "integration;netplay;accuracy")
+
+add_executable(n64_rdp_texture_divider_test cpp/n64_rdp_texture_divider_test.cpp)
+target_include_directories(n64_rdp_texture_divider_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src)
+add_test(NAME n64_rdp_texture_divider_test COMMAND n64_rdp_texture_divider_test --exhaustive)
+set_tests_properties(n64_rdp_texture_divider_test PROPERTIES LABELS "unit;accuracy" TIMEOUT 900)
+add_test(NAME n64_rdp_texture_divider_mutants COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/n64_texture_divider_mutants.py --compiler ${CMAKE_CXX_COMPILER}
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/component/n64_texture_divider)
+set_tests_properties(n64_rdp_texture_divider_mutants PROPERTIES LABELS "unit;accuracy" TIMEOUT 180)
+add_test(NAME n64_rdp_texture_perspective COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/rdp_texture_perspective/run.py
+    --emulator $<TARGET_FILE:veloce>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_rdp_texture_perspective)
+set_tests_properties(n64_rdp_texture_perspective PROPERTIES LABELS "accuracy;owned" TIMEOUT 700)
+add_test(NAME n64_rdp_perspective_checkpoint_test COMMAND n64_rdp_packet_plugin_test
+    $<TARGET_FILE:n64_plugin> ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/rdp_texture_perspective/rdp_texture_perspective.z64 perspective)
+set_tests_properties(n64_rdp_perspective_checkpoint_test PROPERTIES LABELS "unit;accuracy;owned;netplay" TIMEOUT 60)
+add_executable(n64_rdp_perspective_triangle_test cpp/n64_rdp_perspective_triangle_test.cpp)
+target_include_directories(n64_rdp_perspective_triangle_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src)
+add_test(NAME n64_rdp_perspective_triangle_test COMMAND n64_rdp_perspective_triangle_test)
+set_tests_properties(n64_rdp_perspective_triangle_test PROPERTIES LABELS "unit;accuracy" TIMEOUT 60)
