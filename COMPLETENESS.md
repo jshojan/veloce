@@ -183,8 +183,8 @@ PNG encoder; regenerate if either changes.
 
 > The SNES core implements all 256 65816 opcodes, all 8 PPU background modes,
 > full DMA/HDMA, and the SPC700 + S-DSP audio path (see
-> [cores/snes/README.md](cores/snes/README.md)). The low *verified* headline
-> reflects missing test references, not missing features.
+> [cores/snes/README.md](cores/snes/README.md)). The narrow *verified*
+> coverage reflects missing test references, not missing features.
 
 ---
 
@@ -3450,3 +3450,23 @@ have not been rerun and do not establish current full hardware accuracy.
 GBA remains **40% = 8/20 delivery milestones**; netplay, complete CPU/device
 accuracy, full corpus grading and physical controller validation remain open.
 CI/CD remains disabled. See [core evidence](cores/gba/README.md#result-channel-branch-integration-2026-10-11).
+
+## SNES result-channel integration (2026-10-11)
+
+The existing SNES branch history is integrated with the current owned
+observations. One module provides all five channel names while preserving
+unknown-status port completion and explicit-stream precedence. Late sink
+attachment preserves serialized hardware state.
+
+Current evidence: 68,864 settled math pairs and 504,832 timed captures match
+independent original-ROM oracles; executed failure controls are rejected.
+Twelve production fixtures save actual channel/RAM files. Fresh gilyon runs
+repeat exactly: **S-CPU 1,600/1,610 = FAIL**, **SPC700 1,368/1,368 = PASS**.
+The ten S-CPU failures, excluded SLEEP/STOP and hardware timing remain open.
+The original ca65 emitter repeats its literal transcript and intentional fail.
+Five supplemental/emitter images rebuild; the auto-joypad recipe still fails
+when the pinned bass-untech assembler crashes before producing an image.
+The full build, six shared/channel/math tests and 117 original archives pass.
+
+SNES remains **40% = 8/20 delivery milestones**. No whole-platform accuracy
+percentage is established. See the [core evidence](cores/snes/README.md#result-channel-branch-integration-2026-10-11).

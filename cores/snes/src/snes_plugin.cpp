@@ -6,9 +6,11 @@
 #include "dma.hpp"
 #include "cartridge.hpp"
 #include "debug.hpp"
+#include "test_channel.hpp"
 
 #include <cstring>
 #include <iostream>
+#include <string>
 
 namespace snes {
 
@@ -64,11 +66,7 @@ public:
     uint64_t get_cycle_count() const override;
     uint64_t get_frame_count() const override;
 
-    bool set_test_sink(emu::ITestSink* sink) override {
-        m_bus->set_test_sink(sink);
-        return true;
-    }
-    const char* test_channels() const override { return "port"; }
+
 
     // Video
     emu::FrameBuffer get_framebuffer() override;
@@ -93,7 +91,15 @@ public:
     std::vector<uint8_t> get_battery_save_data() const override;
     bool set_battery_save_data(const std::vector<uint8_t>& data) override;
 
+    // Test-result channel (plugin ABI v2, docs/testing/VELOCE-RESULT.md)
+    bool set_test_sink(emu::ITestSink* sink) override;
+    const char* test_channels() const override { return TestChannel::channels(); }
+    void on_test_reset() override;
+
 private:
+    // STP halted the CPU: hand PC, CGRAM and cartridge RAM to the stp adapter.
+    void report_stp();
+
     // Convert input state to SNES controller format
     uint32_t convert_input(uint32_t buttons);
 
@@ -413,6 +419,11 @@ void SNESPlugin::run_frame(const emu::InputState& input) {
             // Step CPU - IRQ handler will run here if pending
             int cpu_cycles = m_cpu->step();
 
+            // stp adapter: capture state the instant STP halts the CPU.
+            if (m_cpu->is_stopped() && m_bus->test_channel().stp_armed()) {
+                report_stp();
+            }
+
             // Debug: Trace CPU PC during transition frames
             static int trace_count = 0;
             if (is_debug_mode() && m_frame_count >= 265 && m_frame_count <= 280 && trace_count < 50) {
@@ -540,10 +551,7 @@ void SNESPlugin::run_frame(const emu::InputState& input) {
 
     m_frame_count++;
 
-    // Check for Blargg test completion and report results
-    if (m_bus->blargg_test_completed()) {
-        m_bus->report_blargg_result(m_frame_count);
-    }
+    m_bus->test_channel().end_frame();
 }
 
 uint64_t SNESPlugin::get_cycle_count() const {
@@ -683,6 +691,53 @@ bool SNESPlugin::set_battery_save_data(const std::vector<uint8_t>& data) {
         return false;
     }
     return m_cartridge->set_save_data(data);
+}
+
+// ---------------------------------------------------------------------------
+// Test-result channel
+// ---------------------------------------------------------------------------
+
+namespace {
+
+void spc_port_hook(void* ctx, int port, uint8_t value, bool from_ipl) {
+    static_cast<TestChannel*>(ctx)->spc_port_write(port, value, from_ipl);
+}
+
+// gilyon spctest ("SPC-700 TEST" in the internal header) reports through the
+// APU ports; its spcport adapter is armed only for that ROM.
+bool is_gilyon_spctest(const std::string& title) {
+    return title.rfind("SPC-700 TEST", 0) == 0;
+}
+
+} // namespace
+
+bool SNESPlugin::set_test_sink(emu::ITestSink* sink) {
+    TestChannel& channel = m_bus->test_channel();
+    channel.set_sink(sink);
+    m_apu->set_port_write_hook(nullptr, nullptr);
+    if (sink) {
+        // Deterministic power-on WRAM whenever a sink is attached: a fixed
+        // constant, never host time or randomness, so two runs of the same
+        // ROM produce byte-identical result files.
+        if (m_frame_count == 0) m_bus->fill_wram(0x00);
+        if (m_rom_loaded && is_gilyon_spctest(m_cartridge->get_title())) {
+            channel.arm_spcport();
+            m_apu->set_port_write_hook(&spc_port_hook, &channel);
+        }
+    }
+    return true;
+}
+
+void SNESPlugin::on_test_reset() {
+    m_bus->test_channel().on_test_reset();
+}
+
+void SNESPlugin::report_stp() {
+    // The CPU's PC has already moved past the one-byte STP opcode.
+    const uint16_t stp_pc = static_cast<uint16_t>(m_cpu->get_pc() - 1);
+    m_bus->test_channel().on_stp(m_cpu->get_pbr(), stp_pc,
+                                 m_ppu->cgram_data(), m_ppu->cgram_size(),
+                                 m_cartridge->ram_data(), m_cartridge->get_ram_size());
 }
 
 } // namespace snes

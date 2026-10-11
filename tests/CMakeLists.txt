@@ -92,6 +92,7 @@ add_test(NAME vb_immediates COMMAND ${Python3_EXECUTABLE}
 set_tests_properties(vb_immediates PROPERTIES LABELS "accuracy;owned" TIMEOUT 3500)
 
 add_executable(snes_math_pipeline_test cpp/snes_math_pipeline_test.cpp
+    ${CMAKE_SOURCE_DIR}/cores/snes/src/test_channel.cpp
     ${CMAKE_SOURCE_DIR}/cores/snes/src/bus.cpp ${CMAKE_SOURCE_DIR}/cores/snes/src/cpu.cpp
     ${CMAKE_SOURCE_DIR}/cores/snes/src/ppu.cpp ${CMAKE_SOURCE_DIR}/cores/snes/src/apu.cpp
     ${CMAKE_SOURCE_DIR}/cores/snes/src/dsp.cpp ${CMAKE_SOURCE_DIR}/cores/snes/src/spc700.cpp
@@ -1239,3 +1240,18 @@ target_link_libraries(gba_test_channel_plugin_test PRIVATE ${SDL2_LIBRARIES})
 add_dependencies(gba_test_channel_plugin_test gba_plugin)
 add_test(NAME gba_test_channel_plugin_test COMMAND gba_test_channel_plugin_test $<TARGET_FILE:gba_plugin> ${CMAKE_BINARY_DIR}/artifacts/owned/gba_result_channel)
 set_tests_properties(gba_test_channel_plugin_test PROPERTIES LABELS "integration;accuracy;owned" TIMEOUT 30)
+
+add_executable(snes_test_channel_test cpp/snes_test_channel_test.cpp
+    ${CMAKE_SOURCE_DIR}/cores/snes/src/test_channel.cpp)
+target_include_directories(snes_test_channel_test PRIVATE ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/cores/snes/src)
+add_test(NAME snes_test_channel COMMAND snes_test_channel_test)
+set_tests_properties(snes_test_channel PROPERTIES LABELS "unit;fast")
+
+add_executable(snes_test_channel_plugin_test cpp/snes_test_channel_plugin_test.cpp)
+target_include_directories(snes_test_channel_plugin_test PRIVATE ${CMAKE_SOURCE_DIR}/include ${SDL2_INCLUDE_DIRS})
+target_link_libraries(snes_test_channel_plugin_test PRIVATE ${SDL2_LIBRARIES})
+add_dependencies(snes_test_channel_plugin_test snes_plugin)
+add_test(NAME snes_test_channel_plugin_test COMMAND snes_test_channel_plugin_test $<TARGET_FILE:snes_plugin>
+    ${CMAKE_BINARY_DIR}/artifacts/owned/snes_result_channel)
+set_tests_properties(snes_test_channel_plugin_test PROPERTIES LABELS "integration;accuracy;owned" TIMEOUT 30)

@@ -5,6 +5,8 @@
   "timeout_seconds": 90,
   "frame_limit": 900,
 
+  "rom_build": {"dockerfile": "tools/rom-toolchain/Dockerfile", "recipes": "tests/roms-src/snes"},
+
   "repositories": {
     "blargg": {
       "url": "https://gitlab.com/higan/snes-test-roms.git",
@@ -49,13 +51,13 @@
     },
 
     "apu_dsp_spctest": {
-      "name": "gilyon/krom SPC700 + DSP automated test (visual)",
-      "description": "gilyon spctest.sfc is a comprehensive automated SPC700/DSP test that renders a results table. Visual screenshot-crc; reference hash to be measured.",
+      "name": "gilyon spctest: SPC700 opcodes (VELOCE-RESULT/1)",
+      "description": "gilyon/snes-tests v1.4 spctest: 1368 generated SPC700 opcode tests (all opcodes except SLEEP/STOP, every addressing mode, with and without the P flag; no timers, DSP or cycle timing). Rebuilt from source by tests/roms-src/build.py snes/gilyon_spctest with an S-CPU-side patch that turns gilyon's APU-port protocol into one CHECK line per test on the $21FE port, with expected P/A/X/Y from make_tests.py.",
       "subsystem": "apu",
-      "priority": "medium",
+      "priority": "high",
       "repo": "blargg",
       "tests": [
-        {"id": "apu.gilyon_spctest", "file": "gilyon/spctest.sfc", "accuracy_type": "visual", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "medium", "screenshot_frame": 120, "source_url": "https://gitlab.com/higan/snes-test-roms/-/tree/master/gilyon", "license": "see upstream (gilyon)", "notes": "Automated SPC700+DSP results table. reference_hash to be measured."}
+        {"id": "apu.gilyon_spctest", "file": "veloce/gilyon_spctest/spctest.sfc", "accuracy_type": "functional", "result_detection": "file", "channel": "port", "require_channel": "port", "rom_variant": "veloce", "expected_checks": 1368, "expected": "pass", "priority": "high", "source_url": "https://github.com/gilyon/snes-tests/tree/v1.4/spctest", "license": "MIT (gilyon/snes-tests)", "notes": "Build with tests/roms-src/build.py snes/gilyon_spctest (without the build this SKIPs). The S-SMP stops at its first failing test, so a failure at test N yields CHECK PASS for 0..N-1, CHECK N FAIL, END N/N+1, which expected_checks turns into FAIL with progress N/1368. The S-SMP only reports P/A/X/Y back, so an SP/memory/branch-check failure says field=unreported instead of exp/got. See tests/roms-src/snes/gilyon_spctest/PROVENANCE.md."}
       ]
     },
 
@@ -133,13 +135,13 @@
     },
 
     "cpu_full_automated": {
-      "name": "gilyon/krom full 65816 automated CPU test (visual)",
-      "description": "gilyon cputest.sfc is a single automated 65816 test that renders a results table (covers opcodes + flags + math registers). One-shot regression of the whole CPU. Visual screenshot-crc; reference hash to be measured.",
+      "name": "gilyon cputest: 65816 opcodes (VELOCE-RESULT/1)",
+      "description": "gilyon/snes-tests v1.4 cputest (full variant): 1610 generated 65816 tests covering every opcode except STP/WAI in every addressing mode, flag results, and wrapping behaviour with and without emulation mode (no cycle timing, interrupts or I/O registers). Rebuilt from source by tests/roms-src/build.py snes/gilyon_cputest, patched to emit one CHECK line per test on the $21FE port; failures are recorded and the run continues.",
       "subsystem": "cpu",
       "priority": "high",
       "repo": "blargg",
       "tests": [
-        {"id": "cpu.gilyon_cputest", "file": "gilyon/cputest.sfc", "accuracy_type": "visual", "result_detection": "screenshot-crc", "expected": "known_fail", "priority": "high", "screenshot_frame": 120, "source_url": "https://gitlab.com/higan/snes-test-roms/-/tree/master/gilyon", "license": "see upstream (gilyon)", "notes": "Whole-CPU automated results table incl. multiply/divide register math. reference_hash to be measured."}
+        {"id": "cpu.gilyon_cputest", "file": "veloce/gilyon_cputest/cputest-full.sfc", "accuracy_type": "functional", "result_detection": "file", "channel": "port", "require_channel": "port", "rom_variant": "veloce", "expected_checks": 1610, "expected": "pass", "priority": "high", "source_url": "https://github.com/gilyon/snes-tests/tree/v1.4/cputest", "license": "MIT (gilyon/snes-tests)", "notes": "Build with tests/roms-src/build.py snes/gilyon_cputest (without the build this SKIPs). CHECK ids are the test numbers in tests-full.txt; a FAIL carries field=<x|y|e:p|a|s|dbr|d|mem> for the first mismatch with exp/got from make_cpu_tests.py, followed by a REG line. See tests/roms-src/snes/gilyon_cputest/PROVENANCE.md."}
       ]
     },
 
@@ -281,7 +283,9 @@
     "spc_dsp6": "spc_dsp6 fails on real 3-chip SNES consoles; only passes on higan/bsnes. Marked expected=known_fail (excluded from headline denominator, reported in its own column).",
     "krom_visual_refs": "All krom/PeterLemon and community visual ROMs report PASS/FAIL on screen, so they use screenshot-crc. Until a golden reference frame is captured on a verified-good build (--generate-refs), they are marked expected=known_fail and contribute 0 to the headline score (honest 'to be measured' state) rather than being faked as pass. Reference hashes are tied to the fixed headless output resolution + PNG encoder; regenerate if either changes.",
     "mode5_subscreen": "Mode 5 pseudo-hires currently drops the sub-screen at the frontend (snes_plugin.cpp ~531); any 512px ppu test will diff until addressed. (No standalone Mode 5 ROM in this mirror; covered indirectly by op/hdma timing ROMs that set hires.)",
-    "rom_path_healing": "Test 'file' paths are real basenames from the higan mirror, but mirror layouts drift. The runner builds a basename index across the cloned tree and symlinks matches into place; unresolved ROMs report SKIP (excluded from score) rather than fail."
+    "rom_path_healing": "Test 'file' paths are real basenames from the higan mirror, but mirror layouts drift. The runner builds a basename index across the cloned tree and symlinks matches into place; unresolved ROMs report SKIP (excluded from score) rather than fail. Paths under veloce/ (tests/roms-src/build.py output, linked as roms/veloce -> build/roms/snes) are never healed from the mirror.",
+    "cpu_emulation_stack_wrap": "MEASURED by cpu.gilyon_cputest (SNES-3, 2026-09-27): 10 of 1610 checks fail. Nine are native-only stack instructions in emulation mode (JSL, JSR (a,x), PEA, PEI, PER, PHD, PLD, PLB, RTL; tests 0274 0277 03c2 03c4 03c7 03d9 03dc 03ed 0446): Veloce wraps S within page 1, but on hardware they reach $00FF/$0200. One is a 16-bit decimal SBC (061a: sbc #$f1e2 with A=$ab1d, P=$09 gives $58db, expected $59db). expected stays 'pass' (the hardware result), so the test scores FAIL with partial credit.",
+    "spc700_sleep_stop_noop": "spc700.cpp runs SLEEP ($EF) and STOP ($FF) as 2-cycle no-ops instead of halting the S-SMP. Found while exercising the gilyon spctest patch's hang watchdog (SNES-3). No scored test covers these opcodes; gilyon spctest excludes them."
   },
 
   "references": {

@@ -10,6 +10,12 @@ cmake-build-*/
 # reproducibility ledger build.py writes and the harness reads back).
 tests/roms-src/*/*/upstream/
 tools/rom-toolchain/versions.json
+# SNES-2: a "local" recipe (e.g. snes/veloce_smoke) has no upstream/ clone --
+# it builds straight from its own committed src/, and the toolchain container
+# writes .o/.map/.dbg build output right back into that same directory.
+tests/roms-src/*/*/src/*.o
+tests/roms-src/*/*/src/*.map
+tests/roms-src/*/*/src/*.dbg
 out/
 
 # IDE and editor files

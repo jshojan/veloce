@@ -227,6 +227,10 @@ void SPC700::write(uint16_t address, uint8_t value) {
                     }
                 }
                 m_port_out[address - 0x00F4] = value;
+                if (m_port_write_hook) {
+                    m_port_write_hook(m_port_write_ctx, static_cast<int>(address - 0x00F4), value,
+                                      m_ipl_rom_enabled && m_pc >= 0xFFC0);
+                }
                 break;
             case 0x00FA:
                 m_timer_target[0] = value;

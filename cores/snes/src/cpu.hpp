@@ -53,6 +53,9 @@ public:
     // Get full 24-bit address
     uint32_t get_full_pc() const { return (static_cast<uint32_t>(m_pbr) << 16) | m_pc; }
 
+    // True once STP has halted the processor (only reset clears it).
+    bool is_stopped() const { return m_stp_stopped; }
+
 private:
     void idle(unsigned clocks = 1);
     // Memory access (adds appropriate cycles)

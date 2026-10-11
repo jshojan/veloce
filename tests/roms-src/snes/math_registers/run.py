@@ -31,7 +31,7 @@ def evaluate(path, operands, rom):
                            "timing": "settled outputs only; latency/intermediate values unverified"}}
     try:
         lines = path.read_text(encoding="ascii").splitlines()
-        expected_header = f"#VELOCE 1 core=SNES rom_crc32={zlib.crc32(rom):08x} channels=port"
+        expected_header = f"#VELOCE 1 core=SNES rom_crc32={zlib.crc32(rom):08x} channels=port,blargg6000,stp,sram,spcport"
         require(lines[:5] == [expected_header, "VELOCE 1 snes math_registers",
                               f"INFO operands={operands} dividends={len(DIVIDENDS)}", "REG probe=56",
                               "REG map=565aa5"],

@@ -85,6 +85,8 @@ public:
     // ROM size info
     size_t get_rom_size() const { return m_rom.size(); }
     size_t get_ram_size() const { return m_sram.size(); }
+    // Raw cartridge RAM (whether or not it is battery-backed).
+    const uint8_t* ram_data() const { return m_sram.empty() ? nullptr : m_sram.data(); }
 
     // Battery-backed save support
     bool has_battery() const { return m_has_battery; }

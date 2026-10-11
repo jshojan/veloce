@@ -43,7 +43,7 @@ def evaluate(path, rom):
     try:
         with path.open(encoding="ascii") as stream:
             require(stream.readline().rstrip("\n") ==
-                    f"#VELOCE 1 core=SNES rom_crc32={zlib.crc32(rom):08x} channels=port", "wrong ROM/channel")
+                    f"#VELOCE 1 core=SNES rom_crc32={zlib.crc32(rom):08x} channels=port,blargg6000,stp,sram,spcport", "wrong ROM/channel")
             require(stream.readline() == "VELOCE 1 snes math_timing\n", "missing ROM header")
             require(stream.readline() == "INFO phases=2..18 seed=00a5\n", "wrong phase domain")
             for op, register, phase in GROUPS:
