@@ -2667,3 +2667,72 @@ boot/playability unverified. No commercial ROM bytes are committed.
 N64 stays **45% = 9/20 delivery milestones**; percentages remain in all core
 READMEs and the front page. CI/CD remains disabled. The full Nintendo
 implementation goal remains active.
+
+## Shared CPU/DMA hidden RDRAM and EBUS observations
+
+The production machine now owns the packed hidden RDRAM bitmap. Ordinary CPU
+byte/halfword/word/doubleword stores, masked merge-store pieces, cache writebacks
+and settled PI/SI/SP destination transfers update metadata. Uncached MI EBUS
+reads gather ninth bits into the low nibble of each word; EBUS stores retain
+ordinary RAM data while scattering hidden bits according to the bus width.
+CPU merge stores use aligned pieces, grounded in the
+[pinned primary instruction source](https://github.com/ares-emulator/ares/blob/9408cb43d4948fc3ea6e152a307a34348df3fe04/ares/n64/cpu/interpreter-ipu.cpp).
+
+Cache fills/writebacks have distinct memory bus hooks. Cached hits retain their
+ordinary data while EBUS is enabled. A cached bus transaction in that mode
+rejects; the physical CPU freeze and bus timing are not modeled. Supported
+uncached EBUS operations leave SP execution and device register access available.
+DMA remains settled rather than cycle accurate. RDP color/coverage/depth writes
+are **not yet connected** to hidden memory; RGBA16 blending and depth remain
+pending. These tests establish CPU/DMA/EBUS metadata for a bounded profile.
+
+The new original
+[hidden RDRAM ROM](https://github.com/jshojan/veloce/tree/main/tests/roms-src/n64/hidden_rdram)
+passes **65,536 cases / 589,824 actual RAM/register observations**. An independent
+per-byte host oracle grades ordinary data and hidden reads after four store
+widths in ordinary/EBUS modes. A helper executes from SP DMEM while EBUS is
+active. The 256-case control passes; its separately executed capture mutant
+fails every row. All nine field flips and seven stream controls reject. Fixed
+addresses and correlated patterns leave joint hardware domains incomplete.
+
+Machine gates additionally pass **205,248 CPU/masked-store captures**, selected
+PI/SI/SP destination metadata checks, cached/uncached distinctions and atomic
+state replay/rejection. Warning-as-error and UBSAN pass. The earlier component
+oracle and thirteen compiled fault controls remain available.
+
+State **VN64S027** appends **1,048,592 bytes**, totaling **9,527,568 bytes**: the
+1 MiB bitmap, an eight-byte canonical history word and an eight-byte pending
+address word. History reserved bits, invalid pending addresses and malformed
+lengths reject before mutation. S026 and older imports preserve their complete
+preceding payload, reconstruct hidden halfwords from saved ordinary RAM LSBs
+and initialize history/pending state neutrally. Old states cannot recover hidden
+information that they did not record. Plugin **0.35.0**, ABI v2 and S027 are
+current; the production netplay capacity reports the new exact size.
+
+The production checkpoint replays subsequent actual guest output and whole
+machine state byte for byte. Existing state fixtures now address their original
+fields through the appended tail. All **109 owned ROM archives** reproduce and
+match their manifest.
+
+```sh
+ctest --test-dir build -R '^n64_hidden_' --output-on-failure
+python3 tests/roms-src/build.py --original-only --check
+```
+
+Artifacts: `build/artifacts/owned/n64_hidden_rdram/`. RDP hidden framebuffer and
+depth integration, exact EBUS freeze/timing and hardware-wide corpora remain
+unfinished. N64 stays **45% = 9/20 delivery milestones**. CI/CD remains disabled;
+the full Nintendo implementation goal remains active.
+
+The private Mario probe was repeated with current plugin/trace binaries at
+**200 million CPU attempts**. It has no terminal CPU fault and retains the
+complete **22/22-word CF000FFA0FFAF006 packet at 0x227160**, fetched CURRENT
+**0x227210**, reason 1 and uniform video. Boot/playability remain unverified.
+Report: `build/artifacts/retail/n64-hidden-memory.json` (ignored; no commercial
+ROM bytes committed).
+
+The full build and production TCP netplay gate pass. All 54 selected N64
+regression/component/checkpoint gates pass after correcting the older MI guest
+helper to execute enabled-EBUS windows from SP DMEM. Its unchanged independent
+oracle still passes 393,216 register rows; executed/field/stream controls reject.
+The corrected archive reproduces alongside the other 108 owned ROMs.

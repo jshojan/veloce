@@ -2,6 +2,7 @@
 #include <array>
 #include <cstdint>
 #include <vector>
+#include "hidden_rdram.hpp"
 namespace n64 {
 // CPU view of RSP controls. DMA settles synchronously; this is not an RSP CPU.
 class SpInterface {
@@ -19,10 +20,10 @@ public:
         default:return false;
         }return true;
     }
-    bool write(unsigned reg,uint32_t value,std::vector<uint8_t>& ram,std::array<uint8_t,8192>& memory) {
+    bool write(unsigned reg,uint32_t value,std::vector<uint8_t>& ram,std::array<uint8_t,8192>& memory,HiddenRdram* hidden=nullptr) {
         if(reg==0) {pending_sp=value&0x1ff8;return true;}
         if(reg==1) {pending_dram=value&0xfffff8;return true;}
-        if(reg==2 || reg==3)return dma(reg==3,value,ram,memory);
+        if(reg==2 || reg==3)return dma(reg==3,value,ram,memory,hidden);
         if(reg==4) {commands(value);return true;}
         if(reg==7) {semaphore=0;return true;}
         return false; // Read-only writes are outside the supported profile.
@@ -47,7 +48,7 @@ private:
         pair(value,3,interrupt,1);pair(value,5,status,32);pair(value,7,status,64);
         for(unsigned n=0;n<8;++n)pair(value,9+2*n,status,128u<<n);
     }
-    bool dma(bool to_ram,uint32_t value,std::vector<uint8_t>& ram,std::array<uint8_t,8192>& memory) {
+    bool dma(bool to_ram,uint32_t value,std::vector<uint8_t>& ram,std::array<uint8_t,8192>& memory,HiddenRdram* hidden) {
         const uint32_t bytes=((value&4095)|7)+1,rows=((value>>12)&255)+1,skip=(value>>20)&4095;
         const uint32_t bank=pending_sp&4096,start=pending_sp&4095;
         // Reject any unsupported RAM address before changing memory or controls.
@@ -55,11 +56,13 @@ private:
         if(skip&7)return false;
         const uint64_t end=uint64_t(pending_dram)+uint64_t(rows-1)*(bytes+skip)+bytes;
         if(end>ram.size())return false;
+        if(hidden && hidden->size()!=ram.size())return false;
         for(uint32_t row=0;row<rows;++row)for(uint32_t byte=0;byte<bytes;++byte) {
             auto& sp=memory[bank|((start+row*bytes+byte)&4095)];
             auto& dram=ram[pending_dram+row*(bytes+skip)+byte];
             if(to_ram)dram=sp;else sp=dram;
         }
+        if(to_ram && hidden)for(uint32_t row=0;row<rows;++row){const auto address=pending_dram+row*(bytes+skip);hidden->ordinary_burst(address,ram.data()+address,bytes);}
         active_sp=bank|((start+rows*bytes)&4095);
         active_dram=(pending_dram+rows*bytes+(rows-1)*skip)&0xfffff8;
         length=(value&0xfff00000)|0xff8;

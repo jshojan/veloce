@@ -66,7 +66,7 @@ private:
         if(!(line.flags&1) || (!(line.flags&2) && !force))return true;
         if(line.page>0x1ffff)return false;
         const uint32_t p=(line.page<<12)|((index*B)&4095);
-        for(unsigned n=0;n<B;n+=8)if(!bus.write(bus_address(p+n),8,read_bytes(line,n,8)))return false;
+        for(unsigned n=0;n<B;n+=8)if(!bus.write_cacheline(bus_address(p+n),8,read_bytes(line,n,8)))return false;
         line.flags=1;return true;
     }
     template<unsigned B> static bool fill(Memory& bus,Line<B>& line,uint32_t p,unsigned index,bool force) {
@@ -74,7 +74,7 @@ private:
         if(!force && (line.flags&1) && line.page==(p>>12))return true;
         Line<B> next;next.page=p>>12;next.flags=1;
         for(unsigned n=0;n<B;n+=8) {
-            uint64_t value=0;if(!bus.read(bus_address((p&~(B-1))+n),8,value))return false;
+            uint64_t value=0;if(!bus.read_cacheline(bus_address((p&~(B-1))+n),8,value))return false;
             for(unsigned byte=0;byte<8;++byte)next.data[n+byte]=uint8_t(value>>(56-8*byte));
         }
         if(!writeback(bus,line,index))return false;

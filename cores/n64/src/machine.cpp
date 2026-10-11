@@ -48,9 +48,11 @@ bool Machine::load(const uint8_t* data, size_t size) {
 }
 void Machine::reset() {
     std::fill(ram.begin(), ram.end(), 0);
+    hidden.reset();
     sp.fill(0);
     if (!rom.empty() && boot_mode==BootMode::Homebrew) std::copy(rom.begin() + 0x1000, rom.end(), ram.begin() + 0x400);
     if (!rom.empty() && boot_mode!=BootMode::Homebrew) std::copy(rom.begin()+0x40,rom.begin()+0x1000,sp.begin()+0x40);
+    hidden.ordinary_burst(0,ram.data(),ram.size());
     cpu.reset(rom.empty() || boot_mode==BootMode::Homebrew?entry:sign32(0xa4000040));
     if(!rom.empty() && boot_mode!=BootMode::Homebrew) {
         // Explicit HLE handoff to IPL3, not a model of the PIF ROM/CIC exchange.
@@ -133,7 +135,10 @@ bool Machine::read(uint64_t address, unsigned bytes, uint64_t& value) {
             rdram_devices.read(p,ri_current_loaded && ri[3]==0x14);
         return true;
     }
-    if (uint64_t(p) + bytes <= ram.size()) { value = be(ram.data() + p, bytes); return true; }
+    if (uint64_t(p) + bytes <= ram.size()) {
+        if(uint32_t(address)>=0xa0000000u && (mi_mode&256))return hidden.ebus_read(p,bytes,value);
+        value = be(ram.data() + p, bytes); return true;
+    }
     if (p >= 0x04000000 && uint64_t(p) + bytes <= 0x04000000 + sp.size()) { value = be(sp.data() + p - 0x04000000, bytes); return true; }
     if (p >= 0x10000000 && uint64_t(p) + bytes <= 0x10000000 + rom.size()) { value = be(rom.data() + p - 0x10000000, bytes); return true; }
     if (p >= 0x1fc007c0 && uint64_t(p) + bytes <= 0x1fc00800) { value = be(pif.data() + p - 0x1fc007c0, bytes); return true; }
@@ -187,7 +192,7 @@ bool Machine::write(uint64_t address, unsigned bytes, uint64_t value) {
         if(p>=0x04100000 && p<=0x0410001c && !(p&3))return dp_interface.write((p-0x04100000)/4,uint32_t(value));
         if(p>=0x04400000 && p<=0x0440003c && !(p&3))return video_interface.write((p-0x04400000)/4,uint32_t(value));
         if(p>=0x04500000 && p<=0x04500014 && !(p&3))return audio_interface.write((p-0x04500000)/4,uint32_t(value),ram.size());
-        if(p>=0x04040000 && p<=0x0404001c && !(p&3))return sp_interface.write((p-0x04040000)/4,uint32_t(value),ram,sp);
+        if(p>=0x04040000 && p<=0x0404001c && !(p&3))return sp_interface.write((p-0x04040000)/4,uint32_t(value),ram,sp,&hidden);
         if(p==0x04080000) {sp_interface.pc=uint32_t(value)&0xffc;rsp.redirect(sp_interface.pc);return true;}
         if(p>=0x04700000 && p<=0x0470001c && !(p&3)) return write_ri((p-0x04700000)/4,uint32_t(value));
         if(p>=0x04600000 && p<=0x04600030 && !(p&3)) return write_pi((p-0x04600000)/4,uint32_t(value));
@@ -215,7 +220,7 @@ bool Machine::write(uint64_t address, unsigned bytes, uint64_t value) {
             // Functional settled DMA only: no busy state or asynchronous timing.
             if ((si_address & 7) || uint64_t(si_address) + 64 > ram.size()) return false;
             if (p == 0x04800010) { std::copy_n(ram.begin() + si_address, 64, pif.begin()); process_pif(); }
-            else std::copy(pif.begin(), pif.end(), ram.begin() + si_address);
+            else {std::copy(pif.begin(), pif.end(), ram.begin() + si_address);hidden.ordinary_burst(si_address,ram.data()+si_address,64);}
             si_interrupt = true; return true;
         }
     }
@@ -223,6 +228,10 @@ bool Machine::write(uint64_t address, unsigned bytes, uint64_t value) {
     if (uint64_t(p) + bytes <= ram.size()) destination = ram.data() + p;
     else if (p >= 0x04000000 && uint64_t(p) + bytes <= 0x04000000 + sp.size()) destination = sp.data() + p - 0x04000000;
     if (!destination) return false;
+    if(uint64_t(p)+bytes<=ram.size()) {
+        const bool test=uint32_t(address)>=0xa0000000u && (mi_mode&256);
+        if(!(test?hidden.ebus_write(p,bytes,value):hidden.ordinary_write(p,bytes,value)))return false;
+    }
     for (unsigned i = 0; i < bytes; ++i) destination[i] = uint8_t(value >> (8 * (bytes - 1 - i)));
     return true;
 }
@@ -245,6 +254,7 @@ bool Machine::write_pi(unsigned reg,uint32_t value) {
         if((pi[0]&7) || (length&1) || uint64_t(pi[0])+length>ram.size() ||
             source>rom.size() || length>rom.size()-source) return false;
         std::copy_n(rom.begin()+size_t(source),length,ram.begin()+pi[0]);
+        hidden.ordinary_burst(pi[0],ram.data()+pi[0],length);
         pi[0]=(pi[0]+length+7)&0xfffff8u;pi[1]+=length;pi[3]=127;
         pi_interrupt=true;return true;
     }
@@ -263,6 +273,20 @@ bool Machine::write_masked(uint64_t address, unsigned bytes, uint64_t value, uin
     if (uint64_t(p) + bytes <= ram.size()) destination = ram.data() + p;
     else if (p >= 0x04000000 && uint64_t(p) + bytes <= 0x04000000 + sp.size()) destination = sp.data() + p - 0x04000000;
     if (!destination) return false;
+    if(uint64_t(p)+bytes<=ram.size()) {
+        const bool test=uint32_t(address)>=0xa0000000u && (mi_mode&256);
+        // Merge instructions issue aligned byte/halfword/word pieces. Select
+        // the largest enabled aligned piece; no RAM bus read is needed.
+        for(unsigned n=0;n<bytes;) {
+            if(!(mask&(1u<<n))){++n;continue;}
+            unsigned part=1;
+            for(unsigned candidate:{2u,4u,8u})if(n+candidate<=bytes && !((p+n)&(candidate-1)) &&
+                ((unsigned(mask)>>n)&((1u<<candidate)-1))==((1u<<candidate)-1))part=candidate;
+            const uint64_t v=value>>(8*(bytes-n-part));
+            if(test)hidden.ebus_write(p+n,part,v);else hidden.ordinary_write(p+n,part,v);
+            n+=part;
+        }
+    }
     for (unsigned i = 0; i < bytes; ++i)
         if (mask & (1u << i)) destination[i] = uint8_t(value >> (8 * (bytes - 1 - i)));
     return true;
@@ -272,7 +296,7 @@ static void append(std::vector<uint8_t>& data, uint64_t value) {
 }
 bool Machine::save(std::vector<uint8_t>& data) const {
     if (rom.empty()) return false;
-    data.assign({'V','N','6','4','S','0','2','6'});
+    data.assign({'V','N','6','4','S','0','2','7'});
     data.reserve(current_state_size);
     append(data, identity); append(data, crc); append(data, frames); append(data, done);
     const auto& s = cpu.state;
@@ -312,6 +336,8 @@ bool Machine::save(std::vector<uint8_t>& data) const {
     for(auto value:dp_interface.packet.snapshot())append(data,value);
     append(data,dp_interface.conversion.snapshot());
     for(auto value:dp_interface.blender.snapshot())append(data,value);
+    const auto h=hidden.snapshot();data.insert(data.end(),h.bits.begin(),h.bits.end());
+    append(data,h.history);append(data,uint64_t(h.delayed));
     return true;
 }
 bool Machine::restore(const std::vector<uint8_t>& data) {
@@ -341,8 +367,9 @@ bool Machine::restore(const std::vector<uint8_t>& data) {
     const bool packet_previous=!std::memcmp(data.data(),"VN64S023",8);
     const bool conversion_previous=!std::memcmp(data.data(),"VN64S024",8);
     const bool blender_previous=!std::memcmp(data.data(),"VN64S025",8);
-    const bool current=!std::memcmp(data.data(),"VN64S026",8);
-    if((!legacy && !previous && !ri_previous && !mi_previous && !devices_previous && !caches_previous && !sp_previous && !audio_previous && !fpu_previous && !tlb_previous && !video_previous && !scalar_previous && !dp_previous && !vector_previous && !accumulator_previous && !combiner_previous && !depth_previous && !divider_previous && !texture_previous && !tmem_previous && !controllers_previous && !packet_previous && !conversion_previous && !blender_previous && !current) || data.size()!=prefix+ram_size+sp.size()+(legacy?0:previous?120:ri_previous?176:mi_previous?192:devices_previous?480:caches_previous?41440:sp_previous?41512:audio_previous?74440:fpu_previous?74448:tlb_previous?75472:video_previous?75632:scalar_previous?75888:dp_previous?75888+rsp_state_size:vector_previous?75888+rsp_state_size+dp_state_size:accumulator_previous?75888+rsp_state_size+dp_state_size+vector_state_size:combiner_previous?75888+rsp_state_size+dp_state_size+vector_state_size+accumulator_state_size:depth_previous?75888+rsp_state_size+dp_state_size+vector_state_size+accumulator_state_size+combiner_state_size:75888+rsp_state_size+dp_state_size+vector_state_size+accumulator_state_size+combiner_state_size+depth_image_state_size+(divider_previous?0:divider_state_size+(texture_previous?0:texture_state_size+(tmem_previous?0:tmem_state_size+((packet_previous || conversion_previous || blender_previous || current)?controller_state_size:0)+((conversion_previous || blender_previous || current)?packet_state_size:0)+((blender_previous || current)?conversion_state_size:0)+(current?blender_state_size:0))))) ||
+    const bool hidden_previous=!std::memcmp(data.data(),"VN64S026",8);
+    const bool current=!std::memcmp(data.data(),"VN64S027",8);
+    if((!legacy && !previous && !ri_previous && !mi_previous && !devices_previous && !caches_previous && !sp_previous && !audio_previous && !fpu_previous && !tlb_previous && !video_previous && !scalar_previous && !dp_previous && !vector_previous && !accumulator_previous && !combiner_previous && !depth_previous && !divider_previous && !texture_previous && !tmem_previous && !controllers_previous && !packet_previous && !conversion_previous && !blender_previous && !hidden_previous && !current) || data.size()!=prefix+ram_size+sp.size()+(legacy?0:previous?120:ri_previous?176:mi_previous?192:devices_previous?480:caches_previous?41440:sp_previous?41512:audio_previous?74440:fpu_previous?74448:tlb_previous?75472:video_previous?75632:scalar_previous?75888:dp_previous?75888+rsp_state_size:vector_previous?75888+rsp_state_size+dp_state_size:accumulator_previous?75888+rsp_state_size+dp_state_size+vector_state_size:combiner_previous?75888+rsp_state_size+dp_state_size+vector_state_size+accumulator_state_size:depth_previous?75888+rsp_state_size+dp_state_size+vector_state_size+accumulator_state_size+combiner_state_size:75888+rsp_state_size+dp_state_size+vector_state_size+accumulator_state_size+combiner_state_size+depth_image_state_size+(divider_previous?0:divider_state_size+(texture_previous?0:texture_state_size+(tmem_previous?0:tmem_state_size+((packet_previous || conversion_previous || blender_previous || hidden_previous || current)?controller_state_size:0)+((conversion_previous || blender_previous || hidden_previous || current)?packet_state_size:0)+((blender_previous || hidden_previous || current)?conversion_state_size:0)+((hidden_previous || current)?blender_state_size:0)+(current?hidden_state_size:0))))) ||
         (legacy && boot_mode!=BootMode::Homebrew)) return false;
     size_t position = 8;
     auto take = [&]() { auto v = be(data.data() + position, 8); position += 8; return v; };
@@ -438,19 +465,28 @@ bool Machine::restore(const std::vector<uint8_t>& data) {
     if(!legacy && !previous && !ri_previous && !mi_previous && !devices_previous && !caches_previous && !sp_previous && !audio_previous && !fpu_previous && !tlb_previous && !video_previous && !scalar_previous && !dp_previous && !vector_previous && !accumulator_previous && !combiner_previous){
         RdpCombiner::State c{};for(auto& value:c)value=take();if(!saved_dp_interface.combiner.restore(c))return false;
     }
-    if(divider_previous || texture_previous || tmem_previous || (controllers_previous || packet_previous || conversion_previous || blender_previous || current)){
+    if(divider_previous || texture_previous || tmem_previous || (controllers_previous || packet_previous || conversion_previous || blender_previous || hidden_previous || current)){
         const uint64_t z=take();if(z>0x3ffffff)return false;saved_dp_interface.depth_image=uint32_t(z);
     }
-    if((texture_previous || tmem_previous || (controllers_previous || packet_previous || conversion_previous || blender_previous || current)) && !saved_rsp.vectors.divider.restore(take()))return false;
-    if(tmem_previous || (controllers_previous || packet_previous || conversion_previous || blender_previous || current)){RdpTexture::State t{};for(auto& value:t)value=take();if(!saved_dp_interface.texture.restore(t))return false;}
-    if((controllers_previous || packet_previous || conversion_previous || blender_previous || current)){std::copy_n(data.begin()+position,tmem_state_size,saved_dp_interface.tmem.bytes.begin());position+=tmem_state_size;}
+    if((texture_previous || tmem_previous || (controllers_previous || packet_previous || conversion_previous || blender_previous || hidden_previous || current)) && !saved_rsp.vectors.divider.restore(take()))return false;
+    if(tmem_previous || (controllers_previous || packet_previous || conversion_previous || blender_previous || hidden_previous || current)){RdpTexture::State t{};for(auto& value:t)value=take();if(!saved_dp_interface.texture.restore(t))return false;}
+    if((controllers_previous || packet_previous || conversion_previous || blender_previous || hidden_previous || current)){std::copy_n(data.begin()+position,tmem_state_size,saved_dp_interface.tmem.bytes.begin());position+=tmem_state_size;}
     std::array<uint32_t,3> saved_other_input{};
-    if(packet_previous || conversion_previous || blender_previous || current)for(auto& buttons:saved_other_input){const auto value=take();if(value>0xffffffffu)return false;buttons=uint32_t(value);}
-    if(conversion_previous || blender_previous || current){RdpPacket::State state{};for(auto& value:state)value=take();if(!saved_dp_interface.packet.restore(state))return false;}
-    if((blender_previous || current) && !saved_dp_interface.conversion.restore(take()))return false;
-    if(current){RdpBlender::State state{};for(auto& value:state)value=take();if(!saved_dp_interface.blender.restore(state))return false;}
+    if(packet_previous || conversion_previous || blender_previous || hidden_previous || current)for(auto& buttons:saved_other_input){const auto value=take();if(value>0xffffffffu)return false;buttons=uint32_t(value);}
+    if(conversion_previous || blender_previous || hidden_previous || current){RdpPacket::State state{};for(auto& value:state)value=take();if(!saved_dp_interface.packet.restore(state))return false;}
+    if((blender_previous || hidden_previous || current) && !saved_dp_interface.conversion.restore(take()))return false;
+    if(hidden_previous || current){RdpBlender::State state{};for(auto& value:state)value=take();if(!saved_dp_interface.blender.restore(state))return false;}
+    HiddenRdram saved_hidden(ram_size);
+    if(current) {
+        HiddenRdram::State h;h.bits.assign(data.begin()+position,data.begin()+position+ram_size/8);position+=ram_size/8;
+        h.history=take();const uint64_t delayed=take();
+        if(delayed!=~uint64_t(0) && delayed>=ram_size)return false;
+        h.delayed=delayed==~uint64_t(0)?-1:int64_t(delayed);
+        if(!saved_hidden.restore(h))return false;
+    } else saved_hidden.ordinary_burst(0,data.data()+memory_position+64,ram_size);
     position=memory_position;
     // Validate first; rejected states leave the active machine untouched.
+    hidden=std::move(saved_hidden);
     cpu.state = s;cpu.caches=saved_caches;cpu.tlb=saved_tlb; frames = saved_frames; done = saved_done;
     si_address = uint32_t(saved_si_address); input_buttons = uint32_t(saved_input);other_input_buttons=saved_other_input; si_interrupt = saved_irq;
     mi_mask = uint8_t(saved_mask); yielded = saved_yield;
