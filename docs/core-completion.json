@@ -267,12 +267,13 @@
       "readme": "cores/switch/README.md",
       "delivered": [
         "native_media",
+        "netplay",
         "original_rom",
         "plugin",
         "register_oracle",
         "states"
       ],
-      "remaining": "Integer paired and single transfers now have original independently graded NSO images, executed controls and complete native-state replay. The new signed/unscaled/writeback/register-offset image checks 7,188,480 snapshots / 57,507,840 register words. Full AArch64 CPU/extensions/exceptions, native RAM/MMU/processes, compressed/hash-checked NSO and other formats, firmware/HOS/retail boot, graphics/audio, native controllers/devices, saves/netplay, physical timing and complete original hardware corpus remain. Current execution is an original uncompressed NSO0 integer process profile; retail playability is unverified."
+      "remaining": "Integer paired and single transfers now have original independently graded NSO images, executed controls and complete native-state replay. The new signed/unscaled/writeback/register-offset image checks 7,188,480 snapshots / 57,507,840 register words. Full AArch64 CPU/extensions/exceptions, native RAM/MMU/processes, compressed/hash-checked NSO and other formats, firmware/HOS/retail boot, graphics/audio, native controllers/devices, native saves, physical timing and complete original hardware corpus remain. Current execution is an original uncompressed NSO0 integer process profile; retail playability is unverified. Production TCP rollback now matches complete states and independently graded guest RAM for two synthetic input words; native Joy-Con/HID and HOS input services remain unfinished."
     }
   ]
 }

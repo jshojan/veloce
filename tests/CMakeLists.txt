@@ -1709,3 +1709,21 @@ target_compile_features(switch_single_transfer_machine_test PRIVATE cxx_std_17)
 add_test(NAME switch_single_transfer_machine_test COMMAND switch_single_transfer_machine_test
     ${CMAKE_SOURCE_DIR}/tests/roms-src/switch/single_transfer_registers/single_transfer_registers.nso)
 set_tests_properties(switch_single_transfer_machine_test PROPERTIES LABELS "unit;integration;accuracy;owned" TIMEOUT 90)
+
+add_test(NAME switch_netplay_plugin_test COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/netplay_network_test.py $<TARGET_FILE:netplay_plugin_peer>
+    $<TARGET_FILE:switch_plugin> ${CMAKE_SOURCE_DIR}/tests/roms-src/switch/netplay_probe/netplay_probe.nso
+    ${CMAKE_BINARY_DIR}/artifacts/netplay-switch --netplay-plugin $<TARGET_FILE:netplay_default> --console switch)
+set_tests_properties(switch_netplay_plugin_test PROPERTIES LABELS "integration;netplay;owned" TIMEOUT 180)
+add_executable(switch_netplay_adapter_test cpp/switch_netplay_adapter_test.cpp)
+target_include_directories(switch_netplay_adapter_test PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(switch_netplay_adapter_test PRIVATE SDL2::SDL2)
+add_test(NAME switch_netplay_adapter_test COMMAND switch_netplay_adapter_test $<TARGET_FILE:switch_plugin>
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/switch/netplay_probe/netplay_probe.nso)
+set_tests_properties(switch_netplay_adapter_test PROPERTIES LABELS "integration;netplay;owned" TIMEOUT 180)
+add_executable(switch_input_ports_test cpp/switch_input_ports_test.cpp ${CMAKE_SOURCE_DIR}/cores/switch/src/aarch64.cpp ${CMAKE_SOURCE_DIR}/cores/switch/src/machine.cpp)
+target_include_directories(switch_input_ports_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/switch/src ${CMAKE_SOURCE_DIR}/include)
+target_compile_features(switch_input_ports_test PRIVATE cxx_std_17)
+add_test(NAME switch_input_ports_test COMMAND switch_input_ports_test
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/switch/netplay_probe/netplay_probe.nso)
+set_tests_properties(switch_input_ports_test PROPERTIES LABELS "unit;accuracy;owned" TIMEOUT 90)

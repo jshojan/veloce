@@ -181,3 +181,12 @@ N64 two-player production rollback is verified with an original four-port SI/PIF
 guest: two TCP processes and baseline match 600 guest words and complete S023
 states. Ports 0/1 are independently owned; 2/3 are neutral. Four virtual core
 inputs do not imply four network participants. See [scope and repeatable gates](../../cores/n64/README.md#four-digital-ports-and-production-netplay).
+
+## Switch process profile
+
+Switch 0.10.0 supplies two synthetic 32-bit input words and complete allocation-free
+rollback states. The [original TCP probe](../../tests/roms-src/switch/netplay_probe/README.md)
+checks 100 confirmed frames, eight independently graded guest RAM words, executed
+wrong-input controls and exact complete-state equality across offline/host/client.
+Native Joy-Con/HID, HOS services, graphics and audio remain pending; this is an
+original process profile, with no retail compatibility claim.

@@ -17,7 +17,7 @@
 | GameCube | **25%** | 5/20 |
 | Wii | **25%** | 5/20 |
 | Wii U | **25%** | 5/20 |
-| Nintendo Switch | **25%** | 5/20 |
+| Nintendo Switch | **30%** | 6/20 |
 
 These percentages count the 20 explicit delivery milestones in [the completion ledger](docs/CORE-COMPLETION.md); partial or unverified milestones receive zero credit. Each milestone is worth 5 percentage points. **They are not percentages of native hardware accuracy or retail compatibility.** Bounded profile tests do not complete a whole CPU or hardware subsystem.
 
@@ -59,8 +59,11 @@ checks successful and terminal-fault continuations.
 | [Signed/unscaled/unprivileged/writeback/register-offset singles](tests/roms-src/switch/single_transfer_registers/README.md) | 7,188,480 | 57,507,840 |
 
 These are finite documented domains. Full CPU/system/MMU/exception behavior,
-native firmware/HOS/retail boot, graphics/audio, controllers and netplay remain
-unfinished. Switch stays **25%** of the delivery checklist.
+native firmware/HOS/retail boot, graphics/audio and controllers remain
+unfinished. Production TCP rollback now matches complete states and eight independently
+graded guest RAM words for two synthetic inputs; native Joy-Con/HID is pending.
+See the [original netplay probe](tests/roms-src/switch/netplay_probe/README.md).
+Switch is **30%** of the delivery checklist.
 <!-- completion:end -->
 
 A cross-platform, plugin-based emulator framework built for speedrunners and TAS creators.
@@ -108,7 +111,7 @@ See [Build Instructions](#building) for platform-specific details.
 | Wii U | [cores/wiiu](cores/wiiu/README.md) | Experimental | Distinct three-context PowerPC integer plugin, 32 MiB MEM1/2 GiB MEM2, sparse states, original input latch and TCP host/viewer replay; native boot, GPU/audio and GamePad hardware pending |
 | GameCube | [cores/ppc](cores/ppc/README.md) | Experimental | Original PowerPC arithmetic/carry, multiply/divide, memory transfers, bitwise, rotate/mask, shift/unary, branch and condition-register programs; settled digital GameCube-controller SI reads; no retail boot, graphics/audio, analog/polling or netplay |
 | Wii | [cores/ppc](cores/ppc/README.md) | Experimental | Original PowerPC arithmetic/carry, multiply/divide, memory transfers, bitwise, rotate/mask, shift/unary, branch and condition-register programs; settled digital GameCube-controller SI reads; no retail boot, MEM2, IOS, Wii Remotes, graphics/audio or netplay |
-| Nintendo Switch | [cores/switch](cores/switch/README.md) | Experimental | Uncompressed NSO0, AArch64 integer, multiply/divide, conditional-select, shift/bit-operation, bit-field/extract, logical-immediate and conditional-compare guests, independent register corpora and full profile states; full CPU/MMU/HOS, firmware, graphics/audio, peripherals and retail playability pending |
+| Nintendo Switch | [cores/switch](cores/switch/README.md) | Experimental | Uncompressed NSO0, AArch64 integer, multiply/divide, conditional-select, shift/bit-operation, bit-field/extract, logical-immediate and conditional-compare guests, independent register corpora, full profile states and two-input production TCP rollback; full CPU/MMU/HOS, firmware, graphics/audio, peripherals and retail playability pending |
 
 Nintendo Switch now has an experimental original AArch64/uncompressed NSO0 core; firmware, HOS and retail compatibility remain pending. DSi enhanced hardware remains partially implemented. Native hardware accuracy/completion is not yet
 measured; delivery checklist completion is reported above. See the [hardware coverage and remaining work](docs/HARDWARE-COVERAGE.md).
@@ -518,6 +521,7 @@ subset, not whole-core completion.
 | [DSi RAM registers](tests/roms-src/dsi/ram_registers/README.md) | 387,072/387,072 fourteen-word captures matched: RAM modes/banks/CPU writers/aliases/widths/lanes/byte-complement patterns; timing pending | `build/artifacts/owned/dsi_ram/` |
 | [3DS ARM11 reversals](tests/roms-src/3ds/reversal_registers/README.md) | 25,165,824/25,165,824 seven-word captures matched: both ARM11s, ARM/Thumb REV/REV16/REVSH, all NZCVQ and complemented-half values; full operands/timing pending | `build/artifacts/owned/3ds_reversal/` |
 | [Wii U immediates](tests/roms-src/wiiu/immediate_registers/README.md) | 25,165,824/25,165,824 nine-word captures matched: three contexts, ADDI/ADDIS, all 16-bit immediates and XER flag combinations on four sources/zero and ordinary bases; full operands/timing pending | `build/artifacts/owned/wiiu_immediates/` |
+| [Switch netplay probe](tests/roms-src/switch/netplay_probe/README.md) | 100 confirmed frames; independent TCP peers match full states and eight guest RAM words; both executed wrong-input variants reject; synthetic inputs, native HID pending | `build/artifacts/netplay-switch/` |
 | [Switch conditional comparisons](tests/roms-src/switch/ccmp_registers/README.md) | 786,432 packed rows / 3,932,160 actual words / 12,582,912 flag observations; every condition and input/fallback NZCV; 14,155,776 component snapshots | `build/artifacts/owned/switch_ccmp/` |
 | [Switch logical immediates](tests/roms-src/switch/logical_imm_registers/README.md) | 1,449,984 rows / 7,249,920 actual words across every legal encoded mask and both widths; 197,296,128 component snapshots; all 20,224 reserved controls reject | `build/artifacts/owned/switch_logical_imm/` |
 | [Switch bit-fields/extract](tests/roms-src/switch/bitfield_registers/README.md) | 494,592 rows / 2,967,552 actual words across every legal immediate in both widths; 247,414,784 component snapshots; physical timing pending | `build/artifacts/owned/switch_bitfield/` |

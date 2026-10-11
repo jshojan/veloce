@@ -32,7 +32,7 @@ bool Machine::load(const uint8_t* data,size_t size){
 void Machine::reset(){
     std::fill(ram.begin(),ram.end(),0);
     if(!rom.empty())for(const auto& s:segments)if(s.size)std::copy_n(rom.begin()+s.file,s.size,ram.begin()+s.address);
-    cpu.state={};cpu.state.sp=ram_size;frames=0;done=false;
+    cpu.state={};cpu.state.sp=ram_size;frames=0;done=false;inputs={};
 }
 bool Machine::permitted(uint64_t address,unsigned size,bool instruction,bool writing) const{
     if(rom.empty() || (size!=1 && size!=2 && size!=4 && size!=8) || address>ram.size() || size>ram.size()-address)return false;
@@ -44,6 +44,10 @@ bool Machine::permitted(uint64_t address,unsigned size,bool instruction,bool wri
     return false;
 }
 bool Machine::read(uint64_t address,unsigned size,uint64_t& value,bool instruction){
+    // Synthetic test inputs, not native Switch HID registers or HOS services.
+    if(!rom.empty() && !instruction && size==4 && (address==0xffff000c || address==0xffff0014)){
+        value=inputs[address==0xffff0014];return true;
+    }
     if(!permitted(address,size,instruction,false))return false;
     uint64_t result=0;for(unsigned n=0;n<size;++n)result|=uint64_t(ram[size_t(address)+n])<<(n*8);value=result;return true;
 }
@@ -62,18 +66,30 @@ bool Machine::write(uint64_t address,unsigned size,uint64_t value){
     for(unsigned n=0;n<size;++n)ram[size_t(address)+n]=uint8_t(value>>(n*8));
     return true;
 }
-static void append(std::vector<uint8_t>& data,uint64_t value){for(unsigned n=0;n<8;++n)data.push_back(uint8_t(value>>(56-n*8)));}
+void Machine::header(uint8_t* out) const{
+    std::memcpy(out,"VNXS0002",8);size_t at=8;
+    auto put=[&](uint64_t value){for(unsigned n=0;n<8;++n)out[at++]=uint8_t(value>>(56-n*8));};
+    for(auto v:{identity,uint64_t(crc),frames,uint64_t(done)})put(v);
+    for(auto v:cpu.state.x)put(v);
+    const auto& s=cpu.state;
+    for(auto v:{s.sp,s.pc,s.steps,s.fault_address,uint64_t(s.fault_word),uint64_t(s.nzcv),uint64_t(s.fault)})put(v);
+    for(auto v:inputs)put(v);
+}
+size_t Machine::save_into(uint8_t* out,size_t capacity) const{
+    if(rom.empty())return 0;
+    if(!out)return state_size;
+    if(capacity<state_size)return 0;
+    header(out);std::memcpy(out+360,ram.data(),ram_size);return state_size;
+}
 bool Machine::save(std::vector<uint8_t>& data) const{
     if(rom.empty())return false;
-    data.assign({'V','N','X','S','0','0','0','1'});data.reserve(state_size);
-    for(auto v:{identity,uint64_t(crc),frames,uint64_t(done)})append(data,v);
-    for(auto v:cpu.state.x)append(data,v);
-    const auto& s=cpu.state;
-    for(auto v:{s.sp,s.pc,s.steps,s.fault_address,uint64_t(s.fault_word),uint64_t(s.nzcv),uint64_t(s.fault)})append(data,v);
-    data.insert(data.end(),ram.begin(),ram.end());return true;
+    data.resize(state_size);return save_into(data.data(),data.size())==state_size;
 }
-bool Machine::restore(const std::vector<uint8_t>& data){
-    if(rom.empty() || data.size()!=state_size || std::memcmp(data.data(),"VNXS0001",8))return false;
+bool Machine::restore(const std::vector<uint8_t>& data){return restore(data.data(),data.size());}
+bool Machine::restore(const uint8_t* data,size_t size){
+    if(rom.empty() || !data)return false;
+    const bool legacy=size==legacy_state_size && !std::memcmp(data,"VNXS0001",8);
+    if(!legacy && (size!=state_size || std::memcmp(data,"VNXS0002",8)))return false;
     size_t at=8;auto take=[&](){uint64_t v=0;for(unsigned n=0;n<8;++n)v=v*256+data[at++];return v;};
     if(take()!=identity || take()!=crc)return false;
     const auto saved_frames=take(),saved_done=take();CpuState s;
@@ -81,9 +97,19 @@ bool Machine::restore(const std::vector<uint8_t>& data){
     s.sp=take();s.pc=take();s.steps=take();s.fault_address=take();
     const auto word=take(),flags=take(),fault=take();
     if(saved_done>1 || word>0xffffffffu || flags>15 || fault>6 || ((s.pc&3) && fault!=1) || (!fault && (word || s.fault_address)))return false;
-    // Executable/RO bytes are immutable and fixed by the loaded image identity.
-    for(unsigned n=0;n<2;++n){const auto& seg=segments[n];if(seg.size && !std::equal(rom.begin()+seg.file,rom.begin()+seg.file+seg.size,data.begin()+at+seg.address))return false;}
+    std::array<uint32_t,2> saved_inputs{};
+    if(!legacy)for(auto& v:saved_inputs){const auto raw=take();if(raw>0xffffffffu)return false;v=uint32_t(raw);}
+    // Validate the whole state before mutating architecture or process memory.
+    for(unsigned n=0;n<2;++n){const auto& seg=segments[n];if(seg.size && !std::equal(rom.begin()+seg.file,rom.begin()+seg.file+seg.size,data+at+seg.address))return false;}
     s.fault_word=uint32_t(word);s.nzcv=unsigned(flags);s.fault=unsigned(fault);
-    cpu.state=s;frames=saved_frames;done=saved_done;std::copy_n(data.begin()+at,ram_size,ram.begin());return true;
+    cpu.state=s;frames=saved_frames;done=saved_done;inputs=saved_inputs;
+    std::copy_n(data+at,ram_size,ram.begin());return true;
+}
+uint64_t Machine::state_hash() const{
+    if(rom.empty())return 0;
+    std::array<uint8_t,360> bytes{};header(bytes.data());uint64_t hash=0xcbf29ce484222325ull;
+    for(auto byte:bytes)hash=(hash^byte)*0x100000001b3ull;
+    for(auto byte:ram)hash=(hash^byte)*0x100000001b3ull;
+    return hash;
 }
 }
