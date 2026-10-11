@@ -66,6 +66,17 @@
       "source_type": "original",
       "suite": "saturation_registers"
     },
+    "3ds/wide_media_multiply_registers/wide_media_multiply_registers.v3ds": {
+      "build_command": "python3 tests/roms-src/3ds/wide_media_multiply_registers/build.py",
+      "console": "3ds",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "1216541b8bd39795dd9820157a55fc5c87ab93116c3f0ab6155366baa7e7a34b",
+      "source_repo": "tests/roms-src/3ds/wide_media_multiply_registers/build.py",
+      "source_sha": "bf1ada2a8ff8f5b8aa8c44de92c3dc93d73c9eff4672e4f1e939bef5b0f4a46a",
+      "source_type": "original",
+      "suite": "wide_media_multiply_registers"
+    },
     "dsi/netplay_probe/netplay_probe.vdsi": {
       "build_command": "python3 tests/roms-src/dsi/netplay_probe/build.py",
       "console": "dsi",

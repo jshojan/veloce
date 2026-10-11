@@ -3992,3 +3992,24 @@ text and complete 135,791,096-byte states. Full CPU/media/system/MMU/exception
 behavior, timing, firmware/retail boot, graphics/audio and native devices remain
 pending. ABI/state format are unchanged; 3DS remains **30%**. See
 [original source and domains](../tests/roms-src/3ds/pack_difference_registers/README.md).
+
+## ARM11 high-word and unsigned wide multiplication (2026-10-11)
+
+3DS 0.7.0 adds ARMv6 UMAAL and SMMUL/SMMLA/SMMLS with their rounded forms.
+UMAAL adds both old destination words as independent unsigned 32-bit seeds.
+High-word forms multiply signed operands; rounded subtraction negates the
+product before adding 0x80000000 and extracting the high word. All preserve
+NZCVQ/GE and read sources before aliased writes; invalid profiles/PC operands,
+reserved operations and duplicate UMAAL destinations stop diagnostically.
+The original dual-ARM11 image independently grades **7,340,032 snapshots /
+73,400,320 actual register words**, sweeping selected complemented halfwords,
+four right boundary words and two flag/seed surrounds. These are finite domains.
+The component gate checks **31,559,680 observations**, including quotient/floor
+and independent 16-bit-limb arithmetic, ties, carry, flags/conditions and aliases.
+Executed wrong-result/Q reject all 896 short cases; UMLAL replacement, wrong
+rounding and wrong source reject 128/416/744 cases. Ten field faults and seven
+malformed streams reject. Native checkpoint prefixes compare actual text and
+complete 135,791,096-byte states. Full CPU/media/system/MMU/exception behavior,
+timing, firmware/retail boot, graphics/audio and native devices remain pending.
+ABI/state format are unchanged; 3DS remains **30%**. See
+[original source and domains](../tests/roms-src/3ds/wide_media_multiply_registers/README.md).

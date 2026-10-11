@@ -124,6 +124,22 @@ void Arm::step() {
         }
         s.r[rd]=result;s.r[15]=pc+4;return;
     }
+    if((ins&0x0ff00010u)==0x07500010u) {
+        const unsigned rd=(ins>>16)&15,ra=(ins>>12)&15,rs=(ins>>8)&15,rm=ins&15,op=(ins>>6)&3;
+        if(!v6 || (op!=0 && op!=3) || rd==15 || rs==15 || rm==15 || (op==3 && ra==15)){s.unsupported=true;return;}
+        const auto signed_word=[](uint32_t value)->int64_t{return value&0x80000000u?int64_t(value)-0x100000000ll:value;};
+        const uint64_t product=uint64_t(signed_word(s.r[rm])*signed_word(s.r[rs]));
+        const uint64_t accumulator=ra==15?0:uint64_t(s.r[ra])<<32;
+        uint64_t result=op==3?accumulator-product:accumulator+product;
+        if(ins&32)result+=0x80000000ull;
+        s.r[rd]=uint32_t(result>>32);s.r[15]=pc+4;return;
+    }
+    if((ins&0x0ff000f0u)==0x00400090u) {
+        const unsigned hi=(ins>>16)&15,lo=(ins>>12)&15,rs=(ins>>8)&15,rm=ins&15;
+        if(!v6 || hi==15 || lo==15 || hi==lo || rs==15 || rm==15){s.unsupported=true;return;}
+        const uint64_t result=uint64_t(s.r[rm])*s.r[rs]+s.r[lo]+s.r[hi];
+        s.r[lo]=uint32_t(result);s.r[hi]=uint32_t(result>>32);s.r[15]=pc+4;return;
+    }
     // ARMv6 extend/extend-and-add. Rn=15 selects the non-accumulating form.
     if((ins&0x0f8000f0u)==0x06800070u) {
         const unsigned kind=(ins>>20)&7,rn=(ins>>16)&15,rd=(ins>>12)&15,rm=ins&15;
