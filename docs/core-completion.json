@@ -165,7 +165,7 @@
         "register_oracle",
         "states"
       ],
-      "remaining": "Cached SI/PIF reads refresh digital input. Functional one-cycle E4/E5 rectangles share the existing triangle pixel pipeline; Mario renders its title head and Peach castle intro with scripted input, without a terminal CPU exception or RSP/DP stop in the bounded probe. Menu navigation and gameplay remain unverified. Complete CPU/CP0/devices, physical FPU/RSP timing, complete RDP/audio, two-cycle pixels and texture LOD, random dithering/noise and CI8 alpha thresholds, analog/accessories/presence detection, CIC/EEPROM/Joybus and physical SI timing, local multiplayer frontend routing and physical timing remain. Production two-player TCP rollback and four virtual digital PIF ports are verified for the implemented profile."
+      "remaining": "Cached SI/PIF reads refresh digital input. Functional one-cycle E4/E5 rectangles share the existing triangle pixel pipeline; A six-billion-attempt Start/A probe reaches Mario, the lives/star HUD and Lakitu tutorial in the courtyard without a terminal CPU exception or RSP/DP stop. Analog movement, menu/level interactions and gameplay remain unverified. Complete CPU/CP0/devices, physical FPU/RSP timing, complete RDP/audio, two-cycle pixels and texture LOD, random dithering/noise and CI8 alpha thresholds, analog/accessories/presence detection, CIC/EEPROM/Joybus and physical SI timing, local multiplayer frontend routing and physical timing remain. Production two-player TCP rollback and four virtual digital PIF ports are verified for the implemented profile."
     },
     {
       "id": "vb",

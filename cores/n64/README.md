@@ -1,6 +1,6 @@
 # Experimental Nintendo 64 core plugin
 
-Current N64 evidence: [Corrected RSP mixed products and Mario logo](#corrected-rsp-mixed-products-and-mario-logo). Earlier increment reports are historical.
+Current N64 retail evidence: [Extended Mario intro and timed captures](#extended-mario-intro-and-timed-retail-captures). Earlier increment reports are historical.
 
 <!-- completion:start -->
 ## Completion percentage
@@ -13,7 +13,7 @@ These percentages count the 20 explicit delivery milestones in [the completion l
 
 Nintendo 64 delivered milestones: Guest sound produces audio samples, Native digital controller/keypad registers consume frontend input, Guest graphics produce rendered video, Parse a native cartridge/executable format (boot scored separately), Actual production-plugin TCP peers pass original guest oracle and whole-state comparison, Repository-owned ROM source and reproducible archived image, Separate core plugin and ABI entry points, Actual guest register-file output independently graded on the host, with negative controls, Complete states for the implemented profile and deterministic replay.
 
-Remaining: Cached SI/PIF reads refresh digital input. Functional one-cycle E4/E5 rectangles share the existing triangle pixel pipeline; Mario renders its title head and Peach castle intro with scripted input, without a terminal CPU exception or RSP/DP stop in the bounded probe. Menu navigation and gameplay remain unverified. Complete CPU/CP0/devices, physical FPU/RSP timing, complete RDP/audio, two-cycle pixels and texture LOD, random dithering/noise and CI8 alpha thresholds, analog/accessories/presence detection, CIC/EEPROM/Joybus and physical SI timing, local multiplayer frontend routing and physical timing remain. Production two-player TCP rollback and four virtual digital PIF ports are verified for the implemented profile.
+Remaining: Cached SI/PIF reads refresh digital input. Functional one-cycle E4/E5 rectangles share the existing triangle pixel pipeline; A six-billion-attempt Start/A probe reaches Mario, the lives/star HUD and Lakitu tutorial in the courtyard without a terminal CPU exception or RSP/DP stop. Analog movement, menu/level interactions and gameplay remain unverified. Complete CPU/CP0/devices, physical FPU/RSP timing, complete RDP/audio, two-cycle pixels and texture LOD, random dithering/noise and CI8 alpha thresholds, analog/accessories/presence detection, CIC/EEPROM/Joybus and physical SI timing, local multiplayer frontend routing and physical timing remain. Production two-player TCP rollback and four virtual digital PIF ports are verified for the implemented profile.
 <!-- completion:end -->
 
 `n64_plugin` builds `n64.so`/`n64.dll`/`n64.dylib` and implements emulator ABI v2.
@@ -389,7 +389,7 @@ python3 tests/n64_retail_probe.py /path/to/your/sm64.z64
 python3 tests/n64_retail_probe.py /path/to/your/sm64.z64 --frames 2000 --output build/artifacts/retail/n64-long.json
 ```
 
-`--frames` selects 1–10,000 frontend scheduling quanta, not completed game
+`--frames` selects 1–100,000 frontend scheduling quanta, not completed game
 frames. The separate trace receives 100,000 nominal CPU attempts per quantum
 and stops at its bound or the first terminal exception. The default stays 120.
 The production ABI probe measures output separately. Reports include executable
@@ -3157,3 +3157,50 @@ full build completes without warnings, component UBSAN and four executed fault
 controls pass, and **117 original archives reproduce**. The original rectangle
 capture suite and all of its negative controls pass. The private report's core,
 probe, trace, script and capture hashes match the final local artifacts.
+
+## Extended Mario intro and timed retail captures
+
+The previous one-billion-attempt limit ended during the intro. The local user-
+supplied Super Mario 64 USA image now runs through **60,000 scheduling quanta**
+and a separate **6,000,000,000 CPU-attempt trace**, using the original
+`tests/input/n64-gameplay-extended.txt` Start/A schedule. There is no terminal
+CPU exception, unsupported RSP operation or DP stop at the bound. The trace
+records **1,477,417,759 RSP instructions** and 21,726 guest-handled exception
+entries. The plugin observes 3,053,955 audio sample pairs; audible correctness
+and physical timing are not established.
+
+Timed private captures show Peach/sky/castle camera scenes, then Mario in front
+of the pipe with the lives/star HUD at quantum 50,000. Quantum 60,000 shows Mario
+in the courtyard with Lakitu's controller tutorial. This establishes reaching
+that scene; analog movement, jumping/attacking, menu/level interactions and
+playability are not verified. Native CIC/PIF boot remains a supplied handoff;
+these observations do not establish the full retail-boot milestone.
+
+The diagnostic ceiling is now 100,000 quanta / ten billion nominal CPU attempts,
+with 900-second subprocess timeouts and the existing default of 120 quanta.
+The capture helper now saves the last valid framebuffer, including uniform
+frames, instead of retaining an earlier nonuniform frame. It reports the final
+one-based capture quantum and saves 10,000-quantum checkpoints on longer runs.
+JSON fingerprints cover the current binaries, scripts, final image and every
+checkpoint. The final capture equals checkpoint 60,000 exactly. All current
+fingerprints match. The original arithmetic cartridge additionally verifies
+uniform capture at quantum 10,001 and a matching checkpoint at 10,000.
+
+Private artifacts: `build/artifacts/retail/n64-gameplay-extended.json`, final
+PPM and six `.q<quantum>.ppm` checkpoints. The earlier three-billion-attempt
+report `n64-gameplay-start.json` is historical and uses the prior capture helper.
+Commercial bytes, captures and foreign implementations are not committed.
+See [input/probe usage](../../tests/input/N64-RETAIL.md).
+
+The core implementation and original hardware domains are unchanged by this
+probe improvement. N64 remains **45% = 9/20 delivery milestones**. Controller
+analog/accessories/EEPROM, complete CPU/devices/RSP/RDP/audio, two-cycle pixels,
+LOD, random dither/noise, physical timing and gameplay verification remain
+required work. CI/CD stays disabled; the complete platform goal is active.
+
+```sh
+python3 tests/n64_retail_probe.py /path/to/private/sm64.z64 --frames 60000 \
+  --input-script tests/input/n64-gameplay-extended.txt \
+  --capture build/artifacts/retail/n64-gameplay-extended.ppm \
+  --output build/artifacts/retail/n64-gameplay-extended.json
+```
