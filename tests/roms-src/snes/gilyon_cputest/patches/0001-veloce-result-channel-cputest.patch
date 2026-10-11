@@ -1,0 +1,784 @@
+diff --git a/cputest/main.asm b/cputest/main.asm
+index 98f2e79..e3de180 100644
+--- a/cputest/main.asm
++++ b/cputest/main.asm
+@@ -11,6 +11,18 @@
+ 	.byte 0, 0, 0, 0
+ 	.word $0000, $FFFF ;checksum+complement
+ 
++; Veloce VELOCE-RESULT/1 reporter state, in WRAM $0E00-$0E0D (no test reads
++; or writes it; the two long pointers it needs are in ZEROPAGE below)
++vt_pass = $0E00        ; word: CHECK ... PASS lines emitted
++vt_fail = $0E02        ; word: CHECK ... FAIL lines emitted
++vt_tmp = $0E04         ; word
++vt_tmp2 = $0E06        ; word
++vt_off = $0E08         ; word: offset into the record
++vt_cur_failed = $0E0A  ; byte: the running test has already been reported as failed
++vt_reason = $0E0B      ; byte: 1 = fail reached through an unexpected BRK/COP
++vt_flags = $0E0C       ; byte: flags byte of the record being checked
++vt_cnt = $0E0D         ; byte: memory checks left / decimal digit
++
+ native_brk_handler = $1000
+ native_cop_handler = $1004
+ emulation_brk_handler = $1008
+@@ -33,9 +45,16 @@ result_d: .word 0
+ result_dbr: .byte 0
+ retaddr: .word 0  ; return address from bankN_save_results
+ vblank_counter: .byte 0  ; wait for vblank when it reaches 0
++; Veloce VELOCE-RESULT/1 reporter: the two long pointers must be in the
++; direct page ($22-$27; no test reads or writes it). Everything else lives in
++; WRAM $0E00-$0E0F below, which no test touches either.
++vt_ptr: .res 3          ; long pointer to the current test's expected-value record
++vt_mptr: .res 3         ; long pointer to a memory location being checked
+ 
+ .segment "CODE"
+ 
++; Veloce: VELOCE-RESULT/1 emitters (tests/roms-src/include/snes), code lands here.
++.include "veloce-test.ca65.inc"
+ 
+ main:
+ 	clc
+@@ -47,6 +66,7 @@ main:
+ 	txs
+ 
+ 	jsr init
++	jsr vt_start
+ 
+ 	ldx #$ffff
+ 	stx test_num
+@@ -154,13 +174,25 @@ init_video_mem:
+ ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+ 
+ init_mem:
+-	; Put STP opcodes in some places in case of errant jumps or software interrupts
+-	lda #$DB
+-	; BRK/COP handlers
+-	sta $1000
+-	sta $1004
+-	sta $1008
+-	sta $100C
++	; Veloce: the BRK/COP handlers are `jml vt_brk_cop` rather than STP, so an
++	; unexpected software interrupt is reported as a failed CHECK and the run
++	; continues with the next test instead of halting without a verdict.
++	ldx #$0000
++@handler:
++	lda #$5C  ; jmp long opcode
++	sta $1000,x
++	lda #<vt_brk_cop
++	sta $1001,x
++	lda #>vt_brk_cop
++	sta $1002,x
++	lda #^vt_brk_cop
++	sta $1003,x
++	inx
++	inx
++	inx
++	inx
++	cpx #$0010
++	bne @handler
+ 
+ 	lda #$01
+ 	sta vblank_counter
+@@ -235,8 +267,21 @@ init_test:
+ 	sei
+ 	rep #$18  ; 16 bit X/Y
+ 	sep #$20  ; 8 bit A
++	inx       ; the test number that called init_test
++	rep #$20
++	.a16
++	txa
++	sta f:vt_tmp2
++	sep #$20
++	.a8
+ 	ldx #$01EF
+ 	txs
++	lda #$00
++	pha
++	plb
++	pea $0000
++	pld
++	jsr vt_report_order
+ 
+ 	jsr wait_for_vblank
+ 	jsr update_test_num
+@@ -251,6 +296,7 @@ init_test:
+ 	
+ @ok:
+ 	inx
++	jsr vt_on_test_start  ; CHECK ... PASS for the previous test (preserves X)
+ 	stx test_num
+ 
+ 	; Every N tests, wait for vblank. This is done to ensure that we're only updating the 
+@@ -303,10 +349,15 @@ save_results:
+ ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+ 
+ success:
++	jsr vt_finish  ; last test's CHECK line + END <pass>/<total>
+ 	jsr wait_for_vblank
+ 	jsr update_test_num
+-	
++
+ 	ldx #txt_success
++	ldy vt_fail
++	beq @show
++	ldx #txt_fail
++@show:
+ 	ldy #$32
+ 	jsr write_text
+ 
+@@ -322,54 +373,28 @@ update_test_num:
+ ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+ 
+ fail:
++	; Veloce: record and continue. Report the failing check (CHECK <n> FAIL
++	; with exp/got from the generated expected-value table, plus a REG line)
++	; over the VELOCE-RESULT/1 port, then run the next test instead of
++	; drawing the registers and waiting for a key press.
++	sei
++	clc
++	xce
++	rep #$18  ; 16 bit X/Y, binary mode
++	sep #$20  ; 8 bit A
++	.a8
++	.i16
++	ldx #$0FFF  ; report on a stack clear of every location the tests check
++	txs
++	lda #$00
++	pha
++	plb
++	pea $0000
++	pld
++	jsr vt_report_fail
+ 	ldx #$1ef
+-	txs  ; in case s is invalid
+-	jsr wait_for_vblank
+-	jsr update_test_num
+-
+-	ldx #txt_fail
+-	ldy #$32
+-	jsr write_text
+-	ldx #txt_a
+-	ldy #$A1
+-	jsr write_text
+-	ldx #txt_x
+-	ldy #$C1
+-	jsr write_text
+-	ldx #txt_y
+-	ldy #$E1
+-	jsr write_text
+-	ldx #txt_p
+-	ldy #$101
+-	jsr write_text
+-	ldx #txt_s
+-	ldy #$121
+-	jsr write_text
+-
+-	lda result_p
+-	ldy #$105
+-	jsr write_hex8
+-
+-	ldx #result_a
+-	ldy #$A5
+-	jsr write_hex16
+-
+-	ldx #result_x
+-	ldy #$C5
+-	jsr write_hex16
+-
+-	ldx #result_y
+-	ldy #$E5
+-	jsr write_hex16
+-
+-	ldx #result_s
+-	ldy #$125
+-	jsr write_hex16
+-
+-
+-	jsr wait_for_key
+-	jsr wait_for_vblank
+-	jsr init
++	txs
++	jsr init_mem
+ 
+ 	; jump to next test
+ 
+@@ -391,6 +416,452 @@ fail:
+ 	rtl  ; actually a jump to the next test
+ 
+ ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
++; Veloce VELOCE-RESULT/1 reporter. Every routine below expects native mode,
++; 8-bit A, 16-bit X/Y, D = 0 and DBR = 0 (what save_results leaves behind).
++; One CHECK line per test (id = the test number in hex, as in tests-full.txt),
++; so END <pass>/<total> always equals the CHECK tally.
++
++vt_start:
++	VT_BEGIN "gilyon_cputest"
++	vt_putc_str "INFO tests="
++	ldx #VT_TOTAL_TESTS
++	jsr vt_dec16
++.ifdef basic
++	vt_putc_str " variant=basic"
++.else
++	vt_putc_str " variant=full"
++.endif
++	vt_putc_str " source=gilyon/snes-tests@v1.4"
++	vt_putc_imm $0A
++	ldx #$0000
++	stx vt_pass
++	stx vt_fail
++	stz vt_cur_failed
++	stz vt_reason
++	rts
++
++; X = the test about to start. Emits PASS for test_num unless it already failed.
++vt_on_test_start:
++	php
++	phb
++	phx
++	rep #$08  ; binary mode for the hex printer
++	lda #$00
++	pha
++	plb
++	ldx test_num
++	cpx #$ffff
++	beq @first
++	lda vt_cur_failed
++	bne @first
++	jsr vt_emit_pass
++@first:
++	stz vt_cur_failed
++	stz vt_reason
++	plx
++	plb
++	plp
++	rts
++
++vt_emit_pass:
++	vt_putc_str "CHECK "
++	ldx test_num
++	jsr vt_hex16
++	vt_putc_str " PASS "
++	jsr vt_load_rec
++	jsr vt_print_name
++	vt_putc_imm $0A
++	rep #$20
++	.a16
++	inc vt_pass
++	sep #$20
++	.a8
++	rts
++
++vt_finish:
++	lda vt_cur_failed
++	bne @end
++	jsr vt_emit_pass
++	lda #$01
++	sta vt_cur_failed
++@end:
++	; fall through
++vt_emit_end:
++	vt_putc_str "END "
++	ldx vt_pass
++	jsr vt_dec16
++	vt_putc_imm '/'
++	rep #$20
++	.a16
++	lda vt_pass
++	clc
++	adc vt_fail
++	tax
++	sep #$20
++	.a8
++	jsr vt_dec16
++	vt_putc_imm $0A
++	rts
++
++; vt_ptr = expected-value record of test_num
++vt_load_rec:
++	rep #$20
++	.a16
++	lda test_num
++	asl a
++	clc
++	adc test_num
++	tax
++	sep #$20
++	.a8
++	lda f:vt_exp_ptrs,x
++	sta vt_ptr
++	lda f:vt_exp_ptrs+1,x
++	sta vt_ptr+1
++	lda f:vt_exp_ptrs+2,x
++	sta vt_ptr+2
++	rts
++
++; Y = offset of the memory-check count in the record at vt_ptr
++vt_mem_offset:
++	lda [vt_ptr]
++	ldy #$0009
++	lsr a
++	bcc :+
++	iny  ; S word
++	iny
++:	lsr a
++	bcc :+
++	iny  ; DBR byte
++:	lsr a
++	bcc :+
++	iny  ; D word
++	iny
++:	rts
++
++; Y = offset of the NUL-terminated name in the record at vt_ptr
++vt_name_offset:
++	jsr vt_mem_offset
++	sty vt_tmp
++	lda [vt_ptr],y
++	rep #$20
++	.a16
++	and #$00FF
++	asl a
++	asl a
++	sec  ; +1 for the count byte itself
++	adc vt_tmp
++	tay
++	sep #$20
++	.a8
++	rts
++
++vt_print_name:
++	jsr vt_name_offset
++@loop:
++	lda [vt_ptr],y
++	beq @done
++	sta VT_PORT_DATA
++	iny
++	bra @loop
++@done:
++	rts
++
++; " exp=<vt_tmp> got=<vt_tmp2>" as 16-bit hex, then newline
++vt_print_expgot16:
++	vt_putc_str " exp="
++	ldx vt_tmp
++	jsr vt_hex16
++	vt_putc_str " got="
++	ldx vt_tmp2
++	jsr vt_hex16
++	vt_putc_imm $0A
++	rts
++
++; Compare the 16-bit record field at offset `off` with `var`; on mismatch
++; print " field=<label> exp=.. got=..", end the line and jump to vt_report_regs.
++; (The field is a key=value token, so the CHECK name matches the PASS line.)
++.macro VT_CHECK16 off, var, label
++	.local ok
++	ldy #off
++	rep #$20
++	.a16
++	lda [vt_ptr],y
++	sta vt_tmp
++	lda var
++	sta vt_tmp2
++	cmp vt_tmp
++	sep #$20
++	.a8
++	beq ok
++	vt_putc_str label
++	jsr vt_print_expgot16
++	jmp vt_report_regs
++ok:
++.endmacro
++
++vt_report_fail:
++	vt_putc_str "CHECK "
++	ldx test_num
++	jsr vt_hex16
++	vt_putc_str " FAIL "
++	jsr vt_load_rec
++	jsr vt_print_name
++	lda vt_reason
++	bne :+
++	jmp @compare
++:
++	; No REG line: the test never reached save_results, so result_* still
++	; hold the previous test's registers.
++	vt_putc_str " field=unexpected-brk-cop"
++	vt_putc_imm $0A
++	jmp vt_count_fail
++@compare:
++	; Same order as the generated test code compares them.
++	VT_CHECK16 1, result_x, " field=x"
++	VT_CHECK16 3, result_y, " field=y"
++	VT_CHECK16 5, result_p, " field=e:p"
++	VT_CHECK16 7, result_a, " field=a"
++	; Optional S / DBR / D fields, then the memory checks.
++	lda [vt_ptr]
++	sta vt_flags
++	ldx #$0009
++	stx vt_off
++	lda vt_flags
++	and #$01
++	bne :+
++	jmp @no_s
++:
++	ldy vt_off
++	rep #$20
++	.a16
++	lda [vt_ptr],y
++	sta vt_tmp
++	lda result_s
++	sta vt_tmp2
++	cmp vt_tmp
++	sep #$20
++	.a8
++	beq :+
++	vt_putc_str " field=s"
++	jsr vt_print_expgot16
++	jmp vt_report_regs
++:	ldx vt_off
++	inx
++	inx
++	stx vt_off
++@no_s:
++	lda vt_flags
++	and #$02
++	bne :+
++	jmp @no_dbr
++:
++	ldy vt_off
++	lda [vt_ptr],y
++	sta vt_tmp
++	lda result_dbr
++	sta vt_tmp2
++	cmp vt_tmp
++	beq :+
++	vt_putc_str " field=dbr"
++	jsr vt_print_expgot8
++	vt_putc_imm $0A
++	jmp vt_report_regs
++:	ldx vt_off
++	inx
++	stx vt_off
++@no_dbr:
++	lda vt_flags
++	and #$04
++	bne :+
++	jmp @no_d
++:
++	ldy vt_off
++	rep #$20
++	.a16
++	lda [vt_ptr],y
++	sta vt_tmp
++	lda result_d
++	sta vt_tmp2
++	cmp vt_tmp
++	sep #$20
++	.a8
++	beq :+
++	vt_putc_str " field=d"
++	jsr vt_print_expgot16
++	jmp vt_report_regs
++:	ldx vt_off
++	inx
++	inx
++	stx vt_off
++@no_d:
++	ldy vt_off
++	lda [vt_ptr],y  ; memory check count
++	sta vt_cnt
++	iny
++@mem_loop:
++	lda vt_cnt
++	bne :+
++	jmp @no_mismatch
++:
++	lda [vt_ptr],y
++	sta vt_mptr
++	iny
++	lda [vt_ptr],y
++	sta vt_mptr+1
++	iny
++	lda [vt_ptr],y
++	sta vt_mptr+2
++	iny
++	lda [vt_ptr],y
++	sta vt_tmp
++	iny
++	lda [vt_mptr]
++	sta vt_tmp2
++	cmp vt_tmp
++	bne @mem_bad
++	dec vt_cnt
++	bra @mem_loop
++@mem_bad:
++	vt_putc_str " field=mem"
++	jsr vt_print_expgot8
++	vt_putc_str " at="
++	lda vt_mptr+2
++	jsr vt_hex8
++	ldx vt_mptr
++	jsr vt_hex16
++	vt_putc_imm $0A
++	jmp vt_report_regs
++@no_mismatch:
++	; Every tabulated value matches: the test failed one of its hand-written
++	; checks (e.g. a branch or jump that landed on the wrong path).
++	vt_putc_str " field=additional-check"
++	vt_putc_imm $0A
++	jmp vt_report_regs
++
++; " exp=<vt_tmp> got=<vt_tmp2>" as 8-bit hex (no newline)
++vt_print_expgot8:
++	vt_putc_str " exp="
++	lda vt_tmp
++	jsr vt_hex8
++	vt_putc_str " got="
++	lda vt_tmp2
++	jsr vt_hex8
++	rts
++
++; CHECK line for "Invalid test order": vt_tmp2 = the test that started,
++; test_num + 1 = the one that should have. Ends the transcript.
++vt_report_order:
++	vt_putc_str "CHECK "
++	ldx vt_tmp2
++	jsr vt_hex16
++	vt_putc_str " FAIL invalid test order (errant jump)"
++	rep #$20
++	.a16
++	lda test_num
++	inc a
++	sta vt_tmp
++	sep #$20
++	.a8
++	jsr vt_print_expgot16
++	rep #$20
++	.a16
++	inc vt_fail
++	sep #$20
++	.a8
++	jmp vt_emit_end
++
++; BRK/COP handler target installed by init_mem
++vt_brk_cop:
++	sei
++	clc
++	xce
++	sep #$20
++	.a8
++	lda #$01
++	sta f:vt_reason
++	jml fail
++
++vt_report_regs:
++	VT_REG_BEGIN
++	ldx result_a
++	VT_REG16 "a"
++	ldx result_x
++	VT_REG16 "x"
++	ldx result_y
++	VT_REG16 "y"
++	lda result_p
++	VT_REG8 "p"
++	lda result_p+1
++	VT_REG8 "e"
++	ldx result_s
++	VT_REG16 "s"
++	ldx result_d
++	VT_REG16 "d"
++	lda result_dbr
++	VT_REG8 "dbr"
++	VT_REG_END
++vt_count_fail:
++	rep #$20
++	.a16
++	inc vt_fail
++	sep #$20
++	.a8
++	lda #$01
++	sta vt_cur_failed
++	rts
++
++; vt_dec16: print X (16-bit) in decimal without leading zeros.
++vt_dec16:
++	php
++	rep #$10
++	.i16
++	stx vt_tmp
++	ldy #$0000  ; nonzero once a digit has been printed
++	ldx #$0000  ; index into vt_pow10
++@digit:
++	sep #$20
++	.a8
++	lda #'0'
++	sta vt_cnt
++	rep #$20
++	.a16
++@sub:
++	lda vt_tmp
++	cmp vt_pow10,x
++	bcc @emit
++	sbc vt_pow10,x
++	sta vt_tmp
++	sep #$20
++	.a8
++	inc vt_cnt
++	rep #$20
++	.a16
++	bra @sub
++@emit:
++	sep #$20
++	.a8
++	lda vt_cnt
++	cpy #$0000
++	bne @out
++	cmp #'0'
++	bne @out
++	cpx #$0008  ; always print the ones digit
++	bne @next
++@out:
++	sta VT_PORT_DATA
++	ldy #$0001
++@next:
++	inx
++	inx
++	cpx #$000A
++	bne @digit
++	plp
++	rts
++
++vt_pow10: .word 10000, 1000, 100, 10, 1
++
++;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+ 
+ 
+ wait_for_key:
+@@ -457,6 +928,12 @@ tests_table:
+ 	.include "tests_table.inc"
+ 	.faraddr success
+ 
++.ifdef basic
++	.include "tests-basic-veloce.inc"
++.else
++	.include "tests-full-veloce.inc"
++.endif
++
+ .segment "TEST_DATA"  ; At address FFA0. Used by some tests
+ test_addr:    ; $FFA0
+ 	.word $1212
+diff --git a/cputest/make_cpu_tests.py b/cputest/make_cpu_tests.py
+index c5792ab..1537522 100644
+--- a/cputest/make_cpu_tests.py
++++ b/cputest/make_cpu_tests.py
+@@ -8,6 +8,11 @@ tests_in_bank = 0
+ basic_tests_only = False
+ asm_code = []
+ tests_txt = []
++# Veloce VELOCE-RESULT/1 patch: one expected-value record per test (see
++# write_veloce_expected()). The S-CPU's `fail` routine walks the record for the
++# failing test to report which register/memory check mismatched, with the
++# expected and observed values, instead of only drawing them on screen.
++veloce_records = []
+ 
+ # Limit tests per bank to not exceed 32KB. Bank 0 has less room due to other code and data in it.
+ TESTS_IN_BANK0 = 230
+@@ -257,6 +262,10 @@ def test(ins, a=0x1234, x=0x3456, y=0x5678, p=None, ea=None, ex=None, ey=None, e
+     @next_test:
+     ''')
+ 
++    veloce_records.append(dict(
++        name=veloce_check_name(ins_name or ins), ex=ex, ey=ey, ep=ep & 0x1FF, ea=ea, es=es, edbr=edbr, ed=ed,
++        mem=[(loc, val) for loc, val in mem_output.items() if val is not None],
++        extra=bool(before_regs or before_ins or after_ins or after_checks)))
+     tests_txt.append(f'Test {test_num:04x}: {ins_name or ins}')
+     inputs = f'A=${a:04x} X=${x:04x} Y=${y:04x} P=${p & 0xFF:02x} E={1 if p & FLAG_E else 0}'
+     if s is not None:
+@@ -1273,6 +1282,78 @@ def write_table():
+             f.write(f'.faraddr test{i:04x}\n')
+ 
+ 
++def veloce_check_name(ins):
++    """CHECK-line name for a test: the instruction text, minus any assembler
++    comment, with whitespace collapsed (VELOCE-RESULT/1 names end at the first
++    key=value token, so a name must never contain '=')."""
++    name = ' '.join(ins.split(';', 1)[0].split())
++    assert '=' not in name and '"' not in name, name
++    return name
++
++
++# The expected-value records live in the otherwise unused LoROM banks 5-7.
++VELOCE_EXP_BANKS = ['BANK5', 'BANK6', 'BANK7']
++VELOCE_BANK_SIZE = 0x8000
++
++# Record layout (all words little-endian), mirrored by vt_name_offset and
++# vt_report_fail in main.asm:
++#   +0  flags: bit0 S checked, bit1 DBR checked, bit2 D checked,
++#              bit7 test has extra hand-written setup/checks
++#   +1  X  +3 Y  +5 P (bit 8 = E)  +7 A          (16-bit expected values)
++#   +9  [S word] [DBR byte] [D word]             (only when the flag is set)
++#   ..  memory check count n, then n x (24-bit address, expected byte)
++#   ..  NUL-terminated CHECK name
++def veloce_record_bytes(r):
++    flags = (1 if r['es'] is not None else 0) | (2 if r['edbr'] is not None else 0) | \
++            (4 if r['ed'] is not None else 0) | (0x80 if r['extra'] else 0)
++    out = [f'.byte ${flags:02x}',
++           f'.word ${r["ex"]:04x}, ${r["ey"]:04x}, ${r["ep"]:04x}, ${r["ea"]:04x}']
++    size = 9
++    if r['es'] is not None:
++        out.append(f'.word ${r["es"]:04x}')
++        size += 2
++    if r['edbr'] is not None:
++        out.append(f'.byte ${r["edbr"]:02x}')
++        size += 1
++    if r['ed'] is not None:
++        out.append(f'.word ${r["ed"]:04x}')
++        size += 2
++    out.append(f'.byte {len(r["mem"])}')
++    size += 1
++    for loc, val in r['mem']:
++        out.append(f'.faraddr ${loc:06x}')
++        out.append(f'.byte ${val:02x}')
++        size += 4
++    out.append(f'.byte "{r["name"]}", 0')
++    size += len(r['name']) + 1
++    return out, size
++
++
++def write_veloce_expected(suffix):
++    """tests<suffix>-veloce.inc: VT_TOTAL_TESTS, the per-test pointer table
++    vt_exp_ptrs and one record per test, packed into BANK5..BANK7 so that no
++    record straddles a LoROM bank (the reporter reads them with [dp],y)."""
++    lines = ['; Auto-generated by make_cpu_tests.py (Veloce VELOCE-RESULT/1 patch)',
++             f'VT_TOTAL_TESTS = {len(veloce_records)}', '']
++    bank = 0
++    lines.append(f'.segment "{VELOCE_EXP_BANKS[bank]}"')
++    lines.append('vt_exp_ptrs:')
++    lines += [f'.faraddr vt_exp{i:04x}' for i in range(len(veloce_records))]
++    used = 3 * len(veloce_records)
++    for i, r in enumerate(veloce_records):
++        body, size = veloce_record_bytes(r)
++        if used + size > VELOCE_BANK_SIZE:
++            bank += 1
++            assert bank < len(VELOCE_EXP_BANKS), 'expected-value table does not fit in BANK5-7'
++            lines.append(f'.segment "{VELOCE_EXP_BANKS[bank]}"')
++            used = 0
++        lines.append(f'vt_exp{i:04x}:')
++        lines += ['    ' + b for b in body]
++        used += size
++    with open(f'tests{suffix}-veloce.inc', 'w') as f:
++        f.write('\n'.join(lines) + '\n')
++
++
+ def handle_cmdline():
+     global basic_tests_only
+ 
+@@ -1309,6 +1390,7 @@ def main():
+         f.write('\n'.join(asm_code) + '\n')
+ 
+     write_table()
++    write_veloce_expected(suffix)
+ 
+ 
+ main()

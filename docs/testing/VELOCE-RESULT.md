@@ -112,7 +112,7 @@ Partial credit is `progress = pass/total`, which feeds the existing `score_test(
 | Console | Data | Control / probe | On real hardware | Legacy adapters (Tier B/C) |
 |---|---|---|---|---|
 | NES | `STA $401E` | `$401F` write: `$00` nop, `$01` terminator hint; read returns `$56` (`'V'`) | disabled CPU test registers: writes ignored, reads open bus | `blargg6000` (`$6000` status + `$6004` text streamed as `LOG`, `END`), status `0x81` goes to `request_reset()` |
-| SNES | `STA $21FE` (I/O banks `$00-$3F/$80-$BF`, DMA-able B-bus) | `$21FF` write control, read returns `$56` | unused B-bus register, no-op | planned: `blargg6000`; `stp` (`note stp=`, `blob sram`, `blob cgram`, synthesised `END`); `spcport` APU-port watcher |
+| SNES | `STA $21FE` (I/O banks `$00-$3F/$80-$BF`, DMA-able B-bus) | `$21FF` write control, read returns `$56` | unused B-bus register, no-op | `blargg6000`; `stp` (`note stp=`, `blob sram`, `blob cgram`, synthesised `END`); `spcport` APU-port watcher |
 | GB | `SB`/`$FF01` + `SC=$81` (every byte, raw) | none | real serial output | `mooneye` (`LD B,B` + Fibonacci fingerprint), `a000` (blargg `$A000` block), `hram` (`$FF80-82` GBMicrotest) |
 | GBA | mGBA `0x4FFF600` string + `0x4FFF700` flush (`level \| 0x100`) | `0x4FFF780`: write `0xC0DE`, read `0x1DEA`; Veloce-only `0x4FFF782=1`: unknown-status completion | inert | `r12` file adapter (stable ARM/Thumb self-branch, evaluated register = failing test) |
 
@@ -131,7 +131,10 @@ banks only. `$21FE` streams bytes; `$21FF` reads `$56`; `$21FF=1` calls
 `finish(-1)`. The original [math corpus](../../tests/roms-src/snes/math_registers/README.md)
 records settled products, quotients, and remainders. Its host oracle grades the
 observations; completion does not imply PASS. WRAM/cart banks retain their memory
-mapping at these offsets. Other SNES adapters in the table remain planned.
+mapping at these offsets. SNES adapters are implemented; explicit port output suppresses inferred
+verdicts. `$21FF=1` preserves unknown-status completion. STP emits actual
+CGRAM/SRAM blobs; its color convention is a bootstrap adapter, not an
+independent hardware oracle. The `spcport` watcher is title-armed.
 
 The GB `serial` file channel is implemented: the core forwards the SB byte when
 the ROM writes `SC=$81` to start an internal-clock transfer. The original

@@ -4,6 +4,7 @@
 #include <array>
 #include <vector>
 #include "debug.hpp"
+#include "test_channel.hpp"
 
 namespace emu { class ITestSink; }
 
@@ -36,8 +37,6 @@ public:
     uint8_t read(uint32_t address);
     void write(uint32_t address, uint8_t value);
 
-    // Borrowed host observation sink; excluded from serialized hardware state.
-    void set_test_sink(emu::ITestSink* sink) { m_test_sink = sink; }
 
     // Controller input
     void set_controller_state(int controller, uint32_t buttons);
@@ -89,18 +88,19 @@ public:
     // Check if FastROM is enabled (MEMSEL bit 0 and cartridge supports it)
     bool is_fast_rom_enabled() const;
 
-    // Blargg test detection
-    BlarggTestState& get_blargg_state() { return m_blargg_state; }
-    const BlarggTestState& get_blargg_state() const { return m_blargg_state; }
-    void report_blargg_result(uint64_t frame_count) { m_blargg_state.report(frame_count); }
-    bool blargg_test_completed() const { return m_blargg_state.should_exit(); }
+    // Test-result channel ($21FE/$21FF port, blargg $6000 block, spcport)
+    TestChannel& test_channel() { return m_test_channel; }
+    const TestChannel& test_channel() const { return m_test_channel; }
+
+    // Fill all 128KB of WRAM with a constant (deterministic power-on state
+    // for test runs).
+    void fill_wram(uint8_t value) { m_wram.fill(value); }
 
     // Save state
     void save_state(std::vector<uint8_t>& data);
     void load_state(const uint8_t*& data, size_t& remaining);
 
 private:
-    emu::ITestSink* m_test_sink = nullptr;
 
     // Components
     CPU* m_cpu = nullptr;
@@ -178,8 +178,8 @@ private:
     // WRAM access port ($2180-$2183)
     uint32_t m_wram_addr = 0;  // 17-bit address for WRAM data port
 
-    // Blargg test state (for automated testing)
-    BlarggTestState m_blargg_state;
+    // Test-result channel (inert unless the application attached a sink)
+    TestChannel m_test_channel;
 
     // Frame counter for debug tracing
     uint64_t m_frame_counter = 0;

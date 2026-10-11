@@ -1,0 +1,31 @@
+{
+  "console": "snes",
+  "suite": "sour_dma_irq_test",
+  "description": "SNES-2 ROM source acquisition: SourMesen/SnesTests dma_irq_test (DMA-during-IRQ), via the higan/byuu snes-test-roms GitLab mirror pinned at 26e8aa91 (plan section 6.2, SNES-2). Unmodified golden-gate rebuild only -- no VELOCE-RESULT/1 patch yet (that is SNES-5). Currently scored via screenshot-crc in test_config.json; unaffected by this recipe.",
+  "license": "no LICENSE file upstream (SourMesen/SnesTests); patch-only per the plan (section 8) -- only this recipe.json/PROVENANCE.md are committed, never a built or modified binary.",
+  "repo": {
+    "url": "https://gitlab.com/higan/snes-test-roms.git",
+    "sha": "26e8aa91e0d3b90b901e7e693bc4a8244b391d7b"
+  },
+  "toolchain_stage": "cc65",
+  "golden_gate": true,
+  "rom_variant": "upstream",
+  "build": {
+    "workdir": "Sour/SnesTests/dma_irq_test",
+    "commands": [
+      "ca65 -g src/global.inc -o src/global.o",
+      "ca65 -g src/snes.inc -o src/snes.o",
+      "ca65 -g src/bg.s -o src/bg.o",
+      "ca65 -g src/init.s -o src/init.o",
+      "ca65 -g src/main.s -o src/main.o",
+      "ca65 -g src/player.s -o src/player.o",
+      "ca65 -g src/ppuclear.s -o src/ppuclear.o",
+      "ca65 -g src/snesheader.s -o src/snesheader.o",
+      "ca65 -g src/testhelper.s -o src/testhelper.o",
+      "ld65 -m map.txt -C lorom256k.cfg --dbgfile dma_irq_test.dbg src/global.o src/snes.o src/bg.o src/init.o src/main.o src/player.o src/ppuclear.o src/snesheader.o src/testhelper.o -o dma_irq_test.sfc"
+    ],
+    "artifacts": {
+      "Sour/SnesTests/dma_irq_test/dma_irq_test.sfc": "dma_irq_test.sfc"
+    }
+  }
+}

@@ -15,6 +15,7 @@ add_library(snes_plugin SHARED
     src/bus.cpp
     src/dma.cpp
     src/cartridge.cpp
+    src/test_channel.cpp
 )
 
 target_include_directories(snes_plugin PRIVATE

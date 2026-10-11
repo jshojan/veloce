@@ -106,6 +106,11 @@ void APU::write_port(int port, uint8_t value) {
     m_spc->cpu_write_port(port & 3, value);
 }
 
+void APU::set_port_write_hook(void (*hook)(void* ctx, int port, uint8_t value, bool from_ipl),
+                              void* ctx) {
+    m_spc->set_port_write_hook(hook, ctx);
+}
+
 size_t APU::get_samples(float* buffer, size_t max_samples) {
     size_t samples_to_copy = std::min(m_audio_write_pos, max_samples);
 

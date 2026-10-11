@@ -130,10 +130,6 @@ uint8_t Bus::read(uint32_t address) {
 
     // Banks $00-$3F and $80-$BF (mirrors)
     if (bank <= 0x3F || (bank >= 0x80 && bank <= 0xBF)) {
-        if (m_test_sink && offset == 0x21FF) {
-            m_open_bus = 0x56;
-            return m_open_bus;
-        }
         if (offset < 0x2000) {
             // WRAM mirror (first 8KB)
             m_open_bus = m_wram[offset];
@@ -164,6 +160,15 @@ uint8_t Bus::read(uint32_t address) {
             }
         }
         if (offset >= 0x2100 && offset < 0x2200) {
+            // Test-result channel probe ($21FF reads $56 while a sink is
+            // attached; otherwise falls through to the normal B-bus route).
+            if (offset >= TestChannel::PORT_DATA) {
+                uint8_t probe;
+                if (m_test_channel.port_read(offset, probe)) {
+                    m_open_bus = probe;
+                    return m_open_bus;
+                }
+            }
             // WRAM data port ($2180) has priority
             if (offset == 0x2180) {
                 m_open_bus = m_wram[m_wram_addr];
@@ -243,16 +248,6 @@ void Bus::write(uint32_t address, uint8_t value) {
 
     // Banks $00-$3F and $80-$BF
     if (bank <= 0x3F || (bank >= 0x80 && bank <= 0xBF)) {
-        if (m_test_sink && offset == 0x21FE) {
-            const char byte = static_cast<char>(value);
-            m_test_sink->write(&byte, 1);
-            return;
-        }
-        if (m_test_sink && offset == 0x21FF) {
-            // Completion alone is not a correctness verdict.
-            if (value == 1) m_test_sink->finish(-1);
-            return;
-        }
         if (offset < 0x2000) {
             // WRAM mirror
             // Debug: Log writes to $1B00-$1BFF range
@@ -334,10 +329,20 @@ void Bus::write(uint32_t address, uint8_t value) {
                         (int)(offset - 0x2140), value, apu_write_count);
                 }
                 m_apu->write_port(offset - 0x2140, value);
+                if (m_test_channel.spcport_armed()) {
+                    m_test_channel.cpu_apu_write(offset - 0x2140, value);
+                }
             }
             return;
         }
         if (offset >= 0x2100 && offset < 0x2200) {
+            // Test-result channel port: $21FE data, $21FF control. Unused
+            // B-bus addresses (no-ops on hardware), taken ahead of the PPU
+            // route only while a sink is attached.
+            if (offset >= TestChannel::PORT_DATA && m_test_channel.active()) {
+                m_test_channel.port_write(offset, value);
+                return;
+            }
             // WRAM data port and address registers ($2180-$2183)
             if (offset == 0x2180) {
                 // Debug: Log writes to $1B00-$1BFF range via WRAM port
@@ -388,11 +393,12 @@ void Bus::write(uint32_t address, uint8_t value) {
             }
         }
         // SRAM region ($6000-$7FFF)
-        // Also intercept writes for Blargg test detection
         if (offset >= 0x6000 && offset < 0x8000) {
-            // Intercept writes to $6000-$60FF for Blargg test detection
-            if (offset < 0x6100) {
-                m_blargg_state.on_memory_write(offset - 0x6000, value);
+            // blargg6000 adapter: observe the $6000-$60FF result block
+            // (only while a test sink is attached; the write still goes to
+            // the cartridge as usual).
+            if (offset < 0x6100 && m_test_channel.active()) {
+                m_test_channel.blargg_write(offset - 0x6000, value);
             }
             if (m_cartridge) {
                 m_cartridge->write(address, value);

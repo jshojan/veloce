@@ -35,6 +35,16 @@ public:
     // IPL ROM enable/disable
     void set_ipl_rom_enabled(bool enabled) { m_ipl_rom_enabled = enabled; }
 
+    // Observer for S-SMP writes to its output ports $F4-$F7 (the values the
+    // S-CPU reads at $2140-$2143). Used only by the test-result channel's
+    // spcport adapter; nullptr (the default) disables it. from_ipl is true
+    // when the write came from the IPL ROM.
+    using PortWriteHook = void (*)(void* ctx, int port, uint8_t value, bool from_ipl);
+    void set_port_write_hook(PortWriteHook hook, void* ctx) {
+        m_port_write_hook = hook;
+        m_port_write_ctx = ctx;
+    }
+
     // Get audio RAM for DMA
     uint8_t* get_ram() { return m_ram.data(); }
     const uint8_t* get_ram() const { return m_ram.data(); }
@@ -118,6 +128,8 @@ private:
     // I/O ports ($F4-$F7)
     std::array<uint8_t, 4> m_port_out;  // SPC -> CPU
     std::array<uint8_t, 4> m_port_in;   // CPU -> SPC
+    PortWriteHook m_port_write_hook = nullptr;
+    void* m_port_write_ctx = nullptr;
 
     // Timers ($FA-$FC targets, $FD-$FF outputs)
     // Reference: anomie's SPC700 docs

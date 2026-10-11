@@ -641,6 +641,12 @@ adapter behavior. Both original emitter dialects repeat exactly with a deliberat
 failure. Delivery remains 40%; timing and full compatibility remain unverified.
 See the [GBA integration evidence](cores/gba/README.md#result-channel-branch-integration-2026-10-11).
 
+The SNES result-channel branch is integrated: 68,864 settled math pairs and
+504,832 timed captures pass independent grading. Fresh opcode ROMs report
+1,600/1,610 S-CPU checks (FAIL) and 1,368/1,368 SPC700 checks (PASS), with exact
+repeat captures. Delivery stays 40%; full hardware timing remains unverified.
+See the [SNES integration evidence](cores/snes/README.md#result-channel-branch-integration-2026-10-11).
+
 ## Project Structure
 
 ```

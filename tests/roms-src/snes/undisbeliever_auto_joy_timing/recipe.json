@@ -1,0 +1,26 @@
+{
+  "console": "snes",
+  "suite": "undisbeliever_auto_joy_timing",
+  "description": "SNES-2 ROM source acquisition: undisbeliever/snes-test-roms 'auto-joy-timing-test' (src/hardware-tests/auto-joypad/), the plan's 'auto-joy timing' measurement test (SNES-8). Pinned at current master with --recurse-submodules (the repo vendors its own pinned bass-untech as a submodule, tools/bass-untech). BLOCKED: see 'Build status' below -- this recipe documents the acquisition path (clone + submodule resolve), not a working build.",
+  "license": "zlib (undisbeliever/snes-test-roms LICENSE).",
+  "repo": {
+    "url": "https://github.com/undisbeliever/snes-test-roms.git",
+    "sha": "ac6ef8006809c0ff5dabc8ff137a4623967697fe"
+  },
+  "submodules": true,
+  "toolchain_stage": "bass-untech",
+  "golden_gate": false,
+  "golden_gate_reason": "bin/ is a build-only output directory (not shipped) -- see PROVENANCE.md for the actual blocker (bass-untech does not run at all in this toolchain image).",
+  "rom_variant": "upstream",
+  "build": {
+    "workdir": ".",
+    "commands": [
+      "mkdir -p bin/hardware-tests/auto-joypad",
+      "bass-untech -o bin/hardware-tests/auto-joypad/auto-joy-timing-test.sfc -sym bin/hardware-tests/auto-joypad/auto-joy-timing-test.sym src/hardware-tests/auto-joypad/auto-joy-timing-test.asm",
+      "python3 tools/write-sfc-checksum.py --lorom bin/hardware-tests/auto-joypad/auto-joy-timing-test.sfc"
+    ],
+    "artifacts": {
+      "bin/hardware-tests/auto-joypad/auto-joy-timing-test.sfc": "auto-joy-timing-test.sfc"
+    }
+  }
+}

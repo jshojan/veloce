@@ -48,6 +48,9 @@ public:
 
     // Get framebuffer (256x224 or 512x448 in hi-res)
     const uint32_t* get_framebuffer() const { return m_framebuffer.data(); }
+    // Raw CGRAM (256 BGR555 words, little-endian) for the test-result channel.
+    const uint8_t* cgram_data() const { return m_cgram.data(); }
+    size_t cgram_size() const { return m_cgram.size(); }
 
     // Current scanline/dot for timing
     int get_scanline() const { return m_scanline; }

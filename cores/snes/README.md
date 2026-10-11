@@ -18,7 +18,7 @@ Super Nintendo Entertainment System emulator for Veloce.
 
 ## Overview
 
-The SNES core provides emulation of the Super Nintendo with support for LoROM and HiROM cartridge types. It features a complete 65C816 CPU implementation, scanline-based PPU rendering with all 8 background modes, and SPC700 audio processor with DSP synthesis.
+The SNES core provides emulation of the Super Nintendo with support for LoROM and HiROM cartridge types. It features a partial 65C816 CPU implementation, scanline-based PPU rendering with all 8 background modes, and SPC700 audio processor with DSP synthesis.
 
 ## Specifications
 
@@ -39,49 +39,49 @@ The SNES core provides emulation of the Super Nintendo with support for LoROM an
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| All 256 opcodes | **Complete** | Full 65816 instruction set |
-| 8/16-bit modes | **Complete** | M and X flag switching |
-| 24-bit addressing | **Complete** | All addressing modes |
-| Emulation mode | **Complete** | 6502 compatibility |
-| Native mode | **Complete** | 16-bit operations |
-| Direct page | **Complete** | Relocatable zero page |
-| Stack relocation | **Complete** | 16-bit stack pointer |
-| NMI handling | **Complete** | VBlank interrupts |
-| IRQ handling | **Complete** | H/V counter IRQs |
-| WAI/STP | **Complete** | Wait and stop instructions |
-| Block moves | **Complete** | MVN/MVP instructions |
+| All 256 opcodes | **Implemented; accuracy unverified** | Full 65816 instruction set |
+| 8/16-bit modes | **Implemented; accuracy unverified** | M and X flag switching |
+| 24-bit addressing | **Implemented; accuracy unverified** | All addressing modes |
+| Emulation mode | **Partial** | 6502 compatibility; the native-only stack instructions wrongly wrap S to page 1 (see Known Issues) |
+| Native mode | **Implemented; accuracy unverified** | 16-bit operations |
+| Direct page | **Implemented; accuracy unverified** | Relocatable zero page |
+| Stack relocation | **Implemented; accuracy unverified** | 16-bit stack pointer |
+| NMI handling | **Implemented; accuracy unverified** | VBlank interrupts |
+| IRQ handling | **Implemented; accuracy unverified** | H/V counter IRQs |
+| WAI/STP | **Implemented; accuracy unverified** | Wait and stop instructions |
+| Block moves | **Implemented; accuracy unverified** | MVN/MVP instructions |
 | Cycle timing | **Partial** | Per-instruction with FastROM/SlowROM |
 
 ### PPU - Picture Processing Unit (Implemented subset; verification incomplete)
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Mode 0 (4×2bpp) | **Complete** | 4 BG layers, 4 colors each |
-| Mode 1 (2×4bpp+2bpp) | **Complete** | Most common mode |
-| Mode 2 (2×4bpp OPT) | **Complete** | Offset-per-tile implemented |
-| Mode 3 (8bpp+4bpp) | **Complete** | 256-color BG1 |
-| Mode 4 (8bpp+2bpp OPT) | **Complete** | Offset-per-tile implemented |
-| Mode 5 (4bpp hires) | **Complete** | 512-pixel width |
-| Mode 6 (4bpp OPT hires) | **Complete** | Offset-per-tile implemented |
-| Mode 7 (affine) | **Complete** | Rotation, scaling, perspective |
-| Sprites (OBJ) | **Complete** | 128 sprites, 8 sizes |
-| BG priority | **Complete** | Per-mode priority ordering |
-| BG3 priority bit | **Complete** | Mode 1 BG3 front layer |
-| Color math | **Complete** | Add/subtract with half |
-| Sub-screen | **Complete** | Main/sub compositing |
-| Pseudo-hires | **Complete** | 512-width via sub-screen |
-| Windows | **Complete** | 2 windows with logic |
-| Mosaic | **Complete** | Per-BG mosaic effect |
-| Brightness | **Complete** | Master fade control |
-| Force blank | **Complete** | Display disable |
-| VRAM access | **Complete** | All increment modes |
-| OAM access | **Complete** | Sprite attribute table |
-| CGRAM access | **Complete** | Palette memory |
-| H/V counters | **Complete** | Latched position read |
+| Mode 0 (4×2bpp) | **Implemented; accuracy unverified** | 4 BG layers, 4 colors each |
+| Mode 1 (2×4bpp+2bpp) | **Implemented; accuracy unverified** | Most common mode |
+| Mode 2 (2×4bpp OPT) | **Implemented; accuracy unverified** | Offset-per-tile implemented |
+| Mode 3 (8bpp+4bpp) | **Implemented; accuracy unverified** | 256-color BG1 |
+| Mode 4 (8bpp+2bpp OPT) | **Implemented; accuracy unverified** | Offset-per-tile implemented |
+| Mode 5 (4bpp hires) | **Implemented; accuracy unverified** | 512-pixel width |
+| Mode 6 (4bpp OPT hires) | **Implemented; accuracy unverified** | Offset-per-tile implemented |
+| Mode 7 (affine) | **Implemented; accuracy unverified** | Rotation, scaling, perspective |
+| Sprites (OBJ) | **Implemented; accuracy unverified** | 128 sprites, 8 sizes |
+| BG priority | **Implemented; accuracy unverified** | Per-mode priority ordering |
+| BG3 priority bit | **Implemented; accuracy unverified** | Mode 1 BG3 front layer |
+| Color math | **Implemented; accuracy unverified** | Add/subtract with half |
+| Sub-screen | **Implemented; accuracy unverified** | Main/sub compositing |
+| Pseudo-hires | **Implemented; accuracy unverified** | 512-width via sub-screen |
+| Windows | **Implemented; accuracy unverified** | 2 windows with logic |
+| Mosaic | **Implemented; accuracy unverified** | Per-BG mosaic effect |
+| Brightness | **Implemented; accuracy unverified** | Master fade control |
+| Force blank | **Implemented; accuracy unverified** | Display disable |
+| VRAM access | **Implemented; accuracy unverified** | All increment modes |
+| OAM access | **Implemented; accuracy unverified** | Sprite attribute table |
+| CGRAM access | **Implemented; accuracy unverified** | Palette memory |
+| H/V counters | **Implemented; accuracy unverified** | Latched position read |
 | Interlace | **Partial** | Field detection, not full interlace rendering |
-| Overscan | **Complete** | 239-line mode |
-| Direct color | **Complete** | 8bpp direct RGB in Modes 3/4/7 |
-| EXTBG (Mode 7) | **Complete** | BG2 layer with bit 7 priority |
+| Overscan | **Implemented; accuracy unverified** | 239-line mode |
+| Direct color | **Implemented; accuracy unverified** | 8bpp direct RGB in Modes 3/4/7 |
+| EXTBG (Mode 7) | **Implemented; accuracy unverified** | BG2 layer with bit 7 priority |
 
 ### APU - Audio Processing Unit (Implemented subset; verification incomplete)
 
@@ -89,58 +89,58 @@ The SNES core provides emulation of the Super Nintendo with support for LoROM an
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| All 256 opcodes | **Complete** | Full instruction set |
-| 64KB RAM | **Complete** | Dedicated audio memory |
-| IPL ROM boot | **Complete** | 64-byte boot ROM |
-| Timer 0 (8kHz) | **Complete** | 8000Hz base |
-| Timer 1 (8kHz) | **Complete** | 8000Hz base |
-| Timer 2 (64kHz) | **Complete** | 64000Hz base |
-| I/O ports | **Complete** | CPU↔SPC communication |
-| Direct page | **Complete** | Page 0/1 selection |
+| All 256 opcodes | **Implemented; accuracy unverified** | Full instruction set |
+| 64KB RAM | **Implemented; accuracy unverified** | Dedicated audio memory |
+| IPL ROM boot | **Implemented; accuracy unverified** | 64-byte boot ROM |
+| Timer 0 (8kHz) | **Implemented; accuracy unverified** | 8000Hz base |
+| Timer 1 (8kHz) | **Implemented; accuracy unverified** | 8000Hz base |
+| Timer 2 (64kHz) | **Implemented; accuracy unverified** | 64000Hz base |
+| I/O ports | **Implemented; accuracy unverified** | CPU↔SPC communication |
+| Direct page | **Implemented; accuracy unverified** | Page 0/1 selection |
 
 #### S-DSP Digital Signal Processor
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| 8 voice channels | **Complete** | Full polyphony |
-| BRR decoding | **Complete** | 4-bit ADPCM samples |
-| ADSR envelopes | **Complete** | Attack/Decay/Sustain/Release |
-| GAIN mode | **Complete** | Custom envelope control |
-| Gaussian interpolation | **Complete** | Sample smoothing |
-| Echo effect | **Complete** | Hardware reverb |
-| FIR filter | **Complete** | 8-tap echo filter |
-| Noise generator | **Complete** | Pseudo-random noise |
-| Pitch modulation | **Complete** | Voice-to-voice FM |
-| Voice muting | **Complete** | Per-voice enable |
-| Stereo panning | **Complete** | Per-voice L/R volume |
+| 8 voice channels | **Implemented; accuracy unverified** | Full polyphony |
+| BRR decoding | **Implemented; accuracy unverified** | 4-bit ADPCM samples |
+| ADSR envelopes | **Implemented; accuracy unverified** | Attack/Decay/Sustain/Release |
+| GAIN mode | **Implemented; accuracy unverified** | Custom envelope control |
+| Gaussian interpolation | **Implemented; accuracy unverified** | Sample smoothing |
+| Echo effect | **Implemented; accuracy unverified** | Hardware reverb |
+| FIR filter | **Implemented; accuracy unverified** | 8-tap echo filter |
+| Noise generator | **Implemented; accuracy unverified** | Pseudo-random noise |
+| Pitch modulation | **Implemented; accuracy unverified** | Voice-to-voice FM |
+| Voice muting | **Implemented; accuracy unverified** | Per-voice enable |
+| Stereo panning | **Implemented; accuracy unverified** | Per-voice L/R volume |
 
 ### DMA Controller (Implemented subset; verification incomplete)
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| 8 DMA channels | **Complete** | Independent channels |
-| Transfer mode 0 | **Complete** | 1 byte to 1 register |
-| Transfer mode 1 | **Complete** | 2 bytes to 2 registers |
-| Transfer mode 2 | **Complete** | 2 bytes to 1 register |
-| Transfer mode 3 | **Complete** | 4 bytes to 2 registers |
-| Transfer mode 4 | **Complete** | 4 bytes to 4 registers |
-| A→B / B→A | **Complete** | Bidirectional |
-| Fixed address | **Complete** | Non-incrementing |
-| HDMA | **Complete** | Per-scanline transfers |
-| HDMA indirect | **Complete** | Table-based transfers |
-| HDMA repeat | **Complete** | Repeat flag handling |
+| 8 DMA channels | **Implemented; accuracy unverified** | Independent channels |
+| Transfer mode 0 | **Implemented; accuracy unverified** | 1 byte to 1 register |
+| Transfer mode 1 | **Implemented; accuracy unverified** | 2 bytes to 2 registers |
+| Transfer mode 2 | **Implemented; accuracy unverified** | 2 bytes to 1 register |
+| Transfer mode 3 | **Implemented; accuracy unverified** | 4 bytes to 2 registers |
+| Transfer mode 4 | **Implemented; accuracy unverified** | 4 bytes to 4 registers |
+| A→B / B→A | **Implemented; accuracy unverified** | Bidirectional |
+| Fixed address | **Implemented; accuracy unverified** | Non-incrementing |
+| HDMA | **Implemented; accuracy unverified** | Per-scanline transfers |
+| HDMA indirect | **Implemented; accuracy unverified** | Table-based transfers |
+| HDMA repeat | **Implemented; accuracy unverified** | Repeat flag handling |
 | Mid-transfer abort | **Partial** | Not fully accurate |
 
 ### Cartridge Support (Implemented subset; verification incomplete)
 
 | Type | Status | Notes |
 |------|--------|-------|
-| LoROM | **Complete** | Standard low-ROM mapping |
-| HiROM | **Complete** | Standard high-ROM mapping |
+| LoROM | **Implemented; accuracy unverified** | Standard low-ROM mapping |
+| HiROM | **Implemented; accuracy unverified** | Standard high-ROM mapping |
 | ExHiROM | **Partial** | Extended addressing |
-| Battery SRAM | **Complete** | Save game support |
-| Header detection | **Complete** | Auto-detect mapping |
-| CRC32 | **Complete** | ROM identification |
+| Battery SRAM | **Implemented; accuracy unverified** | Save game support |
+| Header detection | **Implemented; accuracy unverified** | Auto-detect mapping |
+| CRC32 | **Implemented; accuracy unverified** | ROM identification |
 
 ### Enhancement Chips (Not Implemented)
 
@@ -373,6 +373,9 @@ int Bus::get_access_cycles(uint32_t address) const {
 | Issue | Description | Affected Games |
 |-------|-------------|----------------|
 | Cycle accuracy | Instruction-level, not per-cycle timing | Very timing-sensitive code |
+| E-mode stack wrap | In emulation mode, JSL, JSR (a,x), PEA, PEI, PER, PHD, PLD, PLB and RTL wrap S within page 1; hardware lets them reach `$00FF`/`$0200` (gilyon cputest 0274, 0277, 03c2, 03c4, 03c7, 03d9, 03dc, 03ed, 0446) | Code running these with E=1 near the stack page edge |
+| 16-bit decimal SBC | `sbc #$f1e2` with A=`$ab1d`, C=1, D=1, M=0 gives `$58db`; hardware gives `$59db` (gilyon cputest 061a) | Games using 16-bit BCD arithmetic |
+| SPC700 SLEEP/STOP | `$EF`/`$FF` run as 2-cycle no-ops instead of halting the S-SMP | Only code that relies on the halt |
 | Interlace rendering | Field detection only, not true interlace | Interlaced games |
 
 ### Low Priority
@@ -516,17 +519,11 @@ CLI, and the JSON scorecard are identical across every Veloce console. For the
 methodology and the platform-wide picture see the top-level
 [TESTING.md](../../TESTING.md) and [COMPLETENESS.md](../../COMPLETENESS.md).
 
-> **Verified accuracy versus delivery completion.** The generated checklist above
-> counts delivered milestones. The subsystem tables describe implementation status;
-> former hand-estimated subsystem percentages have been removed. The *verified* accuracy headline is currently **low** because
-> almost every SNES test is a community ROM that draws its result on screen and so
-> needs a `screenshot-crc` reference hash that has not yet been measured; those
-> tests ship `known_fail` and contribute zero. The Blargg SPC `memory`-detected
-> subset does not currently verify either: none of the blargg-spc-6 ROMs in the
-> mirror write the `$6000` status byte, so they report RUNS / "no result signal"
-> and these external tests remain unverified. The original math corpus below
-> provides independent register-file evidence. Full per-subsystem justification and the path to a real
-> headline are in [COMPLETENESS.md](../../COMPLETENESS.md#snes).
+> **Delivery and accuracy:** the generated checklist counts delivery milestones.
+> Whole-core hardware accuracy remains unmeasured. Current owned math captures
+> and fresh gilyon opcode runs are recorded below. Visual catalog ROMs still
+> lack independent file verdicts; Blargg SPC ROMs without a result signal
+> remain unverified. Implementation tables do not establish hardware completeness.
 
 ```bash
 cd cores/snes/tests
@@ -553,18 +550,73 @@ SPC700 + SuperFX/GSU opcode suites, absindx SA-1, and the jonasquinn / KungFuFur
 
 | Subsystem | Suites | Sample ROMs | Detection |
 |-----------|--------|-------------|-----------|
-| CPU (65816) | arith, logic, inc/dec/cmp, load/store/transfer, branch/jump/misc, full-auto | CPUADC, CPUSBC, CPUMSC, CPUMOV, gilyon cputest | screenshot-crc (visual) |
-| APU (SPC700 + DSP) | blargg, SPC700 ops, gilyon | spc_smp, spc_timer, spc_mem_access_times, spc_dsp6, SPC700ADC | memory ($6000) + screenshot-crc |
+| CPU (65816) | arith, logic, inc/dec/cmp, load/store/transfer, branch/jump/misc, full-auto | CPUADC, CPUSBC, CPUMSC, CPUMOV, gilyon cputest | gilyon cputest: file (`port`, 1610 checks); the rest screenshot-crc (visual) |
+| APU (SPC700 + DSP) | blargg, SPC700 ops, gilyon | spc_smp, spc_timer, spc_mem_access_times, spc_dsp6, SPC700ADC, gilyon spctest | gilyon spctest: file (`port`, 1368 checks); blargg: memory (`$6000` via the result file; blargg-spc-6 never writes it); PeterLemon: screenshot-crc |
 | PPU | smoke, OAM, mode3/color-halve, bus/INIDISP | test_hello, test_oam, demo_mode3, ppubusact | screenshot-crc |
 | Timing | IRQ, DMA, HDMA | test_irq4209, test_dmatiming, test_hdmatiming, dma_irq_test, HblankEmuTest | screenshot-crc (cycle-accurate) |
 | Mapper (enhancement chips) | SuperFX/GSU, SA-1 | GSUADC, GSUFMULT, SA1RamProtectionTest | screenshot-crc |
 | Memory | speed/open-bus | speed_test_v51, op_timing_test_v2 | screenshot-crc (timing) |
 
-**Detection methods.** Blargg SPC ROMs report PASS/FAIL via the `$6000` memory
-protocol (`BLARGG_STATUS` / `Status code: N` under `DEBUG=1`). All krom/PeterLemon
-and community ROMs draw their result on screen and use `screenshot-crc`: the
-binary captures the framebuffer (`SAVE_SCREENSHOT`), the testkit CRC32s the PNG
-and compares to a stored `reference_hash`.
+**Detection methods.** Scored verdicts come from the VELOCE-RESULT/1 result
+file ([docs/testing/VELOCE-RESULT.md](../../docs/testing/VELOCE-RESULT.md)): the
+harness sets `VELOCE_TEST_OUT` and the core forwards its result channel into it
+(see *Test-result channel* below). The core no longer prints a verdict to
+stdout/stderr. Most krom/PeterLemon and community ROMs still draw their result
+on screen and use `screenshot-crc`: the binary captures the framebuffer
+(`SAVE_SCREENSHOT`), the testkit CRC32s the PNG and compares to a stored
+`reference_hash`. Those entries are non-scoring until they are rebuilt to emit
+on the port (plan items SNES-4..8). gilyon cputest and spctest are already
+rebuilt this way (SNES-3; see *Patched ROMs* below).
+
+**Patched ROMs.** A config entry with `rom_variant: "veloce"` names a ROM that
+`tests/roms-src/build.py` builds from upstream source at a pinned SHA plus a
+committed patch, into `build/roms/snes/<suite>/`. The runner links
+`tests/roms/veloce` to that directory, and the entry's `file` is
+`veloce/<suite>/<rom>`. The harness refuses a ROM whose sha256 is not in
+`tests/roms-src/rom_manifest.json`. Without a build these entries SKIP. The
+basename healer never links an upstream ROM into `veloce/`.
+
+```bash
+python3 tests/roms-src/build.py snes/gilyon_cputest   # needs the tools/rom-toolchain image
+python3 tests/roms-src/build.py snes/gilyon_spctest
+```
+
+- `cpu.gilyon_cputest` (gilyon/snes-tests v1.4, MIT): one `CHECK` per test,
+  ids matching `tests-full.txt`. A failure is recorded and the run continues;
+  the line carries `field=` (the first mismatching register or memory byte) and
+  `exp=`/`got=` from `make_cpu_tests.py`, followed by a `REG` line. Today:
+  `END 1600/1610`. The ten failures are the E-mode stack wrap and
+  decimal SBC issues listed under Known Issues.
+- `apu.gilyon_spctest` (same pin): the S-SMP programs are unmodified; the S-CPU
+  converts gilyon's APU-port protocol into one `CHECK` per test and adds a
+  120-frame watchdog for a hung S-SMP. Today: `END 1368/1368`.
+
+Details and the expected-value sources are in each suite's
+`tests/roms-src/snes/<suite>/PROVENANCE.md`.
+
+### Test-result channel
+
+`snes::TestChannel` (`src/test_channel.{hpp,cpp}`) implements plugin ABI v2
+(`set_test_sink`, `test_channels() = "port,blargg6000,stp,sram,spcport"`,
+`on_test_reset`). Every driver is inert unless the application attached a sink,
+so normal play is unchanged.
+
+| Driver | ROM side | What lands in the result file |
+|---|---|---|
+| `port` | `STA $21FE` (any bank `$00-$3F`/`$80-$BF`, DMA-able B-bus address); `$21FF` write = control (`$00` nop, `$01` terminator hint); `$21FF` read = `$56` probe | the bytes verbatim (`VELOCE 1 ...`, `CHECK ...`, `END p/t`) |
+| `blargg6000` | blargg `$6000` block (status, `DE B0 61` signature, text at `$6004+`) | `#VELOCE adapter=blargg6000`, the text as `LOG` lines as it is written, `END 1/1` or `END 0/1 code=<n>`; status `$81` requests one reset per `$80`->`$81` transition |
+| `stp` / `sram` | ROM halts with `STP` (byuu/jonasquinn convention: backdrop `$7C00` from `pass()`, `$001F` from `fail()`) | `#VELOCE stp=<pbr:pc> cgram0=<hex>`, blobs `sram` (cartridge RAM) and `cgram`, then `END 1/1` / `END 0/1` (any other colour: terminator with unknown status) |
+| `spcport` | gilyon spctest (`SPC-700 TEST` header) S-SMP port protocol | one `CHECK` per uploaded S-SMP test program, `REG` of the failing test's A/X/Y/P, `END` on failure or once the S-CPU stops uploading |
+
+Once a ROM writes the port, the legacy adapters stay silent. WRAM is filled with
+a fixed constant when a sink attaches, so two runs of a ROM produce identical
+result files. Measurement ROMs that always end in `pass()` (e.g. `test_mul`)
+report completion through `stp`, not correctness; their SRAM blob is the
+observable to compare.
+
+```bash
+VELOCE_TEST_OUT=/tmp/spctest.result ./veloce spctest.sfc && cat /tmp/spctest.result
+```
 
 **Reference hashes are "to be measured."** Visual tests carry no golden hash yet,
 so they are marked `expected: known_fail` and contribute **0** to the headline
@@ -577,6 +629,26 @@ The gaps surfaced by the suite (the SPC700 `(X),(Y)` opcodes `$19`/`$39`/`$59`/`
 that trapped `apu.spc_smp` at `$19`, now fixed; the missing `$6000` signal from the
 blargg-spc-6 ROMs; and the `apu.spc_dsp6` hardware quirk) are documented in
 [COMPLETENESS.md](../../COMPLETENESS.md#snes).
+
+### Emitting VELOCE-RESULT/1 from a patched ROM
+
+Three assembler dialects can emit the channel's vocabulary
+(`tests/roms-src/include/snes/`): `veloce-test.ca65.inc` (ca65 `--cpu 65816`;
+verified end to end via `tests/roms-src/snes/veloce_smoke/`), `.asar.inc`
+(verified against a throwaway ROM), and `.bass.inc` (written but **blocked**:
+the pinned `bass`/`bass-untech` in `tools/rom-toolchain` both segfault on the
+architecture-selection command alone, before any source is read -- see
+`tests/roms-src/include/PROVENANCE.md`). `tests/roms-src/build.py` gained
+`"local"` (a Veloce-authored ROM with no upstream), `"submodules"` and
+`"allow_exit_codes"` recipe fields, and mounts this `include/` directory
+read-only into every toolchain container at `/veloce-include/<console>`.
+`tests/roms-src/snes/{sour_dma_irq_test,sour_op_timing_test,
+undisbeliever_auto_joy_timing}` are acquisition-only recipes (golden-gate
+rebuilds, no emitter patch yet) proving the higan-mirror-pin and
+undisbeliever-with-submodule acquisition paths the plan's SNES-5/6/7/8 items
+build on. `gilyon_cputest` and `gilyon_spctest` carry the SNES-3 emitter
+patches (see *Patched ROMs* above). All three includes print hex in lowercase,
+as the protocol requires; before SNES-3 they printed `A`-`F`.
 
 ## References
 
@@ -617,3 +689,36 @@ blargg-spc-6 ROMs; and the `apu.spc_dsp6` hardware quirk) are documented in
 ## License
 
 MIT License - See main repository LICENSE file.
+
+## Result-channel branch integration (2026-10-11)
+
+One `TestChannel` now serves `port,blargg6000,stp,sram,spcport`. The owned
+`$21FF=1` hint retains unknown status (`finish(-1)`), and explicit port output
+suppresses inferred adapter verdicts. No stdout verdict scanner remains.
+Attaching a sink after execution starts preserves WRAM and serialized hardware
+state; power-on test WRAM remains deterministic.
+
+Executed evidence on the integrated plugin:
+
+- Owned settled math: **68,864 actual register pairs**, independently graded.
+- Owned timed math: **504,832 captures**, independently graded with executed
+  negative controls and strict stream/channel checks. Timing scope remains the
+  documented CPU/math profile, with DMA/HDMA and physical timing pending.
+- **12 original production fixtures** save actual captures and CGRAM/SRAM
+  blobs in `build/artifacts/owned/snes_result_channel/`; port mirrors, non-I/O
+  banks, running/signature status, STP verdicts and port precedence are checked.
+  A separate complete-state comparison verifies late sink attachment.
+- Fresh gilyon S-CPU opcode run: **1,600/1,610 checks**, scored FAIL. Nine
+  emulation-mode stack cases and one decimal SBC case remain broken.
+- Fresh gilyon SPC700 opcode run: **1,368/1,368 checks**, scored PASS. It excludes
+  SLEEP/STOP, device and timing domains. Both catalog captures repeat exactly.
+- The ca65 original emitter matches its literal transcript twice, including
+  the deliberately failing check. Five supplemental/emitter images rebuild;
+  the auto-joypad recipe remains blocked by `bass-untech` crashing before output.
+- The full project build, six shared/channel/math component tests and all
+  **117 archived original ROM rebuilds** pass.
+
+Delivery stays **40% = 8/20 milestones**. Complete CPU/devices, expansion chips,
+physical validation, full corpus grading and SNES netplay remain unfinished.
+Raw catalog captures and reports are under
+`build/artifacts/owned/snes_channel_integration/`. Commercial bytes are excluded.
