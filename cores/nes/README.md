@@ -415,3 +415,25 @@ branches and the explicitly incomplete NES APU branch still need reconciliation.
 
 Actual fixture RAM bytes and sink output are written to
 `build/artifacts/owned/nes_result_channel/*.capture` for file inspection.
+
+## Frame IRQ timing branch reconciliation (2026-10-11)
+
+The parked half-cycle rewrite is reconciled with the newer CPU-cycle APU
+implementation. Pulse timers keep their half-rate clock and noise retains its
+CPU-rate clock. Frame resets now begin at zero after the actual 3/4-cycle write
+delay, without the offset that erased jitter. The four-step NTSC period is
+29,830 cycles, and the IRQ flag reasserts on all three final cycles. Removing
+the unserialized offset preserves pending resets using existing serialized
+phase/delay fields; no new state byte or legacy-state guessing is introduced.
+
+Fresh production file verdicts improve **apu_test from 5/8 to 8/8**: jitter,
+length timing and IRQ timing now pass alongside the existing five tests.
+The [original frame IRQ ROM](../../tests/roms-src/nes/frame_irq/README.md)
+emits **160 actual status reads in 80 cases**, independently graded with an
+executed EOR mutant and damaged-stream controls. Both captures repeat exactly.
+This bounded NTSC profile does not verify all APU hardware or physical timing.
+
+The full build, original 524,288-case ADC/SBC oracle, channel/shared gates,
+production rollback and two-process TCP/plugin gates pass. **118 archived
+original ROMs** reproduce. Delivery stays **50% = 10/20 milestones**; complete
+native timing, full corpus coverage and physical validation remain unfinished.

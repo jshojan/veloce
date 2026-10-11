@@ -79,7 +79,7 @@ void APU::set_region(Region region) {
             m_frame_step4 = 29829;  // Half frame (step 4)
             m_frame_irq_cycle = 29828;  // IRQ starts 1 cycle before step 4
             m_frame_step5 = 37281;  // 5-step mode half frame
-            m_frame_reset4 = 29831; // Reset after the 3-cycle IRQ window
+            m_frame_reset4 = 29830; // Reset at the end of the three-cycle IRQ window
             m_frame_reset5 = 37282;
             break;
         case Region::PAL:
@@ -188,9 +188,9 @@ void APU::step(int cpu_cycles) {
                 m_frame_counter_reset_pending = false;
                 m_frame_counter_mode = m_pending_frame_counter_mode;
                 m_frame_counter_step = 0;
-                // Use the offset determined at write time to compensate for jitter
-                // This ensures the IRQ fires at a consistent point relative to the $4017 write
-                m_frame_counter_cycles = m_frame_counter_reset_offset;
+                // Reset starts a new sequence; the 3/4-cycle write delay
+                // determines parity without a compensating phase offset.
+                m_frame_counter_cycles = 0;
                 just_reset = true;
 
                 // In 5-step mode, clock counters immediately when reset takes effect
@@ -245,13 +245,14 @@ void APU::step(int cpu_cycles) {
 
         // Frame counter - accurate step timing per nesdev wiki
         // The frame counter cycles track CPU cycles since $4017 reset
-        m_frame_counter_cycles++;
+        if (!just_reset) ++m_frame_counter_cycles;
 
         // Check for IRQ (mode 0 only) - set at step 4 and remains set
         // The IRQ flag is set at m_frame_irq_cycle and remains set until
         // cleared by reading $4015 or setting the inhibit flag
         if (m_frame_counter_mode == 0 &&
-            m_frame_counter_cycles == m_frame_irq_cycle &&
+            m_frame_counter_cycles >= m_frame_irq_cycle &&
+            m_frame_counter_cycles <= m_frame_irq_cycle + 2 &&
             !m_irq_inhibit) {
             m_frame_irq = true;
         }
@@ -852,27 +853,9 @@ void APU::cpu_write(uint16_t address, uint8_t value) {
             // Store the pending mode - actual mode change happens after delay
             m_pending_frame_counter_mode = (value & 0x80) ? 1 : 0;
 
-            // Determine delay based on CPU cycle parity
-            // Per nesdev: if write during APU cycle (even), delay = 3
-            //             if write between APU cycles (odd), delay = 4
-            // The purpose of this jitter is to align the reset to a consistent
-            // APU cycle boundary. We compensate by adjusting the starting cycle
-            // so that the IRQ fires at a consistent point relative to the $4017 write.
-            //
-            // The test expects IRQ at a specific point. Using fixed delay=4 passes.
-            // With delay=4, offset=-1, IRQ fires at W + 4 + (29828 - (-1) - 1) = W + 29832
-            // So for delay=3, we need: W + 3 + (29828 - X - 1) = W + 29832
-            //   29828 - X - 1 = 29829
-            //   X = -2
-            if (m_global_cpu_cycle & 1) {
-                // Odd CPU cycle: delay 4, start at -1
-                m_frame_counter_reset_delay = 4;
-                m_frame_counter_reset_offset = -1;
-            } else {
-                // Even CPU cycle: delay 3, start at -2
-                m_frame_counter_reset_delay = 3;
-                m_frame_counter_reset_offset = -2;
-            }
+            // Bus writes occur after that cycle's APU tick. Delay the reset
+            // by three following cycles on even writes, four on odd writes.
+            m_frame_counter_reset_delay = (m_global_cpu_cycle & 1) ? 4 : 3;
             m_frame_counter_reset_pending = true;
 
             // Note: In 5-step mode, the immediate clock happens AFTER the delay

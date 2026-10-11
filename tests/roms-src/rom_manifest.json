@@ -23553,6 +23553,17 @@
       },
       "toolchain_image_id": "sha256:71c159dd80048214ea2f03bcb75b41e0a5c073b55f66a4333ed6bdbef7a3b26f"
     },
+    "nes/frame_irq/frame_irq.nes": {
+      "build_command": "python3 tests/roms-src/nes/frame_irq/build.py",
+      "console": "nes",
+      "license": "MIT (Veloce original source)",
+      "rom_variant": "veloce",
+      "sha256": "701f61b7500e0426c0d55cb0f6780a3144106a6406b84d2a24964ab5f12091d4",
+      "source_repo": "tests/roms-src/nes/frame_irq/build.py",
+      "source_sha": "e48ec464f49e72cc553a02b4e5283cec18628c4225e74de1a98b660d160d8116",
+      "source_type": "original",
+      "suite": "frame_irq"
+    },
     "nes/instr_misc/01-abs_x_wrap.nes": {
       "console": "nes",
       "golden_gate": {

@@ -84,7 +84,6 @@ private:
     // - On odd CPU cycle: reset happens 4 cycles later
     // The offset compensates to ensure IRQ fires at consistent timing
     int m_frame_counter_reset_delay = 0;
-    int m_frame_counter_reset_offset = -1;  // Starting value for cycle counter
     bool m_frame_counter_reset_pending = false;
     int m_pending_frame_counter_mode = 0;
 
@@ -214,7 +213,7 @@ private:
     int m_frame_step4 = 29829;  // Quarter frame 4: envelope/linear, length/sweep
     int m_frame_irq_cycle = 29828;  // IRQ flag set 1 cycle before step 4
     int m_frame_step5 = 37281;  // 5-step mode: envelope/linear, length/sweep
-    int m_frame_reset4 = 29831; // Reset after IRQ window
+    int m_frame_reset4 = 29830; // Reset after IRQ window
     int m_frame_reset5 = 37282;
 
     // High-pass and low-pass filter state (matching NES hardware characteristics)

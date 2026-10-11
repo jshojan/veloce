@@ -1258,3 +1258,7 @@ set_tests_properties(snes_test_channel_plugin_test PROPERTIES LABELS "integratio
 
 add_test(NAME cli_exit_test COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/cli_exit_test.py $<TARGET_FILE:veloce>)
 set_tests_properties(cli_exit_test PROPERTIES LABELS "integration;fast" TIMEOUT 45)
+
+add_test(NAME nes_frame_irq COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/roms-src/nes/frame_irq/run.py
+    --emulator $<TARGET_FILE:veloce> --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/nes_frame_irq)
+set_tests_properties(nes_frame_irq PROPERTIES LABELS "accuracy;owned" TIMEOUT 180)
