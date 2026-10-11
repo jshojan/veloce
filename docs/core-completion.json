@@ -220,7 +220,7 @@
         "register_oracle",
         "states"
       ],
-      "remaining": "ARM11 ARMv6 twelve ARM extend/accumulate forms and four Thumb extension forms now have an original 13,631,488-case image / 95,420,416 register words, separate flags/alias/profile checks and actual native checkpoint continuations. Remaining CPU/MMU, firmware/native formats, graphics/audio, analog/touch and wireless multiplayer remain."
+      "remaining": "ARM11 ARMv6 extension/accumulate and scalar/dual-halfword saturation now have original independently graded register images, flags/alias/profile controls and actual native checkpoint continuations. The new saturation image checks 12,582,912 snapshots / 88,080,384 register words. Remaining CPU/MMU, firmware/native formats, graphics/audio, analog/touch and wireless multiplayer remain."
     },
     {
       "id": "gc",

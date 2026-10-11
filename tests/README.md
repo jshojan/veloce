@@ -500,3 +500,21 @@ native checkpoints in the first sweep compare two-frame continuation output and
 complete states. Full ARMv6/media/system behavior, timing/MMU/exceptions, firmware/
 retail boot and platform peripherals remain pending. 3DS stays 30%. See the
 [original source and domain](roms-src/3ds/extend_registers/README.md).
+
+## ARM11 saturation register files (2026-10-11)
+
+3DS 0.4.0 adds ARMv6 SSAT/USAT and SSAT16/USAT16, including every encoded
+width, LSL/ASR control and sticky Q. NZCV/GE are unchanged; aliases read sources
+before writes. Earlier CPU profiles and PC operands stop diagnostically.
+The original dual-ARM11 image independently grades **12,582,912 snapshots /
+88,080,384 actual register words**. Scalar inputs cover sign-extended bytes at
+all controls; dual inputs sweep each halfword with complemented lane pairs.
+This is bounded coverage. The component gate checks **64,101,056 observations**,
+including wider selected inputs, conditions, all flag states, aliases and CPU
+profile restrictions; the prior decoder fails it. Short guest controls reject
+all 132,096 wrong-result/wrong-Q cases and 71,184 wrong-source cases. Seven
+field faults and seven malformed streams reject. Three native checkpoints
+compare actual continuation text and complete 135,791,096-byte states.
+Full CPU/media/system support, timing/MMU/exceptions, firmware/native retail,
+graphics/audio and analog/touch/wireless remain pending. No delivery milestone
+is newly complete; 3DS remains **30%**. See [source and finite domains](roms-src/3ds/saturation_registers/README.md).

@@ -1606,3 +1606,16 @@ add_dependencies(ctr_extend_checkpoint_test ctr_plugin)
 add_test(NAME ctr_extend_checkpoint_test COMMAND ctr_extend_checkpoint_test $<TARGET_FILE:ctr_plugin>
     ${CMAKE_SOURCE_DIR}/tests/roms-src/3ds/extend_registers/extend_registers.v3ds)
 set_tests_properties(ctr_extend_checkpoint_test PROPERTIES LABELS "accuracy;owned;integration" TIMEOUT 180)
+
+add_executable(arm_v6_saturation_test cpp/arm_v6_saturation_test.cpp ${CMAKE_SOURCE_DIR}/cores/nds/src/arm.cpp)
+target_include_directories(arm_v6_saturation_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/nds/src)
+add_test(NAME arm_v6_saturation_test COMMAND arm_v6_saturation_test)
+set_tests_properties(arm_v6_saturation_test PROPERTIES LABELS "unit;accuracy;owned" TIMEOUT 600)
+
+add_test(NAME ctr_saturation_registers COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/3ds/saturation_registers/run.py --emulator $<TARGET_FILE:veloce>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/3ds_saturation)
+set_tests_properties(ctr_saturation_registers PROPERTIES LABELS "accuracy;owned" TIMEOUT 1800)
+add_test(NAME ctr_saturation_checkpoint_test COMMAND ctr_extend_checkpoint_test $<TARGET_FILE:ctr_plugin>
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/3ds/saturation_registers/saturation_registers.v3ds)
+set_tests_properties(ctr_saturation_checkpoint_test PROPERTIES LABELS "accuracy;owned;integration" TIMEOUT 180)

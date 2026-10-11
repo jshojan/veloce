@@ -86,6 +86,28 @@ void Arm::step() {
         } else s.r[rd]=base+extend(source,(kind&3)==3?16:8);
         s.r[15]=pc+4; return;
     }
+    const bool scalar_sat=(ins&0x0fa00030u)==0x06a00010u;
+    const bool paired_sat=(ins&0x0fb00ff0u)==0x06a00f30u;
+    if(scalar_sat || paired_sat) {
+        const unsigned rd=(ins>>12)&15,rm=ins&15;
+        if(!v6 || rd==15 || rm==15) { s.unsupported=true; return; }
+        const bool unsigned_range=ins&(1u<<22);
+        const unsigned width=((ins>>16)&(paired_sat?15:31))+(unsigned_range?0:1);
+        const int64_t low=unsigned_range?0:-(1ll<<(width-1));
+        const int64_t high=(1ll<<(unsigned_range?width:width-1))-1;
+        bool saturated=false;
+        const auto clamp=[&](uint32_t value,unsigned bits) {
+            const int64_t signed_value=(value&(1u<<(bits-1)))?int64_t(value)-(1ll<<bits):value;
+            if(signed_value<low){saturated=true;return uint32_t(low);}
+            if(signed_value>high){saturated=true;return uint32_t(high);}
+            return uint32_t(signed_value);
+        };
+        const uint32_t source=s.r[rm];
+        if(paired_sat) {const uint32_t lo=clamp(source&65535,16),hi=clamp(source>>16,16);s.r[rd]=(lo&65535)|(hi<<16);}
+        else {bool ignored=false;s.r[rd]=clamp(shift(source,(ins&64)?2:0,(ins>>7)&31,false,ignored),32);}
+        if(saturated)s.cpsr|=0x08000000u;
+        s.r[15]=pc+4;return;
+    }
     const uint32_t reversal=ins&0x0fff0ff0u;
     if(reversal==0x06bf0f30 || reversal==0x06bf0fb0 || reversal==0x06ff0fb0) {
         const unsigned rd=(ins>>12)&15,rm=ins&15;

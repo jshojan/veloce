@@ -131,3 +131,7 @@ for 3DS ARM11. DS/DSi ARM9 and ARM7 remain earlier CPU profiles and reject these
 forms diagnostically before data access; no ARMv6 feature is enabled here.
 The shared extension component gate checks profile isolation. Physical undefined
 instruction exceptions and complete CPU behavior remain pending.
+
+The shared decoder also implements ARMv6 scalar/dual-halfword saturation for
+3DS ARM11. DS/DSi CPU profiles reject these encodings; their ARMv4/v5 instruction
+support and platform completion percentages are unchanged.
