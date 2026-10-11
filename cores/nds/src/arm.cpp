@@ -106,6 +106,24 @@ void Arm::step() {
         for(unsigned lane=0;lane<4;++lane)result|=(((s.cpsr>>(16+lane))&1?left:right)&(255u<<(lane*8)));
         s.r[rd]=result;s.r[15]=pc+4;return;
     }
+    if((ins&0x0ff00030u)==0x06800010u) {
+        const unsigned rn=(ins>>16)&15,rd=(ins>>12)&15,rm=ins&15;
+        if(!v6 || rn==15 || rd==15 || rm==15){s.unsupported=true;return;}
+        const uint32_t left=s.r[rn],right=s.r[rm];const bool top=ins&64;bool ignored=false;
+        const uint32_t shifted=shift(right,top?2:0,(ins>>7)&31,false,ignored);
+        s.r[rd]=top?(left&0xffff0000u)|(shifted&65535):(left&65535)|(shifted&0xffff0000u);
+        s.r[15]=pc+4;return;
+    }
+    if((ins&0x0ff000f0u)==0x07800010u) {
+        const unsigned rd=(ins>>16)&15,ra=(ins>>12)&15,rs=(ins>>8)&15,rm=ins&15;
+        if(!v6 || rd==15 || rs==15 || rm==15){s.unsupported=true;return;}
+        const uint32_t left=s.r[rm],right=s.r[rs];uint32_t result=ra==15?0:s.r[ra];
+        for(unsigned lane=0;lane<4;++lane){
+            const unsigned a=(left>>(lane*8))&255,b=(right>>(lane*8))&255;
+            result+=a>b?a-b:b-a;
+        }
+        s.r[rd]=result;s.r[15]=pc+4;return;
+    }
     // ARMv6 extend/extend-and-add. Rn=15 selects the non-accumulating form.
     if((ins&0x0f8000f0u)==0x06800070u) {
         const unsigned kind=(ins>>20)&7,rn=(ins>>16)&15,rd=(ins>>12)&15,rm=ins&15;

@@ -30,6 +30,8 @@ Twenty-eight doubleword integer/LWU families now enforce User/Supervisor mode re
 3DS ARM11 scalar and dual-halfword SSAT/USAT saturation now has an original **12,582,912-case image / 88,080,384 actual register words**, independent clamping arithmetic, sticky overflow checks, executed negative controls and complete native checkpoint replay. This remains bounded CPU coverage; 3DS stays **30%**.
 
 3DS ARM11 now implements 36 ARMv6 parallel byte/halfword arithmetic forms, GE flag writes and SEL. The original image grades **19,922,944 snapshots / 179,306,496 actual register words**, including a following SEL that consumes real arithmetic flags. Independent grading, executed negative controls and native checkpoint replay cover the documented finite domains. The whole CPU milestone remains unfinished; 3DS stays **30%**.
+
+3DS ARM11 halfword packing and unsigned byte absolute-difference sums now have an original **18,874,368-case image / 150,994,944 actual register words**, including every encoded packing shift and accumulator wrap controls. Independent file grading, executed negative controls and native checkpoint replay cover finite selected domains. This remains partial CPU support; 3DS stays **30%**.
 <!-- completion:end -->
 
 A cross-platform, plugin-based emulator framework built for speedrunners and TAS creators.
