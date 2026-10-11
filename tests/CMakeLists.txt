@@ -881,6 +881,11 @@ foreach(triangle_part decode edges fill)
     add_test(NAME n64_rdp_triangle_${triangle_part}_test COMMAND n64_rdp_triangle_${triangle_part}_test)
     set_tests_properties(n64_rdp_triangle_${triangle_part}_test PROPERTIES LABELS "unit;accuracy;owned" TIMEOUT 180)
 endforeach()
+add_executable(n64_rdp_coverage_test cpp/n64_rdp_coverage_test.cpp)
+target_include_directories(n64_rdp_coverage_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src)
+add_test(NAME n64_rdp_coverage_test COMMAND n64_rdp_coverage_test)
+set_tests_properties(n64_rdp_coverage_test PROPERTIES LABELS "unit;accuracy" TIMEOUT 180)
+
 add_test(NAME n64_rdp_triangle_fill COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/rdp_triangle_fill/run.py --emulator $<TARGET_FILE:veloce>
     --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_rdp_triangle_fill)
