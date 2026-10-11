@@ -59,6 +59,19 @@ bool Aarch64::step(){
         const uint64_t immediate=uint64_t((w>>5)&65535)<<shift;
         put(rd,(op==0?~immediate:op==2?immediate:(reg(rd)&~(uint64_t(65535)<<shift))|immediate)&mask);
     }
+    else if((w&0x1f800000)==0x12000000){
+        const unsigned op=(w>>29)&3,n=(w>>22)&1,r=(w>>16)&63,end=(w>>10)&63;
+        const unsigned selector=(n<<6)|((~end)&63);unsigned length=0;
+        for(unsigned value=selector;value>1;value>>=1)++length;
+        if(length<1 || (width==32 && (n || length>5)))return fail(3,pc,w);
+        const unsigned element=1u<<length,levels=element-1;
+        if((end&levels)==levels)return fail(3,pc,w);
+        const auto pattern=rotate_right(low_mask((end&levels)+1),r&levels,element);
+        uint64_t immediate=0;for(unsigned offset=0;offset<width;offset+=element)immediate|=pattern<<offset;
+        const auto source=reg(rn)&mask,result=op==0 || op==3?source&immediate:op==1?source|immediate:source^immediate;
+        put(rd,result,op!=3); // Non-flag destination 31 is SP; ANDS destination 31 is XZR.
+        if(op==3)state.nzcv=unsigned(bool(result>>(width-1)))*8+unsigned(result==0)*4;
+    }
     else if((w&0x1f800000)==0x13000000){
         const unsigned op=(w>>29)&3,r=(w>>16)&63,end=(w>>10)&63;
         if(op==3 || bool(w&(1u<<22))!=(width==64) || r>=width || end>=width)return fail(3,pc,w);
