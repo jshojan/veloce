@@ -449,3 +449,19 @@ executed wrong-writeback control. Private SM64 native VI movement/action/neutral
 checks pass; all 137 original archives reproduce. Full Release build, completion
 renderer and whitespace checks pass. N64 remains 50%; full hardware and
 full-title retail playability remain unfinished.
+
+## N64 Status write fields
+
+```sh
+ctest --test-dir build -R '^(n64_status_fields|n64_status_fields_test)$' --output-on-failure
+```
+
+The original cartridge grades 4,194,304 cases / 50,331,648 actual RAM/register
+words: both writes, selected source fields/surrounds and direct/taken-delay
+contexts with EXL held for safe capture. The independent oracle checks word/full
+readbacks, previous/restored Status, source and unaffected PRId/Config. Wrong
+reads reject in all 1,024 short cases; twelve field and six stream faults reject.
+Twelve ordinary/fast rollback records and complete states match. The component
+gate checks 14,680,066 unconstrained source/mode/TS observations. Full downstream
+shutdown/trace/power/reverse-endian behavior remains pending. See
+[source, artifacts and limits](roms-src/n64/status_fields/README.md).

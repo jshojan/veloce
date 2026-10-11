@@ -13,7 +13,7 @@ These percentages count the 20 explicit delivery milestones in [the completion l
 
 Nintendo 64 delivered milestones: Guest sound produces audio samples, Native digital controller/keypad registers consume frontend input, Guest graphics produce rendered video, Parse a native cartridge/executable format (boot scored separately), Native local multiplayer/link input routing, Actual production-plugin TCP peers pass original guest oracle and whole-state comparison, Repository-owned ROM source and reproducible archived image, Separate core plugin and ABI entry points, Actual guest register-file output independently graded on the host, with negative controls, Complete states for the implemented profile and deterministic replay.
 
-Remaining: Cached SI/PIF reads refresh digital and signed-byte analog input. The original 65,536-coordinate corpus grades 1,048,576 actual words; frontend selected-stick mapping, neutral dead zone and canonical input recording are verified. Functional one-cycle E4/E5 rectangles share the existing triangle pixel pipeline; A six-billion-attempt Start/A probe reaches Mario, the lives/star HUD and Lakitu tutorial in the courtyard without a terminal CPU exception or RSP/DP stop. A shared private checkpoint now verifies courtyard analog walking, jumping and punching through RAM and neutral controls; 180 legacy quantum movie frames and six seek boundaries match full states. New native sessions advance to VI field boundaries; an original 5,160-case file oracle and 121 native VI movie frames verify scheduling and replay. Legacy states keep the old budget. Exact physical timing and practical normal-speed play remain unverified. Castle entry, menu/level progression and full-title playability remain unverified. All twelve signed/unsigned register/immediate integer trap instructions are implemented; the original 15,728,640-case corpus grades 188,743,680 actual RAM/CP0 words. Twenty-eight doubleword integer/LWU families now enforce User/Supervisor mode restrictions; the original 5,768,792-case mapped guest corpus grades 69,225,504 RAM/CP0 words, with executed NOP rejection and native rollback. Nine wide integer memory families now verify Kernel32 address formation across 4,718,592 original guest cases / 56,623,104 RAM/CP0 words, with extended-address/alignment controls and native rollback. CP0 BadVAddr/PRId/CacheErr software write protection now has an original 12,582,912-case cartridge / 150,994,944 actual RAM/register words, with hardware exception seeding, wrong-read rejection and native rollback. Config fixed/writable fields and actual K0 cache/bypass reads now have an original 16,777,216-case cartridge / 201,326,592 actual RAM/register words, with EP/BE defaults held and clock-field preservation controls. Complete CPU/CP0/devices, physical FPU/RSP timing, complete RDP/audio, two-cycle pixels and texture LOD, random dithering/noise and CI8 alpha thresholds, physical analog calibration/accessories/presence detection, CIC/EEPROM/Joybus and physical SI timing remain. Production two-player TCP rollback and four virtual digital/analog PIF ports are verified for the implemented profile. Ordinary frontend local multiplayer is independently graded through SDL virtual pads, the default input plugin and original guest SI RAM replies: 194 cases, all 24 device assignments, 14 controls on four ports and signed stick endpoints/dead zone. Extra players now have independent saved button/key/axis profiles relative to assigned devices: 3,026 real guest cases / 18,156 RAM words, with wrong-map rejection and remapped four-port native movies. Physical USB/Bluetooth validation, analog remapping and full native accessories remain.
+Remaining: Cached SI/PIF reads refresh digital and signed-byte analog input. The original 65,536-coordinate corpus grades 1,048,576 actual words; frontend selected-stick mapping, neutral dead zone and canonical input recording are verified. Functional one-cycle E4/E5 rectangles share the existing triangle pixel pipeline; A six-billion-attempt Start/A probe reaches Mario, the lives/star HUD and Lakitu tutorial in the courtyard without a terminal CPU exception or RSP/DP stop. A shared private checkpoint now verifies courtyard analog walking, jumping and punching through RAM and neutral controls; 180 legacy quantum movie frames and six seek boundaries match full states. New native sessions advance to VI field boundaries; an original 5,160-case file oracle and 121 native VI movie frames verify scheduling and replay. Legacy states keep the old budget. Exact physical timing and practical normal-speed play remain unverified. Castle entry, menu/level progression and full-title playability remain unverified. All twelve signed/unsigned register/immediate integer trap instructions are implemented; the original 15,728,640-case corpus grades 188,743,680 actual RAM/CP0 words. Twenty-eight doubleword integer/LWU families now enforce User/Supervisor mode restrictions; the original 5,768,792-case mapped guest corpus grades 69,225,504 RAM/CP0 words, with executed NOP rejection and native rollback. Nine wide integer memory families now verify Kernel32 address formation across 4,718,592 original guest cases / 56,623,104 RAM/CP0 words, with extended-address/alignment controls and native rollback. CP0 BadVAddr/PRId/CacheErr software write protection now has an original 12,582,912-case cartridge / 150,994,944 actual RAM/register words, with hardware exception seeding, wrong-read rejection and native rollback. Config fixed/writable fields and actual K0 cache/bypass reads now have an original 16,777,216-case cartridge / 201,326,592 actual RAM/register words, with EP/BE defaults held and clock-field preservation controls. Status writable/reserved/TS write rules now have an original 4,194,304-case cartridge / 50,331,648 actual RAM/register words, with EXL held for safe readback and unconstrained component controls. Complete CPU/CP0/devices, physical FPU/RSP timing, complete RDP/audio, two-cycle pixels and texture LOD, random dithering/noise and CI8 alpha thresholds, physical analog calibration/accessories/presence detection, CIC/EEPROM/Joybus and physical SI timing remain. Production two-player TCP rollback and four virtual digital/analog PIF ports are verified for the implemented profile. Ordinary frontend local multiplayer is independently graded through SDL virtual pads, the default input plugin and original guest SI RAM replies: 194 cases, all 24 device assignments, 14 controls on four ports and signed stick endpoints/dead zone. Extra players now have independent saved button/key/axis profiles relative to assigned devices: 3,026 real guest cases / 18,156 RAM words, with wrong-map rejection and remapped four-port native movies. Physical USB/Bluetooth validation, analog remapping and full native accessories remain.
 <!-- completion:end -->
 
 `n64_plugin` builds `n64.so`/`n64.dll`/`n64.dylib` and implements emulator ABI v2.
@@ -3820,3 +3820,42 @@ Private SM64 native VI walk/jump/punch and stationary controls pass on 0.55.0.
 All **137 original archives** reproduce; full Release build, completion renderer
 and whitespace checks pass. CI/CD stays removed and Actions disabled. Full-title
 retail playability remains unverified.
+
+## Status writable/reserved/TS fields (0.56.0)
+
+MTC0/DMTC0 Status writes now preserve read-only TS bit21, clear reserved bits23/
+19 and upper bits, and update documented writable fields. Existing CU0/
+privilege/width checks still precede the write. This follows
+[NEC VR4300 6.3.5 / Figures 6-5/6-6](https://hack64.net/docs/VR43XX.pdf), pp.166–169.
+No core ABI or S031 layout/capacity change.
+
+The original [Status cartridge and independent file oracle](../../tests/roms-src/n64/status_fields/README.md)
+cover **4,194,304 cases / 50,331,648 actual RAM/register words**: both write
+widths, four complete selected sixteen-bit positions, four surrounds and
+ordinary/actual taken-delay contexts. Source EXL=1 keeps the capture code
+accessible while KSU/widths/interrupt fields change; unconstrained writes are
+covered by the component gate. Actual word/full readbacks, source preservation,
+previous/restored Status and unaffected PRId/Config are exported through RAM.
+Twelve records and complete states match ordinary and fast rollback. Executed
+wrong CP0 reads reject in all **1,024 short cases**; twelve result/sequence and
+six malformed-stream faults reject. Binary/source/archive hashes bind execution.
+
+The component gate checks **14,680,066 observations**, including all selected
+source domains, Kernel32/Kernel64, TS=0/1 fixtures, every source allocation,
+one-hot/one-clear values, CU0-before-width permission priority, EXL/ERL/delay
+metadata and GPR/HI/LO/BadVAddr/LLbit preservation without data access. The old
+core fails software TS preservation; explicit reset still clears TS. These TS=1
+fixtures do not prove physical duplicate-TLB shutdown/recovery. Full shutdown,
+trace bus behavior, low-power clock changes, reverse endian execution, reserved
+CP0, physical hazards/reset/timing and complete CPU/hardware remain pending.
+N64 stays **50%**.
+
+Verification for 0.56.0: all **19 selected regression gates** pass, including
+Status component/native ROM, CP0 Config/read-only, CPU/cache/TLB/FPU controls,
+linked memory, traps, mode/address restrictions, controller input, native TAS
+and netplay. Socket/Xvfb integration gates were rerun with their required
+permissions after sandbox failures. All **138 original ROM archives reproduce**.
+The private courtyard checkpoint was rerun with this core: walk **66.463**, jump
+**+42**, punch and stationary neutral controls pass without terminal CPU/RSP/DP
+stops. The private full movie was not rerun for this version; complete cold boot,
+full-title progression and practical normal-speed play remain unverified.

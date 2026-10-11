@@ -3824,3 +3824,17 @@ fast rollback records and complete states match. The component gate checks
 physical board clock/reset, little/reverse endian execution, EP transfer patterns,
 Status/reserved CP0 and full CPU/hardware remain pending. N64 stays 50%. See
 [original cartridge](tests/roms-src/n64/config_fields/README.md).
+
+## N64 Status writable/reserved/TS corpus (2026-10-11)
+
+N64 0.56.0 corrects Status software writes: TS is preserved; reserved/upper bits
+clear; documented writable fields update. The original 4,194,304-case cartridge
+exports 50,331,648 actual RAM/register words with EXL held for safe readbacks.
+Independent grading checks both writes, source fields/surrounds, direct/taken-
+delay placement, word/full reads, restored Status and unaffected PRId/Config.
+Wrong reads in all 1,024 short cases, twelve field/sequence and six malformed
+streams reject; twelve native/fast rollback records and full states match.
+The component gate checks 14,680,066 unconstrained source/mode/TS observations.
+Physical shutdown/trace/power/reverse-endian behavior, reserved CP0 and full
+hardware/timing remain unfinished; N64 stays 50%. See
+[original cartridge](tests/roms-src/n64/status_fields/README.md).

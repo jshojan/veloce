@@ -3891,3 +3891,18 @@ all writable-bit patterns/eight EC values. Full little/reverse endian execution,
 EP transfers, physical hazards/cache/timing and whole CPU/hardware remain pending.
 No ABI/S031 change; N64 stays 50%. See
 [source, file evidence and limits](../tests/roms-src/n64/config_fields/README.md).
+
+## N64 Status write fields (2026-10-11)
+
+N64 0.56.0 preserves read-only TS, clears reserved/upper Status bits and updates
+documented writable fields after existing CU0/privilege/width checks. The
+original 4,194,304-case cartridge grades 50,331,648 real RAM/register words
+across both writes, selected source fields/surrounds and direct/taken-delay
+contexts. EXL is held for safe native readbacks; unconstrained writes and TS=0/1
+fixtures are checked by the 14,680,066-observation component gate. Actual wrong
+reads, field and malformed stream controls reject; twelve native/fast rollback
+records and complete states match. TS=1 fixtures are not physical shutdown tests.
+Duplicate-TLB shutdown/recovery, trace/power/reverse-endian execution, reserved
+CP0, physical hazards/reset/timing and complete hardware remain pending.
+No ABI/S031 change; N64 stays 50%. See
+[source, file evidence and limits](../tests/roms-src/n64/status_fields/README.md).

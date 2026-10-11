@@ -22538,6 +22538,17 @@
       "source_type": "original",
       "suite": "sp_dma"
     },
+    "n64/status_fields/status_fields.z64": {
+      "build_command": "python3 tests/roms-src/n64/status_fields/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "0448117baceca76d2092322140674e7e30814aefd0b1fa10a1579963d2af28fa",
+      "source_repo": "tests/roms-src/n64/status_fields/build.py",
+      "source_sha": "14d4b12477fd4d5f712ca4367c34d02d207f48631c65208a6f9dd8d3553810f1",
+      "source_type": "original",
+      "suite": "status_fields"
+    },
     "n64/tlb_translation/tlb_translation.z64": {
       "build_command": "python3 tests/roms-src/n64/tlb_translation/build.py",
       "console": "n64",
