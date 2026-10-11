@@ -3108,3 +3108,75 @@ stops on the complete 22-word `CF000FFA0FFAF006` triangle at `0x227160`
 (reason 1), with uniform video. Retail boot and playability remain **unverified**.
 The probe records hashes of the current core and trace binaries; its report is
 `build/artifacts/retail/n64-depth-history.json`. Commercial ROM bytes are excluded.
+
+## One-cycle triangle depth rendering
+
+Production one-cycle RGBA16/RGBA32 triangles now use the existing depth-image
+address and decoded/interpolated Z coefficients. Alpha/coverage adjustment
+precedes depth comparison. The comparator supplies coverage, overflow, blend
+enable and current memory-alpha shifts. Accepted color writes precede depth
+updates, including aliased buffers; depth stores preserve retained color history.
+Rejected pixels retain their native color history without writing color or Z.
+Comparison-only, update-only and combined paths are supported. Complete color
+and depth row bounds are checked before RAM, hidden bits or RGB latches change.
+
+The independent pipeline oracle passes **8,388,608 selected combined decisions**:
+every stored depth word and hidden pair, four Z modes, and eight selected
+incoming Z/delta/color/alpha/coverage/mode partners. The component test also
+checks actual triangle RAM/hidden results, DP command dispatch, comparison-only,
+update-only and combined execution, buffer alias ordering, and atomic alignment/
+bounds rejection. All **nine compiled pipeline faults** are rejected after
+execution. Warning-as-error and UBSAN pass. The prior complete depth codecs and
+pinned primary comparator gates remain applicable; this new pipeline corpus is
+not an exhaustive joint operand corpus or a physical-console measurement.
+
+The new original MIT cartridge
+[`rdp_triangle_depth`](https://github.com/jshojan/veloce/tree/main/tests/roms-src/n64/rdp_triangle_depth)
+passes **524,288 cases / 11,010,048 actual 64-bit RAM/register observations**:
+every stored 16-bit depth word, all four Z modes and RDRAM/wrapping-XBUS command
+delivery, with selected incoming Z, alpha and fixed geometry/coverage partners.
+Guest CPU writes initialize paired depth metadata; guest instructions capture
+four color words, four color EBUS words, four depth words, four depth EBUS words,
+two guards and three DP/MI registers. Two register lines per case stay within
+the sink's line limit. Independent host quarter-grid, compression and comparator
+arithmetic grades the stream. The 80-case control passes, its separately
+executed wrong-capture ROM fails every row, and all **21 field flips and seven
+stream controls** reject. No commercial ROM or SDK bytes are included.
+
+Plugin **0.38.0**, ABI v2 and **VN64S027 / 9,527,568 bytes** remain current.
+Existing serialized depth-image, blender, packet and hidden-memory fields suffice;
+no state-layout expansion is needed. Production checkpoint replay compares
+subsequent actual guest output and whole-state bytes. All **112 original ROM
+archives** reproduce against the manifest. N64 remains **45% = 9/20 delivery
+milestones**; full graphics/retail compatibility is incomplete. Primitive depth,
+interpixel/two-cycle shifter history, dithering, LOD/mipmapping and physical timing
+remain pending. CI/CD stays disabled and the Nintendo implementation goal is active.
+
+```sh
+ctest --test-dir build -R '^n64_rdp_(depth|triangle_depth)' --output-on-failure
+python3 tests/roms-src/build.py --original-only --check
+```
+
+Artifacts: `build/artifacts/owned/n64_rdp_triangle_depth/` and
+`build/artifacts/component/n64_rdp_depth_pipeline/`.
+
+The current private Super Mario 64 USA probe runs **2,000 quanta / 200 million
+CPU attempts** without a terminal CPU fault. It still stops on the complete
+22-word `CF000FFA0FFAF006` triangle at `0x227160` (reason 1), with uniform video;
+retail boot/playability remain **unverified**. The report at
+`build/artifacts/retail/n64-triangle-depth.json` records hashes that match the
+current plugin and trace binaries. The depth implementation expands supported
+owned profiles; it does not make the remaining Mario profile playable.
+
+Final gates verify all **60 selected N64 regression/component/checkpoint tests**
+and production TCP netplay. The initial regression run passed 59 tests; its
+remaining gate still rejected inert Z-mode fields. That expectation was updated
+to check identical RAM/latch results with comparison disabled, while missing-
+hidden-memory comparison/update rejection remains checked. The corrected gate
+and final expanded RGBA16/RGBA32 pipeline test both pass. The full build,
+warning-as-error/UBSAN pipeline run, nine executed faults and 112-ROM
+reproducibility check pass. Current one-cycle ordering and memory-alpha shifts
+are grounded in the pinned
+[rasterizer](https://github.com/ata4/angrylion-rdp-plus/blob/9c8b9ed3e7d7f00dff8bc872ccdd3fba1a3673fc/src/core/n64video/rdp/rasterizer.c)
+and [blender](https://github.com/ata4/angrylion-rdp-plus/blob/9c8b9ed3e7d7f00dff8bc872ccdd3fba1a3673fc/src/core/n64video/rdp/blender.c)
+software reference; physical pipeline timing remains unverified.

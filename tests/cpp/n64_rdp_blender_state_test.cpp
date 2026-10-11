@@ -21,7 +21,12 @@ int main(int argc,char** argv){try{
  check(n64::RdpTriangleShade::draw(packet,image,mode|64,scissor,combiner,ram,nullptr,nullptr,nullptr,&latch)==0 && latch.memory_rgb==0x5a5a5a);
  std::fill(ram.begin(),ram.end(),0x12);auto want=ram;for(unsigned pos:{4u,8u,9u,12u}){for(unsigned lane=0;lane<3;++lane)want[64+pos*4+lane]=0x5a;want[64+pos*4+3]=(pos==4 || pos==8)?224:96;}
  check(n64::RdpTriangleShade::draw(packet,image,mode|(1ull<<30),scissor,combiner,ram,nullptr,nullptr,nullptr,&latch)==0 && ram==want && latch.memory_rgb==0x5a5a5a);
- for(uint64_t bit:{2ull,4ull,16ull,32ull,1024ull,2048ull,1ull<<52}){const auto before=ram;const auto state=latch.snapshot();check(n64::RdpTriangleShade::draw(packet,image,mode|bit,scissor,combiner,ram,nullptr,nullptr,nullptr,&latch)==1 && ram==before && latch.snapshot()==state);}
+ for(uint64_t bit:{2ull,4ull,16ull,32ull,1ull<<52}){const auto before=ram;const auto state=latch.snapshot();check(n64::RdpTriangleShade::draw(packet,image,mode|bit,scissor,combiner,ram,nullptr,nullptr,nullptr,&latch)==1 && ram==before && latch.snapshot()==state);}
+ // Z mode fields are inert when comparison is disabled. Comparison/update
+ // still require hidden memory; those direct-call rejection checks remain above.
+ for(uint64_t bits:{1024ull,2048ull,3072ull}){auto plain=ram,selected=ram;auto a=latch,b=latch;
+  check(n64::RdpTriangleShade::draw(packet,image,mode|64,scissor,combiner,plain,nullptr,nullptr,nullptr,&a)==0);
+  check(n64::RdpTriangleShade::draw(packet,image,mode|64|bits,scissor,combiner,selected,nullptr,nullptr,nullptr,&b)==0 && plain==selected && a.snapshot()==b.snapshot());}
  check(argc==2);std::ifstream f(argv[1],std::ios::binary);std::vector<uint8_t> rom{std::istreambuf_iterator<char>(f),{}};n64::Machine machine;check(machine.load(rom.data(),rom.size()));auto& dp=machine.dp_interface;
  dp.blender.memory_rgb=0x73519f;put(machine.ram,0x100,0xf8c33ca589abcdef);put(machine.ram,0x108,0xf900000012345678);put(machine.ram,0x110,0xe900000000000000);dp.flags=2;dp.write(0,0x100);dp.write(1,0x118);
  std::vector<uint8_t> saved,after,replay;check(machine.save(saved) && saved.size()==9527568 && saved[7]=='7');dp.flags=0;unsigned clocks=0;while(!machine.dp_interrupt && clocks<10){machine.clock();++clocks;}check(machine.dp_interrupt && dp.blender.snapshot()==n64::RdpBlender::State{0x89abcdef,0x12345678,0x73519f} && machine.save(after));
