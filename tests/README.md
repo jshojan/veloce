@@ -402,3 +402,26 @@ regression gates pass. Private SM64 native VI movement/action/neutral controls
 pass; all 135 original archives reproduce. Full Release build, completion
 renderer and whitespace checks pass. Full hardware and retail playability
 remain unfinished; N64 remains 50%.
+
+## N64 CP0 read-only register writes
+
+```sh
+ctest --test-dir build -R '^(n64_cp0_readonly|n64_cp0_readonly_test)$' --output-on-failure
+```
+
+The original cartridge grades 12,582,912 cases / 150,994,944 actual RAM/register
+words: two CP0 write widths, BadVAddr/PRId/CacheErr, four complete sixteen-bit
+source positions, four surrounding patterns and direct/taken-delay placement.
+A real fault and ERET seed BadVAddr. Independent grading checks word/full reads,
+all three register values, source and Status. An executed wrong CP0 read rejects
+in all 3,072 short cases, twelve field and six malformed stream faults reject,
+and twelve ordinary/fast rollback records and complete states match. The
+component gate covers 22,020,097 source/mode/metadata observations, including
+CU0-before-width priority, source allocation and hardware BadVAddr updates.
+[source, file evidence and limits](roms-src/n64/cp0_readonly/README.md).
+
+On 0.54.0 all 16 selected CPU/machine/cache/TLB/FPU/controller/frontend/TAS/TCP
+regression gates pass. Private SM64 native VI movement/action/neutral controls
+pass; all 136 original archives reproduce. Full Release build, completion
+renderer and whitespace checks pass. N64 remains 50%; complete CPU/hardware
+and full-title retail playability remain unfinished.
