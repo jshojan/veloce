@@ -25,6 +25,13 @@ Full platform completion is unknown.
 - All sixteen ARM data-processing operations: AND/EOR/SUB/RSB/ADD/ADC/SBC/RSC,
   TST/TEQ/CMP/CMN, ORR/MOV/BIC/MVN. Register/immediate operands, NZCV flags,
   carry/borrow, signed overflow, flag-preserving forms and source aliases.
+- All sixteen ARM9 ARMv5TE signed DSP multiply forms: SMULxy/SMLAxy/SMLALxy,
+  SMULWy/SMLAWy, signed selected halves, negative product scaling, modulo
+  accumulation and sticky Q on short accumulate overflow, with NZCV preserved.
+  The [original register corpus](../../tests/roms-src/nds/dsp_multiply_registers/README.md)
+  grades 15,454,208 seven-word snapshots; a separate register-field/profile
+  decoder gate checks ARM7 rejection and ARM9/ARM11 aliases and boundaries.
+  Physical multiplier timing and full CPU/exception behavior remain pending.
 - ARM9 ARM-state BLX immediate: unconditional signed 24-bit displacement,
   H halfword target bit, LR update and Thumb entry. The [original register corpus](../../tests/roms-src/nds/arm_blx_registers/README.md)
   grades mapped target execution; a separate decoder gate exhausts every
@@ -303,7 +310,7 @@ in the ROM manifest. Component evidence is separate from the original-ROM domain
 ## Remaining hardware and features
 
 ARM block transfers,
-Remaining ARM9 DSP multiplication and other architecture extensions,
+Other ARM9 architecture extensions,
 ARM doubleword transfers, privileged modes,
 banked registers, SPSR, exceptions/interrupts, CP15/MPU/cache/TCM, firmware and
 BIOS, gamecard/secure-area/save protocols, IPC, DMA, timers, KEYCNT/keypad IRQ and touchscreen,
