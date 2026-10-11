@@ -57,7 +57,16 @@ void Arm::step() {
     const uint32_t pc=s.r[15]; uint32_t ins=0;
     if((pc&3) || !bus.read(pc,4,ins)) { s.unsupported=true; return; }
     const unsigned cond=ins>>28;
-    if(cond==15 && v5) { s.unsupported=true; return; }
+    if(cond==15 && v5) {
+        if((ins&0xfe000000u)!=0xfa000000u) { s.unsupported=true; return; }
+        // BLX immediate is unconditional. H supplies target bit one; the
+        // 24-bit displacement is signed and the ARM pipeline PC is +8.
+        const uint32_t displacement=(ins&0xffffffu)<<2;
+        const uint32_t extended=displacement|((displacement&0x02000000u)?0xfc000000u:0);
+        s.r[14]=pc+4;
+        s.cpsr|=0x20u;
+        s.r[15]=pc+8+extended+((ins>>23)&2u); return;
+    }
     if(!condition(cond,s.cpsr)) { s.r[15]=pc+4; return; }
     const auto operand=[&](unsigned reg,bool late=false) { return reg==15 ? pc+(late ? 12:8):s.r[reg]; };
     const uint32_t reversal=ins&0x0fff0ff0u;
