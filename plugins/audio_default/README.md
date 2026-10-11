@@ -96,5 +96,6 @@ ctest --test-dir build -R '^(audio_pipeline_test|audio_lifecycle_test|audio_fron
 under `build/artifacts/audio_frontend/` and `build/artifacts/audio_lifecycle/`.
 The fixtures verify frontend routing; they are not guest hardware accuracy ROMs.
 Physical speakers/devices, asynchronous audio plugins, recording/effects, and
-alternate input/TAS plugin routing remain unverified or unfinished. Core delivery
+alternate TAS plugin routing remain unverified or unfinished. Input routing is
+now [implemented and checked](../input_default/README.md#frontend-integration). Core delivery
 percentages retain their existing milestone scores.

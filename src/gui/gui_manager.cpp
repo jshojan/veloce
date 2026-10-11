@@ -801,6 +801,7 @@ void GuiManager::render_load_state_menu(Application& app) {
                     msg << "State loaded from slot " << (slot + 1);
                     notifications.success(msg.str());
                     app.get_audio_manager().clear_buffer();
+                    app.reset_input_timeline();
                     app.get_plugin_manager().notify_game_plugins_state_loaded();
                 } else {
                     msg << "Failed to load state from slot " << (slot + 1);
@@ -899,6 +900,7 @@ void GuiManager::render_savestate_file_browser(Application& app) {
                                         notifications.success("State loaded from " + name);
                                         m_show_savestate_browser = false;
                                         app.get_audio_manager().clear_buffer();
+                                        app.reset_input_timeline();
                                         app.get_plugin_manager().notify_game_plugins_state_loaded();
                                     } else {
                                         notifications.error("Failed to load state from " + name);

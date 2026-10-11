@@ -1,6 +1,8 @@
 #pragma once
 
 #include "emu/netplay_plugin.hpp"
+#include "emu/input_plugin.hpp"
+#include <array>
 #include <string>
 #include <memory>
 #include <vector>
@@ -22,7 +24,7 @@ class TestFileSink;
 
 // Main application class - orchestrates all subsystems
 // Also implements INetplayHost to provide callbacks to the netplay plugin
-class Application : public INetplayHost {
+class Application : public INetplayHost, public IInputHost, public IMappedInputHost {
 public:
     Application();
     ~Application();
@@ -68,6 +70,7 @@ public:
 
     // Frame control
     void frame_advance();
+    void reset_input_timeline();
     void set_speed(float speed) { m_speed_multiplier = speed; }
     float get_speed() const { return m_speed_multiplier; }
 
@@ -83,6 +86,16 @@ public:
     // Netplay state cache management
     // Called when netplay connects/disconnects to update cached values
     void update_netplay_cache();
+
+    uint64_t get_frame_number() const override;
+    int get_controller_count() const override;
+    bool is_key_pressed(int scancode) const override;
+    bool is_gamepad_button_pressed(int controller, int button) const override;
+    float get_gamepad_axis(int controller, int axis) const override;
+    int get_connected_controller_count() const override;
+    ControllerInfo get_controller_info(int index) const override;
+    uint32_t get_mapped_input(int controller) const override;
+    bool get_mapped_binding(int controller, VirtualButton button, InputBinding& binding) const override;
 
     // =========================================================================
     // INetplayHost Implementation
@@ -131,6 +144,7 @@ private:
     void update();
     void render();
     void run_emulation_frame();
+    void sample_input();
 
     // Get INetplayCapable interface from current emulator if available
     INetplayCapable* get_netplay_capable_emulator() const;
@@ -151,6 +165,11 @@ private:
     std::unique_ptr<GuiManager> m_gui_manager;
     std::unique_ptr<SavestateManager> m_savestate_manager;
     std::unique_ptr<PathsConfiguration> m_paths_config;
+
+    std::array<uint32_t, 4> m_input_samples{};
+    uint64_t m_input_sample_frame = 0;
+    bool m_input_sample_valid = false;
+    mutable std::vector<std::string> m_controller_names;
 
     // State
     bool m_running = false;

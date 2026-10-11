@@ -102,3 +102,74 @@ Built automatically as part of Veloce. See main README for build instructions.
 | src/default_input_plugin.cpp | Plugin implementation |
 | CMakeLists.txt | Build configuration |
 
+
+
+## Frontend integration
+
+The GUI initializes the input plugin selected in `config/plugins.json` (default:
+Default Input) with a live `IInputHost`, supplies the active core's controller
+layout, and reads the processed button masks. Each logical core frame samples
+once; retries at the same frame reuse those masks. Local execution and netplay's
+local input argument use the same cached controller-zero value. A pause without
+frame advance does not advance plugin turbo or recording.
+
+Default Input accepts an optional separate `IMappedInputHost` capability. Its
+base state comes from the frontend's existing per-platform bindings, wildcard
+pad fallback, persistent device identities and mapping-capture suppression.
+The original ABI v1 interfaces keep their vtables; raw-polling input plugins
+continue to work. Mapping capture also blocks the final core/netplay input even
+when a plugin supplies an override. GUI profiles currently configure controller
+zero; additional controllers require explicit plugin bindings/overrides. Generic
+local `run_frame()` still has a single-controller input field.
+
+Plugin `get_binding()` exposes current mapped bindings in raw polling's device
+index coordinates; disconnected identities become -2, while wildcard -1 stays
+-1. The persisted profile retains its SDL instance/identity fields. Explicit
+plugin bindings override that virtual button's mapped state and currently use
+connected-device indices. They are not persistent identity profiles. Physical
+controller identity persistence remains owned by the frontend manager.
+
+Input candidates initialize before replacement; failure preserves the active
+instance. No-host activation is rejected, and shutdown precedes destruction.
+ROM/core/plugin changes, reset and manual state loads invalidate the frame
+sample. ROM load, reset and manual state load also stop recording/playback so
+absolute snapshot frame numbers cannot cross timelines. Netplay rollback does
+not resample physical input mid-replay.
+
+Recording snapshots represent **controller zero**, use absolute host frame
+numbers, include plugin overrides/playback and avoid duplicate snapshots from
+repeated reads of a frame. Playback accepts strictly increasing nonnegative
+frame numbers, holds sparse snapshots until the next event and returns to live
+input after its last frame. It does not advance when another controller is read.
+Rewinding the host frame counter stops recording/playback and resets turbo phase;
+full reset/state event recording and alternate TAS-plugin integration are pending.
+
+Executed evidence on Linux:
+
+- A dynamically loaded input/core fixture in the production GUI receives exact
+  A/B/C-Up masks. Two controller ports are polled once for each of three logical
+  frames; a repeated frame attempt reuses its sample. Layout, host metadata,
+  absent raw devices, clean lifecycle and result-file termination are checked.
+- The real Default Input plugin checks mapped input, explicit key/axis overrides,
+  turbo phases, controller-zero recording, recording of overrides, duplicate
+  read suppression, sparse playback, playback termination, malformed recordings
+  and frame-counter rewind behavior.
+- SDL virtual-controller tests now pass all mapped states and binding views
+  through the real Default Input plugin, including identical-pad separation,
+  custom remaps/axes, hot-plugging and saved identity/profile restoration.
+- Dynamic lifecycle checks execute no-host/missing-plugin failures, rejected
+  initialization with a usable prior instance, successful replacement and one
+  shutdown/destruction per initialized instance.
+
+```bash
+cmake -S . -B build
+cmake --build build
+ctest --test-dir build -R '^(input_plugin_test|input_frontend_test|input_lifecycle_test|input_hotplug_test)$' --output-on-failure
+```
+
+The GUI test requires `xvfb-run`; artifacts remain in
+`build/artifacts/input_frontend/` and `build/artifacts/input_lifecycle/`.
+These are frontend routing tests, not exhaustive guest hardware ROMs. Physical
+controllers, analog core inputs, full local multiplayer configuration, plugin
+binding persistence and TAS-editor routing remain unfinished or unverified.
+Core completion percentages retain their existing milestone scores.

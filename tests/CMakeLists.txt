@@ -152,7 +152,7 @@ add_executable(input_hotplug_test cpp/input_hotplug_test.cpp
     ${CMAKE_SOURCE_DIR}/src/core/input_manager.cpp)
 target_include_directories(input_hotplug_test PRIVATE ${CMAKE_SOURCE_DIR}/include
     ${CMAKE_SOURCE_DIR}/src ${SDL2_INCLUDE_DIRS})
-target_link_libraries(input_hotplug_test PRIVATE ${SDL2_LIBRARIES} nlohmann_json::nlohmann_json)
+target_link_libraries(input_hotplug_test PRIVATE ${SDL2_LIBRARIES} nlohmann_json::nlohmann_json input_default)
 target_compile_definitions(input_hotplug_test PRIVATE SDL_MAIN_HANDLED)
 add_test(NAME input_hotplug_test COMMAND input_hotplug_test)
 set_tests_properties(input_hotplug_test PROPERTIES LABELS "integration;fast;controllers"
@@ -1303,3 +1303,32 @@ add_dependencies(audio_lifecycle_test audio_frontend_fixture)
 add_test(NAME audio_lifecycle_test COMMAND audio_lifecycle_test $<TARGET_FILE:audio_frontend_fixture>
     ${CMAKE_BINARY_DIR}/artifacts/audio_lifecycle)
 set_tests_properties(audio_lifecycle_test PROPERTIES LABELS "integration;fast" TIMEOUT 30)
+
+add_executable(input_plugin_test cpp/input_plugin_test.cpp)
+target_include_directories(input_plugin_test PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(input_plugin_test PRIVATE input_default)
+add_test(NAME input_plugin_test COMMAND input_plugin_test)
+set_tests_properties(input_plugin_test PROPERTIES LABELS "integration;fast")
+add_library(input_frontend_fixture SHARED cpp/input_frontend_fixture.cpp)
+add_library(input_core_fixture SHARED cpp/input_core_fixture.cpp)
+foreach(fixture input_frontend_fixture input_core_fixture)
+    target_include_directories(${fixture} PRIVATE ${CMAKE_SOURCE_DIR}/include)
+    set_target_properties(${fixture} PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/fixtures/input)
+endforeach()
+if(VELOCE_XVFB_RUN)
+    add_test(NAME input_frontend_test COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/input_frontend_test.py
+        --emulator $<TARGET_FILE:veloce> --input $<TARGET_FILE:input_frontend_fixture>
+        --core $<TARGET_FILE:input_core_fixture> --artifacts ${CMAKE_BINARY_DIR}/artifacts/input_frontend
+        --xvfb ${VELOCE_XVFB_RUN})
+    set_tests_properties(input_frontend_test PROPERTIES LABELS "integration" TIMEOUT 60)
+endif()
+
+add_executable(input_lifecycle_test cpp/input_lifecycle_test.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/plugin_manager.cpp ${CMAKE_SOURCE_DIR}/src/core/plugin_registry.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/plugin_config.cpp ${CMAKE_SOURCE_DIR}/src/core/paths_config.cpp)
+target_include_directories(input_lifecycle_test PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(input_lifecycle_test PRIVATE nlohmann_json::nlohmann_json ${CMAKE_DL_LIBS})
+add_dependencies(input_lifecycle_test input_frontend_fixture)
+add_test(NAME input_lifecycle_test COMMAND input_lifecycle_test $<TARGET_FILE:input_frontend_fixture>
+    ${CMAKE_BINARY_DIR}/artifacts/input_lifecycle)
+set_tests_properties(input_lifecycle_test PROPERTIES LABELS "integration;fast" TIMEOUT 30)

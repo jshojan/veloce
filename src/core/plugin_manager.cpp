@@ -561,6 +561,10 @@ bool PluginManager::activate_audio_plugin(const std::string& name) {
 }
 
 bool PluginManager::activate_input_plugin(const std::string& name) {
+    if (!m_input_host) {
+        std::cerr << "Input plugin requires an installed host" << std::endl;
+        return false;
+    }
     const PluginMetadata* metadata = m_registry.find_plugin(PluginType::Input, name);
     if (!metadata) {
         std::cerr << "Input plugin not found: " << name << std::endl;
@@ -580,6 +584,16 @@ bool PluginManager::activate_input_plugin(const std::string& name) {
         std::cerr << "Failed to create input plugin instance: " << name << std::endl;
         return false;
     }
+
+    if (!instance->initialize(m_input_host)) {
+        instance->shutdown();
+        using DestroyFunc = void (*)(IInputPlugin*);
+        auto destroy = reinterpret_cast<DestroyFunc>(handle->destroy_func);
+        if (destroy) destroy(instance);
+        std::cerr << "Failed to initialize input plugin: " << name << std::endl;
+        return false;
+    }
+    if (m_active.emulator) instance->set_controller_layout(m_active.emulator->get_controller_layout());
 
     deactivate_plugin(PluginType::Input);
 
@@ -914,6 +928,7 @@ void PluginManager::deactivate_plugin(PluginType type) {
             break;
         case PluginType::Input:
             if (m_active.input && m_active.input_handle) {
+                m_active.input->shutdown();
                 using DestroyFunc = void (*)(IInputPlugin*);
                 auto destroy = reinterpret_cast<DestroyFunc>(m_active.input_handle->destroy_func);
                 if (destroy) destroy(m_active.input);

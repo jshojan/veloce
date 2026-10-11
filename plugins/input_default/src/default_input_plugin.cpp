@@ -42,7 +42,19 @@ public:
     void begin_frame() override {
         if (!m_host) return;
 
-        m_frame_number = m_host->get_frame_number();
+        const auto next_frame = m_host->get_frame_number();
+        if (next_frame < m_frame_number) {
+            stop_recording();
+            stop_playback();
+            m_turbo_frame = 0;
+            m_turbo_active = false;
+        }
+        m_frame_number = next_frame;
+        if (m_playing) {
+            if (m_frame_number > static_cast<uint64_t>(m_playback_inputs.back().frame_number)) m_playing = false;
+            else while (m_playback_pos + 1 < m_playback_inputs.size() &&
+                        m_playback_inputs[m_playback_pos + 1].frame_number <= static_cast<int64_t>(m_frame_number)) ++m_playback_pos;
+        }
 
         // Toggle turbo state each frame based on rate
         if (m_turbo_rate > 0) {
@@ -59,28 +71,24 @@ public:
 
         // If we have an override set, use it
         if (m_input_override[controller].has_value()) {
-            return m_input_override[controller].value();
+            return record(controller, m_input_override[controller].value());
         }
 
-        // If playing back, return recorded input
-        if (m_playing && m_playback_pos < m_playback_inputs.size()) {
-            const auto& snap = m_playback_inputs[m_playback_pos];
-            if (snap.frame_number == m_frame_number) {
-                if (m_playback_pos + 1 < m_playback_inputs.size()) {
-                    m_playback_pos++;
-                }
-                return snap.buttons;
-            }
+        // Snapshot format represents controller zero. Read playback without
+        // advancing it: all readers of one frame must receive the same mask.
+        if (controller == 0 && m_playing && m_playback_pos < m_playback_inputs.size() &&
+            m_playback_inputs[m_playback_pos].frame_number <= static_cast<int64_t>(m_frame_number)) {
+            return record(controller, m_playback_inputs[m_playback_pos].buttons);
         }
 
-        // Poll actual inputs
-        uint32_t buttons = 0;
+        auto* mapped = dynamic_cast<emu::IMappedInputHost*>(m_host);
+        uint32_t buttons = mapped ? mapped->get_mapped_input(controller) : 0;
 
         // Check each binding
         for (int i = 0; i < static_cast<int>(emu::VirtualButton::COUNT); i++) {
             auto button = static_cast<emu::VirtualButton>(i);
             auto it = m_bindings[controller].find(button);
-            if (it != m_bindings[controller].end()) {
+            if (it != m_bindings[controller].end() && (!mapped || m_explicit_bindings[controller].count(button))) {
                 const auto& binding = it->second;
                 bool pressed = false;
 
@@ -89,23 +97,27 @@ public:
                         pressed = m_host->is_key_pressed(binding.code);
                         break;
                     case emu::InputSourceType::GamepadButton:
-                        pressed = m_host->is_gamepad_button_pressed(binding.device_id, binding.code);
+                        if (binding.device_id == -1) {
+                            for (int i = 0; i < m_host->get_connected_controller_count(); ++i) {
+                                if (m_host->is_gamepad_button_pressed(i, binding.code)) { pressed = true; break; }
+                            }
+                        } else pressed = m_host->is_gamepad_button_pressed(binding.device_id, binding.code);
                         break;
                     case emu::InputSourceType::GamepadAxis: {
-                        float axis = m_host->get_gamepad_axis(binding.device_id, binding.code);
-                        if (binding.axis_positive) {
-                            pressed = axis > binding.axis_threshold;
-                        } else {
-                            pressed = axis < -binding.axis_threshold;
-                        }
+                        auto active = [&](int device) {
+                            const float axis = m_host->get_gamepad_axis(device, binding.code);
+                            return binding.axis_positive ? axis > binding.axis_threshold : axis < -binding.axis_threshold;
+                        };
+                        if (binding.device_id == -1) {
+                            for (int i = 0; i < m_host->get_connected_controller_count(); ++i) {
+                                if (active(i)) { pressed = true; break; }
+                            }
+                        } else pressed = active(binding.device_id);
                         break;
                     }
                 }
 
-                // Check turbo
-                if (pressed && m_turbo_enabled[controller].count(button) && m_turbo_enabled[controller].at(button)) {
-                    pressed = m_turbo_active;
-                }
+                buttons &= ~emu::button_to_mask(button);
 
                 if (pressed) {
                     buttons |= emu::button_to_mask(button);
@@ -113,16 +125,21 @@ public:
             }
         }
 
-        // Record if recording
-        if (m_recording) {
-            m_recorded_inputs.push_back({buttons, static_cast<int64_t>(m_frame_number)});
+        for (const auto& [button, enabled] : m_turbo_enabled[controller]) {
+            if (enabled && !m_turbo_active) buttons &= ~emu::button_to_mask(button);
         }
 
-        return buttons;
+        return record(controller, buttons);
     }
 
     emu::InputBinding get_binding(int controller, emu::VirtualButton button) const override {
         if (controller < 0 || controller >= 4) return {};
+        if (!m_explicit_bindings[controller].count(button)) {
+            if (auto* mapped = dynamic_cast<emu::IMappedInputHost*>(m_host)) {
+                emu::InputBinding binding{};
+                if (mapped->get_mapped_binding(controller, button, binding)) return binding;
+            }
+        }
         auto it = m_bindings[controller].find(button);
         if (it != m_bindings[controller].end()) {
             return it->second;
@@ -133,6 +150,7 @@ public:
     void set_binding(int controller, emu::VirtualButton button, const emu::InputBinding& binding) override {
         if (controller >= 0 && controller < 4) {
             m_bindings[controller][button] = binding;
+            m_explicit_bindings[controller][button] = true;
         }
     }
 
@@ -176,6 +194,9 @@ public:
 
     bool start_playback(const std::vector<emu::InputSnapshot>& inputs) override {
         if (inputs.empty()) return false;
+        for (size_t i = 0; i < inputs.size(); ++i) {
+            if (inputs[i].frame_number < 0 || (i && inputs[i-1].frame_number >= inputs[i].frame_number)) return false;
+        }
         m_playback_inputs = inputs;
         m_playback_pos = 0;
         m_playing = true;
@@ -225,6 +246,13 @@ public:
     }
 
 private:
+    uint32_t record(int controller, uint32_t buttons) {
+        if (m_recording && controller == 0 &&
+            (m_recorded_inputs.empty() || m_recorded_inputs.back().frame_number != static_cast<int64_t>(m_frame_number))) {
+            m_recorded_inputs.push_back({buttons, static_cast<int64_t>(m_frame_number)});
+        }
+        return buttons;
+    }
     void setup_default_bindings() {
         // Default NES keyboard bindings for controller 0
         // SDL scancodes
@@ -255,6 +283,8 @@ private:
 
     // Bindings per controller
     std::unordered_map<emu::VirtualButton, emu::InputBinding> m_bindings[4];
+
+    std::unordered_map<emu::VirtualButton, bool> m_explicit_bindings[4];
 
     // Turbo settings per controller
     std::unordered_map<emu::VirtualButton, bool> m_turbo_enabled[4];
