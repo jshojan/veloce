@@ -3851,3 +3851,14 @@ covers **32,505,856 observations**, including **10,485,760 actual CACHE
 consumers** across every physical tag and every defined tag state. Physical
 reset/timing, undefined tag states and malformed legacy snapshot normalization
 are not proved. N64 remains **50%** of delivery milestones, not hardware accuracy.
+
+## Saved per-player N64 analog profiles (2026-10-11)
+
+Default Input 1.1.0 adds selected axes, inversion, disabled components, dead zone
+and range to each player's saved N64 profile and Input Settings. Independent
+original-cartridge SI RAM output covers 4,035 ordinary frontend cases / 24,210
+words, persistence, port movement, wrong-source rejection, twelve malformed-file
+rejects, legacy migration and remapped native movies. This is a selected frontend
+policy domain; physical calibration, advanced curves/gates and keyboard stick
+remapping remain pending. N64 retains 50%; no additional delivery milestone is
+claimed. Core version/ABI/S031 are unchanged.

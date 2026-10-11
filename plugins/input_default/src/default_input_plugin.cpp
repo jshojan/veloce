@@ -18,10 +18,10 @@ public:
     emu::InputPluginInfo get_info() override {
         return {
             "Default Input",
-            "1.0.0",
+            "1.1.0",
             "Veloce Team",
             "Standard keyboard and gamepad input handler with hot-plugging support. "
-            "Features input recording, playback, and turbo/autofire functionality.",
+            "Features per-player mapped digital/analog input, recording, playback, and turbo/autofire functionality.",
             true,   // supports_recording
             true,   // supports_playback
             true    // supports_turbo

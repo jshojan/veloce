@@ -191,3 +191,38 @@ Choose the port-zero gamepad in Controller settings: its left stick uses a
 uses T/F/G/H for up/left/down/right; arrow bindings remain D-pad input.
 Physical calibration, analog remapping and full local multiplayer device
 configuration remain pending. See [N64 evidence](../../cores/n64/README.md#signed-stick-input-and-cached-si-observations).
+
+## Saved N64 stick profiles (Default Input 1.1.0)
+
+In Input Settings, select the player and set **Stick X/Y source**, **Invert**,
+**Stick dead zone** and **Stick range**. Each source can be any SDL controller
+axis or Disabled. The profile follows that player's assigned controller and is
+saved when settings close or platforms change. Defaults remain left X/left Y,
+Y inverted, 15% axial dead zone and +/-80 range. Range can be 1–127; settings
+allow a dead zone up to 95%. JSON accepts finite dead zones from zero to below
+one. Keyboard T/F/G/H retains its fixed +/-80 behavior.
+
+`config/input_n64.json` stores four `n64_sticks` entries, each with `axes` and
+`inverted` arrays of length two, `deadzone`, and `range`. Axis -1 disables the
+component; axis numbers 0–5 name SDL's left X/Y, right X/Y and left/right
+triggers. Profiles belong to player ports; connection identity is still managed
+by the existing GUID/serial assignment system. Missing stick fields migrate to
+defaults. Invalid stick shapes/types/ranges reject before changing live input.
+Reset to Defaults resets the selected player's stick and digital bindings.
+
+Profiles reach the default input plugin's canonical integer N64 word before
+recording, TAS and netplay. Movies store the resulting axes, so replay does not
+depend on a later profile change. Trigger sources are one-sided SDL axes;
+inversion changes their sign. This is frontend policy, not physical N64 stick
+calibration. Advanced curves/gates and keyboard stick remapping remain pending.
+
+Verification uses the original controller cartridge and independently reads its
+actual SI reply/status RAM files: **4,035 cases / 24,210 guest words**, covering
+all six sources and disabled axes, both polarities, selected dead zones/ranges,
+threshold samples, four players, persistence, distinct physical stimuli across
+port reassignment and capture-mode neutral input. An executed wrong source must
+reject. Twelve malformed saved-profile cases reject; legacy defaults migrate.
+Remapped physical sticks record/replay full native states over six movie frames
+and three seeks; a changed player-four input must produce a different state.
+Restart/ambiguous/unique reconnection and reset isolation have separate checks.
+This finite profile domain does not exhaust every possible pair/curve/calibration.

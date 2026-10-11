@@ -53,6 +53,15 @@ public:
     float get_gamepad_axis(int controller_index, int axis) const;
     uint32_t encode_controller_input(int controller, uint32_t buttons) const;
 
+    struct StickProfile {
+        std::array<int,2> axes{{0,1}}; // SDL controller axes; -1 disables an axis.
+        std::array<bool,2> inverted{{false,true}};
+        float deadzone=0.15f;
+        int range=80;
+    };
+    bool set_stick_profile(int port,const StickProfile& profile);
+    const StickProfile* get_stick_profile(int port) const;
+
     // Controller management
     int get_connected_controller_count() const;
     std::string get_controller_name(int index) const;
@@ -158,6 +167,8 @@ private:
     std::array<uint32_t, 4> m_port_buttons{};
     // Secondary gamepad bindings are relative to the port assignment.
     std::array<std::unordered_map<VirtualButton, InputBinding>, 4> m_player_bindings;
+
+    std::array<StickProfile,4> m_stick_profiles{};
 
     // Per-platform bindings cache
     std::map<std::string, std::unordered_map<VirtualButton, InputBinding>> m_platform_bindings;

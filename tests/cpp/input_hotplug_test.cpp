@@ -206,21 +206,38 @@ int main() {
         pump(input);
         require(input.get_button_state(2)==emu::button_to_mask(emu::VirtualButton::A),"remapped secondary fired cleared default");
         require(input.get_binding(emu::VirtualButton::Z)->code==SDL_SCANCODE_C,"secondary keyboard profile changed primary");
+        emu::InputManager::StickProfile stick;stick.axes={1,-1};stick.inverted={true,false};stick.deadzone=0;stick.range=127;
+        require(input.set_stick_profile(2,stick),"secondary analog profile setter");
+        require(SDL_JoystickSetVirtualAxis(joystick,1,-32768)==0,SDL_GetError());pump(input);
+        require(input.encode_controller_input(2,input.get_button_state(2))==0x007fc001,"remapped stick did not reach default input plugin");
+        auto bad_stick=stick;bad_stick.axes[0]=6;require(!input.set_stick_profile(2,bad_stick),"invalid source accepted");
+        bad_stick=stick;bad_stick.deadzone=1;require(!input.set_stick_profile(2,bad_stick),"invalid dead zone accepted");
+        bad_stick=stick;bad_stick.range=128;require(!input.set_stick_profile(2,bad_stick) && !input.set_stick_profile(-1,stick) && !input.get_stick_profile(4),"invalid range/port accepted");
         require(input.save_platform_config("N64"),"secondary persistence save");
         input.shutdown();input.initialize();pump(input);
         require(input.get_controller_for_port(2)==-1,"ambiguous identical model restored secondary assignment");
+        require(input.get_stick_profile(2)->axes==stick.axes && input.get_stick_profile(2)->range==127 && input.encode_controller_input(2,0)==0xc000,"restart/disconnected analog profile changed or leaked input");
         require(input.get_binding(emu::VirtualButton::A,2)->code==SDL_CONTROLLER_BUTTON_B && !input.get_binding(emu::VirtualButton::B,2) &&
             input.get_binding(emu::VirtualButton::Z,3)->code==SDL_SCANCODE_V,"restart changed independent maps or cleared binding");
 
         require(SDL_JoystickDetachVirtual(1)==0,SDL_GetError());pump(input);
         input.shutdown();input.initialize();pump(input);
         require(input.get_controller_for_port(2)==0 && input.get_button_state(2)!=0,"unique saved secondary identity did not restore");
+        require(input.encode_controller_input(2,input.get_button_state(2))==0x007fc001,"unique restored analog source/profile changed");
         input.reset_port_bindings(1);
+        require(input.get_stick_profile(2)->range==127,"reset altered another player stick");
         require(input.get_binding(emu::VirtualButton::A,2)->code==SDL_CONTROLLER_BUTTON_B && !input.get_binding(emu::VirtualButton::B,2) &&
             input.get_binding(emu::VirtualButton::Z,3)->code==SDL_SCANCODE_V,"reset changed another player profile");
         input.set_binding(emu::VirtualButton::A,{emu::InputSourceType::GamepadAxis,-1,SDL_CONTROLLER_AXIS_MAX,.5f,true},2);
         require(input.get_binding(emu::VirtualButton::A,2)->type==emu::InputSourceType::GamepadButton,"invalid binding replaced live player profile");
         nlohmann::json saved_profile;{std::ifstream file("config/input_n64.json");file>>saved_profile;}
+        for(bool axis:{false,true}) {
+            auto bad=saved_profile;
+            if(axis)bad["n64_sticks"][0]["axes"][0]=4294967296ull;
+            else bad["n64_sticks"][0]["range"]=4294967376ull;
+            {std::ofstream file("config/input_n64.json");file<<bad;}
+            require(!input.load_platform_config("N64") && input.get_stick_profile(2)->range==127 && input.get_controller_for_port(2)==0,"oversized stick integer accepted or changed live configuration");
+        }
         for(int mutant=0;mutant<7;++mutant) {
             auto bad=saved_profile;
             auto& map=bad["player_bindings"][1]["A"];

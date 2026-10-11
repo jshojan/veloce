@@ -14,6 +14,7 @@
 #include <charconv>
 #include <map>
 #include <set>
+#include <nlohmann/json.hpp>
 #include <iterator>
 using namespace emu;
 void require(bool ok,const char* why){if(!ok)throw std::runtime_error(why);}
@@ -63,7 +64,7 @@ static void local_ports(Application& app,IEmulatorPlugin* core) {
     auto pump=[&] {SDL_JoystickUpdate();SDL_Event event;while(SDL_PollEvent(&event))manager.process_event(event);manager.update();};
     pump();require(manager.get_connected_controller_count()==4,"four identical SDL connections");
     auto assign=[&](const std::array<int,4>& order){for(int port=0;port<4;++port)manager.set_controller_for_port(port,order[port]);};
-    auto clear=[&] {for(auto* pad:pads){for(int b=0;b<16;++b)require(SDL_JoystickSetVirtualButton(pad,b,0)==0,"clear buttons");for(int a=0;a<4;++a)require(SDL_JoystickSetVirtualAxis(pad,a,0)==0,"clear axes");require(SDL_JoystickSetVirtualAxis(pad,4,-32768)==0,"clear trigger");}};
+    auto clear=[&] {for(auto* pad:pads){for(int b=0;b<16;++b)require(SDL_JoystickSetVirtualButton(pad,b,0)==0,"clear buttons");for(int a=0;a<4;++a)require(SDL_JoystickSetVirtualAxis(pad,a,0)==0,"clear axes");require(SDL_JoystickSetVirtualAxis(pad,4,-32768)==0 && SDL_JoystickSetVirtualAxis(pad,5,-32768)==0,"clear triggers");}};
     std::ofstream out("local-ports.csv");out<<"case,port,device,control,x,y,reply,status,cleared\n";
     unsigned cases=0;
     auto observe=[&](const std::array<int,4>& order,const std::array<int,4>& control,const std::array<int,4>& xs,const std::array<int,4>& ys) {
@@ -156,12 +157,73 @@ static void local_ports(Application& app,IEmulatorPlugin* core) {
     clear();assign({0,1,2,3});manager.set_binding(VirtualButton::A,{InputSourceType::GamepadButton,-1,3,0,false},1);
     require(SDL_JoystickSetVirtualButton(pads[1],2,1)==0,"wrong profile mapping control");profile_capture();
     for(int port=1;port<4;++port)manager.reset_port_bindings(port);
+    // Analog profiles reach actual guest SI replies through the ordinary path.
+    std::ofstream stick_out("stick-profiles.csv");stick_out<<"case,port,reply,status,cleared\n";unsigned stick_case=0;
+    auto stick_capture=[&] {
+        pump();app.reset();require(app.step_frame(),"analog profile guest frame");
+        auto word=[&](unsigned address){uint32_t value=0;for(unsigned b=0;b<4;++b)value=(value<<8)|core->read_memory(uint16_t(address+b));return value;};
+        for(int port=0;port<4;++port)stick_out<<stick_case<<','<<port<<','<<word(0x2000+4*port)<<','<<word(0x2010)<<','<<word(0x2014)<<'\n';++stick_case;
+    };
+    for(int port=0;port<4;++port)empty_profile(port);
+    manager.set_binding(VirtualButton::A,{InputSourceType::GamepadButton,manager.get_controller_instance_id(0),15,0,false});
+    const int stick_values[]={-32768,-16384,-4915,0,4915,16383,16384,32767};
+    for(int port=0;port<4;++port)for(int axis=-1;axis<6;++axis)for(bool invert:{false,true})for(float deadzone:{0.0f,.15f,.5f})for(int range:{40,80,127})for(int level=0;level<8;++level) {
+        clear();assign({0,1,2,3});
+        for(int other=0;other<4;++other)require(manager.set_stick_profile(other,{}),"reset analog fixture");
+        InputManager::StickProfile profile;profile.axes={axis,axis<0?-1:(axis+1)%6};profile.inverted={invert,!invert};profile.deadzone=deadzone;profile.range=range;
+        require(manager.set_stick_profile(port,profile),"set analog profile");
+        for(int source:profile.axes)if(source>=0) {
+            const int value=stick_values[level];const int raw=source<4?value:(value<0?-32768:2*value-32767);
+            require(SDL_JoystickSetVirtualAxis(pads[port],source,raw)==0,"analog stimulus");
+            pump();auto* controller=SDL_GameControllerFromInstanceID(manager.get_controller_instance_id(port));
+            require(controller && SDL_GameControllerGetAxis(controller,SDL_GameControllerAxis(source))==(source<4?value:std::max(0,value)),"actual analog SDL stimulus");
+        }
+        stick_capture();
+    }
+    require(stick_case==4032,"analog profile domain");
+    // Persist four distinct profiles, then move physical pads between players.
+    clear();assign({0,1,2,3});
+    for(int port=0;port<4;++port) {
+        InputManager::StickProfile profile;profile.axes={2,3};profile.inverted={bool(port%2),false};profile.deadzone=.25f;profile.range=40+port*20;
+        require(manager.set_stick_profile(port,profile),"persistent analog profile");
+        require(SDL_JoystickSetVirtualAxis(pads[port],2,port<2?32767:-32768)==0 && SDL_JoystickSetVirtualAxis(pads[port],3,port%2?32767:-32768)==0,"persistent analog stimuli");
+    }
+    require(manager.save_platform_config("N64"),"save analog profiles");manager.set_current_platform("NES");manager.set_current_platform("N64");assign({0,1,2,3});stick_capture();
+    assign({0,3,1,2});stick_capture();manager.set_input_capture_mode(true);stick_capture();manager.set_input_capture_mode(false);
+    nlohmann::json saved_sticks;{std::ifstream file("config/input_n64.json");file>>saved_sticks;}
+    for(int fault=0;fault<12;++fault) {
+        auto bad=saved_sticks;
+        switch(fault) {
+          case 0:bad["n64_sticks"]=nlohmann::json::array();break;
+          case 1:bad["n64_sticks"][0]["axes"][0]=6;break;
+          case 2:bad["n64_sticks"][0]["axes"][0]=-2;break;
+          case 3:bad["n64_sticks"][0]["axes"][0]=1.5;break;
+          case 4:bad["n64_sticks"][0]["inverted"][0]=1;break;
+          case 5:bad["n64_sticks"][0]["deadzone"]=1;break;
+          case 6:bad["n64_sticks"][0]["deadzone"]=-.1;break;
+          case 7:bad["n64_sticks"][0]["range"]=0;break;
+          case 8:bad["n64_sticks"][0]["range"]=128;break;
+          case 9:bad["n64_sticks"][0]["range"]=40.5;break;
+          case 10:bad["n64_sticks"][0]["axes"][0]=4294967296ull;break;
+          case 11:bad["n64_sticks"][0]["range"]=4294967376ull;break;
+        }
+        {std::ofstream file("config/input_n64.json");file<<bad;}
+        require(!manager.load_platform_config("N64") && manager.get_stick_profile(3)->range==100 && manager.get_controller_for_port(1)==3,"malformed analog config changed live profile/assignment");
+    }
+    {std::ofstream file("config/input_n64.json");file<<saved_sticks;}
+    auto wrong=*manager.get_stick_profile(0);wrong.axes={0,1};require(manager.set_stick_profile(0,wrong),"executed wrong analog source");stick_capture();
+    require(stick_case==4036,"analog persistence/control extent");
+    saved_sticks.erase("n64_sticks");{std::ofstream file("config/input_n64.json");file<<saved_sticks;}
+    require(manager.load_platform_config("N64") && manager.get_stick_profile(0)->axes==std::array<int,2>{0,1} && manager.get_stick_profile(3)->range==80,"legacy analog defaults");
+    for(int port=0;port<4;++port)manager.reset_port_bindings(port);
     // Record remapped physical controls, then replay complete states.
     clear();assign({0,1,2,3});
     for(int i=0;i<4;++i) {
         if(i>0) {empty_profile(i);manager.set_binding(VirtualButton::A,{InputSourceType::GamepadButton,-1,SDL_CONTROLLER_BUTTON_X,0,false},i);}
         require(SDL_JoystickSetVirtualButton(pads[i],i>0?2:0,1)==0,"movie remapped physical button");
-        require(SDL_JoystickSetVirtualAxis(pads[i],0,i%2?32767:-32768)==0,"movie physical stick");
+        InputManager::StickProfile stick;stick.axes={2,3};stick.inverted={i%2==0,true};require(manager.set_stick_profile(i,stick),"movie analog profile");
+        if(i==0)manager.set_binding(VirtualButton::A,{InputSourceType::GamepadButton,manager.get_controller_instance_id(0),0,0,false});
+        require(SDL_JoystickSetVirtualAxis(pads[i],2,32767)==0,"movie remapped physical stick");
     }
     pump();app.reset();
     auto state=[&]{std::vector<uint8_t> bytes;require(core->save_state(bytes),"local movie state");return bytes;};
@@ -183,7 +245,7 @@ static void local_ports(Application& app,IEmulatorPlugin* core) {
     require(state()!=states.back(),"wrong player-four movie input did not change state");movie->close_movie();
     app.get_gui_manager().show_settings(true);app.get_gui_manager().begin_frame();app.get_gui_manager().render(app,app.get_renderer());app.get_gui_manager().end_frame();
     for(auto* pad:pads)SDL_JoystickClose(pad);
-    std::cout<<cases<<" ordinary SDL/default-input/frontend/native N64 guest cases captured; 3026 remap/persistence cases and executed wrong-profile rejection; six four-port physical movie frames and three seeks match full states; executed player-four movie mutation differs\n";
+    std::cout<<cases<<" ordinary SDL/default-input/frontend/native N64 guest cases captured; 3026 button remap/persistence cases; 4035 analog profile cases and executed wrong-profile rejection; six four-port physical movie frames and three seeks match full states; executed player-four movie mutation differs\n";
 #else
     throw std::runtime_error("SDL virtual pads require 2.0.14");
 #endif

@@ -75,11 +75,27 @@ bool InputConfigPanel::render(Application& app) {
     // Controller selector
     render_controller_selector(app);
     if (m_current_platform=="N64") {
-        ImGui::TextWrapped("Stick: selected gamepad left stick, or T/F/G/H for up/left/down/right on keyboard. Arrow bindings control the D-pad.");
-        ImGui::TextWrapped("Stick defaults: 15%% dead zone, range +/-80. Z: left trigger; C buttons: right stick. Select a player below to edit its button profile. Analog remapping is not yet available.");
+        ImGui::TextWrapped("Stick: configurable axes on the selected gamepad, or T/F/G/H for up/left/down/right on keyboard. Arrow bindings control the D-pad.");
+        ImGui::TextWrapped("Stick defaults: 15%% dead zone, range +/-80. Z: left trigger; C buttons: right stick. Select a player below to edit its button profile. Stick profiles are saved per player.");
     }
 
     ImGui::Separator();
+
+    if(m_current_platform=="N64") {
+        auto profile=*input.get_stick_profile(m_selected_port);
+        bool changed=false;
+        const char* axes="Disabled\0Left X\0Left Y\0Right X\0Right Y\0Left trigger\0Right trigger\0";
+        for(unsigned index=0;index<2;++index) {
+            ImGui::PushID(int(index));int selected=profile.axes[index]+1;
+            if(ImGui::Combo(index==0?"Stick X source":"Stick Y source",&selected,axes)){profile.axes[index]=selected-1;changed=true;}
+            ImGui::SameLine();changed|=ImGui::Checkbox("Invert",&profile.inverted[index]);ImGui::PopID();
+        }
+        changed|=ImGui::SliderFloat("Stick dead zone",&profile.deadzone,0.0f,0.95f,"%.2f");
+        changed|=ImGui::SliderInt("Stick range",&profile.range,1,127);
+        if(changed)input.set_stick_profile(m_selected_port,profile);
+        ImGui::TextDisabled("Gamepad profile; keyboard stick uses T/F/G/H at +/-80.");
+        ImGui::Separator();
+    }
 
     // Visual controller or binding table
     if (m_show_visual) {

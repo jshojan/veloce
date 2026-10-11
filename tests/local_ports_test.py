@@ -15,9 +15,13 @@ env=os.environ.copy()
 for key in ('VELOCE_TEST_OUT','VELOCE_TEST_EXIT','INPUT','FRAMES','DEBUG','TRACE'):env.pop(key,None)
 env.update(HEADLESS='0',SDL_AUDIODRIVER='dummy',SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS='1')
 def hashes():
-    return {key:hashlib.sha256(Path(getattr(a,key)).read_bytes()).hexdigest() for key in ('test','core','input','audio','tas','rom')}
+    result={key:hashlib.sha256(Path(getattr(a,key)).read_bytes()).hexdigest() for key in ('test','core','input','audio','tas','rom')}
+    repo=Path(__file__).resolve().parent.parent
+    for name in ('tests/local_ports_test.py','tests/cpp/tas_frontend_test.cpp','src/core/input_manager.cpp','src/core/input_manager.hpp','include/emu/n64_input.hpp','plugins/input_default/src/default_input_plugin.cpp','tests/roms-src/n64/controller_netplay/build.py','tests/roms-src/n64/controller_netplay/recipe.json'):
+        result[name]=hashlib.sha256((repo/name).read_bytes()).hexdigest()
+    return result
 before=hashes()
-r=subprocess.run([a.xvfb,'-a',str(Path(a.test).resolve()),str(Path(a.rom).resolve()),'--local-ports'],cwd=root,env=env,capture_output=True,text=True,timeout=100)
+r=subprocess.run([a.xvfb,'-a',str(Path(a.test).resolve()),str(Path(a.rom).resolve()),'--local-ports'],cwd=root,env=env,capture_output=True,text=True,timeout=180)
 (root/'frontend.log').write_text(r.stdout+r.stderr)
 assert r.returncode==0,(r.returncode,r.stdout,r.stderr)
 assert before==hashes(),'loaded binaries or ROM changed during capture'
@@ -98,3 +102,47 @@ provenance['executed_wrong_profile_cases']=1
 provenance['player_profiles_capture_sha256']=hashlib.sha256((root/'player-profiles.csv').read_bytes()).hexdigest()
 provenance['remapped_movie_sha256']=hashlib.sha256((root/'four-local-ports.tas').read_bytes()).hexdigest()
 (root/'provenance.json').write_text(json.dumps(provenance,indent=2)+'\n')
+
+# Analog policy oracle: no frontend quantizer imported.
+import math
+stick_rows=list(csv.DictReader((root/'stick-profiles.csv').open()))
+assert len(stick_rows)==4036*4
+stick_scenarios=[]
+values=(-32768,-16384,-4915,0,4915,16383,16384,32767)
+def quantized(source,invert,deadzone,extent,value):
+    if source<0:return 0
+    actual=value if source<4 else max(0,value)
+    normal=max(-1,min(1,actual/32767))*(-1 if invert else 1)
+    magnitude=abs(normal)
+    if magnitude<=deadzone:return 0
+    result=math.floor((magnitude-deadzone)*extent/(1-deadzone)+.5)
+    return result*(-1 if normal<0 else 1)
+for subject in range(4):
+    for axis in range(-1,6):
+        for invert in (False,True):
+            for deadzone in (0,.15,.5):
+                for extent in (40,80,127):
+                    for value in values:
+                        x=quantized(axis,invert,deadzone,extent,value)
+                        y=quantized(-1 if axis<0 else (axis+1)%6,not invert,deadzone,extent,value)
+                        stick_scenarios.append([((x%256)<<8)|(y%256) if port==subject else 0 for port in range(4)])
+def persistent(order):
+    return [(((40+port*20)*(1 if device<2 else -1)*(-1 if port%2 else 1))%256)<<8|(((40+port*20)*(1 if device%2 else -1))%256) for port,device in enumerate(order)]
+persist=persistent((0,1,2,3));moved=persistent((0,3,1,2))
+stick_scenarios.extend([persist,moved,[0]*4,moved])
+assert len(stick_scenarios)==4036
+stick_errors=[];stick_negative=[]
+for n,row in enumerate(stick_rows):
+    row={k:int(v) for k,v in row.items()};case=n//4;port=n%4
+    assert (row['case'],row['port'])==(case,port)
+    if (row['reply'],row['status'],row['cleared'])!=(stick_scenarios[case][port],4096,0):
+        (stick_negative if case==4035 else stick_errors).append(dict(row,expected=stick_scenarios[case][port]))
+report={'status':'fail' if stick_errors else 'pass','cases':4035,'guest_words':4035*6,'mismatches':len(stick_errors),'examples':stick_errors[:8]}
+(root/'stick-profiles.json').write_text(json.dumps(report,indent=2)+'\n')
+assert not stick_errors,report
+assert len(stick_negative)==1,stick_negative
+(root/'executed-wrong-stick.json').write_text(json.dumps({'status':'fail','mismatches':1,'examples':stick_negative},indent=2)+'\n')
+provenance=json.loads((root/'provenance.json').read_text());provenance['stick_profile_cases']=4035
+provenance['stick_profile_capture_sha256']=hashlib.sha256((root/'stick-profiles.csv').read_bytes()).hexdigest()
+(root/'provenance.json').write_text(json.dumps(provenance,indent=2)+'\n')
+print('4035 analog profile cases / 24210 guest words; persistence/port moves, capture, legacy migration, twelve malformed-config rejects, remapped native movies and executed wrong-source rejection PASS')

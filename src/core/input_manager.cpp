@@ -232,10 +232,12 @@ std::unordered_map<VirtualButton,InputBinding> InputManager::default_port_bindin
 }
 
 void InputManager::reset_secondary_profiles() {
+    m_stick_profiles={};
     for(int port=1;port<4;++port) m_player_bindings[port]=default_port_bindings();
 }
 
 void InputManager::reset_port_bindings(int port) {
+    if(port>=0 && port<4)m_stick_profiles[port]=StickProfile{};
     if(port==0) load_default_bindings_for_platform(m_current_platform);
     else if(port>0 && port<4) m_player_bindings[port]=default_port_bindings();
 }
@@ -510,14 +512,29 @@ float InputManager::get_gamepad_axis(int controller_index, int axis) const {
     return 0.0f;
 }
 
+bool InputManager::set_stick_profile(int port,const StickProfile& profile) {
+    if(port<0 || port>=4 || !std::isfinite(profile.deadzone) || profile.deadzone<0 || profile.deadzone>=1 || profile.range<1 || profile.range>127)return false;
+    for(int axis:profile.axes)if(axis< -1 || axis>=SDL_CONTROLLER_AXIS_MAX)return false;
+    m_stick_profiles[port]=profile;return true;
+}
+
+const InputManager::StickProfile* InputManager::get_stick_profile(int port) const {
+    return port>=0 && port<4 ? &m_stick_profiles[port] : nullptr;
+}
+
 uint32_t InputManager::encode_controller_input(int controller, uint32_t buttons) const {
     if (m_current_platform != "N64") return buttons;
     if (m_input_capture_mode || controller<0 || controller>=4) return 0;
     const int device = get_controller_for_port(controller);
     int x=0,y=0;
     if (device>=0) {
-        x=n64_input::quantize(get_gamepad_axis(device,SDL_CONTROLLER_AXIS_LEFTX));
-        y=n64_input::quantize(-get_gamepad_axis(device,SDL_CONTROLLER_AXIS_LEFTY));
+        const auto& profile=m_stick_profiles[controller];
+        auto sample=[&](unsigned index) {
+            if(profile.axes[index]<0)return 0;
+            const float value=get_gamepad_axis(device,profile.axes[index]);
+            return n64_input::quantize(profile.inverted[index]?-value:value,profile.deadzone,profile.range);
+        };
+        x=sample(0);y=sample(1);
     } else if (controller==0) {
         // T/F/G/H do not overlap the default N64 digital bindings.
         x=80*(int(is_key_pressed(SDL_SCANCODE_H))-int(is_key_pressed(SDL_SCANCODE_F)));
@@ -648,6 +665,11 @@ bool InputManager::save_platform_config(const std::string& platform) {
 
             bindings_json[button_name] = binding_json;
         }
+        if(platform=="N64") {
+            j["n64_sticks"]=nlohmann::json::array();
+            for(const auto& profile:m_stick_profiles)
+                j["n64_sticks"].push_back({{"axes",profile.axes},{"inverted",profile.inverted},{"deadzone",profile.deadzone},{"range",profile.range}});
+        }
         j["bindings"] = bindings_json;
         j["player_bindings"]=nlohmann::json::array();
         for(int port=1;port<4;++port) {
@@ -689,6 +711,28 @@ bool InputManager::load_platform_config(const std::string& platform) {
 
         // Parse secondary profiles before changing live configuration. Missing
         // fields migrate old files to standard assigned-gamepad defaults.
+        std::array<StickProfile,4> sticks{};
+        if(platform=="N64" && j.contains("n64_sticks")) {
+            const auto& saved=j.at("n64_sticks");
+            if(!saved.is_array() || saved.size()!=4)return false;
+            for(unsigned port=0;port<4;++port) {
+                const auto& entry=saved.at(port);
+                if(!entry.is_object() || !entry.at("axes").is_array() || entry.at("axes").size()!=2 || !entry.at("inverted").is_array() || entry.at("inverted").size()!=2)return false;
+                for(unsigned index=0;index<2;++index) {
+                    if(!entry.at("axes").at(index).is_number_integer() || !entry.at("inverted").at(index).is_boolean())return false;
+                    const double axis=entry.at("axes").at(index).get<double>();
+                    if(axis< -1 || axis>=SDL_CONTROLLER_AXIS_MAX)return false;
+                    sticks[port].axes[index]=entry.at("axes").at(index).get<int>();
+                    sticks[port].inverted[index]=entry.at("inverted").at(index).get<bool>();
+                    if(sticks[port].axes[index]< -1 || sticks[port].axes[index]>=SDL_CONTROLLER_AXIS_MAX)return false;
+                }
+                if(!entry.at("deadzone").is_number() || !entry.at("range").is_number_integer())return false;
+                const double range=entry.at("range").get<double>();
+                if(range<1 || range>127)return false;
+                sticks[port].deadzone=entry.at("deadzone").get<float>();sticks[port].range=entry.at("range").get<int>();
+                if(!std::isfinite(sticks[port].deadzone) || sticks[port].deadzone<0 || sticks[port].deadzone>=1 || sticks[port].range<1 || sticks[port].range>127)return false;
+            }
+        }
         auto profiles=m_player_bindings;
         for(int port=1;port<4;++port) profiles[port]=default_port_bindings();
         if(j.contains("player_bindings")) {
@@ -774,6 +818,7 @@ bool InputManager::load_platform_config(const std::string& platform) {
             }
         }
         m_player_bindings=std::move(profiles);
+        m_stick_profiles=sticks;
         restore_controller_bindings();
         if (j.contains("controller_ports")) restore_port_assignments();
         else set_active_controller(m_active_controller);
