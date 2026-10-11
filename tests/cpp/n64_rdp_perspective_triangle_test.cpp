@@ -20,7 +20,14 @@ int main(){
   for(unsigned p=0;p<4;++p){for(unsigned lane=0;lane<3;++lane)want[64+positions[p]*4+lane]=goldens[filter][p][lane];want[64+positions[p]*4+3]=(p==0 || p==1)?224:96;}
   check(n64::RdpTriangleShade::draw(packet,image,mode|(filter?1ull<<45:0),scissor,combiner,ram,&texture,&tmem)==0 && ram==want);
  }
+ // Composite the same perspective samples over real framebuffer memory,
+ // with primitive alpha 128 so the native full-alpha bypass is not taken.
+ combiner.primitive=128;combiner.combine=(combiner.combine&~7ull)|3;
+ for(unsigned filter=0;filter<2;++filter){std::vector<uint8_t> ram(160,0x5a),want=ram;n64::RdpBlender blender;
+  for(unsigned p=0;p<4;++p){for(unsigned lane=0;lane<3;++lane)want[64+positions[p]*4+lane]=uint8_t((goldens[filter][p][lane]+90)/2);want[64+positions[p]*4+3]=(p==0 || p==1)?224:192;}
+  check(n64::RdpTriangleShade::draw(packet,image,mode|16384|64|(1ull<<22)|(filter?1ull<<45:0),scissor,combiner,ram,&texture,&tmem,nullptr,&blender)==0 && ram==want);
+ }
  // LOD, depth, blending and two-cycle profiles remain atomic rejections.
  for(unsigned bit:{48u,49u,50u,52u,53u,4u,5u,14u}){std::vector<uint8_t> ram(160,0x5a);const auto before=ram;check(n64::RdpTriangleShade::draw(packet,image,mode|(1ull<<bit),scissor,combiner,ram,&texture,&tmem)==1 && ram==before);}
- std::cout<<"Varying-W point/filter framebuffer goldens and eight atomic profile rejections PASS\n";
+ std::cout<<"Varying-W point/filter and memory-blended framebuffer goldens and eight atomic profile rejections PASS\n";
 }

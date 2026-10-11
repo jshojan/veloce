@@ -23,6 +23,7 @@ public:
     RdpCombiner combiner;
     RdpTexture texture;
     RdpConvert conversion;
+    RdpBlender blender;
     RdpTmem tmem;
     RdpPacket packet;
     uint32_t depth_image=0;
@@ -69,7 +70,7 @@ public:
         switch(op){
         case 8:case 9:case 10:case 11:case 12:case 13:case 14:case 15:
             if(((other_mode>>52)&3)==3){reason=RdpTriangleFill::draw(packet,color_image,other_mode,scissor,fill_color,ram);supported=!reason;}
-            else if(((other_mode>>52)&3)==0){reason=RdpTriangleShade::draw(packet,color_image,other_mode,scissor,combiner,ram,&texture,&tmem,&conversion);supported=!reason;}
+            else if(((other_mode>>52)&3)==0){reason=RdpTriangleShade::draw(packet,color_image,other_mode,scissor,combiner,ram,&texture,&tmem,&conversion,&blender);supported=!reason;}
             else supported=false;
             break;
         case 0:case 38:case 39:case 40:break; // NOP and settled load/pipe/tile barriers.
@@ -77,6 +78,7 @@ public:
         case 44:conversion.command(word);break;
         case 45:scissor=word&0x00ffffffffffffffull;break;
         case 47:other_mode=word&0x00ffffffffffffffull;break;
+        case 56:case 57:blender.command(op,word);break;
         case 55:fill_color=uint32_t(word);break;
         case 48:case 51:case 52:{uint32_t groups;reason=tmem.load(op,word,texture,ram,groups);supported=!reason;if(supported)tmem_busy=(tmem_busy+groups)&0xffffff;break;}
         case 50:case 53:case 61:texture.command(op,word);break;

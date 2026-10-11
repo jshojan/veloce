@@ -183,12 +183,12 @@ int main(int argc,char** argv) {
     // Full state preserves mappings and dirty cache, and rejects malformed entries atomically.
     std::vector<uint8_t> saved,replay;require(m.save(saved),"TLB state save");tlb.reset();require(m.restore(saved) && m.save(replay) && replay==saved,"TLB state restore");
     for(unsigned index=0;index<32;++index)for(unsigned field=0;field<4;++field) {
-        auto bad=saved;const size_t at=bad.size()-7000+index*32+field*8;
+        auto bad=saved;const size_t at=bad.size()-7024+index*32+field*8;
         const uint64_t value=field==0?1ull<<40:field==1?8192:field==2?1ull<<26:1;
         for(unsigned byte=0;byte<8;++byte)bad[at+byte]=uint8_t(value>>(56-byte*8));
         require(!m.restore(bad) && m.save(replay) && replay==saved,"invalid TLB entry state atomicity");
     }
-    auto old=saved;old.resize(old.size()-7000);old[6]='1';old[7]='0';require(m.restore(old) && tlb.probe(0x20002000)==-1,"S010 neutral TLB conversion");
+    auto old=saved;old.resize(old.size()-7024);old[6]='1';old[7]='0';require(m.restore(old) && tlb.probe(0x20002000)==-1,"S010 neutral TLB conversion");
     prepare(m);tlb.reset();s.gpr[1]=0x20000020;s.cp0[8]=123;code(m,0x8c220000);
     require(m.save(saved),"pending TLB fault save");m.cpu.step();std::vector<uint8_t> after;m.save(after);
     require(m.restore(saved),"pending TLB restore");m.cpu.step();m.save(replay);require(replay==after,"TLB fault exact continuation");

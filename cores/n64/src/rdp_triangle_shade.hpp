@@ -4,21 +4,22 @@
 #include "rdp_texel_quad.hpp"
 #include "rdp_convert.hpp"
 #include "rdp_texture_divider.hpp"
+#include "rdp_blender.hpp"
 namespace n64 {
-// First one-cycle pixel path: RGBA32, no AA/blending, key, alpha compare,
-// dither, Z accesses or previous-pixel combiner feedback. Affine/perspective
+// Functional one-cycle RGBA32: optional blending/AA/alpha-coverage decisions.
+// No key, dither, Z accesses or previous-pixel combiner feedback. Affine/perspective
 // texture sampling supports cycle-zero filtering/passthrough, color conversion and
 // optional TLUT. SetConvert also supplies K4/K5 combiner inputs.
 // Unsupported profiles reject before any framebuffer write. Hidden RDRAM
 // bits and physical pipeline/crash timing remain separate work.
 struct RdpTriangleShade {
-    static unsigned draw(const RdpPacket& packet,uint64_t image,uint64_t mode,uint64_t scissor,const RdpCombiner& combiner,std::vector<uint8_t>& ram,const RdpTexture* texture=nullptr,const RdpTmem* tmem=nullptr,const RdpConvert* conversion=nullptr){
+    static unsigned draw(const RdpPacket& packet,uint64_t image,uint64_t mode,uint64_t scissor,const RdpCombiner& combiner,std::vector<uint8_t>& ram,const RdpTexture* texture=nullptr,const RdpTmem* tmem=nullptr,const RdpConvert* conversion=nullptr,RdpBlender* blender=nullptr){
         RdpTriangle triangle;if(!RdpTriangle::decode(packet,triangle))return 1;
         const bool textured=triangle.texture && texture && tmem;
         const uint64_t sampling=textured?((63ull<<42)|(1ull<<51)):0;
         const uint64_t dither=(3ull<<38)|(3ull<<36);
-        const uint64_t allowed=dither|0xffff0000ull|0x340ull|sampling;
-        if((mode&~allowed) || (mode&dither)!=dither || ((mode>>30)&3) || !combiner.independent_one_cycle(textured,conversion!=nullptr) || (textured && !(mode&(1ull<<43)) && !conversion))return 1;
+        const uint64_t allowed=dither|0xffff0000ull|0x340ull|sampling|(blender?0x7089ull:0);
+        if((mode&~allowed) || (mode&dither)!=dither || (!blender && ((mode>>30)&3)) || !combiner.independent_one_cycle(textured,conversion!=nullptr) || (textured && !(mode&(1ull<<43)) && !conversion))return 1;
         if(((image>>53)&7)!=0 || ((image>>51)&3)!=3)return 1;
         const uint32_t origin=uint32_t(image)&0x3ffffff;
         if(origin&7)return 4;
@@ -36,8 +37,9 @@ struct RdpTriangleShade {
             for(unsigned step=0;step<=row.last-row.first;++step){
                 const unsigned x=triangle.flip?row.first+step:row.last-step;
                 const uint8_t mask=RdpCoverage::mask(row,x);
-                // With AA disabled the upper-left coverage bit gates stores.
-                if(!(mask&128))continue;
+                // The blender applies AA/alpha/coverage gates after memory latch reads.
+                // Legacy direct calls without it retain the non-AA store gate.
+                if(!blender && !(mask&128))continue;
                 RdpTriangleAttributes::Pixel pixel;RdpTriangleAttributes::pixel(attributes,x,mask,pixel);
                 RdpCombiner::Sources sources;
                 if(conversion){sources.k4=conversion->coefficient(4);sources.k5=conversion->coefficient(5);}
@@ -58,8 +60,14 @@ struct RdpTriangleShade {
                         else{RdpTextureFilter::Quad quad{};quad.fill(texel);sources.texel0=RdpTextureFilter::convert_weights(quad,{},conversion->weights());}
                     }
                 }
-                const auto color=combiner.evaluate(1,sources).clamped;
+                auto color=combiner.evaluate(1,sources).clamped;
                 const size_t at=origin+(size_t(y)*width+x)*4;
+                if(blender){const uint32_t memory=(uint32_t(ram[at])<<24)|(uint32_t(ram[at+1])<<16)|(uint32_t(ram[at+2])<<8)|ram[at+3];
+                    const auto result=blender->pixel(mode,color,pixel.rgba[3],memory,RdpCoverage::derivatives(mask).count,mask>>7,attributes.delta_z);
+                    if(!result.write)continue;
+                    for(unsigned lane=0;lane<3;++lane)ram[at+lane]=uint8_t(result.rgb[lane]);
+                    ram[at+3]=uint8_t(result.coverage<<5);continue;
+                }
                 const unsigned memory=(mode&64)?ram[at+3]>>5:7;
                 const unsigned cvg=RdpCoverage::stored(unsigned(mode>>8)&3,false,RdpCoverage::derivatives(mask).count,memory);
                 for(unsigned lane=0;lane<3;++lane)ram[at+lane]=uint8_t(color[lane]);

@@ -1,6 +1,6 @@
 # Veloce Accuracy Scorecard
 
-Current N64 evidence: [Perspective texture division and current Mario status](#perspective-texture-division). Earlier increment reports are historical.
+Current N64 evidence: [One-cycle blending/alpha coverage and current Mario status](#one-cycle-blending-and-alpha-coverage). Earlier increment reports are historical.
 
 This is the project's honest, evidence-based statement of how complete and
 cycle-accurate each emulator core is. Legacy headline percentages are produced by the
@@ -2540,5 +2540,82 @@ committed).
 
 LOD/mipmapping, two-cycle/previous-texel feedback, full AA/blending/depth/hidden
 memory, complete devices/audio, physical timing and hardware-wide corpora
+remain unfinished. The full Nintendo implementation goal remains active.
+N64 stays **45% = 9/20 delivery milestones**; CI/CD remains disabled.
+
+## One-cycle blending and alpha coverage
+
+The functional RGBA32 triangle path now executes the one-cycle blender after
+combiner and texture processing. It supports all cycle-zero color/alpha source
+selectors, forced and AA-enabled normalized blending, full-alpha partial
+rejection, constant alpha thresholds, coverage-times-alpha, alpha-from-coverage,
+color-on-coverage and all coverage destinations. Quantized factors, memory-alpha
+shifters for disabled Z comparison and eight-bit force-blend output wrapping
+follow the [pinned primary RDP model](https://github.com/ata4/angrylion-rdp-plus/blob/9c8b9ed3e7d7f00dff8bc872ccdd3fba1a3673fc/src/core/n64video/rdp/blender.c).
+The native quotient has **32,768 entries**, all compared byte for byte against
+a separately compiled primary lookup initializer. Physical console measurements
+remain absent. Dithering, Z comparison/update and two-cycle execution still
+reject atomically in this path.
+
+SET_FOG_COLOR and SET_BLEND_COLOR retain their full 32-bit colors. Memory RGB
+is retained across pixels/commands when image reads are disabled; only memory
+alpha/coverage changes to the native default. Image reads update the latch even
+when the later alpha/coverage decision suppresses a framebuffer write. Two
+framebuffer goldens additionally composite point/filtered perspective texture
+samples with primitive alpha over actual framebuffer memory. The existing
+varying-W pixel goldens remain passing.
+
+The new original
+[one-cycle blending ROM](https://github.com/jshojan/veloce/tree/main/tests/roms-src/n64/rdp_one_cycle_blend)
+passes **655,360 cases / 8,519,680 actual 64-bit framebuffer/guard/register
+observations**, with zero mismatches. **524,288** cover every selected RGB seed/
+alpha pair under four blend/AA/coverage profiles and both command sources;
+**131,072** cover all 256 selector combinations against 256 correlated patterns
+and both sources. A host quotient/decision/quarter-grid oracle supplies expected
+values without importing command packing or the production implementation.
+The 1,616-case control passes, its separately executed wrong-capture ROM fails
+every row, and all thirteen field flips and seven stream controls are rejected.
+The guest uses constant shade, fixed fog/blend colors and background coverage;
+joint color/alpha/state/texture/gradient/geometry domains remain incomplete.
+
+Component gates pass all **134,217,728 weight/color equations**, **2,424,832
+alpha/coverage/threshold decisions** and **1,310,720 selector/delta/latch
+observations**. All **ten compiled production faults** are rejected; compilation
+failures do not count as rejection. **1,048,576 fog/blend command captures** cover
+selected 16-bit/complement color patterns, both commands, all opcode aliases,
+ignored upper fields, RDRAM and wrapping XBUS, and actual FullSync behavior.
+Retained-memory framebuffer and atomic unsupported-profile checks pass.
+Warning-as-error and UBSAN pass for these gates and perspective compositing.
+
+State **VN64S026** appends **24 bytes**, totaling **8,478,976 bytes**, for fog,
+blend and memory RGB. Reserved state bits reject atomically. S025 imports preserve
+every preceding payload byte and initialize the new fields to zero; earlier
+imports remain covered. State fixture offsets now address their original fields
+through the appended tail. The full build, all **48 existing N64 regression
+gates**, production TCP rollback, the new component/state/checkpoint gates and
+all five partial-packet/texture/conversion/perspective/blender production replay
+gates pass. Subsequent actual guest output and full machine state replay byte
+for byte through the netplay interface, including current ABI capacity and
+malformed-state rejection. All **108 repository-owned ROM archives** reproduce
+and match their manifest. Plugin **0.34.0**, ABI v2 and S026 are current.
+
+Repeat from the repository root:
+
+```sh
+ctest --test-dir build -R '^n64_rdp_(blender|one_cycle_blend)' --output-on-failure
+python3 tests/roms-src/build.py --original-only --check
+```
+
+Artifacts: `build/artifacts/owned/n64_rdp_one_cycle_blend/` and
+`build/artifacts/component/n64_blender/`. The private Mario probe was repeated
+with current plugin/trace binaries at **200 million CPU attempts**, without a
+terminal CPU fault. The complete **22/22-word CF000FFA0FFAF006 packet at
+0x227160**, fetched CURRENT **0x227210**, reason 1 and uniform video remain.
+Native boot/playability are unverified. Report:
+`build/artifacts/retail/n64-blender.json` (ignored; no commercial ROM bytes
+committed).
+
+Depth/hidden RDRAM memory, LOD/mipmapping, two-cycle/previous-texel feedback,
+dithering, complete devices/audio, physical timing and hardware-wide corpora
 remain unfinished. The full Nintendo implementation goal remains active.
 N64 stays **45% = 9/20 delivery milestones**; CI/CD remains disabled.
