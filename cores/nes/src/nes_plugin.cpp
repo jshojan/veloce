@@ -8,6 +8,7 @@
 #include "trace.hpp"
 
 #include <imgui.h>
+#include <algorithm>
 #include <cstring>
 #include <cstdlib>
 #include <iostream>
@@ -60,8 +61,6 @@ public:
     void run_frame(const emu::InputState& input) override;
     uint64_t get_cycle_count() const override;
     uint64_t get_frame_count() const override;
-    bool set_test_sink(emu::ITestSink* sink) override;
-    const char* test_channels() const override { return "port"; }
 
     // Video
     emu::FrameBuffer get_framebuffer() override;
@@ -85,6 +84,12 @@ public:
     bool has_battery_save() const override;
     std::vector<uint8_t> get_battery_save_data() const override;
     bool set_battery_save_data(const std::vector<uint8_t>& data) override;
+
+    // Test-result channel (plugin ABI v2): $401E/$401F port + blargg $6000
+    // adapter, see test_channel.hpp.
+    bool set_test_sink(emu::ITestSink* sink) override;
+    const char* test_channels() const override { return TestChannel::channels(); }
+    void on_test_reset() override { m_bus->test_channel().on_reset(); }
 
     // =========================================================================
     // INetplayCapable implementation - Netplay/Rollback support
@@ -357,12 +362,6 @@ void NESPlugin::run_frame_internal(uint32_t player1_buttons, uint32_t player2_bu
         // Check for frame completion
         if (m_ppu->check_frame_complete()) {
             frame_complete = true;
-            // Check for test ROM output once per frame
-            static int check_interval = 0;
-            if (++check_interval >= 30) {
-                check_interval = 0;
-                m_bus->check_test_output();
-            }
         }
 
         // Get expansion audio from mapper and pass to APU for mixing
@@ -386,11 +385,6 @@ uint64_t NESPlugin::get_cycle_count() const {
 
 uint64_t NESPlugin::get_frame_count() const {
     return m_frame_count;
-}
-
-bool NESPlugin::set_test_sink(emu::ITestSink* sink) {
-    m_bus->set_test_sink(sink);
-    return true;
 }
 
 emu::FrameBuffer NESPlugin::get_framebuffer() {
@@ -517,6 +511,24 @@ bool NESPlugin::set_battery_save_data(const std::vector<uint8_t>& data) {
         return false;
     }
     return m_cartridge->set_save_data(data);
+}
+
+// =============================================================================
+// Test-result channel
+// =============================================================================
+
+bool NESPlugin::set_test_sink(emu::ITestSink* sink) {
+    // Attached before the first frame (the application does this right after
+    // load_rom): pin power-on memory to fixed contents so the run depends on
+    // nothing but the ROM. PRG-RAM is cleared too, because the host may have
+    // loaded a battery save into it.
+    if (sink && m_rom_loaded && m_frame_count == 0) {
+        m_bus->power_on_ram();
+        std::vector<uint8_t>& prg_ram = m_cartridge->get_prg_ram();
+        std::fill(prg_ram.begin(), prg_ram.end(), Cartridge::kPowerOnPrgRamFill);
+    }
+    m_bus->test_channel().set_sink(sink);
+    return true;
 }
 
 // =============================================================================

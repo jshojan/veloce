@@ -1,0 +1,20 @@
+{
+  "console": "nes",
+  "suite": "veloce_smoke",
+  "description": "Veloce-authored self-test ROM for tests/roms-src/include/veloce-test.inc (ca65). Exercises every VT_* emitter macro against a fixed transcript; used by the determinism selftest (build twice, byte-diff) and as a smoke test for the $401E/$401F port channel.",
+  "license": "Veloce project source (same licence as the rest of this repository); not derived from any upstream test-ROM collection.",
+  "local_source": true,
+  "golden_gate": false,
+  "rom_variant": "veloce",
+  "toolchain_stage": "cc65",
+  "build": {
+    "workdir": "src",
+    "commands": [
+      "ca65 --feature force_range --smart -t nes -I /opt/rom-toolchain/cc65-asminc -I /veloce-include -o veloce_smoke.o veloce_smoke.s",
+      "ld65 -C nes.cfg veloce_smoke.o -o ../veloce_smoke.nes"
+    ],
+    "artifacts": {
+      "veloce_smoke.nes": "veloce_smoke.nes"
+    }
+  }
+}

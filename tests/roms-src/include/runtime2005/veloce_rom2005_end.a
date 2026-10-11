@@ -1,0 +1,10 @@
+; runtime2005/veloce_rom2005_end.a (asm6f) -- vectors and CHR for a ROM
+; started with veloce_rom2005.a. nmi/irq come from validation.a (upstream's
+; default_nmi/default_irq); reset goes through veloce_reset.
+
+    .pad $fffa, $ff
+    .dw nmi
+    .dw veloce_reset
+    .dw irq
+
+    .dsb 8192, $00

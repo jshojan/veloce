@@ -18,7 +18,7 @@ Cycle-accurate NES/Famicom emulator for Veloce with dot-by-dot PPU rendering.
 
 ## Overview
 
-The NES core provides high-accuracy NES emulation with support for 20+ mappers covering approximately 90% of the NES library. The implementation features dot-by-dot PPU rendering, cycle-accurate CPU timing, and netplay support via the INetplayCapable interface.
+The NES/Famicom plugin implements CPU, PPU, APU and mapper profiles with deterministic netplay. Delivery checklist completion is reported above; native hardware accuracy and library compatibility percentages have not been measured.
 
 ## Specifications
 
@@ -33,7 +33,7 @@ The NES core provides high-accuracy NES emulation with support for 20+ mappers c
 
 ## Completion Status
 
-### CPU (Fully Implemented)
+### Implemented CPU profile
 
 | Feature | Status | Notes |
 |---------|--------|-------|
@@ -45,7 +45,7 @@ The NES core provides high-accuracy NES emulation with support for 20+ mappers c
 | BRK instruction | Complete | Correct B flag behavior |
 | RMW dummy writes | Complete | Read-modify-write instructions perform dummy write |
 
-### PPU (Fully Implemented)
+### Implemented PPU profile
 
 | Feature | Status | Notes |
 |---------|--------|-------|
@@ -59,7 +59,7 @@ The NES core provides high-accuracy NES emulation with support for 20+ mappers c
 | NTSC/PAL regions | Complete | Configurable scanline counts |
 | Vs. System palettes | Complete | RP2C03, RP2C04 variants |
 
-### APU (Fully Implemented)
+### Implemented APU profile
 
 | Feature | Status | Notes |
 |---------|--------|-------|
@@ -212,28 +212,20 @@ harness so detection and scoring are identical across all consoles. For the
 methodology and the platform-wide picture see the top-level
 [TESTING.md](../../TESTING.md) and [COMPLETENESS.md](../../COMPLETENESS.md).
 
-### Verified accuracy (evidence-based)
+### Hardware evidence and remaining coverage
 
-Headline accuracy is **approximately 90-94%**, dominated by CPU and PPU. This is
-the most thoroughly verified Veloce core because most critical tests use the
-Blargg `$6000` `memory` protocol, which the binary reads directly under
-`DEBUG=1` (no reference hashes needed). Measured 2026-06-02 against
-`build/bin/veloce`.
+The repository-owned ADC/SBC corpus independently grades all **524,288** selected
+operand/carry/decimal-flag observations. The new production result-channel gate
+executes eight original cartridges for fresh signature/status writes, port
+precedence and unknown-status completion. These gates establish their specified
+behavior; they do not establish a whole-core hardware accuracy percentage.
 
-| Subsystem | Verified score | Notes |
-|-----------|----------------|-------|
-| CPU | ~96% | All 16 `instr_test-v5` official singles + `official_only` PASS; lone scored fail `exec_space_apu`; `03-immediate` known_fail (unstable opcodes) |
-| PPU | ~92% | `ppu_vbl_nmi` 9/10 PASS; OAM/open-bus PASS; sprite-hit/overflow/2005 palette suites visual and unverified |
-| Mapper | ~88% | MMC3 core verified; MMC6 + `4-scanline_timing` known_fail; MMC1/MMC5 visual/unverified |
-| APU | ~70% | Functional/length/IRQ gates pass; cycle-accurate frame-counter cluster (`apu_test` 4/5/6) fails |
-| Timing | ~40% (weakest) | `cpu_interrupts_v2` 2/3/4 fail; DMA collisions expected-fail |
-
-Full per-test justification, the verified-versus-unverified breakdown, and the
-honest coverage caveats (nestest trace, screenshot-crc reference hashes, reset
-injection, mapper breadth, PAL) are documented in
-[COMPLETENESS.md](../../COMPLETENESS.md#nes). The headline reflects the verified
-`memory`-detected subset; the 62 `screenshot-crc` tests and nestest contribute
-zero until reference hashes or a `TRACE=1` emitter exist.
+Earlier supplemental reports identify CPU execution-space/unstable-opcode,
+PPU timing/open-bus, MMC3/MMC6, APU frame-counter and CPU/DMA collision gaps.
+Those results need a fresh platform-wide rerun before being treated as current
+compatibility results. Legacy visual-only cartridges remain unscored without
+register/RAM capture evidence. Full CPU, peripheral, timing and mapper corpus
+coverage remains pending. See [COMPLETENESS.md](../../COMPLETENESS.md#nes).
 
 ### Running
 
@@ -248,7 +240,13 @@ zero until reference hashes or a `TRACE=1` emitter exist.
 
 `run_tests.sh` is a thin shim over `runner.py`, which calls
 `veloce_testkit.runner.run_console_main("nes", ...)`. The ROM provider clones
-`christopherpow/nes-test-roms` on first run into `tests/nes-test-roms/`.
+`christopherpow/nes-test-roms` on first run into `tests/nes-test-roms/` and
+resolves test paths through `tests/_roms/` (gitignored). That directory holds one
+symlink per top-level entry of the checkout, plus `veloce/` -> `build/roms/nes/`
+for the `rom_variant: veloce` ROMs that `tests/roms-src/build.py` builds (see
+below). The link lives there, not inside `nes-test-roms/`, because worktrees
+often share that one clone. A veloce test whose ROM is not built yet reports
+SKIP ("ROM not found").
 
 ### Coverage (172 tests across 32 suites)
 
@@ -263,9 +261,19 @@ zero until reference hashes or a `TRACE=1` emitter exist.
 
 ### Result detection
 
-- **memory** (Blargg `$6000` protocol): the headless binary prints
-  `Status code: N (PASSED|FAILED)`; `0` is a pass. Used by the newer
-  `rom_singles` / v5 suites.
+- **result file** (`VELOCE_TEST_OUT`, format in
+  [docs/testing/VELOCE-RESULT.md](../../docs/testing/VELOCE-RESULT.md)): the
+  core's `nes::TestChannel` (`src/test_channel.hpp`) feeds two drivers into the
+  file. The **port** takes `$401E` data bytes, `$401F` control writes and
+  answers a `$401F` probe read with `$56`, for ROMs rebuilt with the Veloce
+  emitter. The **`blargg6000` adapter** serves unmodified Blargg ROMs: it
+  follows the ROM's writes to the `$6000` status byte, the `DE B0 61`
+  signature and the `$6004` text, streams the text as `LOG` lines, and turns a
+  final status into `END 1/1` (status `0`) or `END 0/1 code=N`. Status `$81`
+  ("press reset") makes the application reset the console, which runs the
+  `apu_reset`/`cpu_reset` ROMs. The deprecated `memory` detection alias reads
+  the same file. Verdicts come from the result file, and `DEBUG` plays no part. While a sink is attached, CPU RAM and PRG-RAM start from fixed
+  contents (`$00`), so a stale battery save cannot change a run.
 - **screenshot-crc** (visual): older 2005-era Blargg suites
   (`sprite_hit_tests_2005`, `sprite_overflow_tests`, `vbl_nmi_timing`,
   `blargg_ppu_tests_2005`, `mmc3_irq_tests`, `blargg_nes_cpu_test5`,
@@ -275,13 +283,135 @@ zero until reference hashes or a `TRACE=1` emitter exist.
   against the golden `nestest.log`. Requires a `TRACE=1` emitter in the binary and
   the golden log (not shipped); currently reported as unverified.
 
+### Rebuilding test ROMs from source (`tests/roms-src/`)
+
+`tests/roms-src/build.py` rebuilds ROMs from pinned upstream commits inside
+the shared `tools/rom-toolchain` Docker image and records each ROM's
+`sha256` (plus every tool's version) in `tests/roms-src/rom_manifest.json`.
+`tests/roms-src/include/veloce-test.inc` (ca65), `veloce-test-asm6f.inc`
+(asm6f) and `veloce-test-nesasm.inc` (NESASM3) are the "one include per
+assembler" `VT_*` emitter (`VT_BEGIN`/`VT_TEST`/`VT_PASS`/`VT_FAIL`/`VT_REG`/
+`VT_LOG`/`VT_END`, all `STA $401E` underneath) a patched suite's shell calls
+into to speak `VELOCE-RESULT/1` directly instead of through the
+`blargg6000` adapter; `tests/roms-src/nes/veloce_smoke/` is a small
+self-authored ROM (`local_source: true`, no upstream to golden-gate
+against) that exercises every macro in the ca65 dialect against a fixed
+transcript and is used as this channel's determinism check (build twice /
+run twice, byte-diff). The asm6f and NESASM3 dialects are hand-verified
+against the pinned toolchain (each has a documented, worked-around
+assembler quirk in its own file's header comment) but do not yet have their
+own smoke ROM; whoever wires the first real asm6f (NES-6/7) or NESASM3
+(NES-4, AccuracyCoin) suite through the channel gets to be that dialect's
+first real-ROM proof instead of a second synthetic one.
+
+`build.py` also golden-gates (rebuilds unmodified, `cmp`s against upstream's
+own shipped binary) 16 of the "modern" ca65 shell suites plus Bisqwit's
+`cpu_dummy_reads` (17 suites, 85 ROMs: `instr_test-v5`, `nes_instr_test`,
+`instr_timing`, `instr_misc`, `cpu_reset`, `cpu_interrupts_v2`,
+`ppu_vbl_nmi`, `oam_read`, `oam_stress`, `ppu_open_bus`, `apu_test`,
+`apu_mixer`, `apu_reset`, `mmc3_test`, `mmc3_test_2`, `read_joy3` (only
+`test_buttons.nes`; see the correction below), `cpu_dummy_reads`). All 85 rebuild byte-for-byte the same size as upstream
+but a few hundred to ~2000 bytes different (`golden_gate: false`, reason
+recorded per suite; same unconfirmed `--feature force_range`/`longbranch`
+root cause `cpu_dummy_reads/PROVENANCE.md` first wrote up), verified
+behaviourally instead: two independent rebuilds of each are byte-identical
+to each other. Three suites are documented, not built: the seven "combined"
+ROMs (`official_only.nes`, `all_instrs.nes`, `instr_timing.nes`,
+`instr_misc.nes`, `cpu_interrupts.nes`, `ppu_vbl_nmi.nes`, `apu_test.nes`)
+can't be rebuilt from the shipped source tree at all (the suites' own
+`readme.txt` says the multi-test build tooling "isn't included");
+`ppu_read_buffer` needs a PHP/nasm/ImageMagick asset pipeline the toolchain
+image doesn't have; `sprdma_and_dmc_dma` ships no source whatsoever in
+`nes-test-roms`. None of the 88 real `$6000`-writing "blargg-modern/bisqwit"
+ROMs this covers were patched -- the `channel`/`rom_variant: veloce` config
+flip and the shell patch that emits `VELOCE-RESULT/1` `TEST`/`CHECK` lines
+directly are NES-5's job; this only proves the rebuild pipeline honest
+before that patching starts. (Correction, NES-3: `read_joy3/test_buttons.nes`
+is not a `$6000` writer either. Like the rest of its suite, it uses an older
+console+serial shell, so the count of unpatched real writers is 87. It is now
+built as a patched ROM with the other three `read_joy3` ROMs, as described below.)
+
+#### ROMs rebuilt to report over the port (NES-3)
+
+Eleven config entries were labelled `memory`, but their shipped binaries never
+write `$6000`, so they always ended as `RUNS`. Together with
+`read_joy3/test_buttons`, they are now built as `rom_variant: veloce` ROMs that
+write `VELOCE-RESULT/1` over `$401E`. The config addresses them as
+`veloce/<suite>/<rom>.nes` with `channel`/`require_channel: port`. Each suite's
+`PROVENANCE.md` says where every expected value comes from.
+
+- `dmc_dma_during_read4` (5) and `read_joy3` (4): the ca65 sources are rebuilt on
+  blargg's modern shell (`instr_test-v5/source/common`). Each suite keeps its own
+  DMC-sync code, because its timing constants are calibrated against it. A small
+  patch per suite reports through
+  `tests/roms-src/include/veloce-blargg.inc`, which provides:
+  - `VB_BEGIN`;
+  - `VB_CRC`: the shell's CRC-32 against one or more documented hardware results;
+  - `VB_FLAG` and `VB_REG`;
+  - the shell's `exit`, which writes `END`.
+
+  The patch keeps every cycle-timed routine at its original in-page address.
+- `pal_apu_tests` 01-03: the 2005-era sources are translated to asm6f
+  (`include/runtime2005/to_asm6f.sed`) and linked against `runtime2005`, a
+  replacement for blargg's `validation.a` and ROM wrapper that reports the `$F8`
+  result code as one `CHECK`. Tests 01-03 exercise behaviour the NTSC and PAL APUs
+  share, so they are scored. 04-11 stay unwired until a PAL mode exists.
+
+Results on this core (2026-09-27):
+
+| ROM | Result | Why |
+|---|---|---|
+| pal_apu_tests 01/02/03 | PASS | |
+| dma_2007_write, read_write_2007 | PASS | |
+| read_joy3 test_buttons | PASS | uses a deterministic `INPUT` schedule |
+| dma_2007_read | FAIL (known_fail) | got `498c5c5f`, no extra `$2007` reads |
+| dma_4016_read | FAIL (known_fail) | got `fbf7c7b1` = `08 08 08 08 08`, no extra `$4016` clock |
+| double_2007_read | FAIL (known_fail) | a fifth pattern, `d84f6815` |
+| count_errors | 1/2 (known_fail) | `read_joy` stays correct, but 0 DMC conflicts are seen |
+| count_errors_fast | FAIL (known_fail) | 0 corrupted reads |
+| thorough_test | RUNS | the suite's `sync_dmc` never returns at about iteration 330 of 1000; the unmodified build behaves the same |
+
+All of these failures point at one gap: the core's DMC DMA does not repeat the
+CPU read that was in flight.
+
 ### Known measurement gaps
 
 The nestest golden trace (needs a `TRACE=1` emitter plus the golden
-`nestest.log`), reset-injection tests, screenshot-crc reference hashes, PAL
-framing, unstable illegal immediates, and narrow mapper breadth are all
-documented with their impact in
-[COMPLETENESS.md](../../COMPLETENESS.md#nes). Optional mapper PCB stress ROMs
+`nestest.log`), screenshot-crc reference hashes, PAL framing, unstable
+illegal immediates, and narrow mapper breadth are all documented with their
+impact in [COMPLETENESS.md](../../COMPLETENESS.md#nes). Reset-injection tests
+(`apu_reset`, `cpu_reset`) now run through the `blargg6000` adapter's `$81`
+handshake. Optional mapper PCB stress ROMs
 from `pinobatch/holy-mapperel` are referenced in the config but not auto-fetched;
 build them from that GPL repo and drop the per-mapper `.nes` files in to extend
 mapper coverage.
+
+## Result-channel branch integration (2026-10-11)
+
+The previously unmerged `nes/test-channel` branch is reconciled with current
+main. One `TestChannel` owns port output and fresh-write Blargg adaptation;
+the periodic debug-memory scan and duplicate sink path are removed. Control
+`$401F=1` retains `finish(-1)` for the original raw observation cartridges.
+Advertising `port,blargg6000` is reflected in the strict original ADC/SBC oracle.
+Test instrumentation adds no serialized machine fields.
+
+Verification: five result/CRC/original-corpus gates pass in **8.40 seconds**;
+all three production TCP/network/rollback gates pass in **5.65 seconds**.
+The original arithmetic corpus captures **524,288** cases and its executed
+negative control is rejected. Eight original production-plugin fixtures check
+actual RAM-loaded register digits, passing/failing legacy statuses, absent
+signatures and port precedence. The ca65 emitter matches its source transcript,
+including its deliberate 1/2 failure, and repeated result files are identical.
+All **97 supplemental/emitter images rebuild**, the emitter independently
+rebuilds to its recorded hash, all **117 archived original images reproduce**,
+and the build/testkit selftests pass. A visual-only CPU dummy-read ROM remains
+unscored after 600 frames; it supplies no adapter or hardware-pass evidence.
+
+Supplemental binaries stay in ignored build directories. Pinned source recipes,
+patches and provenance are supplemental to the repository-owned original corpus.
+NES remains **50% (10/20 delivery milestones)**. All README percentages remain
+synchronized, N64 remains 45%, and CI/CD remains disabled. GB/GBA/SNES/docs
+branches and the explicitly incomplete NES APU branch still need reconciliation.
+
+Actual fixture RAM bytes and sink output are written to
+`build/artifacts/owned/nes_result_channel/*.capture` for file inspection.

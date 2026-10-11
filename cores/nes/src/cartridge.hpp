@@ -80,6 +80,9 @@ public:
     const std::vector<uint8_t>& get_chr_rom() const { return m_chr_rom; }
     std::vector<uint8_t>& get_prg_ram() { return m_prg_ram; }
 
+    // Fixed power-on contents of PRG-RAM (before any battery save is applied).
+    static constexpr uint8_t kPowerOnPrgRamFill = 0x00;
+
     // Battery-backed save support
     bool has_battery() const { return m_has_battery; }
 

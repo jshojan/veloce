@@ -122,7 +122,9 @@ The hint proves completion, not success. The original
 [ADC/SBC corpus](../../tests/roms-src/nes/alu_exhaustive/README.md) emits packed
 `REG ap=` rows and its dedicated host oracle grades them; the ordinary file
 detector leaves an unknown-status raw stream unscored. Blargg's `$6000` file
-adapter remains planned; the legacy stdout path still exists.
+adapter now observes fresh CPU writes and emits file results. A first port write
+suppresses adapter output; control completion still uses unknown status for
+raw captures. The old periodic stdout result scan has been removed.
 
 The SNES `port` channel is implemented while a sink is attached, in mapped I/O
 banks only. `$21FE` streams bytes; `$21FF` reads `$56`; `$21FF=1` calls
@@ -145,6 +147,8 @@ records result/CPSR pairs; its host oracle grades them. Completion at
 `$04FFF782=1` is a Veloce extension active only with a sink and implies no PASS.
 The legacy R12 stdout detector remains; the R12 file adapter is planned.
 
+Port and adapter on one ROM (NES): the first write to `$401E` or `$401F` silences the `blargg6000` adapter's `LOG` and `END` output for the rest of the run, so a patched blargg shell that keeps its `$6000` block does not produce a second `END`. The `0x81` reset request still works. A patched ROM should write to the port (`VT_BEGIN`, or `$401F` = `$00`) before its first `$6004` text; otherwise the adapter has already written `#VELOCE adapter=blargg6000` and `require_channel: port` scores the run as `SKIP`. The adapter follows the bytes the ROM writes to `$6000-$7FFF`, never a read of cart RAM. A battery save loaded by the host therefore cannot produce a verdict.
+
 Channel names used in `channels=`, `#VELOCE adapter=` and the config `channel` field: `port`, `serial`, `mgba`, `blargg6000`, `a000`, `hram`, `sram`, `stp`, `spcport`, `mooneye`, `r12`. Per console: NES `port, blargg6000`; SNES `port, blargg6000, stp, sram, spcport`; GB `serial, mooneye, a000, hram`; GBA `mgba, r12`.
 
 ## 6. Emitter vocabulary (ROM side)
@@ -162,6 +166,18 @@ VT_END    pass, total                    -> "END p/t\n", then the console's nati
 ```
 
 The primitive is `vt_putc`: `sta $401E` (NES), `sta.w $21FE` (SNES), an `SB`/`SC` write-and-wait (GB), or a line buffer at `0x4FFF600` plus a flush write (GBA). Timing-sensitive ROMs buffer results in RAM and emit after the measured section.
+
+Adapters for existing test frameworks sit on top of these includes (NES, `tests/roms-src/include/`):
+
+- `veloce-blargg.inc` (ca65) is for sources on blargg's modern NES shell.
+  - The source sets `CUSTOM_EXIT = 1`, includes the file after `shell.inc`, and calls `VB_BEGIN` first in `main`.
+  - `VB_CRC id, name, crc...` checks the shell's running CRC-32 against one or more documented results. `VB_FLAG` and `VB_REG` are also available.
+  - The file supplies the shell's `exit`. It writes `END` once, and it can turn the blargg exit code itself into a `CHECK` (`VB_RESULT_ID`/`VB_RESULT_NAME`), so that failure paths through `test_failed` and `internal_error` are never lost.
+  - All of its code lives in the shell's `CODE2` segment, so the test's cycle-timed `CODE` keeps its in-page addresses.
+- `runtime2005/` (asm6f) is for blargg's 2005-era sources.
+  - `to_asm6f.sed` translates that dialect to asm6f.
+  - `validation.a` keeps upstream's entry points (`result` at `$F8`, `error_if_*`, `tests_passed`, `report_final_result`) and reports the result code as one `CHECK`.
+  - `veloce_rom2005.a` and `veloce_rom2005_end.a` form the NROM wrapper; its reset shim writes the `VELOCE` header.
 
 ## 7. Core side: adopting the channel (plugin ABI v2)
 

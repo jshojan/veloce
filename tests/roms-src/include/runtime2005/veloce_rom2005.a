@@ -1,0 +1,57 @@
+; runtime2005/veloce_rom2005.a (asm6f) -- Veloce replacement for blargg's
+; 2005-era runtime_rom.a / runtime_rom_common.a (the devcart-specific ROM
+; wrapper, whose console.a/debug.a/ppu_util.a output path the ports drop:
+; results go over $401E instead, see validation.a in this directory).
+;
+; A build generates a per-ROM top file:
+;
+;   VELOCE_SUITE EQU "pal_apu_tests.01.len_ctr"   ; header line suite id
+;   INCLUDE "veloce_rom2005.a"      ; this file: iNES header, reset shim
+;   INCLUDE "01.len_ctr.a"          ; the translated upstream test
+;   INCLUDE "delays.a"              ; translated upstream support files
+;   INCLUDE "veloce_rom2005_end.a"  ; vectors + CHR
+;
+; Layout: NROM-128 (mapper 0), 16K PRG at $C000-$FFFF (mirrored at $8000),
+; 8K CHR-ROM of zeros (nothing is drawn). The upstream test's own `reset:`
+; label is its entry point, exactly as with blargg's `.default reset = main`;
+; the reset vector goes to veloce_reset, which does the hardware init the
+; devcart runtime did, writes the VELOCE header line, and jumps there.
+;
+; Zero page: $F0-$F1 is VT_PTR; the 2005 suites keep their own variables
+; elsewhere (result is $F8; pal_apu_tests 02 uses $0A).
+
+VT_PTR = $f0
+
+    .db "NES", $1a
+    .db 1           ; 16K PRG
+    .db 1           ; 8K CHR
+    .db $00, $00    ; mapper 0, horizontal mirroring
+    .db 0,0,0,0,0,0,0,0
+
+    .base $c000
+
+    INCLUDE "veloce-test-asm6f.inc"
+
+veloce_reset:
+    SEI
+    CLD
+    LDX #$ff
+    TXS
+    LDA #0
+    STA $2000
+    STA $2001
+    ; zero page (not the stack page: the reset path is not a JSR)
+    TAX
+veloce_clear_zp:
+    STA $00,x
+    INX
+    BNE veloce_clear_zp
+    ; let the PPU warm up (two VBL flags), as the devcart runtime did
+veloce_vbl1:
+    BIT $2002
+    BPL veloce_vbl1
+veloce_vbl2:
+    BIT $2002
+    BPL veloce_vbl2
+    VT_BEGIN VELOCE_SUITE
+    JMP reset

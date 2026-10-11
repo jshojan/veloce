@@ -4,7 +4,7 @@
 #include <array>
 #include <vector>
 
-namespace emu { struct ITestSink; }
+#include "test_channel.hpp"
 
 namespace nes {
 
@@ -108,9 +108,15 @@ public:
     void save_state(std::vector<uint8_t>& data);
     void load_state(const uint8_t*& data, size_t& remaining);
 
-    // Test ROM support - check and print test output from $6000+
-    void check_test_output();
-    void set_test_sink(emu::ITestSink* sink) { m_test_sink = sink; }
+    // Test-result channel ($401E/$401F port + blargg $6000 adapter). Inert
+    // until the plugin attaches an ITestSink.
+    TestChannel& test_channel() { return m_test_channel; }
+
+    // Fixed power-on contents of the 2KB internal RAM. Used at construction
+    // and whenever a test sink is attached before the first frame, so a test
+    // run never depends on earlier state.
+    static constexpr uint8_t kPowerOnRamFill = 0x00;
+    void power_on_ram() { m_ram.fill(kPowerOnRamFill); }
 
 private:
     // Components
@@ -142,7 +148,8 @@ private:
 
     // CPU cycle counter
     uint64_t m_cpu_cycles = 0;
-    emu::ITestSink* m_test_sink = nullptr;  // Application-owned, excluded from save states
+
+    TestChannel m_test_channel;
 };
 
 } // namespace nes
