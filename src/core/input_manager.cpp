@@ -199,8 +199,8 @@ uint32_t InputManager::default_gamepad_buttons(int index) const {
         {SDL_CONTROLLER_BUTTON_RIGHTSHOULDER,VirtualButton::R}};
     for (const auto& [physical,logical]:mapping)
         if (is_gamepad_button_pressed(index,physical)) buttons |= button_to_mask(logical);
-    if (m_current_platform=="N64") {
-        if (get_gamepad_axis(index,SDL_CONTROLLER_AXIS_TRIGGERLEFT)>.5f) buttons |= button_to_mask(VirtualButton::Z);
+    if (m_current_platform=="N64" || m_current_platform=="VB") {
+        if (m_current_platform=="N64" && get_gamepad_axis(index,SDL_CONTROLLER_AXIS_TRIGGERLEFT)>.5f) buttons |= button_to_mask(VirtualButton::Z);
         const auto x=get_gamepad_axis(index,SDL_CONTROLLER_AXIS_RIGHTX),y=get_gamepad_axis(index,SDL_CONTROLLER_AXIS_RIGHTY);
         if (x<-.5f) buttons |= button_to_mask(VirtualButton::CLeft);
         if (x>.5f) buttons |= button_to_mask(VirtualButton::CRight);
@@ -220,9 +220,9 @@ std::unordered_map<VirtualButton,InputBinding> InputManager::default_port_bindin
         {VirtualButton::Start,SDL_CONTROLLER_BUTTON_START},{VirtualButton::Select,SDL_CONTROLLER_BUTTON_BACK},
         {VirtualButton::L,SDL_CONTROLLER_BUTTON_LEFTSHOULDER},{VirtualButton::R,SDL_CONTROLLER_BUTTON_RIGHTSHOULDER}};
     for(const auto& [button,code]:mapping) bindings[button]={InputSourceType::GamepadButton,-1,code,0,false};
-    if(m_current_platform=="N64") {
-        bindings.erase(VirtualButton::X);bindings.erase(VirtualButton::Y);bindings.erase(VirtualButton::Select);
-        bindings[VirtualButton::Z]={InputSourceType::GamepadAxis,-1,SDL_CONTROLLER_AXIS_TRIGGERLEFT,.5f,true};
+    if(m_current_platform=="N64" || m_current_platform=="VB") {
+        bindings.erase(VirtualButton::X);bindings.erase(VirtualButton::Y);
+        if(m_current_platform=="N64"){bindings.erase(VirtualButton::Select);bindings[VirtualButton::Z]={InputSourceType::GamepadAxis,-1,SDL_CONTROLLER_AXIS_TRIGGERLEFT,.5f,true};}
         bindings[VirtualButton::CUp]={InputSourceType::GamepadAxis,-1,SDL_CONTROLLER_AXIS_RIGHTY,.5f,false};
         bindings[VirtualButton::CDown]={InputSourceType::GamepadAxis,-1,SDL_CONTROLLER_AXIS_RIGHTY,.5f,true};
         bindings[VirtualButton::CLeft]={InputSourceType::GamepadAxis,-1,SDL_CONTROLLER_AXIS_RIGHTX,.5f,false};
@@ -593,6 +593,13 @@ void InputManager::load_default_bindings_for_platform(const std::string& platfor
         m_bindings[VirtualButton::Y] = {InputSourceType::Keyboard, -1, SDL_SCANCODE_S, 0, false};
         m_bindings[VirtualButton::L] = {InputSourceType::Keyboard, -1, SDL_SCANCODE_Q, 0, false};
         m_bindings[VirtualButton::R] = {InputSourceType::Keyboard, -1, SDL_SCANCODE_W, 0, false};
+    } else if (platform == "VB") {
+        const std::pair<VirtualButton, SDL_Scancode> keys[] = {
+            {VirtualButton::A, SDL_SCANCODE_Z}, {VirtualButton::B, SDL_SCANCODE_X},
+            {VirtualButton::L, SDL_SCANCODE_Q}, {VirtualButton::R, SDL_SCANCODE_E},
+            {VirtualButton::CUp, SDL_SCANCODE_W}, {VirtualButton::CDown, SDL_SCANCODE_S},
+            {VirtualButton::CLeft, SDL_SCANCODE_A}, {VirtualButton::CRight, SDL_SCANCODE_D}};
+        for (auto key : keys) m_bindings[key.first] = {InputSourceType::Keyboard, -1, key.second, 0, false};
     } else if (platform == "GameCube" || platform == "Wii") {
         m_bindings.erase(VirtualButton::Select);
         const std::pair<VirtualButton, SDL_Scancode> keys[] = {
@@ -923,6 +930,9 @@ std::vector<VirtualButton> InputManager::get_platform_buttons(const std::string&
         buttons.push_back(VirtualButton::R);
         buttons.push_back(VirtualButton::Start);
         buttons.push_back(VirtualButton::Select);
+    } else if (platform == "VB") {
+        for(auto b : {VirtualButton::A,VirtualButton::B,VirtualButton::L,VirtualButton::R,VirtualButton::Start,VirtualButton::Select,
+                     VirtualButton::CUp,VirtualButton::CDown,VirtualButton::CLeft,VirtualButton::CRight})buttons.push_back(b);
     } else if (platform == "GameCube" || platform == "Wii") {
         for (auto b : {VirtualButton::A, VirtualButton::B, VirtualButton::X, VirtualButton::Y,
                        VirtualButton::Z, VirtualButton::Start, VirtualButton::L, VirtualButton::R}) buttons.push_back(b);

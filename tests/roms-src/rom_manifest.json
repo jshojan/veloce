@@ -26234,6 +26234,17 @@
       "source_type": "original",
       "suite": "bitstrings"
     },
+    "vb/controller_serial/controller_serial.vb": {
+      "build_command": "python3 tests/roms-src/vb/controller_serial/build.py",
+      "console": "vb",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "6fb8b708be26939b2488122eee12518b016cc75fd6c3283a726fd3d476c24e72",
+      "source_repo": "tests/roms-src/vb/controller_serial/build.py",
+      "source_sha": "56045841b6fa4d00a5a889e23a367bb553ee32c958cab62dab9aa400e491092d",
+      "source_type": "original",
+      "suite": "controller_serial"
+    },
     "vb/exceptions/exceptions.vb": {
       "build_command": "python3 tests/roms-src/vb/exceptions/build.py",
       "console": "vb",

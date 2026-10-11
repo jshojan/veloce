@@ -173,12 +173,13 @@
       "name": "Virtual Boy",
       "readme": "cores/vb/README.md",
       "delivered": [
+        "digital",
         "original_rom",
         "plugin",
         "register_oracle",
         "states"
       ],
-      "remaining": "Remaining CPU/NVC, VIP/VSU, controllers, native boot and timing remain."
+      "remaining": "The standard pad software-clock path now consumes frontend input through native SCR/SDLR/SDHR, with all 16,384 button combinations independently graded. Remaining CPU/NVC, hardware controller polling/interrupts/timing, VIP/VSU, native boot, persistent media and netplay remain."
     },
     {
       "id": "nds",

@@ -1,0 +1,1 @@
+{"source_type": "original", "console": "vb", "suite": "controller_serial", "build": {"script": "build.py", "artifact": "controller_serial.vb"}, "license": "MIT"}

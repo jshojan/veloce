@@ -1746,3 +1746,16 @@ foreach(profile IN ITEMS gc wii)
         ${CMAKE_SOURCE_DIR}/tests/roms-src/${profile}/netplay_probe/netplay_probe.${ppc_probe_extension})
     set_tests_properties(${profile}_netplay_adapter_test PROPERTIES LABELS "integration;netplay;owned" TIMEOUT 180)
 endforeach()
+
+add_executable(vb_controller_capture cpp/vb_controller_capture.cpp)
+target_include_directories(vb_controller_capture PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(vb_controller_capture PRIVATE SDL2::SDL2)
+add_executable(vb_controller_test cpp/vb_controller_test.cpp ${CMAKE_SOURCE_DIR}/cores/vb/src/machine.cpp ${CMAKE_SOURCE_DIR}/cores/vb/src/v810.cpp)
+target_include_directories(vb_controller_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/vb/src ${CMAKE_SOURCE_DIR}/include)
+target_compile_features(vb_controller_test PRIVATE cxx_std_17)
+add_test(NAME vb_controller_test COMMAND vb_controller_test ${CMAKE_SOURCE_DIR}/tests/roms-src/vb/controller_serial/controller_serial.vb)
+set_tests_properties(vb_controller_test PROPERTIES LABELS "unit;accuracy;owned" TIMEOUT 90)
+add_test(NAME vb_controller_serial COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/vb/controller_serial/run.py $<TARGET_FILE:vb_controller_capture> $<TARGET_FILE:vb_plugin>
+    ${CMAKE_BINARY_DIR}/artifacts/owned/vb_controller)
+set_tests_properties(vb_controller_serial PROPERTIES LABELS "integration;accuracy;owned;controllers" TIMEOUT 300)

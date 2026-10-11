@@ -21,7 +21,7 @@ static int attach() {
     SDL_JoystickGetGUIDString(SDL_JoystickGetDeviceGUID(index), guid, sizeof(guid));
     std::string mapping = std::string(guid) + ",Veloce Virtual Pad,a:b0,b:b1,x:b2,y:b3,"
         "back:b4,start:b6,leftshoulder:b9,rightshoulder:b10,"
-        "dpup:b11,dpdown:b12,dpleft:b13,dpright:b14,leftx:a0,lefty:a1,";
+        "dpup:b11,dpdown:b12,dpleft:b13,dpright:b14,leftx:a0,lefty:a1,rightx:a2,righty:a3,";
     require(SDL_GameControllerAddMapping(mapping.c_str()) >= 0, SDL_GetError());
     require(SDL_IsGameController(index), "virtual pad has no game-controller mapping");
     return index;
@@ -281,6 +281,27 @@ int main() {
             input.set_current_platform("NES");input.set_current_platform(platform);
             require(input.get_binding(emu::VirtualButton::Z)->code==SDL_SCANCODE_V,"GameCube Z binding lost");
         }
+        input.set_current_platform("VB");
+        require(emu::InputManager::get_platform_buttons("VB").size()==14,"Virtual Boy native controls missing");
+        const std::pair<emu::VirtualButton,SDL_Scancode> vb_keys[]={
+            {emu::VirtualButton::A,SDL_SCANCODE_Z},{emu::VirtualButton::B,SDL_SCANCODE_X},
+            {emu::VirtualButton::L,SDL_SCANCODE_Q},{emu::VirtualButton::R,SDL_SCANCODE_E},
+            {emu::VirtualButton::CUp,SDL_SCANCODE_W},{emu::VirtualButton::CDown,SDL_SCANCODE_S},
+            {emu::VirtualButton::CLeft,SDL_SCANCODE_A},{emu::VirtualButton::CRight,SDL_SCANCODE_D}};
+        for(auto key:vb_keys)require(input.get_binding(key.first) && input.get_binding(key.first)->code==key.second,"Virtual Boy dual-D-pad keyboard defaults");
+        require(input.get_binding(emu::VirtualButton::CUp,1)->code==SDL_CONTROLLER_AXIS_RIGHTY &&
+                !input.get_binding(emu::VirtualButton::CUp,1)->axis_positive,"Virtual Boy right-stick port default");
+        for(int port=1;port<4;++port)input.set_controller_for_port(port,-1);
+        input.set_active_controller(0);
+        const uint32_t right_mask=(1u<<21)|(1u<<22)|(1u<<23)|(1u<<24);
+        for(int x:{-32768,0,32767})for(int y:{-32768,0,32767}){
+            require(SDL_JoystickSetVirtualAxis(joystick,2,Sint16(x))==0 && SDL_JoystickSetVirtualAxis(joystick,3,Sint16(y))==0,"Virtual Boy virtual right-stick stimulus");pump(input);
+            const uint32_t expected=(x<0?1u<<23:x>0?1u<<24:0)|(y<0?1u<<21:y>0?1u<<22:0);
+            require((input.get_button_state(0)&right_mask)==expected,"Virtual Boy right-stick digital directions");plugin_contract(input);
+        }
+        input.set_binding(emu::VirtualButton::CUp,{emu::InputSourceType::Keyboard,-1,SDL_SCANCODE_I,0,false});
+        require(input.save_platform_config("VB"),"Virtual Boy input persistence");input.set_current_platform("NES");input.set_current_platform("VB");
+        require(input.get_binding(emu::VirtualButton::CUp)->code==SDL_SCANCODE_I && input.get_binding(emu::VirtualButton::Select),"Virtual Boy right-pad binding reload");
         input.shutdown();
         SDL_JoystickClose(joystick);
         std::cout << "Input hotplug: identical pads, custom bindings, reconnect, persistence, "
