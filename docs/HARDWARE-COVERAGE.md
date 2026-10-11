@@ -1,6 +1,6 @@
 # Nintendo implementation and hardware test coverage
 
-Current N64 evidence: [one-cycle RGBA32 pixels and current Mario status](#one-cycle-rgba32-triangle-pixels). Earlier increment reports are historical.
+Current N64 evidence: [texture coordinate processing and current Mario status](#texture-tile-coordinate-processing). Earlier increment reports are historical.
 
 The goal includes Nintendo core plugins, repository-owned ROMs covering the
 hardware, machine-readable register observations, netplay, seamless controllers,
@@ -2378,3 +2378,50 @@ The full original framebuffer corpus passes all **792,576 cases**. Its
 malformed-stream controls reject. Together the evidence above accounts for
 **18 distinct affected N64 gates**; it is not a fresh whole-core gate batch.
 Completion rendering and whitespace checks pass.
+
+## Texture tile coordinate processing
+
+The texture pipeline now has a functional tile-coordinate module for one/
+two-cycle sampling. It accepts signed 16-bit S/T with five fractional bits
+after division/LOD saturation, applies all sixteen shift encodings, subtracts
+fractional tile origins, clamps integer/fractional coordinates, and applies
+mask/mirror rules. Mask widths above ten saturate at ten; mask zero enables
+clamping. Upper-bound clamping takes precedence for inverted bounds. Coupled
+neighbor coordinates preserve the native model's distinct S/T wrap rules and
+mirror endpoints. The implementation follows the
+[RDP author's coordinate model](https://github.com/ata4/angrylion-rdp-plus/blob/master/src/core/n64video/rdp/tcoord.c)
+and [coupled mask model](https://github.com/ata4/angrylion-rdp-plus/blob/master/src/core/n64video/rdp/tex.c).
+
+Independent scalar division/modulo/reflection oracles pass **134,217,728
+coordinate/shift/mask/flag captures**: all 65,536 raw coordinates, sixteen shifts,
+sixteen masks, clamp/mirror combinations and both axes, at one selected bound
+pair. A second **134,217,728 captures** cover every 12-bit origin/upper-bound
+pair on both axes, four probes derived from the unshifted bounds and varied
+shift/mask/flag settings. Those bound pairs do not cross every possible raw
+coordinate and flag combination. **65,536 paired-axis captures** and fixed S/T
+wrap goldens also pass. The final component passes UBSAN and warning-as-error
+compilation.
+
+The registered coordinate component passes in **3.49 seconds**. The repeatable
+fault runner passes in **14.39 seconds**: it compiles and verifies an unchanged
+baseline, then requires all eight faulty production-header variants to fail
+the independent oracle. Compiler errors never count as rejection. Three
+related interpolation/shade/combiner component gates pass in **1.18 seconds**.
+Artifacts: `build/artifacts/component/n64_texture_coordinates/`. From the
+repository root:
+
+```sh
+cmake --build build --target n64_rdp_texture_coordinates_test
+ctest --test-dir build -R '^n64_rdp_texture_coordinate' --output-on-failure
+```
+
+This helper has component evidence and no guest coordinate-output corpus yet.
+It is not connected to TMEM texel fetch or pixel rendering. Texture formats,
+TLUT sampling, filtering, perspective/LOD and texture-driven combiner inputs
+remain unfinished; physical timing is not established by software oracles.
+Current production core/trace hashes still match the preceding private Mario
+report at `build/artifacts/retail/n64-one-cycle-shade.json`. Mario remains
+graphics-blocked with uniform video and unverified boot/playability. Native
+hardware/retail completion remains unproven. Plugin **0.30.0**, ABI v2 and
+**VN64S024** remain current. N64 stays **45% = 9/20 delivery milestones**;
+CI/CD remains disabled and the full Nintendo implementation goal remains active.
