@@ -33,6 +33,7 @@ private:
     Memory& memory;
     void exception(unsigned code, uint64_t fault_pc, bool delay, uint64_t bad_address = 0,bool refill = false,bool extended = false);
     bool translate(uint64_t address,bool store,uint64_t pc,bool delay,Tlb::Translation& result);
+    bool watch(uint32_t physical,bool store,uint64_t pc,bool delay);
     bool read(uint64_t address,unsigned bytes,uint64_t& value,bool fetch,uint64_t pc,bool delay,uint64_t fault_address);
     bool write(uint64_t address,unsigned bytes,uint64_t value,uint8_t mask,uint64_t pc,bool delay,uint64_t fault_address);
 };

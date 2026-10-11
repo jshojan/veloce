@@ -1509,3 +1509,16 @@ add_test(NAME n64_cop2_unusable COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR
     --capture $<TARGET_FILE:n64_cop2_capture> --core $<TARGET_FILE:n64_plugin>
     --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_cop2_unusable)
 set_tests_properties(n64_cop2_unusable PROPERTIES LABELS "accuracy;owned" TIMEOUT 1800)
+
+add_executable(n64_watch_test cpp/n64_watch_test.cpp ${CMAKE_SOURCE_DIR}/cores/n64/src/vr4300.cpp)
+target_include_directories(n64_watch_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src ${CMAKE_SOURCE_DIR}/include)
+add_test(NAME n64_watch_test COMMAND n64_watch_test)
+set_tests_properties(n64_watch_test PROPERTIES LABELS "unit;accuracy;owned" TIMEOUT 600)
+add_executable(n64_watch_capture cpp/n64_watch_capture.cpp)
+target_include_directories(n64_watch_capture PRIVATE ${CMAKE_SOURCE_DIR}/include ${SDL2_INCLUDE_DIRS})
+target_link_libraries(n64_watch_capture PRIVATE ${SDL2_LIBRARIES})
+add_dependencies(n64_watch_capture n64_plugin)
+add_test(NAME n64_watch_exceptions COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/watch_exceptions/run.py
+    --capture $<TARGET_FILE:n64_watch_capture> --core $<TARGET_FILE:n64_plugin>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_watch_exceptions)
+set_tests_properties(n64_watch_exceptions PROPERTIES LABELS "accuracy;owned" TIMEOUT 1800)
