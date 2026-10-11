@@ -10,7 +10,7 @@
 | Game Boy / Game Boy Color | **40%** | 8/20 |
 | Game Boy Advance | **40%** | 8/20 |
 | Nintendo 64 | **50%** | 10/20 |
-| Virtual Boy | **20%** | 4/20 |
+| Virtual Boy | **25%** | 5/20 |
 | Nintendo DS | **30%** | 6/20 |
 | Nintendo DSi | **30%** | 6/20 |
 | Nintendo 3DS | **30%** | 6/20 |
@@ -104,7 +104,7 @@ See [Build Instructions](#building) for platform-specific details.
 | Game Boy Advance | [cores/gba](cores/gba/README.md) | In Progress | ARM7TDMI, all video modes |
 | Super Nintendo | [cores/snes](cores/snes/README.md) | In Progress | 65C816, Mode 7, SPC700 |
 | Nintendo 64 | [cores/n64](cores/n64/README.md) | Experimental | MIPS/RSP/RDP profiles with complete packets, fill-cycle triangles and functional one-cycle RGBA32 shade/primitive/environment pixels, AI PCM/VI framebuffer, four digital/analog ports and two-player TCP rollback; native boot/playability, complete textured/depth-tested rendering, physical analog calibration and timing pending |
-| Virtual Boy | [cores/vb](cores/vb/README.md) | Experimental | V810 integer homebrew, multiply/divide, exception and arithmetic bit-string corpora; no retail games, video, audio or controller hardware |
+| Virtual Boy | [cores/vb](cores/vb/README.md) | Experimental | V810 integer homebrew, multiply/divide, exception and arithmetic bit-string corpora; software-clocked native dual D-pad controller registers; no retail games, video/audio or hardware polling/timing |
 | Nintendo DS | [cores/nds](cores/nds/README.md) | Experimental | Dual-CPU ARM/Thumb integer, memory, long-call and stack/block homebrew with digital keypad input with shared/private RAM; no firmware/retail boot, graphics, audio or peripheral hardware |
 | Nintendo DSi | [cores/dsi](cores/dsi/README.md) | Experimental | Distinct plugin; dual-CPU integer homebrew, 16 MiB RAM/aliases and RAM-limit controls, digital keypad and TCP host/viewer replay; firmware/retail boot and most DSi peripherals pending |
 | Nintendo 3DS | [cores/3ds](cores/3ds/README.md) | Experimental | Distinct plugin; two ARM11 and one ARM9 integer contexts, 128 MiB shared FCRAM, AXI/private RAM and digital HID; TCP host/viewer replay; native boot and graphics/audio pending |
@@ -508,6 +508,7 @@ subset, not whole-core completion.
 | [GB unary instructions](tests/roms-src/gb/unary_exhaustive/README.md) | 73,728/73,728 A/F pairs matched (100% of 18 accumulator instructions, all bytes and all incoming flags) | `build/artifacts/owned/gb_unary/` |
 | [SNES math registers](tests/roms-src/snes/math_registers/README.md) | 65,536/65,536 multiplication pairs and 3,328 division boundary cases matched; settled results only | `build/artifacts/owned/snes_math/` |
 | [SNES math timing](tests/roms-src/snes/math_timing/README.md) | 504,832/504,832 register bytes matched across CPU phases 2–18 (100% of selected multiplicands/dividends, all 256 second operands, four result registers) | `build/artifacts/owned/snes_math_timing/` |
+| [Virtual Boy software controller](tests/roms-src/vb/controller_serial/README.md) | All 16,384 button combinations across three widths/four selected mirrors; 196,608 snapshots / 1,572,864 actual WRAM words; executed wrong capture and omitted clock reject; hardware polling/timing pending | `build/artifacts/owned/vb_controller/` |
 | [Virtual Boy integer registers](tests/roms-src/vb/integer_registers/README.md) | 6,512,640/6,512,640 pairs matched; six arithmetic/logic operations on all repeated-byte pairs and boundaries, three register shifts, all incoming flags; platform hardware/timing pending | `build/artifacts/owned/vb_integer/` |
 | [Virtual Boy multiply/divide](tests/roms-src/vb/muldiv/README.md) | 4,210,688 nine-word snapshots, including 8,704 zero-divisor exception/RETI cases; all signed/unsigned byte pairs, full-width boundaries and incoming flags | `build/artifacts/owned/vb_muldiv/` |
 | [Virtual Boy exceptions](tests/roms-src/vb/exceptions/README.md) | 4,685,824/4,685,824 thirteen-word snapshots matched: all TRAP parameters, three illegal opcode families, every writable nonfatal PSW combination and complete low-bit encoding sweeps; entry/RETI context | `build/artifacts/owned/vb_exceptions/` |

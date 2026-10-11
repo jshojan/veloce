@@ -4132,3 +4132,36 @@ reproduce byte-for-byte. Release builds, completion rendering and whitespace
 checks pass. The prior GameCube plugin fails the new adapter gate because it
 lacks the netplay interface. The controller layout exposes two player slots;
 the ordinary one-word frame method retains one connected controller.
+
+## Native software controller input (2026-10-11)
+
+Virtual Boy **0.2.0** consumes ordinary frontend input through native
+software-clocked SCR/SDLR/SDHR transactions. The layout exposes both D-pads,
+A/B, L/R, Start and Select; default keyboard/gamepad routes and remap persistence
+are verified. The right D-pad uses W/A/S/D or a thresholded right stick. See the
+[original cartridge and domain](../tests/roms-src/vb/controller_serial/README.md), grounded in the
+[hardware reference](https://files.virtual-boy.com/download/978651/stsvb.html).
+
+All **16,384 button combinations** across three access widths and four selected
+mirrors produce **196,608 guest snapshots / 1,572,864 actual WRAM words** matching
+independent grading. Executed wrong-capture and missing-clock guests reject
+16/48 words across sixteen short rows each; eight field faults and four bad
+streams reject. The component passes **311,552 observations**, including latch
+isolation, partial clock-state restore, relatch and control/request validation.
+Undefined partial data retention and wide-read upper zeros are explicit profile
+policies, not physical hardware accuracy claims. Automatic hardware reads,
+interrupt producers and physical timing remain unfinished.
+
+Complete state format **`VVBS0003` = 66,208 bytes** appends forty pad-state bytes
+without moving the CPU/WRAM fields. `VVBS0002` loads with neutral pad state.
+Invalid pad fields reject before any machine mutation; pending software reads
+and selected HALT continuations replay. The component caught and fixed an
+oversized control-field validation bug. Old readers cannot load new states.
+
+All seven affected controller/state/input gates pass, including the production
+GUI input regression with Xvfb. All **151 original archives** reproduce. Release
+and final target builds, completion rendering and whitespace checks pass. The
+prior plugin fails the new capture contract because it has no native controller
+layout. Virtual Boy earns the digital-input milestone: **25% = 5/20**. Full CPU/
+NVC, VIP/VSU, native boot, saves, netplay and complete hardware/timing remain
+pending; CI/CD stays disabled.

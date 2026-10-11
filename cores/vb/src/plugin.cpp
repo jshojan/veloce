@@ -6,16 +6,29 @@ class Plugin : public emu::IEmulatorPlugin {
 public:
     emu::EmulatorInfo get_info() override {
         static const char* extensions[] = {".vb", nullptr};
-        return {"VB", "0.1.0", "Veloce", "Experimental V810 integer homebrew core; video, audio, controls and retail compatibility pending.",
+        return {"VB", "0.2.0", "Veloce", "Experimental V810 integer homebrew core; software-clocked dual D-pad input; video, audio, hardware polling/timing and retail compatibility pending.",
                 extensions, 50.0, 20000000, 384, 224};
+    }
+    const emu::ControllerLayoutInfo* get_controller_layout() override {
+        using emu::VirtualButton;
+        static const emu::ButtonLayout buttons[]={
+            {VirtualButton::Up,"Left Up",.14f,.24f,.08f,.12f,true},{VirtualButton::Down,"Left Down",.14f,.50f,.08f,.12f,true},
+            {VirtualButton::Left,"Left Left",.04f,.37f,.08f,.12f,true},{VirtualButton::Right,"Left Right",.24f,.37f,.08f,.12f,true},
+            {VirtualButton::CUp,"Right Up",.80f,.24f,.08f,.12f,true},{VirtualButton::CDown,"Right Down",.80f,.50f,.08f,.12f,true},
+            {VirtualButton::CLeft,"Right Left",.70f,.37f,.08f,.12f,true},{VirtualButton::CRight,"Right Right",.90f,.37f,.08f,.12f,true},
+            {VirtualButton::A,"A",.60f,.62f,.08f,.12f,false},{VirtualButton::B,"B",.49f,.68f,.08f,.12f,false},
+            {VirtualButton::Start,"Start",.38f,.56f,.08f,.10f,false},{VirtualButton::Select,"Select",.27f,.62f,.08f,.10f,false},
+            {VirtualButton::L,"L",.10f,.04f,.20f,.10f,false},{VirtualButton::R,"R",.70f,.04f,.20f,.10f,false}};
+        static const emu::ControllerLayoutInfo layout={"VB","Virtual Boy dual digital D-pads",emu::ControllerShape::Modern,2.0f,buttons,14,1};return &layout;
     }
     bool load_rom(const uint8_t* data, size_t size) override { return machine.load(data, size); }
     void unload_rom() override { machine.rom.clear(); machine.crc = 0; machine.identity = 0; machine.reset(); }
     bool is_rom_loaded() const override { return !machine.rom.empty(); }
     uint32_t get_rom_crc32() const override { return machine.crc; }
     void reset() override { machine.reset(); }
-    void run_frame(const emu::InputState&) override {
+    void run_frame(const emu::InputState& input) override {
         if (!is_rom_loaded()) return;
+        machine.controller.input(input.buttons);
         // Bounded frontend scheduling quantum, NOT VIP/pipeline timing.
         for (unsigned i = 0; i < 100000 && !machine.done && !machine.cpu.state.halted && !machine.cpu.state.unsupported; ++i) machine.cpu.step();
         ++machine.frames;

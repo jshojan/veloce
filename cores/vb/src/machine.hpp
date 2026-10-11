@@ -1,5 +1,6 @@
 #pragma once
 #include "v810.hpp"
+#include "controller.hpp"
 #include "emu/emulator_plugin.hpp"
 #include <vector>
 
@@ -19,6 +20,7 @@ public:
     std::array<uint8_t,65536> ram{};
     std::vector<uint8_t> rom;
     V810 cpu;
+    Controller controller;
     emu::ITestSink* sink=nullptr;
     uint32_t crc=0;
     uint64_t identity=0,frames=0;
