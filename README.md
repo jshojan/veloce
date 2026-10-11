@@ -194,6 +194,9 @@ Physical controller and audio-device validation remains pending.
 
 `ITASPlugin` and the default implementation exist. The application frame loop
 does not drive them yet; the capabilities below are not available end to end.
+The repaired ABI2 backend passes exhaustive two-port movie mapping, portable
+TAS2 file checks and deterministic frame/seek tests. See the
+[TAS backend evidence and limits](plugins/tas_default/README.md#verified-backend-evidence).
 
 - Frame-by-frame movie recording and playback
 - Greenzone (automatic savestate snapshots for seeking)
