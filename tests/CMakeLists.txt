@@ -1012,3 +1012,12 @@ add_test(NAME n64_rdp_blender_mutants COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/n64_blender_mutants.py --compiler ${CMAKE_CXX_COMPILER}
     --artifacts ${CMAKE_BINARY_DIR}/artifacts/component/n64_blender)
 set_tests_properties(n64_rdp_blender_mutants PROPERTIES LABELS "unit;accuracy" TIMEOUT 180)
+
+add_executable(n64_hidden_rdram_test cpp/n64_hidden_rdram_test.cpp)
+target_include_directories(n64_hidden_rdram_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src)
+add_test(NAME n64_hidden_rdram_test COMMAND n64_hidden_rdram_test)
+set_tests_properties(n64_hidden_rdram_test PROPERTIES LABELS "unit;accuracy" TIMEOUT 180)
+add_test(NAME n64_hidden_rdram_mutants COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/n64_hidden_rdram_mutants.py --compiler ${CMAKE_CXX_COMPILER}
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/component/n64_hidden_rdram)
+set_tests_properties(n64_hidden_rdram_mutants PROPERTIES LABELS "unit;accuracy" TIMEOUT 180)
