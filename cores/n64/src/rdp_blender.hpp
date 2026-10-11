@@ -1,7 +1,8 @@
 #pragma once
 #include "rdp_coverage.hpp"
+#include "rdp_depth.hpp"
 namespace n64 {
-// One-cycle RGBA32 decisions with dithering disabled and Z comparison disabled.
+// One-cycle color/depth decisions with dithering disabled.
 // Memory RGB is a retained latch; disabling image reads only replaces its alpha.
 struct RdpBlender {
     using Color=std::array<unsigned,4>;
@@ -16,7 +17,8 @@ struct RdpBlender {
         const unsigned sum=first*a+second*(b+1);
         return force?(sum>>5)&255:divide(((a&~3u)+(b&~3u)+4)*512|((sum>>2)&2047));
     }
-    Result pixel(uint64_t mode,Color color,unsigned shade_alpha,uint32_t memory,unsigned count,unsigned cvbit,unsigned delta_z){
+    struct DepthInput {unsigned z=0;uint16_t word=0;unsigned hidden=0;};
+    Result pixel(uint64_t mode,Color color,unsigned shade_alpha,uint32_t memory,unsigned count,unsigned cvbit,unsigned delta_z,const DepthInput* depth=nullptr){
         Result out;
         const unsigned memory_coverage=(mode&64)?(memory>>5)&7:7;
         if(mode&64)memory_rgb=memory>>8;
@@ -24,10 +26,12 @@ struct RdpBlender {
         const unsigned scaled=(alpha256*count+4)>>3;
         if(mode&4096)count=(scaled>>5)&15;
         color[3]=(mode&8192)?std::min(255u,(mode&4096)?scaled:count*32):color[3];
-        const bool overflow=(memory_coverage+count)&8;
-        out.enabled=(mode&16384) || (!(overflow) && (mode&8));
+        const auto decision=RdpDepth::compare(depth && (mode&16),unsigned(mode>>10)&3,mode&8,mode&16384,depth?depth->z:0,uint16_t(delta_z),depth?depth->word:0,depth?depth->hidden:0,count,memory_coverage);
+        count=decision.coverage;
+        const bool overflow=decision.overflow;
+        out.enabled=decision.blend;
         out.coverage=RdpCoverage::stored(unsigned(mode>>8)&3,out.enabled,count,memory_coverage);
-        const bool accepted=(!(mode&1) || color[3]>=(blend&255)) && ((mode&8)?count!=0:cvbit!=0);
+        const bool accepted=decision.pass && (!(mode&1) || color[3]>=(blend&255)) && ((mode&8)?count!=0:cvbit!=0);
         const unsigned p=unsigned(mode>>30)&3,a_source=unsigned(mode>>26)&3;
         const unsigned m=unsigned(mode>>22)&3,b_source=unsigned(mode>>18)&3;
         const std::array<Color,4> colors={color,unpack((memory_rgb<<8)|(memory_coverage<<5)),unpack(blend),unpack(fog)};
@@ -35,8 +39,8 @@ struct RdpBlender {
         const unsigned beta=b_source==0?(alpha^255):b_source==1?memory_coverage*32:b_source==2?255:0;
         const bool bypass=!out.enabled || (a_source==0 && b_source==0 && color[3]>=255);
         unsigned a=alpha>>3,b=beta>>3;
-        if(b_source==1){unsigned encoded=0;for(unsigned bit=0;bit<16;++bit)if(delta_z&(1u<<bit))encoded|=bit;
-            a&=60;b=(b>>(encoded<11?4:15-encoded))|3;
+        if(b_source==1){
+            a=(a>>decision.shift_a)&60;b=(b>>decision.shift_b)|3;
         }
         for(unsigned lane=0;lane<3;++lane){
             if((mode&128) && !overflow)out.rgb[lane]=colors[m][lane];

@@ -4,9 +4,9 @@
 #include <cstdint>
 #include "hidden_rdram.hpp"
 namespace n64 {
-// Stateless native depth encoding/decision component. Production triangle
-// dispatch does not yet use it; primitive depth and blender pipeline wiring
-// remain separate work. Physical accesses/timing are owned by the caller.
+// Native depth encoding/decisions for the functional one-cycle triangle path.
+// Primitive depth and interpixel shifter state remain separate work.
+// Physical accesses/timing are owned by the caller.
 struct RdpDepth {
     static uint16_t compress(unsigned z) {
         z&=0x3ffff;

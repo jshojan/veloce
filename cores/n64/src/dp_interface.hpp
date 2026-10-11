@@ -70,7 +70,7 @@ public:
         switch(op){
         case 8:case 9:case 10:case 11:case 12:case 13:case 14:case 15:
             if(((other_mode>>52)&3)==3){reason=RdpTriangleFill::draw(packet,color_image,other_mode,scissor,fill_color,ram,hidden);supported=!reason;}
-            else if(((other_mode>>52)&3)==0){reason=RdpTriangleShade::draw(packet,color_image,other_mode,scissor,combiner,ram,&texture,&tmem,&conversion,&blender,hidden);supported=!reason;}
+            else if(((other_mode>>52)&3)==0){reason=RdpTriangleShade::draw(packet,color_image,other_mode,scissor,combiner,ram,&texture,&tmem,&conversion,&blender,hidden,depth_image);supported=!reason;}
             else supported=false;
             break;
         case 0:case 38:case 39:case 40:break; // NOP and settled load/pipe/tile barriers.
