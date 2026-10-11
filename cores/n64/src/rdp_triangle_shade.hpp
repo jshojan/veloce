@@ -1,20 +1,24 @@
 #pragma once
 #include "rdp_triangle_attributes.hpp"
 #include <vector>
+#include "rdp_texel_quad.hpp"
 namespace n64 {
 // First one-cycle pixel path: RGBA32, no AA/blending, key, alpha compare,
-// dither, Z accesses, texture fetch or previous-pixel combiner feedback.
+// dither, Z accesses or previous-pixel combiner feedback. Affine texture
+// sampling supports cycle-zero filtering/passthrough and optional TLUT.
 // Unsupported profiles reject before any framebuffer write. Hidden RDRAM
 // bits and physical pipeline/crash timing remain separate work.
 struct RdpTriangleShade {
-    static unsigned draw(const RdpPacket& packet,uint64_t image,uint64_t mode,uint64_t scissor,const RdpCombiner& combiner,std::vector<uint8_t>& ram){
+    static unsigned draw(const RdpPacket& packet,uint64_t image,uint64_t mode,uint64_t scissor,const RdpCombiner& combiner,std::vector<uint8_t>& ram,const RdpTexture* texture=nullptr,const RdpTmem* tmem=nullptr){
+        RdpTriangle triangle;if(!RdpTriangle::decode(packet,triangle))return 1;
+        const bool textured=triangle.texture && texture && tmem;
+        const uint64_t sampling=textured?((63ull<<42)):0;
         const uint64_t dither=(3ull<<38)|(3ull<<36);
-        const uint64_t allowed=dither|0xffff0000ull|0x340ull;
-        if((mode&~allowed) || (mode&dither)!=dither || ((mode>>30)&3) || !combiner.independent_one_cycle())return 1;
+        const uint64_t allowed=dither|0xffff0000ull|0x340ull|sampling;
+        if((mode&~allowed) || (mode&dither)!=dither || ((mode>>30)&3) || !combiner.independent_one_cycle(textured) || (textured && !(mode&(1ull<<43))))return 1;
         if(((image>>53)&7)!=0 || ((image>>51)&3)!=3)return 1;
         const uint32_t origin=uint32_t(image)&0x3ffffff;
         if(origin&7)return 4;
-        RdpTriangle triangle;if(!RdpTriangle::decode(packet,triangle))return 1;
         const unsigned width=(unsigned(image>>32)&1023)+1;
         const auto bounds=RdpTriangleSpan::bounds(triangle,scissor);
         if(!bounds.valid)return 0;
@@ -34,6 +38,20 @@ struct RdpTriangleShade {
                 RdpTriangleAttributes::Pixel pixel;RdpTriangleAttributes::pixel(attributes,x,mask,pixel);
                 RdpCombiner::Sources sources;
                 for(unsigned lane=0;lane<4;++lane)sources.shade[lane]=pixel.rgba[lane];
+                if(textured){
+                    const auto& tile=texture->tiles[triangle.tile];
+                    const auto sample=RdpTextureCoordinates::sample(tile,uint16_t(pixel.stw[0]),uint16_t(pixel.stw[1]));
+                    if((mode&(1ull<<45)) || (mode&(1ull<<47))){
+                        const auto palette=(mode&(1ull<<47))?((mode&(1ull<<46))?RdpTexelQuad::Palette::ia:RdpTexelQuad::Palette::rgba):RdpTexelQuad::Palette::none;
+                        const auto quad=RdpTexelQuad::read(*tmem,tile,sample,palette,!(mode&(1ull<<45)));
+                        RdpTextureFilter::Options options;options.s=sample.s.fraction;options.t=sample.t.fraction;
+                        options.mid=mode&(1ull<<44);options.yuv=tile.format()==1;options.odd_s=sample.s.texel&1;
+                        sources.texel0=RdpTextureFilter::filter(quad,options);
+                    }else{
+                        const auto texel=RdpTexelFetch::read(*tmem,tile,sample.s.texel,sample.t.texel);
+                        for(unsigned lane=0;lane<4;++lane)sources.texel0[lane]=unsigned(texel[lane])&511;
+                    }
+                }
                 const auto color=combiner.evaluate(1,sources).clamped;
                 const size_t at=origin+(size_t(y)*width+x)*4;
                 const unsigned memory=(mode&64)?ram[at+3]>>5:7;
