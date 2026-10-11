@@ -1,6 +1,6 @@
 # Nintendo implementation and hardware test coverage
 
-Current N64 evidence: [four digital ports and production netplay](#four-digital-ports-and-production-netplay). Earlier increment reports are historical.
+Current N64 evidence: [subpixel coverage helpers and the current Mario probe](#rdp-subpixel-coverage-helpers). Earlier increment reports are historical.
 
 The goal includes Nintendo core plugins, repository-owned ROMs covering the
 hardware, machine-readable register observations, netplay, seamless controllers,
@@ -2242,3 +2242,35 @@ partial writes, complete CPU/devices/RSP/audio, native boot/retail play and the
 complete native/physical corpus remain unfinished. Unsafe profiles/bounds
 reject before writes under the functional convention. CI/CD remains disabled;
 the full Nintendo implementation goal remains active.
+
+## RDP subpixel coverage helpers
+
+The triangle renderer now shares clipped quarter-row geometry with an eight-sample
+coverage helper. Component checks compare the packed mask to an independent
+point-coordinate oracle: **134,217,728 boundary-pair observations**,
+**655,360 mixed-row/range observations**, all **256 coverage bytes** and
+**576 coverage destination states**. Fixed triangle masks also check edge
+samples. The component passes undefined-behavior sanitization.
+
+This helper is preparation for one-cycle rendering. It is not yet connected
+to framebuffer coverage storage, blending or depth testing, and has no guest
+coverage-output corpus. The original fill renderer uses the shared geometry;
+shade interpolation and shaded/textured/depth-tested triangles remain pending.
+N64 remains **45% = 9/20 delivery milestones**. CI/CD remains disabled.
+
+The private Mario probe was repeated for **2,000 scheduling quanta /
+200,000,000 CPU attempts**. No terminal CPU fault is observed; video is uniform.
+The same packet **CF000FFA0FFAF006** remains blocked (reason 1), with **22/22
+words** retained, start **0x227160** and fetched CURRENT **0x227210**.
+Boot/playability remain unverified. Local report:
+`build/artifacts/retail/n64-coverage.json`. Core SHA-256:
+**435f192a075e654bab2055115497fd0da284e6ddc43dde5e422a3d29cbfaa944**;
+trace SHA-256: **6679232a8169c2169dc180f0e532286be90bcd16f6ff6d58491373752d3d5477**.
+No commercial ROM bytes are archived.
+
+The shared geometry also passes the original framebuffer cartridge: **795,648
+cases / 10,343,424 actual 64-bit words** independently graded. The executed
+mutant fails all **9,288** short cases; all thirteen field and seven malformed
+stream controls reject. The existing DP and triangle fill component gates pass
+in **3.03 seconds**; the registered coverage gate passes in **1.18 seconds**.
+Artifacts: `build/artifacts/owned/n64_triangle_coverage_regression/`.
