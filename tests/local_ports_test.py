@@ -53,3 +53,48 @@ assert len(negative_errors)==2,negative_errors
 # The two last cases actually executed neutral and mapping capture after held input.
 assert all(int(row['reply'])==0 for row in rows[192*4:194*4])
 print('194 SDL/default-input/ordinary frontend/native N64 cases; all 24 assignments, 14 buttons, four ports, stick endpoints/dead zone and executed neutral/capture controls and wrong-route rejection PASS')
+
+# Secondary profiles are graded independently from the producer's declared maps.
+profile_rows=list(csv.DictReader((root/'player-profiles.csv').open()))
+assert len(profile_rows)==3027*4,len(profile_rows)
+profile_scenarios=[]
+sources=(0,1,2,3,4,6,9,10,11,12,13,14)
+for port in range(1,4):
+    for control in range(14):
+        for source in sources:
+            for held in range(2):profile_scenarios.append((port,control,held,0,0))
+for port in range(1,4):
+    for control in range(14):
+        for axis in range(6):
+            for positive in range(2):
+                for level in range(4):
+                    pressed=level>=2 and (axis<4 or positive==1)
+                    analog=(0,33,33,56)[level]*(1 if positive else -1)
+                    x=analog if axis==0 else 0;y=-analog if axis==1 else 0
+                    profile_scenarios.append((port,control,pressed,x,y))
+assert len(profile_scenarios)==3024
+profile_scenarios.extend([None,None,(1,0,True,0,0)])
+profile_errors=[];profile_negative=[]
+for n,row in enumerate(profile_rows):
+    row={k:int(v) for k,v in row.items()};case=n//4;port=n%4
+    assert (row['case'],row['port'])==(case,port)
+    scenario=profile_scenarios[case]
+    if scenario is None:expected=0x80000000 if port>0 else 0
+    else:
+        subject,control,pressed,x,y=scenario
+        expected=(((1<<native[control]) if pressed else 0)<<16)|((x%256)<<8)|(y%256) if port==subject else 0
+    if (row['reply'],row['status'],row['cleared'])!=(expected,4096,0):
+        (profile_negative if case==3026 else profile_errors).append(dict(row,expected=expected))
+profile_report={'status':'fail' if profile_errors else 'pass','cases':3026,'guest_words':3026*6,'mismatches':len(profile_errors),'examples':profile_errors[:8]}
+(root/'player-profiles.json').write_text(json.dumps(profile_report,indent=2)+'\n')
+assert not profile_errors,profile_report
+assert len(profile_negative)==1,profile_negative
+(root/'executed-wrong-profile.json').write_text(json.dumps({'status':'fail','mismatches':len(profile_negative),'examples':profile_negative},indent=2)+'\n')
+print('3026 independently graded player-profile cases / 18156 guest RAM words; 12 button sources, six axes, polarity/threshold neighbors, persistence/port moves and executed wrong-profile rejection PASS')
+
+provenance=json.loads((root/'provenance.json').read_text())
+provenance['player_profile_cases']=3026
+provenance['executed_wrong_profile_cases']=1
+provenance['player_profiles_capture_sha256']=hashlib.sha256((root/'player-profiles.csv').read_bytes()).hexdigest()
+provenance['remapped_movie_sha256']=hashlib.sha256((root/'four-local-ports.tas').read_bytes()).hexdigest()
+(root/'provenance.json').write_text(json.dumps(provenance,indent=2)+'\n')

@@ -338,3 +338,25 @@ build, completion renderer and whitespace checks pass. Physical USB/Bluetooth,
 independent secondary remapping and full native accessories remain pending.
 This completes native local routing, moving N64 to 50% of the fixed delivery
 ledger; other scores remain unchanged. Actions stays disabled; no CI/CD files.
+
+## Independent secondary controller profiles (2026-10-11)
+
+`n64_local_ports_test` additionally grades 3,026 cases / 18,156 original guest
+SI RAM words: 1,008 released/held button-remap cases, 2,016 axis/polarity/threshold
+cases and two persisted-map/device-move cases. Actual SDL trigger/stick values
+are checked before guest execution; the Python oracle independently builds the
+scenario order and native reply bits. An executed wrong profile is rejected.
+Six remapped physical four-port TAS frames match canonical inputs and complete
+ordinary/recorded/playback states, with three exact seeks and a differing actual
+player-four movie mutant. `input_hotplug_test` verifies isolated saved/cleared
+maps, unique and ambiguous identity, old-file migration, current-platform
+startup defaults and seven malformed profiles rejected before live mutations.
+Artifacts add `player-profiles.csv`, `player-profiles.json` and
+`executed-wrong-profile.json` to the existing ignored N64 frontend directory.
+No private ROM, capture or movie is committed; the original archived cartridge
+is reused. Analog remapping and physical USB/Bluetooth validation remain pending.
+Delivery percentages are unchanged (N64 50%); no CI/CD is added.
+
+Final verification: 11/11 selected input/controller/state/movie/TCP gates pass,
+including the expanded frontend profile corpus. Full Release build, completion
+renderer and whitespace checks pass; original archived images are unchanged.

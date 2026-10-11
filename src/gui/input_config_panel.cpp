@@ -76,7 +76,7 @@ bool InputConfigPanel::render(Application& app) {
     render_controller_selector(app);
     if (m_current_platform=="N64") {
         ImGui::TextWrapped("Stick: selected gamepad left stick, or T/F/G/H for up/left/down/right on keyboard. Arrow bindings control the D-pad.");
-        ImGui::TextWrapped("Stick defaults: 15%% dead zone, range +/-80. Z: left trigger; C buttons: right stick. Extra players use these defaults; player one custom bindings override its button defaults.");
+        ImGui::TextWrapped("Stick defaults: 15%% dead zone, range +/-80. Z: left trigger; C buttons: right stick. Select a player below to edit its button profile. Analog remapping is not yet available.");
     }
 
     ImGui::Separator();
@@ -92,7 +92,7 @@ bool InputConfigPanel::render(Application& app) {
 
     // Action buttons
     if (ImGui::Button("Reset to Defaults")) {
-        input.load_default_bindings_for_platform(m_current_platform);
+        input.reset_port_bindings(m_selected_port);
     }
 
     ImGui::SameLine();
@@ -118,7 +118,7 @@ bool InputConfigPanel::render(Application& app) {
 
     // Show tooltip for hovered button
     if (m_hovered_button != VirtualButton::COUNT && m_waiting_for_input == VirtualButton::COUNT) {
-        const InputBinding* binding = input.get_binding(m_hovered_button);
+        const InputBinding* binding = input.get_binding(m_hovered_button,m_selected_port);
         std::string btn_name = InputManager::get_button_name(m_hovered_button);
 
         ImGui::BeginTooltip();
@@ -182,7 +182,7 @@ void InputConfigPanel::render_controller_selector(Application& app) {
         ImGui::EndCombo();
     }
 
-    const auto* layout=input.get_controller_layout();
+    const auto* layout=get_plugin_layout(app.get_plugin_manager(),m_current_platform);
     const int ports=layout ? std::clamp(layout->controller_count,1,4) : 1;
     for (int port=1;port<ports;++port) {
         ImGui::PushID(port);
@@ -199,7 +199,16 @@ void InputConfigPanel::render_controller_selector(Application& app) {
         }
         ImGui::PopID();
     }
-    if (ports>1) ImGui::TextWrapped("Extra players use standard gamepad buttons. Assigning a pad moves it from its previous port. Identical pads without serial numbers may need reselection after reconnecting.");
+    if (ports>1) ImGui::TextWrapped("Assigning a pad moves it from its previous port. Identical pads without serial numbers may need reselection after reconnecting.");
+
+    ImGui::Text("Edit player:");ImGui::SameLine();
+    if(m_selected_port>=ports) {m_selected_port=0;cancel_capture();}
+    for(int port=0;port<ports;++port) {
+        if(port) ImGui::SameLine();
+        const auto label=std::to_string(port+1)+"##EditPlayer";
+        if(ImGui::RadioButton(label.c_str(),m_selected_port==port)) {m_selected_port=port;cancel_capture();}
+    }
+    if(m_selected_port>0) ImGui::TextWrapped("Gamepad bindings use this player's assigned pad. Clear removes a binding; Reset restores this player's defaults. Keyboard bindings can use separate keys for each player.");
 
     // Show controller status
     int controller_count = input.get_connected_controller_count();
@@ -252,6 +261,7 @@ void InputConfigPanel::render_platform_selector(Application& app) {
                 // Switch to new platform
                 input.set_current_platform(available_platforms[i]);
                 m_current_platform = available_platforms[i];
+                cancel_capture();
             }
             if (is_selected) {
                 ImGui::SetItemDefaultFocus();
@@ -401,7 +411,7 @@ void InputConfigPanel::draw_button(Application& app, ImVec2 origin, ImVec2 size,
                        mouse.y >= btn_min.y && mouse.y <= btn_max.y);
 
     bool is_waiting = (m_waiting_for_input == button.button);
-    bool is_bound = (input.get_binding(button.button) != nullptr);
+    bool is_bound = (input.get_binding(button.button,m_selected_port) != nullptr);
 
     // Determine button color
     ImU32 btn_color;
@@ -459,7 +469,7 @@ void InputConfigPanel::draw_button(Application& app, ImVec2 origin, ImVec2 size,
 
     // Right-click to clear binding
     if (is_hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
-        input.clear_binding(button.button);
+        input.clear_binding(button.button,m_selected_port);
     }
 }
 
@@ -502,7 +512,7 @@ void InputConfigPanel::render_binding_row(Application& app, VirtualButton button
         ImGui::Text("[ Press a key... ]");
         ImGui::PopStyleColor();
     } else {
-        const InputBinding* binding = input.get_binding(button);
+        const InputBinding* binding = input.get_binding(button,m_selected_port);
         if (binding) {
             std::string display = InputManager::get_binding_display_name(*binding);
             ImGui::Text("%s", display.c_str());
@@ -530,7 +540,7 @@ void InputConfigPanel::render_binding_row(Application& app, VirtualButton button
         ImGui::SameLine();
 
         if (ImGui::Button(clear_id.c_str())) {
-            input.clear_binding(button);
+            input.clear_binding(button,m_selected_port);
         }
     }
 }
@@ -557,7 +567,7 @@ void InputConfigPanel::check_for_input(Application& app) {
             binding.axis_threshold = 0;
             binding.axis_positive = false;
 
-            input.set_binding(m_waiting_for_input, binding);
+            input.set_binding(m_waiting_for_input, binding,m_selected_port);
             m_waiting_for_input = VirtualButton::COUNT;
             return;
         }
@@ -566,6 +576,11 @@ void InputConfigPanel::check_for_input(Application& app) {
     // Check gamepad buttons and axes
     int controller_count = input.get_connected_controller_count();
     for (int c = 0; c < controller_count; c++) {
+        if(m_selected_port>0 && c!=input.get_controller_for_port(m_selected_port)) continue;
+        if(m_selected_port==0) {
+            bool secondary=false;for(int port=1;port<4;++port)if(c==input.get_controller_for_port(port))secondary=true;
+            if(secondary) continue;
+        }
         // Check buttons
         for (int b = 0; b < SDL_CONTROLLER_BUTTON_MAX; b++) {
             if (input.is_gamepad_button_pressed(c, b)) {
@@ -576,7 +591,7 @@ void InputConfigPanel::check_for_input(Application& app) {
                 binding.axis_threshold = 0;
                 binding.axis_positive = false;
 
-                input.set_binding(m_waiting_for_input, binding);
+                input.set_binding(m_waiting_for_input, binding,m_selected_port);
                 m_waiting_for_input = VirtualButton::COUNT;
                 return;
             }
@@ -593,7 +608,7 @@ void InputConfigPanel::check_for_input(Application& app) {
                 binding.axis_threshold = 0.5f;
                 binding.axis_positive = (value > 0);
 
-                input.set_binding(m_waiting_for_input, binding);
+                input.set_binding(m_waiting_for_input, binding,m_selected_port);
                 m_waiting_for_input = VirtualButton::COUNT;
                 return;
             }

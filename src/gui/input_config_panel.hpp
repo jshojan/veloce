@@ -38,6 +38,7 @@ private:
     void draw_button(Application& app, ImVec2 origin, ImVec2 size, const ButtonLayout& button);
 
     // State
+    int m_selected_port = 0;
     int m_selected_controller = -1;  // -1 for keyboard
     VirtualButton m_waiting_for_input = VirtualButton::COUNT;
     VirtualButton m_hovered_button = VirtualButton::COUNT;

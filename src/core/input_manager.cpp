@@ -7,6 +7,7 @@
 #include <nlohmann/json.hpp>
 #include <filesystem>
 #include <algorithm>
+#include <cmath>
 
 namespace emu {
 
@@ -21,7 +22,8 @@ bool InputManager::initialize() {
     m_keyboard_state = SDL_GetKeyboardState(&m_keyboard_state_count);
 
     // Load default bindings
-    load_default_bindings();
+    load_default_bindings_for_platform(m_current_platform);
+    reset_secondary_profiles();
 
     // Open any connected controllers
     int num_joysticks = SDL_NumJoysticks();
@@ -171,7 +173,7 @@ void InputManager::update_button_state() {
     }
     m_port_buttons[0] = m_button_state;
     for (int port=1;port<4;++port)
-        m_port_buttons[port] = default_gamepad_buttons(get_controller_for_port(port));
+        m_port_buttons[port] = secondary_buttons(port);
 }
 
 uint32_t InputManager::get_button_state(int port) const {
@@ -204,6 +206,55 @@ uint32_t InputManager::default_gamepad_buttons(int index) const {
         if (x>.5f) buttons |= button_to_mask(VirtualButton::CRight);
         if (y<-.5f) buttons |= button_to_mask(VirtualButton::CUp);
         if (y>.5f) buttons |= button_to_mask(VirtualButton::CDown);
+    }
+    return buttons;
+}
+
+std::unordered_map<VirtualButton,InputBinding> InputManager::default_port_bindings() const {
+    std::unordered_map<VirtualButton,InputBinding> bindings;
+    const std::pair<VirtualButton,SDL_GameControllerButton> mapping[] = {
+        {VirtualButton::Up,SDL_CONTROLLER_BUTTON_DPAD_UP},{VirtualButton::Down,SDL_CONTROLLER_BUTTON_DPAD_DOWN},
+        {VirtualButton::Left,SDL_CONTROLLER_BUTTON_DPAD_LEFT},{VirtualButton::Right,SDL_CONTROLLER_BUTTON_DPAD_RIGHT},
+        {VirtualButton::A,SDL_CONTROLLER_BUTTON_A},{VirtualButton::B,SDL_CONTROLLER_BUTTON_B},
+        {VirtualButton::X,SDL_CONTROLLER_BUTTON_X},{VirtualButton::Y,SDL_CONTROLLER_BUTTON_Y},
+        {VirtualButton::Start,SDL_CONTROLLER_BUTTON_START},{VirtualButton::Select,SDL_CONTROLLER_BUTTON_BACK},
+        {VirtualButton::L,SDL_CONTROLLER_BUTTON_LEFTSHOULDER},{VirtualButton::R,SDL_CONTROLLER_BUTTON_RIGHTSHOULDER}};
+    for(const auto& [button,code]:mapping) bindings[button]={InputSourceType::GamepadButton,-1,code,0,false};
+    if(m_current_platform=="N64") {
+        bindings.erase(VirtualButton::X);bindings.erase(VirtualButton::Y);bindings.erase(VirtualButton::Select);
+        bindings[VirtualButton::Z]={InputSourceType::GamepadAxis,-1,SDL_CONTROLLER_AXIS_TRIGGERLEFT,.5f,true};
+        bindings[VirtualButton::CUp]={InputSourceType::GamepadAxis,-1,SDL_CONTROLLER_AXIS_RIGHTY,.5f,false};
+        bindings[VirtualButton::CDown]={InputSourceType::GamepadAxis,-1,SDL_CONTROLLER_AXIS_RIGHTY,.5f,true};
+        bindings[VirtualButton::CLeft]={InputSourceType::GamepadAxis,-1,SDL_CONTROLLER_AXIS_RIGHTX,.5f,false};
+        bindings[VirtualButton::CRight]={InputSourceType::GamepadAxis,-1,SDL_CONTROLLER_AXIS_RIGHTX,.5f,true};
+    }
+    return bindings;
+}
+
+void InputManager::reset_secondary_profiles() {
+    for(int port=1;port<4;++port) m_player_bindings[port]=default_port_bindings();
+}
+
+void InputManager::reset_port_bindings(int port) {
+    if(port==0) load_default_bindings_for_platform(m_current_platform);
+    else if(port>0 && port<4) m_player_bindings[port]=default_port_bindings();
+}
+
+uint32_t InputManager::secondary_buttons(int port) const {
+    const int device=get_controller_for_port(port);
+    uint32_t buttons=0;
+    for(const auto& [button,binding]:m_player_bindings[port]) {
+        bool pressed=false;
+        switch(binding.type) {
+            case InputSourceType::Keyboard:pressed=is_key_pressed(binding.code);break;
+            case InputSourceType::GamepadButton:pressed=is_gamepad_button_pressed(device,binding.code);break;
+            case InputSourceType::GamepadAxis:{
+                const float axis=get_gamepad_axis(device,binding.code);
+                pressed=device>=0 && (binding.axis_positive ? axis>binding.axis_threshold : axis< -binding.axis_threshold);
+                break;
+            }
+        }
+        if(pressed) buttons |= button_to_mask(button);
     }
     return buttons;
 }
@@ -317,7 +368,18 @@ std::string InputManager::get_controller_name(int index) const {
     return "";
 }
 
-void InputManager::set_binding(VirtualButton button, const InputBinding& binding) {
+void InputManager::set_binding(VirtualButton button, const InputBinding& binding, int port) {
+    if(port<0 || port>=4 || button>=VirtualButton::COUNT) return;
+    if(port>0) {
+        if(binding.type!=InputSourceType::Keyboard && binding.type!=InputSourceType::GamepadButton && binding.type!=InputSourceType::GamepadAxis) return;
+        const int limit=binding.type==InputSourceType::Keyboard ? SDL_NUM_SCANCODES :
+            binding.type==InputSourceType::GamepadButton ? int(SDL_CONTROLLER_BUTTON_MAX) : int(SDL_CONTROLLER_AXIS_MAX);
+        if(binding.code<0 || binding.code>=limit || !std::isfinite(binding.axis_threshold) || binding.axis_threshold<0 || binding.axis_threshold>1) return;
+        auto relative=binding;
+        relative.device_id=-1;
+        m_player_bindings[port][button]=relative;
+        return;
+    }
     m_bindings[button] = binding;
     m_binding_identities.erase(button);
     if (binding.type != InputSourceType::Keyboard && binding.device_id >= 0) {
@@ -330,7 +392,12 @@ void InputManager::set_binding(VirtualButton button, const InputBinding& binding
     }
 }
 
-const InputBinding* InputManager::get_binding(VirtualButton button) const {
+const InputBinding* InputManager::get_binding(VirtualButton button, int port) const {
+    if(port<0 || port>=4) return nullptr;
+    if(port>0) {
+        const auto found=m_player_bindings[port].find(button);
+        return found==m_player_bindings[port].end() ? nullptr : &found->second;
+    }
     auto it = m_bindings.find(button);
     if (it != m_bindings.end()) {
         return &it->second;
@@ -346,7 +413,9 @@ bool InputManager::load_config(const std::string& path) {
     return load_platform_config(m_current_platform);
 }
 
-void InputManager::clear_binding(VirtualButton button) {
+void InputManager::clear_binding(VirtualButton button, int port) {
+    if(port<0 || port>=4) return;
+    if(port>0) {m_player_bindings[port].erase(button);return;}
     m_bindings.erase(button);
     m_binding_identities.erase(button);
 }
@@ -463,6 +532,7 @@ void InputManager::set_current_platform(const std::string& platform) {
         save_platform_config(m_current_platform);
 
         m_current_platform = platform;
+        reset_secondary_profiles();
 
         // Try to load config for new platform
         if (!load_platform_config(platform)) {
@@ -579,6 +649,18 @@ bool InputManager::save_platform_config(const std::string& platform) {
             bindings_json[button_name] = binding_json;
         }
         j["bindings"] = bindings_json;
+        j["player_bindings"]=nlohmann::json::array();
+        for(int port=1;port<4;++port) {
+            auto profile=nlohmann::json::object();
+            for(const auto& [button,binding]:m_player_bindings[port]) {
+                const char* type=binding.type==InputSourceType::Keyboard ? "Keyboard" :
+                    binding.type==InputSourceType::GamepadButton ? "GamepadButton" : "GamepadAxis";
+                profile[get_button_name(button)]={{"type",type},{"code",binding.code},
+                    {"axis_threshold",binding.axis_threshold},{"axis_positive",binding.axis_positive}};
+            }
+            j["player_bindings"].push_back(profile);
+        }
+
 
         std::ofstream file(get_config_path(platform));
         if (!file) {
@@ -605,6 +687,38 @@ bool InputManager::load_platform_config(const std::string& platform) {
         nlohmann::json j;
         file >> j;
 
+        // Parse secondary profiles before changing live configuration. Missing
+        // fields migrate old files to standard assigned-gamepad defaults.
+        auto profiles=m_player_bindings;
+        for(int port=1;port<4;++port) profiles[port]=default_port_bindings();
+        if(j.contains("player_bindings")) {
+            const auto& saved=j.at("player_bindings");
+            if(!saved.is_array() || saved.size()!=3) return false;
+            for(int port=1;port<4;++port) {
+                if(!saved[port-1].is_object()) return false;
+                profiles[port].clear();
+                for(const auto& [name,value]:saved[port-1].items()) {
+                    VirtualButton button=VirtualButton::COUNT;
+                    for(unsigned i=0;i<unsigned(VirtualButton::COUNT);++i)
+                        if(get_button_name(VirtualButton(i))==name) {button=VirtualButton(i);break;}
+                    if(button==VirtualButton::COUNT) return false;
+                    InputBinding binding{};binding.device_id=-1;
+                    const auto type=value.at("type").get<std::string>();
+                    if(type=="Keyboard") binding.type=InputSourceType::Keyboard;
+                    else if(type=="GamepadButton") binding.type=InputSourceType::GamepadButton;
+                    else if(type=="GamepadAxis") binding.type=InputSourceType::GamepadAxis;
+                    else return false;
+                    binding.code=value.at("code").get<int>();
+                    binding.axis_threshold=value.value("axis_threshold",.5f);
+                    binding.axis_positive=value.value("axis_positive",true);
+                    const int limit=binding.type==InputSourceType::Keyboard ? SDL_NUM_SCANCODES :
+                        binding.type==InputSourceType::GamepadButton ? int(SDL_CONTROLLER_BUTTON_MAX) : int(SDL_CONTROLLER_AXIS_MAX);
+                    if(binding.code<0 || binding.code>=limit || !std::isfinite(binding.axis_threshold) ||
+                        binding.axis_threshold<0 || binding.axis_threshold>1) return false;
+                    profiles[port][button]=binding;
+                }
+            }
+        }
         m_port_instances.fill(-1);
         m_port_identities={};
         m_active_controller=-1;
@@ -659,6 +773,7 @@ bool InputManager::load_platform_config(const std::string& platform) {
                 m_bindings[button] = binding;
             }
         }
+        m_player_bindings=std::move(profiles);
         restore_controller_bindings();
         if (j.contains("controller_ports")) restore_port_assignments();
         else set_active_controller(m_active_controller);

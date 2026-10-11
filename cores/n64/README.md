@@ -13,7 +13,7 @@ These percentages count the 20 explicit delivery milestones in [the completion l
 
 Nintendo 64 delivered milestones: Guest sound produces audio samples, Native digital controller/keypad registers consume frontend input, Guest graphics produce rendered video, Parse a native cartridge/executable format (boot scored separately), Native local multiplayer/link input routing, Actual production-plugin TCP peers pass original guest oracle and whole-state comparison, Repository-owned ROM source and reproducible archived image, Separate core plugin and ABI entry points, Actual guest register-file output independently graded on the host, with negative controls, Complete states for the implemented profile and deterministic replay.
 
-Remaining: Cached SI/PIF reads refresh digital and signed-byte analog input. The original 65,536-coordinate corpus grades 1,048,576 actual words; frontend selected-stick mapping, neutral dead zone and canonical input recording are verified. Functional one-cycle E4/E5 rectangles share the existing triangle pixel pipeline; A six-billion-attempt Start/A probe reaches Mario, the lives/star HUD and Lakitu tutorial in the courtyard without a terminal CPU exception or RSP/DP stop. A shared private checkpoint now verifies courtyard analog walking, jumping and punching through RAM and neutral controls; 180 legacy quantum movie frames and six seek boundaries match full states. New native sessions advance to VI field boundaries; an original 5,160-case file oracle and 121 native VI movie frames verify scheduling and replay. Legacy states keep the old budget. Exact physical timing and practical normal-speed play remain unverified. Castle entry, menu/level progression and full-title playability remain unverified. All twelve signed/unsigned register/immediate integer trap instructions are implemented; the original 15,728,640-case corpus grades 188,743,680 actual RAM/CP0 words. Complete CPU/CP0/devices, physical FPU/RSP timing, complete RDP/audio, two-cycle pixels and texture LOD, random dithering/noise and CI8 alpha thresholds, physical analog calibration/accessories/presence detection, CIC/EEPROM/Joybus and physical SI timing, physical timing remain. Production two-player TCP rollback and four virtual digital/analog PIF ports are verified for the implemented profile. Ordinary frontend local multiplayer is independently graded through SDL virtual pads, the default input plugin and original guest SI RAM replies: 194 cases, all 24 device assignments, 14 controls on four ports and signed stick endpoints/dead zone. Physical USB/Bluetooth validation and independent extra-player remapping remain.
+Remaining: Cached SI/PIF reads refresh digital and signed-byte analog input. The original 65,536-coordinate corpus grades 1,048,576 actual words; frontend selected-stick mapping, neutral dead zone and canonical input recording are verified. Functional one-cycle E4/E5 rectangles share the existing triangle pixel pipeline; A six-billion-attempt Start/A probe reaches Mario, the lives/star HUD and Lakitu tutorial in the courtyard without a terminal CPU exception or RSP/DP stop. A shared private checkpoint now verifies courtyard analog walking, jumping and punching through RAM and neutral controls; 180 legacy quantum movie frames and six seek boundaries match full states. New native sessions advance to VI field boundaries; an original 5,160-case file oracle and 121 native VI movie frames verify scheduling and replay. Legacy states keep the old budget. Exact physical timing and practical normal-speed play remain unverified. Castle entry, menu/level progression and full-title playability remain unverified. All twelve signed/unsigned register/immediate integer trap instructions are implemented; the original 15,728,640-case corpus grades 188,743,680 actual RAM/CP0 words. Complete CPU/CP0/devices, physical FPU/RSP timing, complete RDP/audio, two-cycle pixels and texture LOD, random dithering/noise and CI8 alpha thresholds, physical analog calibration/accessories/presence detection, CIC/EEPROM/Joybus and physical SI timing remain. Production two-player TCP rollback and four virtual digital/analog PIF ports are verified for the implemented profile. Ordinary frontend local multiplayer is independently graded through SDL virtual pads, the default input plugin and original guest SI RAM replies: 194 cases, all 24 device assignments, 14 controls on four ports and signed stick endpoints/dead zone. Extra players now have independent saved button/key/axis profiles relative to assigned devices: 3,026 real guest cases / 18,156 RAM words, with wrong-map rejection and remapped four-port native movies. Physical USB/Bluetooth validation, analog remapping and full native accessories remain.
 <!-- completion:end -->
 
 `n64_plugin` builds `n64.so`/`n64.dll`/`n64.dylib` and implements emulator ABI v2.
@@ -3620,3 +3620,54 @@ four-port routing, N64 native controller/analog/state gates and production TCP
 netplay). The final four-port/movie gate also passes after independent scenario
 identity and binary/ROM hash checks. Full Release build, completion renderer and
 whitespace checks pass. CI/CD remains removed and GitHub Actions disabled.
+
+## Independent extra-player button profiles (2026-10-11)
+
+Input Configuration now offers **Edit player** for every exposed port. Visual
+and table mapping, Clear and Reset act on that player's profile. Secondary
+players can map native controls to gamepad buttons, signed axis thresholds or
+separate keyboard keys. Analog stick mapping still uses the existing fixed
+left stick/dead zone/range. Primary legacy binding/fallback behavior remains.
+
+Secondary gamepad bindings refer to the assigned pad, rather than its SDL index
+or connection ID. Their binding view resolves the current device index for input
+plugins. Profiles belong to player ports, so moving devices changes physical
+owners while preserving each player's map. Clearing a secondary control removes
+it; no default fallback restores it. Reset affects only the selected profile.
+Capture mode still blocks all ports; capture listens only to the secondary
+player's assigned pad. Switching platform/player cancels pending mapping.
+
+Per-platform input JSON keeps the existing primary `bindings` and device
+identities and adds three complete `player_bindings` objects. Absent fields in
+older configurations migrate to standard assigned-gamepad maps. Explicitly empty
+maps and cleared controls persist. Seven malformed secondary-profile variants
+are rejected before changing live ownership, maps or sampled state. Restart,
+unique/ambiguous device identity, profile isolation and platform defaults are
+checked through the real default input plugin.
+
+The existing `n64_local_ports_test` now additionally reads **3,026 cases /
+18,156 real guest SI RAM words**: 14 target controls × three secondary players ×
+12 mapped button sources × released/held (1,008 cases); 14 × three × six axes ×
+two polarities × four levels (2,016 cases); and two saved-profile/device-move
+cases. SDL axis values are checked directly before guest execution. An additional
+executed wrong map is rejected at one port reply. This bounded frontend domain
+is separate from native hardware accuracy and the all-digital-combination core
+corpus. The independent Python oracle constructs its own scenario sequence and
+native wire-bit expectations.
+
+Six native TAS frames now record **remapped physical input** on all four ports.
+Canonical input words and complete ordinary/recorded/playback states match;
+three seeks restore exactly, and an executed player-four movie mutation differs.
+Artifacts under `build/artifacts/n64_local_ports/` add `player-profiles.csv`,
+`player-profiles.json` and `executed-wrong-profile.json`; provenance hashes bind
+the captures and movie to unchanged binaries and original ROM. No core ABI,
+S031 layout or N64 plugin-version change. **N64 stays 50%**; physical controllers,
+analog remapping, accessories, whole hardware and full-title playability remain
+unfinished. CI/CD remains disabled.
+
+Verification: **11/11 selected regression gates pass**, including the expanded
+production frontend/profile gate, hotplug/default-plugin behavior, native NES
+and N64 movies/checkpoints, native controller/analog/state tests and production
+two-peer TCP netplay. Full Release build, completion renderer and whitespace
+checks pass. Existing original cartridge archives are unchanged; all new runtime
+captures stay ignored. GitHub Actions remains disabled.

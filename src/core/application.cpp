@@ -1222,10 +1222,15 @@ ControllerInfo Application::get_controller_info(int index) const {
     return {index,m_controller_names[index].c_str(),true,SDL_CONTROLLER_BUTTON_MAX,SDL_CONTROLLER_AXIS_MAX,0};
 }
 bool Application::get_mapped_binding(int controller, VirtualButton button, InputBinding& binding) const {
-    if (!m_input_manager || controller != 0) return false;
-    const auto* mapped = m_input_manager->get_binding(button);
+    if (!m_input_manager || controller<0 || controller>=4) return false;
+    const auto* mapped = m_input_manager->get_binding(button,controller);
     if (!mapped) return false;
     binding = *mapped;
+    if(controller>0 && binding.type!=InputSourceType::Keyboard) {
+        binding.device_id=m_input_manager->get_controller_for_port(controller);
+        if(binding.device_id<0) binding.device_id=-2;
+        return true;
+    }
     // GUI profiles persist SDL instance identities; plugin raw polling uses
     // connected-device indices. Translate only this API view of the binding.
     if (binding.type != InputSourceType::Keyboard && binding.device_id >= 0) {
