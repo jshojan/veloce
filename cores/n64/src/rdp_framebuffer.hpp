@@ -5,6 +5,11 @@ namespace n64 {
 // RDP memory color uses zero-filled low RGB bits for RGBA16, unlike the VI's
 // display expansion. Coverage's upper bit is in RAM; two lower bits are hidden.
 struct RdpFramebuffer {
+    static void rejected(size_t at,unsigned bytes,const std::array<unsigned,3>& rgb,unsigned coverage,HiddenRdram* hidden) {
+        if(!hidden)return;
+        if(bytes==2)hidden->rejected_halfword(at,coverage&3);
+        else hidden->rejected_word(at,(rgb[1]&1)*3,0);
+    }
     static uint32_t read16(const uint8_t* ram,unsigned hidden) {
         const unsigned word=(unsigned(ram[0])<<8)|ram[1];
         return ((word>>8)&248)<<24 | ((word>>3)&248)<<16 | ((word<<2)&248)<<8 |

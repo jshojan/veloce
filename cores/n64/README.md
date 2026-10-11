@@ -1,6 +1,6 @@
 # Experimental Nintendo 64 core plugin
 
-Current N64 evidence: [Shared RDP hidden coverage and RGBA16 blending](#shared-rdp-hidden-coverage-and-rgba16-blending). Earlier increment reports are historical.
+Current N64 evidence: [Rejected color history and depth component foundation](#rejected-color-history-and-depth-component-foundation). Earlier increment reports are historical.
 
 <!-- completion:start -->
 ## Completion percentage
@@ -2574,3 +2574,73 @@ fetched CURRENT **0x227210**, reason 1 and uniform video remain. Native
 boot/playability are unverified. Current binary hashes match the ignored report
 `build/artifacts/retail/n64-hidden-framebuffer.json`. No commercial ROM bytes
 are committed.
+
+## Rejected color history and depth component foundation
+
+The one-cycle path now retains RGBA16/32 color-write history even when alpha or
+coverage rejects the ordinary framebuffer store. RGBA16 uses the finalized
+coverage pair; RGBA32 uses the computed green LSB pair and a zero second pair.
+RAM and current hidden storage remain untouched by these rejected writes.
+Later even-byte CI8 fills consume that retained history. Blender RGB equations
+are now evaluated for rejected pixels too; the accepted-store decision is
+unchanged. This follows the primary
+[rejected-write path](https://github.com/ata4/angrylion-rdp-plus/blob/9c8b9ed3e7d7f00dff8bc872ccdd3fba1a3673fc/src/core/n64video/rdp/rasterizer.c).
+
+The new original
+[rejection-history ROM](https://github.com/jshojan/veloce/tree/main/tests/roms-src/n64/rdp_rejected_history)
+passes **655,360 cases / 8,519,680 actual RAM/register observations**. RGBA16
+packets are followed by eight single-even-byte CI8 fills; the guest then captures
+pixels, gathered hidden bits, guards and completion registers. Independent
+quarter-grid/coverage/history arithmetic grades the stream. The 1,616-case
+control passes, its separately executed mutant fails every row, and all thirteen
+field flips and seven stream controls reject. Fixed background, geometry and
+shade leave joint hardware domains incomplete. **4,096 component captures**
+separately check rejected RGBA16/RGBA32 stores followed by CI8 history reads.
+All **eleven compiled framebuffer faults** are rejected after execution.
+
+A new standalone
+[depth component](https://github.com/jshojan/veloce/blob/main/cores/n64/src/rdp_depth.hpp)
+implements 18-bit compression, stored-depth decompression, native delta encoding,
+precision adjustment, coplanar handling, four comparator modes, coverage scaling,
+blend enable and current blender shifts. Paired depth stores split delta bits
+across ordinary/hidden memory and preserve color-write history. **This component
+is not yet connected to production triangle rendering.** Primitive depth,
+interpixel shifter state, depth/blender sequencing and guest depth observations
+remain pending; no new retail-depth compatibility is claimed.
+
+The independent component oracle passes every 18-bit compression input and
+all 16-bit stored/delta encodings, **19,136,512 selected depth decisions** and
+**4,194,304 paired stores**. All **twelve compiled depth faults** are rejected;
+compile failures do not count as rejection. The optional
+[pinned primary comparison](https://github.com/jshojan/veloce/tree/main/tests/reference/n64-depth)
+compiles unchanged depth code fetched outside the repository and matches all
+encoding domains plus **16,777,216 enabled-comparator decisions** with zero
+mismatches. Disabled comparison and stores are independently checked rather
+than compared through the primary adapter. Incoming delta/position/coverage/
+flag partners are selected, not an exhaustive joint comparator corpus.
+Warning-as-error and UBSAN pass for depth and framebuffer components.
+
+Plugin **0.37.0**, ABI v2, **VN64S027 / 9,527,568 bytes** and existing legacy
+imports are current. The history changes use fields already serialized in S027.
+All **111 owned ROM archives** reproduce and match their manifest. Production
+checkpoint replay compares actual subsequent guest output and whole-state bytes.
+
+```sh
+ctest --test-dir build -R '^n64_rdp_(depth|framebuffer|rejected)' --output-on-failure
+python3 tests/roms-src/build.py --original-only --check
+```
+
+Artifacts: `build/artifacts/owned/n64_rdp_rejected_history/`,
+`build/artifacts/component/n64_rdp_depth/` and
+`build/artifacts/component/n64_rdp_framebuffer/`. Production depth, dithering,
+LOD/mipmapping, two-cycle execution, physical timing and full graphics remain
+unfinished. N64 stays **45% = 9/20 delivery milestones**; CI/CD remains disabled
+and the full Nintendo implementation goal remains active.
+
+Final verification passes all **58 selected N64 regression/component/checkpoint
+tests** and production TCP netplay. The private Super Mario 64 USA probe runs
+2,000 quanta and 200 million CPU attempts without a terminal CPU fault. It still
+stops on the complete 22-word `CF000FFA0FFAF006` triangle at `0x227160`
+(reason 1), with uniform video. Retail boot and playability remain **unverified**.
+The probe records hashes of the current core and trace binaries; its report is
+`build/artifacts/retail/n64-depth-history.json`. Commercial ROM bytes are excluded.

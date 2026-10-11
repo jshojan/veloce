@@ -1048,3 +1048,18 @@ add_test(NAME n64_rdp_framebuffer_mutants COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/n64_rdp_framebuffer_mutants.py --compiler ${CMAKE_CXX_COMPILER}
     --artifacts ${CMAKE_BINARY_DIR}/artifacts/component/n64_rdp_framebuffer)
 set_tests_properties(n64_rdp_framebuffer_mutants PROPERTIES LABELS "unit;accuracy" TIMEOUT 180)
+add_executable(n64_rdp_depth_test cpp/n64_rdp_depth_test.cpp)
+target_include_directories(n64_rdp_depth_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src)
+add_test(NAME n64_rdp_depth_test COMMAND n64_rdp_depth_test)
+set_tests_properties(n64_rdp_depth_test PROPERTIES LABELS "unit;accuracy" TIMEOUT 180)
+add_test(NAME n64_rdp_rejected_history COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/rdp_rejected_history/run.py --emulator $<TARGET_FILE:veloce>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_rdp_rejected_history)
+set_tests_properties(n64_rdp_rejected_history PROPERTIES LABELS "accuracy;owned" TIMEOUT 700)
+add_test(NAME n64_rdp_rejected_checkpoint_test COMMAND n64_rdp_packet_plugin_test
+    $<TARGET_FILE:n64_plugin> ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/rdp_rejected_history/rdp_rejected_history.z64 hidden)
+set_tests_properties(n64_rdp_rejected_checkpoint_test PROPERTIES LABELS "integration;netplay;accuracy;owned" TIMEOUT 60)
+add_test(NAME n64_rdp_depth_mutants COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/n64_rdp_depth_mutants.py --compiler ${CMAKE_CXX_COMPILER}
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/component/n64_rdp_depth)
+set_tests_properties(n64_rdp_depth_mutants PROPERTIES LABELS "unit;accuracy" TIMEOUT 180)
