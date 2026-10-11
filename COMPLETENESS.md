@@ -1806,3 +1806,46 @@ native memory/MMU/devices, firmware/HOS/native boot/retail compatibility,
 GPU/audio/controllers, persistent saves, netplay, physical timing and the
 complete original native corpus remain pending. CI/CD remains disabled. The
 full Nintendo implementation goal remains active.
+
+
+## AArch64 logical immediates
+
+Plugin **0.6.0**, emulator ABI v2, adds W/X AND, ORR, EOR and ANDS immediate
+instructions. Encoded runs of ones rotate and repeat at the selected element
+width. All-ones elements, zero selector and W/N mismatches are rejected before
+architectural writes. Source register 31 is XZR; destination 31 is SP for the
+three non-flag operations and XZR for ANDS. W writes zero-extend. ANDS sets N/Z
+and clears C/V; other forms preserve NZCV. `VNXS0001`, ABI, process map and
+scheduling remain unchanged.
+
+The [original guest](tests/roms-src/switch/logical_imm_registers/README.md) passes **1,449,984 rows / 7,249,920 actual words**:
+sixteen boundary/mixed-bit source values, NZCV seeds 9/F and all **45,312**
+legal instruction encodings (four operations × 3,648 W plus 7,680 X encoded
+masks). Duplicate encodings of the same mask are included. Actual source,
+result, MRS flags, incoming flags and context are captured by STR. Independent
+forward run/element descriptors and binary-string logic grade the file. The
+executed result mutant fails all **128** short rows; five field and seven
+malformed-stream controls reject. Production ABI replay matches actual output
+and full states. Artifacts: `build/artifacts/owned/switch_logical_imm/`.
+
+The independent forward-element/per-bit component passes **197,296,128
+snapshots**: 197,197,824 legal-mask/source/flag cases and 98,304 register/alias/
+SP/XZR cases. All **20,224** reserved encoded masks/operations are rejected
+with preserved registers, SP and flags. An initial component reference
+assertion was corrected: a 32-bit element repeats in X width, giving
+`0x100000001`, not scalar one. The former core failed the component and
+emitted no guest register row. All 45,312 words match [pinned LLVM fixed
+opcode/width fields](tests/reference/switch-logical-imm/README.md); physical execution remains unverified.
+
+All **eighteen distinct Switch gates pass cumulatively**. The first batch
+passed seventeen and exposed that reference assertion; after correction the
+rebuilt component and production replay pass in **10.18 seconds**. All fifteen
+existing regressions and the strict new guest passed the first batch. UBSAN
+passes with clean compilation, full build is warning-free, and all **100
+original archives** reproduce. Report identities, completion renderer, changed
+local links and whitespace pass. Switch stays **25% = 5/20 delivery milestones**:
+full CPU/extensions/exceptions, native RAM/MMU/devices, firmware/HOS/boot/retail
+compatibility, GPU/audio/controllers, persistent saves/netplay, native timing
+and the complete original/physical corpus remain pending. These finite operand
+domains do not establish full hardware accuracy. CI/CD remains disabled and
+the full Nintendo implementation goal remains active.

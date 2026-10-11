@@ -888,6 +888,17 @@
       "source_type": "original",
       "suite": "bitops_registers"
     },
+    "switch/logical_imm_registers/logical_imm_registers.nso": {
+      "build_command": "python3 tests/roms-src/switch/logical_imm_registers/build.py",
+      "console": "switch",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "e19482f06b850613966eb56550c8e93a56412746b2daee838cb69c4114158c65",
+      "source_repo": "tests/roms-src/switch/logical_imm_registers/build.py",
+      "source_sha": "c214837e7f996fb706f1b7d799e900a67fd2bb9964e2dd10969261b992e717ae",
+      "source_type": "original",
+      "suite": "logical_imm_registers"
+    },
     "switch/muldiv_registers/muldiv_registers.nso": {
       "build_command": "python3 tests/roms-src/switch/muldiv_registers/build.py",
       "console": "switch",
