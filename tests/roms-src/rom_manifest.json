@@ -22582,6 +22582,17 @@
       "source_type": "original",
       "suite": "saturating_registers"
     },
+    "nds/swap_registers/swap_registers.nds": {
+      "build_command": "python3 tests/roms-src/nds/swap_registers/build.py",
+      "console": "nds",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "704644093624226043667ea564db8459b1c882450ea02e7f69f170eb10fd7118",
+      "source_repo": "tests/roms-src/nds/swap_registers/build.py",
+      "source_sha": "c4ee90de6deb7eac955a19f9779aa7b2dbe27ffaa484622a7600ca5abf28dceb",
+      "source_type": "original",
+      "suite": "swap_registers"
+    },
     "nds/thumb_registers/thumb_registers.nds": {
       "build_command": "python3 tests/roms-src/nds/thumb_registers/build.py",
       "console": "nds",

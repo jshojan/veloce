@@ -25,6 +25,11 @@ Full platform completion is unknown.
 - All sixteen ARM data-processing operations: AND/EOR/SUB/RSB/ADD/ADC/SBC/RSC,
   TST/TEQ/CMP/CMN, ORR/MOV/BIC/MVN. Register/immediate operands, NZCV flags,
   carry/borrow, signed overflow, flag-preserving forms and source aliases.
+- ARM SWP/SWPB exchanges on both CPUs: aligned words and all byte lanes,
+  source/destination aliases, conditions and unchanged CPSR; read/store and
+  destination commit occur within one scheduled CPU step. The [original register/RAM corpus](../../tests/roms-src/nds/swap_registers/README.md)
+  grades the settled RAM profile. Physical bus locking/arbitration, precise
+  aborts and configurable alignment remain unverified.
 - ARM9 CLZ: zero returns 32, flags are preserved, ordinary conditions and
   source/destination aliases are supported. The [original register corpus](../../tests/roms-src/nds/clz_registers/README.md)
   covers 16-bit placements, boundaries, all flags and conditions.
@@ -295,7 +300,7 @@ in the ROM manifest. Component evidence is separate from the original-ROM domain
 
 ARM block transfers, ARM BLX immediate,
 Remaining ARM9 DSP multiplication and other architecture extensions,
-ARM doubleword transfers, SWP, privileged modes,
+ARM doubleword transfers, privileged modes,
 banked registers, SPSR, exceptions/interrupts, CP15/MPU/cache/TCM, firmware and
 BIOS, gamecard/secure-area/save protocols, IPC, DMA, timers, KEYCNT/keypad IRQ and touchscreen,
 SPI/RTC, Wi-Fi, graphics/VRAM/palette/OAM, 3D, sound and physical timing remain.
