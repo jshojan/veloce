@@ -875,7 +875,7 @@ add_test(NAME n64_rdp_packet_plugin_test COMMAND n64_rdp_packet_plugin_test $<TA
     ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/rdp_packets/rdp_packets.z64)
 set_tests_properties(n64_rdp_packet_plugin_test PROPERTIES LABELS "integration;netplay;owned" TIMEOUT 90)
 
-foreach(triangle_part decode edges fill)
+foreach(triangle_part decode edges fill attributes)
     add_executable(n64_rdp_triangle_${triangle_part}_test cpp/n64_rdp_triangle_${triangle_part}_test.cpp)
     target_include_directories(n64_rdp_triangle_${triangle_part}_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src)
     add_test(NAME n64_rdp_triangle_${triangle_part}_test COMMAND n64_rdp_triangle_${triangle_part}_test)
@@ -885,6 +885,11 @@ add_executable(n64_rdp_coverage_test cpp/n64_rdp_coverage_test.cpp)
 target_include_directories(n64_rdp_coverage_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src)
 add_test(NAME n64_rdp_coverage_test COMMAND n64_rdp_coverage_test)
 set_tests_properties(n64_rdp_coverage_test PROPERTIES LABELS "unit;accuracy" TIMEOUT 180)
+
+add_test(NAME n64_rdp_triangle_attribute_mutants COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/n64_triangle_attribute_mutants.py --compiler ${CMAKE_CXX_COMPILER}
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/component/n64_triangle_attributes)
+set_tests_properties(n64_rdp_triangle_attribute_mutants PROPERTIES LABELS "unit;accuracy" TIMEOUT 180)
 
 add_test(NAME n64_rdp_triangle_fill COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/rdp_triangle_fill/run.py --emulator $<TARGET_FILE:veloce>
