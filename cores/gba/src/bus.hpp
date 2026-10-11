@@ -13,6 +13,7 @@ class ARM7TDMI;
 class PPU;
 class APU;
 class Cartridge;
+class TestChannel;
 
 // GBA Memory Bus with proper timing
 class Bus {
@@ -25,6 +26,7 @@ public:
     void connect_ppu(PPU* ppu) { m_ppu = ppu; }
     void connect_apu(APU* apu) { m_apu = apu; }
     void connect_cartridge(Cartridge* cart) { m_cartridge = cart; }
+    void connect_test_channel(TestChannel* channel) { m_test_channel = channel; }
 
     // Memory access
     uint8_t read8(uint32_t address);
@@ -43,7 +45,6 @@ public:
     void write_io(uint32_t address, uint16_t value);
 
     // Borrowed host observation sink, excluded from serialized hardware state.
-    void set_test_sink(emu::ITestSink* sink) { m_test_sink = sink; }
 
     // Input handling
     void set_input_state(uint32_t buttons);
@@ -277,17 +278,22 @@ private:
     std::array<int, 16> m_ws_n;  // Non-sequential
     std::array<int, 16> m_ws_s;  // Sequential
 
-    emu::ITestSink* m_test_sink = nullptr;
 
     // mGBA debug registers (for test ROM output)
     // 0x04FFF600-0x04FFF6FF: 256-byte debug string buffer
     // 0x04FFF700: Debug flags (write level|0x100 to flush)
     // 0x04FFF780: Debug enable (write 0xC0DE to enable, reads 0x1DEA if supported)
+    // A flush forwards the string up to its first NUL to the test channel
+    // (VELOCE-RESULT/1 "mgba" driver) and clears the buffer, like mGBA.
     std::array<char, 256> m_debug_string{};
-    size_t m_debug_string_pos = 0;
     bool m_debug_enabled = false;
     uint16_t m_debug_flags = 0;
+    TestChannel* m_test_channel = nullptr;
 
+    static bool is_debug_string_address(uint32_t address) {
+        uint32_t offset = address & 0xFFFF;
+        return offset >= 0xF600 && offset < 0xF700;
+    }
     void flush_debug_string();
 };
 

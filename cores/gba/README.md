@@ -73,7 +73,7 @@ The GBA core provides Game Boy Advance emulation with an ARM7TDMI CPU supporting
 | HBlank DMA trigger | Implemented | |
 | VBlank DMA trigger | Implemented | |
 
-### APU (Mostly Complete)
+### APU (Partial)
 
 | Feature | Status | Notes |
 |---------|--------|-------|
@@ -88,7 +88,7 @@ The GBA core provides Game Boy Advance emulation with an ARM7TDMI CPU supporting
 | Timer-driven audio | Implemented | Timer0/1 overflow triggers |
 | Dynamic rate control | Implemented | Sync with host audio |
 
-### DMA (Mostly Complete)
+### DMA (Partial)
 
 | Feature | Status | Notes |
 |---------|--------|-------|
@@ -182,9 +182,9 @@ The GBA core provides Game Boy Advance emulation with an ARM7TDMI CPU supporting
 
 ## Commercial Game Compatibility
 
-### Pokemon Fire Red
+### Historical Pokemon Fire Red observation
 
-**Status: BOOTS (Intro playable, stable to 6000+ frames)**
+**Historical report: intro observed through 6000+ frames; not rerun on this integration.**
 
 The game boots successfully and runs through the intro sequence with stable performance.
 
@@ -259,15 +259,11 @@ files must be measurement errors. This is separate from the external catalog bel
 For the testing methodology and the platform-wide picture see the top-level
 [TESTING.md](../../TESTING.md) and [COMPLETENESS.md](../../COMPLETENESS.md).
 
-**Verified accuracy: partial.** CPU, memory, BIOS, and saves are verified through
-the R12 spin-loop `serial` protocol (`cpu_arm`, `cpu_thumb`, `memory`, `bios`,
-SRAM/Flash64 PASS; `cpu_psr` and `flash128` are measured FAILs). The large
-cycle-accurate timing block is **not** verified: only 10/80 timing tests pass and
-every NanoBoyAdvance DMA/IRQ/timer/HALTCNT/bus test fails (see
-[COMPLETENESS.md](../../COMPLETENESS.md#gba)); the sub-scanline PPU tests are
-`known_fail` pending references. The earlier "90.9% pass rate" figure predated the
-weighted, unverified-aware methodology and is superseded; full per-subsystem
-justification is in [COMPLETENESS.md](../../COMPLETENESS.md#gba).
+**Whole-core hardware accuracy is unmeasured.** Earlier external catalog counts
+in [COMPLETENESS.md](../../COMPLETENESS.md#gba) are historical results, not a
+fresh measurement on the integrated plugin. PSR banking, Flash128, DMA/IRQ/
+timer/HALTCNT/bus timing and PPU accuracy remain open. The current owned shift
+corpus verifies a bounded CPU domain; adapter fixtures verify file transport.
 
 The GBA core ships an authoritative, subsystem-organized test suite
 (`cores/gba/tests/test_config.json`, schema v2) covering **132 ROMs across 29
@@ -285,7 +281,7 @@ cycle-accurate-class tests.
 |------|------------|---------|
 | [jsmolka/gba-tests](https://github.com/jsmolka/gba-tests) | ARM/Thumb, memory, BIOS, PPU smoke, saves | MIT |
 | [alyosha-tas/gba-tests](https://github.com/alyosha-tas/gba-tests) | timing, IRQ, DMA, prefetch, LDM, interactions, PSR | MIT (fork) |
-| [nba-emu/hw-test](https://github.com/nba-emu/hw-test) | DMA, IRQ delay, timer, HALTCNT, bus, PPU status/affine | see upstream |
+| [nba-emu/hw-test](https://codeberg.org/nba-emu/hw-test) | DMA, IRQ delay, timer, HALTCNT, bus, PPU status/affine | BSD-3-Clause |
 | [DenSinH/FuzzARM](https://github.com/DenSinH/FuzzARM) | randomized ARM/Thumb CPU fuzz | see upstream |
 | [destoer/armwrestler-gba-fixed](https://github.com/destoer/armwrestler-gba-fixed) | ARM ALU + load/store | see upstream |
 
@@ -309,11 +305,24 @@ python3 runner.py --json     # scorecard JSON consumed by tests/run_all.py
 python3 test_runner.py -v
 ```
 
-Result detection: jsmolka/alyosha/nba ROMs spin with **R12 = failing test #**
-(0 = pass); the Veloce GBA plugin detects the stable-PC spin loop and prints
-`[GBA] PASSED` / `[GBA] FAILED - Failed at test #N`, parsed by the shared
-`detect.detect_gba_register`. Visual affine tests use `SAVE_SCREENSHOT` +
-CRC32 against a pinned `reference_hash`.
+Result detection: the harness runs every ROM with `VELOCE_TEST_OUT=<file>` and
+reads the verdict from that file ([VELOCE-RESULT/1](../../docs/testing/VELOCE-RESULT.md)).
+The GBA plugin (`src/test_channel.cpp`) feeds it from two drivers:
+
+- **`mgba`**: every line a ROM flushes through the mGBA debug registers
+  (`0x4FFF600` string, `0x4FFF700` flags with `level | 0x100`, probe
+  `0x4FFF780`: write `0xC0DE`, read `0x1DEA`) is written to the file verbatim,
+  with the log level recorded as a `#VELOCE level=<n>` note. ROMs built with
+  the Veloce emitter report `CHECK`/`END` lines this way.
+- **`r12`** (legacy adapter for unmodified jsmolka/alyosha ROMs): once the PC
+  has sat on a one-instruction `b .` loop for 10 frames, the plugin emits
+  `#VELOCE adapter=r12`, a `REG` line and `END 1/1` (register = 0) or
+  `END 0/1 code=<n>`. The register is the one the ROM's `m_test_eval` macro
+  tested (found from the macro's epilogue), else R12. It is skipped once the
+  ROM has sent an `END` line over `mgba`.
+
+Nothing is printed to stdout/stderr and nothing depends on `DEBUG=1`. Visual
+affine tests use `SAVE_SCREENSHOT` + CRC32 against a pinned `reference_hash`.
 
 ### Measured results (representative subset, this build)
 
@@ -363,24 +372,26 @@ pre-marked `known_fail` and excluded from the headline score until verified.
 
 ### NanoBoyAdvance Hardware Tests
 
-These ROMs print results to the screen only (no R12 protocol); earlier PASS
-entries here were not measured and have been corrected to the observed
-on-screen FAILs (DMA/IRQ/timer scheduler gaps, tracked separately).
+Upstream prints results only to the screen. Veloce runs its own rebuilds
+(`rom_variant: veloce`, [`tests/roms-src/gba/nba_hw_test`](../../tests/roms-src/gba/nba_hw_test/PROVENANCE.md))
+that also write one `CHECK` line per expectation and an `END` line over the
+mGBA debug registers, so the checks below are the ROM's own. Expected values
+are upstream's hardware numbers, unchanged.
 
-| Category | Test | Status | Notes |
-|----------|------|--------|-------|
-| DMA | latch.gba | **FAIL** | DMA SAD/DAD latch timing |
-| DMA | start-delay.gba | **FAIL** | DMA enable to first transfer delay |
-| DMA | force-nseq-access.gba | **FAIL** | DMA non-sequential access |
-| DMA | burst-into-tears.gba | **FAIL** | DMA burst behavior |
-| IRQ | irq-delay.gba | **FAIL** | IRQ trigger to handler entry cycles |
-| Timer | start-stop.gba | **FAIL** | Timer enable/disable behavior |
-| Timer | reload.gba | **FAIL** | Timer reload on overflow |
-| HALTCNT | haltcnt.gba | **FAIL** | Halt/stop mode behavior |
-| Bus | 128kb-boundary.gba | **FAIL** | Memory access across 128KB boundaries |
-| PPU | status-irq-dma.gba | KNOWN | Requires sub-scanline cycle accuracy |
-| PPU | bgpd.gba | VISUAL | HBlank DMA to BG2PD (screenshot captured) |
-| PPU | bgx.gba | VISUAL | HBlank DMA to BG2X (screenshot captured) |
+| Category | Test | Status | Checks | Notes |
+|----------|------|--------|--------|-------|
+| DMA | latch.gba | **FAIL** | 0/4 | Per-channel DMA data latch, open bus via DMA |
+| DMA | start-delay.gba | **FAIL** | 0/1 | Immediate DMA start delay (exp 20, got 7) |
+| DMA | force-nseq-access.gba | **FAIL** | 0/2 | First DMA access forced non-sequential |
+| DMA | burst-into-tears.gba | **FAIL** | 0/3 | DMA3 into ROM: two values and the time |
+| IRQ | irq-delay.gba | **FAIL** | 0/3 | IRQ entry latency from IWRAM/EWRAM/ROM |
+| Timer | start-stop.gba | **FAIL** | 0/2 | Timer start/stop latency |
+| Timer | reload.gba | **FAIL** | 6/7 | Reload on overflow; plain reload case reads 0xFFFA, expected 0xFFF9 |
+| HALTCNT | haltcnt.gba | **FAIL** | 0/6 | HALT directly, via CpuSet and DMA; POSTFLG |
+| Bus | 128kb-boundary.gba | **FAIL** | 0/18 | LDM/DMA timing across 128KB ROM pages |
+| PPU | status-irq-dma.gba | KNOWN | 0/9 of 12 | Sub-scanline DISPSTAT/IF timing; DMA page waits on DMA3 video capture and never finishes |
+| PPU | bgpd.gba | VISUAL | - | BG2PD latch; picture only, non-scoring |
+| PPU | bgx.gba | VISUAL | - | BG2X latch; picture only, non-scoring |
 
 ### Edge Case Tests
 
@@ -441,8 +452,9 @@ through BIOS HLE and has no Nintendo logo; physical/retail BIOS boot is unverifi
 # Run with debug output
 DEBUG=1 ./build/bin/veloce path/to/rom.gba
 
-# Run in headless mode for automated testing
-DEBUG=1 HEADLESS=1 FRAMES=300 timeout 10 ./build/bin/veloce path/to/test.gba
+# Run a test ROM; the verdict is written to the result file (VELOCE-RESULT/1)
+VELOCE_TEST_OUT=/tmp/test.result FRAMES=300 timeout 10 ./build/bin/veloce path/to/test.gba
+cat /tmp/test.result
 
 # Run test suite
 cd cores/gba/tests
@@ -458,6 +470,7 @@ cd cores/gba/tests
 | ppu.cpp/hpp | PPU/LCD emulation | 1200 |
 | apu.cpp/hpp | Audio emulation | 800 |
 | bus.cpp/hpp | Memory bus, DMA, timers, I/O | 1100 |
+| test_channel.cpp/hpp | VELOCE-RESULT/1 channel (`mgba` debug registers, `r12` adapter) | 200 |
 | cartridge.cpp/hpp | ROM loading, save handling | 800 |
 | types.hpp | Common types and enums | 200 |
 
@@ -489,14 +502,14 @@ cd cores/gba/tests
 - [ ] Event scheduler for sub-frame timing
 - [x] Implement remaining BIOS functions (Diff filters) - DONE
 - [ ] Implement SoundBias and MidiKey2Freq BIOS functions
-- [x] Verify timer cascade mode accuracy - DONE (NBA tests pass)
-- [x] Verify all interrupt source timing - DONE (NBA IRQ tests pass)
+- [ ] Verify timer cascade mode accuracy - NBA timer tests fail (see COMPLETENESS.md)
+- [ ] Verify all interrupt source timing - NBA irq-delay fails (see COMPLETENESS.md)
 
 ### Priority 3 - Polish
 - [x] Implement mosaic effect - DONE (BG and OBJ mosaic, regular and affine)
 - [x] Audio interpolation for Direct Sound - DONE (linear interpolation)
 - [x] Variable multiply timing - DONE (1-4 cycles based on operand)
-- [x] Comprehensive test suite validation - DONE (see COMPLETENESS.md for the verified scorecard)
+- [ ] Complete hardware corpus validation (historical catalog counts are not current accuracy)
 - [ ] Serial/link cable support
 - [ ] GPIO/RTC full implementation
 
@@ -507,7 +520,7 @@ cd cores/gba/tests
 
 ## Technical Notes: Prefetch Buffer
 
-The GBA has an 8 x 16-bit prefetch buffer that significantly affects execution timing. This is now fully implemented.
+The GBA has an 8 x 16-bit prefetch buffer that significantly affects execution timing. The implemented prefetch profile remains subject to timing validation.
 
 ### How It Works
 1. **Capacity**: 8 halfwords (16-bit each)
@@ -535,3 +548,31 @@ Key behaviors:
 ### References
 - [mGBA blog on cycle counting](https://mgba.io/2015/06/27/cycle-counting-prefetch/)
 - [NanoBoyAdvance](https://github.com/nba-emu/NanoBoyAdvance) - Cycle-accurate reference
+
+## Result-channel branch integration (2026-10-11)
+
+The GBA branch is integrated with the current owned capture path. A single
+borrowed `TestChannel` serves `mgba,r12`; enabled debug strings are byte-safe,
+bounded and forwarded with log-level metadata. The Veloce-only completion
+register preserves unknown status (`finish(-1)`). Explicit guest completion
+suppresses inferred R12 results. No stdout verdict scanner remains.
+
+Current executed evidence:
+
+- **65,536 result/CPSR pairs** match the independent ARM shift oracle; changed
+  opcodes and damaged captures are rejected. Strict channel/level metadata is
+  checked alongside the original observation stream.
+- **Nine original production fixtures** emit actual files in
+  `build/artifacts/owned/gba_result_channel/`: ARM/Thumb self-loops, evaluated
+  R7 despite unrelated R12, disabled/enabled byte logging, explicit verdicts
+  and unknown-status completion.
+- Both FASMARM and devkitARM original emitters rebuild and produce their literal
+  transcript twice, including the deliberately failing check (`END 1/2`).
+- **14 supplemental/emitter images** rebuild with pinned provenance; the NBA
+  measured-instruction-window gate passes its documented reviewed differences.
+  Rebuilding images alone does not establish hardware passes.
+- All **117 archived original ROMs** reproduce. The updated container layout
+  also rebuilds the existing NES emitter. Supplemental images remain ignored.
+
+Delivery stays **40% = 8/20 milestones**. GBA netplay, complete hardware timing,
+full corpus grading and physical controller validation remain unfinished.

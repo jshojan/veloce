@@ -1,0 +1,405 @@
+diff --git a/bus/128kb-boundary/source/main.c b/bus/128kb-boundary/source/main.c
+index 523e240..61da967 100644
+--- a/bus/128kb-boundary/source/main.c
++++ b/bus/128kb-boundary/source/main.c
+@@ -46,13 +46,40 @@ IWRAM_CODE void __attribute__((noinline)) dma_dec(u32 address) {
+ }
+ 
+ 
+-IWRAM_CODE u16 __attribute__((noinline)) time(Fn fn, u32 address) { 
+-  REG_TM0CNT = 0;
+-  REG_TM0CNT_H = TIMER_START;
+-
+-  fn(address);
+-
+-  return REG_TM0CNT_L;
++// Veloce: time() is the measured window of every check in this ROM, so it
++// is pinned to the exact Thumb sequence of upstream's shipped
++// 128kb-boundary.gba, the binary nba's expected values were measured with.
++// The C body it replaces (kept below for reference) compiles differently
++// under the pinned devkitARM: GCC schedules the `movs r0, r1` argument move
++// between the timer start and the call, i.e. inside the measured window.
++// See tests/roms-src/gba/nba_hw_test/PROVENANCE.md.
++//
++//   REG_TM0CNT = 0;
++//   REG_TM0CNT_H = TIMER_START;
++//   fn(address);
++//   return REG_TM0CNT_L;
++IWRAM_CODE u16 __attribute__((naked)) __attribute__((noinline)) time(Fn fn, u32 address) {
++  asm(
++    "movs r2, #0\n"
++    ".hword 0x0003\n"     // movs r3, r0 (shipped encoding; GAS would emit adds r3, r0, #0)
++    ".hword 0x0008\n"     // movs r0, r1 (likewise)
++    "movs r1, #128\n"
++    "push {r4, lr}\n"
++    "ldr r4, =0x04000100\n"
++    "str r2, [r4]\n"
++    "ldr r2, =0x04000102\n"
++    "strh r1, [r2]\n"
++    "bl 1f\n"
++    "ldrh r0, [r4]\n"
++    "pop {r4}\n"
++    "pop {r1}\n"
++    "bx r1\n"
++    ".align 2\n"
++    ".ltorg\n"
++    "1:\n"
++    "bx r3\n"
++    "nop\n"
++  );
+ }
+ 
+ IWRAM_CODE int main(void) {
+@@ -103,6 +130,9 @@ IWRAM_CODE int main(void) {
+   // Sorry, not enough space :(
+   // test_print_metrics();
+ 
++  // Veloce: the on-screen summary is skipped above, so report END directly.
++  test_veloce_end();
++
+   while (1) {
+   }
+ }
+diff --git a/haltcnt/source/main.c b/haltcnt/source/main.c
+index 40090c9..05df48b 100644
+--- a/haltcnt/source/main.c
++++ b/haltcnt/source/main.c
+@@ -70,29 +70,80 @@ IWRAM_CODE void test_haltcnt_cpuset() {
+   test_expect("POSTFLG", 1, REG_POSTFLG);
+ }
+ 
+-IWRAM_CODE void test_haltcnt_cpuset_dma() {
+-  // acknowledge all pending IRQs and enable TM1 IRQ
+-  REG_IF = 0xFFFF;
+-  REG_IE = IRQ_TIMER1;
+-
+-  // start timer
+-  REG_TM0CNT_H = 0;
+-  REG_TM0CNT_L = 0;
+-  REG_TM0CNT_H = TIMER_START;
+-
+-  // start timer for raising an IRQ
+-  REG_TM1CNT = 0;
+-  REG_TM1CNT_L = 0xF000;
+-  REG_TM1CNT_H = TIMER_START | TIMER_IRQ;
+-
+-  // wait for timer IRQ
+-  u16 tmp1 = 0;
+-  REG_DMA0SAD = (u32)&tmp1;
+-  REG_DMA0DAD = (u32)&REG_POSTFLG;
+-  u32 tmp2 = DMA_ENABLE | DMA16 | 1;
+-  CpuSet(&tmp2, (void*)&REG_DMA0CNT, 2);
++// Veloce: the measured window (TM0 start .. TM0 read) of this test is pinned
++// to the exact ARM sequence of upstream's shipped haltcnt.gba, the binary
++// nba's expected value was measured with. The C body it replaces (kept
++// below for reference) compiles differently under the pinned devkitARM:
++// GCC loads test_expect()'s two literal arguments between the CpuSet()
++// return and the TM0CNT_L read, i.e. inside the measured window. Only the
++// return-value move after the read is new. See
++// tests/roms-src/gba/nba_hw_test/PROVENANCE.md.
++//
++//   // acknowledge all pending IRQs and enable TM1 IRQ
++//   REG_IF = 0xFFFF;
++//   REG_IE = IRQ_TIMER1;
++//
++//   // start timer
++//   REG_TM0CNT_H = 0;
++//   REG_TM0CNT_L = 0;
++//   REG_TM0CNT_H = TIMER_START;
++//
++//   // start timer for raising an IRQ
++//   REG_TM1CNT = 0;
++//   REG_TM1CNT_L = 0xF000;
++//   REG_TM1CNT_H = TIMER_START | TIMER_IRQ;
++//
++//   // wait for timer IRQ
++//   u16 tmp1 = 0;
++//   REG_DMA0SAD = (u32)&tmp1;
++//   REG_DMA0DAD = (u32)&REG_POSTFLG;
++//   u32 tmp2 = DMA_ENABLE | DMA16 | 1;
++//   CpuSet(&tmp2, (void*)&REG_DMA0CNT, 2);
++//
++//   u16 result = REG_TM0CNT_L;
++IWRAM_CODE __attribute__((naked)) __attribute__((noinline)) u16 haltcnt_cpuset_dma_time() {
++  asm(
++    "push {r4, r5, r6, r7, lr}\n"
++    "mvn r5, #0\n"
++    "mov lr, #16\n"
++    "ldr r2, =0x04000200\n"
++    "mov r3, #0\n"
++    "mov ip, #0x04000000\n"
++    "mov r0, #128\n"
++    "mov r1, #0xF000\n"
++    "mov r7, #192\n"
++    "strh r5, [r2, #2]\n"
++    "strh lr, [r2]\n"
++    "mov lr, #0x80000001\n"
++    "sub sp, sp, #12\n"
++    "ldr r4, =0x04000100\n"
++    "ldr r5, =0x04000300\n"
++    "add r6, sp, #2\n"
++    "strh r3, [r4, #2]\n"
++    "mov r2, #2\n"
++    "strh r3, [r4]\n"
++    "strh r0, [r4, #2]\n"
++    "str r3, [ip, #260]\n"
++    "add r0, sp, #4\n"
++    "strh r1, [r4, #4]\n"
++    "strh r7, [r4, #6]\n"
++    "ldr r1, =0x040000B8\n"
++    "strh r3, [sp, #2]\n"
++    "str r6, [ip, #176]\n"
++    "str r5, [ip, #180]\n"
++    "str lr, [sp, #4]\n"
++    "bl CpuSet\n"
++    "ldrh r2, [r4]\n"
++    "mov r0, r2\n"
++    "add sp, sp, #12\n"
++    "pop {r4, r5, r6, r7, lr}\n"
++    "bx lr\n"
++    ".ltorg\n"
++  );
++}
+ 
+-  u16 result = REG_TM0CNT_L;
++IWRAM_CODE void test_haltcnt_cpuset_dma() {
++  u16 result = haltcnt_cpuset_dma_time();
+ 
+   test_expect("HALTCNT CPUSET DMA", 4154, result);
+ }
+diff --git a/lib/include/test.h b/lib/include/test.h
+index db78fe7..d6b989a 100644
+--- a/lib/include/test.h
++++ b/lib/include/test.h
+@@ -27,6 +27,15 @@ void test_expect_hex(
+ 
+ void test_print_metrics();
+ 
++// Veloce: VELOCE-RESULT/1 reporting over the mGBA debug registers
++// (tests/roms-src/gba/nba_hw_test/PROVENANCE.md). Every test_expect*() call
++// also emits one CHECK line, and test_print_metrics() emits the END line
++// unless test_veloce_manual_end() was called, in which case the ROM calls
++// test_veloce_end() itself (a ROM with several result pages, or none).
++void test_veloce_group(const char* name);
++void test_veloce_manual_end();
++void test_veloce_end();
++
+ // @todo: this literally has no good reason to exist here.
+ void IWRAM_CpuSet(const void* source, void* dest, u32 mode);
+ 
+diff --git a/lib/source/mgba.c b/lib/source/mgba.c
+new file mode 120000
+index 0000000..657a94e
+--- /dev/null
++++ b/lib/source/mgba.c
+@@ -0,0 +1 @@
++../veloce/vendor/mgba.c
+\ No newline at end of file
+diff --git a/lib/source/test.c b/lib/source/test.c
+index b7bc1d6..6fa64b9 100644
+--- a/lib/source/test.c
++++ b/lib/source/test.c
+@@ -1,11 +1,99 @@
+ #include <gba_systemcalls.h>
+ #include <stdio.h>
++#include <string.h>
+ 
+ #include "test.h"
++#include "../veloce/veloce_test.h"
+ 
+ static int test_count = 0;
+ static int test_pass_count = 0;
+ 
++// Veloce: VELOCE-RESULT/1 tally. Unlike test_count/test_pass_count it is
++// never cleared by test_reset(), so a ROM that shows several result pages
++// (ppu/status-irq-dma) still reports one cumulative END line.
++static int vt_count = 0;
++static int vt_pass_count = 0;
++static int vt_group_count = 0;
++static bool vt_manual_end = false;
++static bool vt_ended = false;
++static const char* vt_group = NULL;
++
++// Veloce: runs from __libc_init_array before main(), i.e. before the ROM's
++// consoleDemoInit()/ui_init(), so no test's main.c needs to change for it.
++// mgba_console_open() performs the 0x4FFF780 handshake and points stdout/
++// stderr at the debug registers; consoleDemoInit() afterwards rebinds both
++// to the on-screen console, so the human-readable text stays on screen and
++// only the lines below (one mgba_printf() each) reach the result channel.
++// The suite id is the ROM header title gbafix wrote (the make target, cut
++// to 12 characters).
++__attribute__((constructor)) static void test_veloce_open() {
++  char title[13];
++  char suite[32];
++
++  memcpy(title, (const void*)0x080000A0, 12);
++  title[12] = '\0';
++
++  mgba_console_open();
++  snprintf(suite, sizeof(suite), "nba-hw-test/%s", title);
++  vt_begin("gba", suite);
++}
++
++// One CHECK line per expectation. A token containing '=' would end the
++// check name early (docs/testing/VELOCE-RESULT.md section 2), and several
++// nba names do contain one ("HBLANK=0"), so '=' is written as ':'.
++static void test_veloce_check(
++  const char* name,
++  bool pass,
++  u32 expected_lo,
++  u32 expected_hi,
++  u32 actual
++) {
++  char id[12];
++  char label[64];
++  size_t i;
++
++  vt_count++;
++  snprintf(id, sizeof(id), "%d", vt_count);
++
++  if (vt_group) {
++    snprintf(label, sizeof(label), "%s %s", vt_group, name);
++  } else {
++    snprintf(label, sizeof(label), "%s", name);
++  }
++  for (i = 0; label[i] != '\0'; i++) {
++    if (label[i] == '=') label[i] = ':';
++  }
++
++  if (pass) {
++    vt_pass_count++;
++    vt_pass(id, label);
++  } else if (expected_lo == expected_hi) {
++    vt_fail(id, label, (unsigned int)expected_lo, (unsigned int)actual);
++  } else {
++    mgba_printf(MGBA_LOG_INFO, "CHECK %s FAIL %s exp=%08x got=%08x exp_max=%08x",
++      id, label, (unsigned int)expected_lo, (unsigned int)actual, (unsigned int)expected_hi);
++  }
++}
++
++void test_veloce_group(const char* name) {
++  char id[12];
++
++  vt_group = name;
++  vt_group_count++;
++  snprintf(id, sizeof(id), "%d", vt_group_count);
++  vt_test(id, name);
++}
++
++void test_veloce_manual_end() {
++  vt_manual_end = true;
++}
++
++void test_veloce_end() {
++  if (vt_ended) return;
++  vt_ended = true;
++  vt_end(vt_pass_count, vt_count);
++}
++
+ IWRAM_CODE void test_reset() {
+   test_count = 0;
+   test_pass_count = 0;
+@@ -30,6 +118,7 @@ IWRAM_CODE void test_expect_range(
+     printf("FAIL %ld\n  expected: %ld\n", actual, expected_lo);
+   }
+ 
++  test_veloce_check(name, pass, expected_lo, expected_hi, actual);
+   test_count++;
+ }
+ 
+@@ -55,6 +144,7 @@ IWRAM_CODE void test_expect_hex(
+     printf("FAIL 0x%lx\n  expected: 0x%lx\n", actual, expected);
+   }
+ 
++  test_veloce_check(name, expected == actual, expected, expected, actual);
+   test_count++;
+ }
+ 
+@@ -64,6 +154,10 @@ IWRAM_CODE void test_print_metrics() {
+   } else {
+     printf("\npass:  %d\ntotal: %d\n", test_pass_count, test_count);
+   }
++
++  if (!vt_manual_end) {
++    test_veloce_end();
++  }
+ }
+ 
+ // @todo: move this somewhere else...
+diff --git a/lib/veloce b/lib/veloce
+new file mode 120000
+index 0000000..8c9d515
+--- /dev/null
++++ b/lib/veloce
+@@ -0,0 +1 @@
++../../../../include/devkitarm
+\ No newline at end of file
+diff --git a/ppu/status-irq-dma/source/main.c b/ppu/status-irq-dma/source/main.c
+index 8ae085b..35ac711 100644
+--- a/ppu/status-irq-dma/source/main.c
++++ b/ppu/status-irq-dma/source/main.c
+@@ -12,7 +12,13 @@
+ #include "test.h"
+ #include "ui.h"
+ 
++// Veloce: set while main() runs every test once without the menu.
++static bool veloce_autorun = false;
++
+ void press_b() {
++  // Veloce: nobody presses B during the unattended pass.
++  if (veloce_autorun) return;
++
+   // while(REG_KEYINPUT & KEY_B) VBlankIntrWait();
+ 
+   while(REG_KEYINPUT & KEY_B) ;
+@@ -129,6 +135,7 @@ void test_dispstat() {
+   }
+ 
+   test_reset();
++  test_veloce_group("DISPSTAT");  // Veloce
+   test_expect("HBLANK=0",  144, hblank_0);
+   test_expect("HBLANK=1", 1151, hblank_1);
+   test_expect("VMATCH=1",  145, vcount_match);
+@@ -158,6 +165,7 @@ void test_vcount() {
+   }
+ 
+   test_reset();
++  test_veloce_group("VCOUNT");  // Veloce
+   test_expect("VCOUNT INC", 144, vcount_inc);
+   test_print_metrics();
+ 
+@@ -200,6 +208,7 @@ void test_if() {
+   }
+ 
+   test_reset();
++  test_veloce_group("IF");  // Veloce
+   test_expect("HBLANK", 1153, hblank);
+   test_expect("VBLANK",  146, vblank);
+   test_expect("VMATCH",  147, vmatch);
+@@ -276,6 +285,7 @@ void test_dma() {
+ 
+   ui_clear();
+   test_reset();
++  test_veloce_group("DMA");  // Veloce
+   test_expect("HBLANK DMA", 1137, hblank_dma_time);
+   test_expect("VBLANK DMA", 1362, vblank_dma_time);
+   test_expect("VIDEO DMA", 22069, video_dma_time);
+@@ -289,6 +299,18 @@ int main(void) {
+   ui_init();
+   emit_init();
+ 
++  // Veloce: run the four tests once, in menu order and unattended, then
++  // report one END line over the debug registers. The menu below is
++  // unchanged for use on hardware.
++  veloce_autorun = true;
++  test_veloce_manual_end();
++  test_dispstat();
++  test_vcount();
++  test_if();
++  test_dma();
++  test_veloce_end();
++  veloce_autorun = false;
++
+   while (true) {
+     UIMenuOption options[] = {
+       { "DISPSTAT", &test_dispstat },

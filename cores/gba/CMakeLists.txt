@@ -28,6 +28,7 @@ add_library(gba_plugin SHARED
     src/cartridge.cpp
     src/timer.cpp
     src/dma.cpp
+    src/test_channel.cpp
 )
 
 target_include_directories(gba_plugin PRIVATE
@@ -82,6 +83,6 @@ elseif(MSVC)
     target_compile_options(gba_plugin PRIVATE /W4)
 endif()
 
-# Note: Test ROMs should be run through veloce directly with DEBUG=1 environment variable
-# Example: DEBUG=1 timeout 30 ./build/bin/veloce cores/gba/tests/gba-test-roms/arm/arm.gba
-# The emulator will detect test ROM results and report PASS/FAIL via debug output
+# Note: Test ROM verdicts go to the VELOCE-RESULT/1 file named by VELOCE_TEST_OUT
+# Example: VELOCE_TEST_OUT=/tmp/arm.result timeout 30 ./build/bin/veloce cores/gba/tests/gba-test-roms/arm/arm.gba
+# See src/test_channel.cpp and docs/testing/VELOCE-RESULT.md

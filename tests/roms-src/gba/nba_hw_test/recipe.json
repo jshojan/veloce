@@ -1,0 +1,33 @@
+{
+  "console": "gba",
+  "suite": "nba_hw_test",
+  "description": "nba-emu/hw-test (NanoBoyAdvance hardware tests, BSD-3-Clause), the 10 scored ROMs of cores/gba/tests/test_config.json rebuilt with a Veloce patch that reports every test_expect*() check as a VELOCE-RESULT/1 CHECK line plus one END line over the mGBA debug registers (channel mgba). GBA-3 of the test-ROM plan. ppu/bgpd and ppu/bgx are not rebuilt: they have no CPU-readable result and stay upstream binaries in visual_test_suites (see PROVENANCE.md).",
+  "license": "BSD-3-Clause (Copyright 2021, fleroviux), see PROVENANCE.md; links the vendored mgba.c/mgba.h (MIT, tests/roms-src/include/devkitarm/vendor/PROVENANCE.md) and devkitPro's libgba",
+  "repo": {
+    "url": "https://codeberg.org/nba-emu/hw-test.git",
+    "sha": "fbc99140e06f083c0a47612467cfbb02470e56dc"
+  },
+  "toolchain_stage": "devkitarm",
+  "golden_gate": false,
+  "golden_gate_reason": "Only dma/latch rebuilds byte-identically from the pinned source; the other nine shipped binaries were built by older devkitARM releases. Replaced by the instruction-window audit in PROVENANCE.md (verify_windows.py): every measured window of the patched build is instruction-for-instruction the shipped binary's, two of them because the patch pins them in asm. build.py still records golden_sha256/rebuilt_sha256 per ROM.",
+  "rom_variant": "veloce",
+  "build": {
+    "workdir": ".",
+    "commands": [
+      "export LIBGBA=$DEVKITPRO/libgba && export CPATH=$PWD/lib/veloce/vendor",
+      "for d in dma/latch dma/start-delay dma/force-nseq-access dma/burst-into-tears irq/irq-delay timer/start-stop timer/reload haltcnt bus/128kb-boundary ppu/status-irq-dma; do make -C $d clean >/dev/null && make -C $d || exit 1; done"
+    ],
+    "artifacts": {
+      "dma/latch/latch.gba": "latch.gba",
+      "dma/start-delay/start-delay.gba": "start-delay.gba",
+      "dma/force-nseq-access/force-nseq-access.gba": "force-nseq-access.gba",
+      "dma/burst-into-tears/burst-into-tears.gba": "burst-into-tears.gba",
+      "irq/irq-delay/irq-delay.gba": "irq-delay.gba",
+      "timer/start-stop/start-stop.gba": "start-stop.gba",
+      "timer/reload/reload.gba": "reload.gba",
+      "haltcnt/haltcnt.gba": "haltcnt.gba",
+      "bus/128kb-boundary/128kb-boundary.gba": "128kb-boundary.gba",
+      "ppu/status-irq-dma/status-irq-dma.gba": "status-irq-dma.gba"
+    }
+  }
+}
