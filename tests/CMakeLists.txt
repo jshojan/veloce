@@ -1690,3 +1690,22 @@ target_compile_features(switch_pair_transfer_machine_test PRIVATE cxx_std_17)
 add_test(NAME switch_pair_transfer_machine_test COMMAND switch_pair_transfer_machine_test
     ${CMAKE_SOURCE_DIR}/tests/roms-src/switch/pair_transfer_registers/pair_transfer_registers.nso)
 set_tests_properties(switch_pair_transfer_machine_test PROPERTIES LABELS "unit;integration;accuracy;owned" TIMEOUT 90)
+
+add_executable(switch_single_transfer_test cpp/switch_single_transfer_test.cpp ${CMAKE_SOURCE_DIR}/cores/switch/src/aarch64.cpp)
+target_include_directories(switch_single_transfer_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/switch/src)
+target_compile_features(switch_single_transfer_test PRIVATE cxx_std_17)
+add_test(NAME switch_single_transfer_test COMMAND switch_single_transfer_test)
+set_tests_properties(switch_single_transfer_test PROPERTIES LABELS "unit;accuracy;owned" TIMEOUT 180)
+add_test(NAME switch_single_transfer_registers COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/switch/single_transfer_registers/run.py --emulator $<TARGET_FILE:veloce>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/switch_single_transfer)
+set_tests_properties(switch_single_transfer_registers PROPERTIES LABELS "accuracy;owned" TIMEOUT 600)
+add_test(NAME switch_single_transfer_plugin_state_test COMMAND switch_plugin_state_test $<TARGET_FILE:switch_plugin>
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/switch/single_transfer_registers/single_transfer_registers.nso)
+set_tests_properties(switch_single_transfer_plugin_state_test PROPERTIES LABELS "integration;accuracy;owned" TIMEOUT 90)
+add_executable(switch_single_transfer_machine_test cpp/switch_single_transfer_machine_test.cpp ${CMAKE_SOURCE_DIR}/cores/switch/src/aarch64.cpp ${CMAKE_SOURCE_DIR}/cores/switch/src/machine.cpp)
+target_include_directories(switch_single_transfer_machine_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/switch/src ${CMAKE_SOURCE_DIR}/include)
+target_compile_features(switch_single_transfer_machine_test PRIVATE cxx_std_17)
+add_test(NAME switch_single_transfer_machine_test COMMAND switch_single_transfer_machine_test
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/switch/single_transfer_registers/single_transfer_registers.nso)
+set_tests_properties(switch_single_transfer_machine_test PROPERTIES LABELS "unit;integration;accuracy;owned" TIMEOUT 90)

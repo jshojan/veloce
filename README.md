@@ -46,14 +46,21 @@ Full CPU/system/MMU/exception/privilege behavior, physical timing, native firmwa
 retail boot, graphics/audio and analog/touch/wireless devices remain unfinished.
 See the [3DS core README](cores/3ds/README.md) for the implemented profile and limits.
 
-Switch's AArch64 plugin now implements integer paired loads/stores, signed-word
-pair loads, pre/post-index writeback and non-temporal pair transfers. Its
-[original NSO and independent file oracle](tests/roms-src/switch/pair_transfer_registers/README.md)
-grade **2,490,368 snapshots / 24,903,680 actual register words**, including every
-encoded displacement, SP/general bases and executed faulty variants. Complete
-native-state replay covers successful and terminal-fault continuations. This
-remains an integer process profile; native firmware/HOS/retail boot and full
-hardware are unfinished. Switch stays **25%**.
+### Switch memory instruction coverage
+
+The AArch64 plugin executes these integer memory subsets in an original
+uncompressed NSO0 process profile. Independent file oracles grade actual
+register/memory captures and executed faulty variants; native-state replay
+checks successful and terminal-fault continuations.
+
+| Original source / implemented subset | Snapshots | Actual 64-bit words |
+|---|---:|---:|
+| [Integer pairs, signed-word pairs and writeback](tests/roms-src/switch/pair_transfer_registers/README.md) | 2,490,368 | 24,903,680 |
+| [Signed/unscaled/unprivileged/writeback/register-offset singles](tests/roms-src/switch/single_transfer_registers/README.md) | 7,188,480 | 57,507,840 |
+
+These are finite documented domains. Full CPU/system/MMU/exception behavior,
+native firmware/HOS/retail boot, graphics/audio, controllers and netplay remain
+unfinished. Switch stays **25%** of the delivery checklist.
 <!-- completion:end -->
 
 A cross-platform, plugin-based emulator framework built for speedrunners and TAS creators.
