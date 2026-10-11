@@ -1569,3 +1569,13 @@ add_test(NAME n64_config_fields COMMAND ${Python3_EXECUTABLE}
     --capture $<TARGET_FILE:n64_integer_trap_capture> --core $<TARGET_FILE:n64_plugin>
     --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_config_fields)
 set_tests_properties(n64_config_fields PROPERTIES LABELS "accuracy;owned;integration" TIMEOUT 1200)
+
+add_executable(n64_status_fields_test cpp/n64_status_fields_test.cpp ${CMAKE_SOURCE_DIR}/cores/n64/src/vr4300.cpp)
+target_include_directories(n64_status_fields_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src ${CMAKE_SOURCE_DIR}/include)
+add_test(NAME n64_status_fields_test COMMAND n64_status_fields_test)
+set_tests_properties(n64_status_fields_test PROPERTIES LABELS "unit;accuracy;owned" TIMEOUT 600)
+add_test(NAME n64_status_fields COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/status_fields/run.py
+    --capture $<TARGET_FILE:n64_integer_trap_capture> --core $<TARGET_FILE:n64_plugin>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_status_fields)
+set_tests_properties(n64_status_fields PROPERTIES LABELS "accuracy;owned;integration" TIMEOUT 1200)

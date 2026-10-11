@@ -385,6 +385,10 @@ void VR4300::step() {
                 else if(rd==6) {s.cp0[6]=value&63;s.cp0[1]=31;}
                 else if(rd==10)s.cp0[10]=value&Tlb::hi_mask;
                 else if(rd==20)s.cp0[20]=(s.cp0[20]&0x1fffffff0ull)|(value&0xfffffffe00000000ull);
+                else if(rd==12) {
+                    // NEC Figures 6-5/6-6: TS is read-only; RFU bits 23/19 read zero.
+                    s.cp0[12]=(s.cp0[12]&0x00200000ull)|(value&0xff57ffffull);
+                }
                 else if(rd==13)s.cp0[13]=(s.cp0[13]&~0x300ull)|(value&0x300);
                 else if(rd==11) {s.cp0[11]=uint32_t(value);s.cp0[13]&=~0x8000ull;}
                 else if(rd==16) {
