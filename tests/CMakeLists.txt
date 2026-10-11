@@ -1267,3 +1267,8 @@ add_test(NAME snes_stack_boundaries COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/roms-src/snes/stack_boundaries/run.py --emulator $<TARGET_FILE:veloce>
     --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/snes_stack_boundaries)
 set_tests_properties(snes_stack_boundaries PROPERTIES LABELS "accuracy;owned" TIMEOUT 400)
+
+add_test(NAME snes_decimal_sbc COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/snes/decimal_sbc/run.py --emulator $<TARGET_FILE:veloce>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/snes_decimal_sbc)
+set_tests_properties(snes_decimal_sbc PROPERTIES LABELS "accuracy;owned" TIMEOUT 400)
