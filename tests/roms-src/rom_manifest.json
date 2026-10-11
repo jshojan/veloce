@@ -1,5 +1,16 @@
 {
   "roms": {
+    "3ds/extend_registers/extend_registers.v3ds": {
+      "build_command": "python3 tests/roms-src/3ds/extend_registers/build.py",
+      "console": "3ds",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "9e095f4af914dbff493fa5bcd833e5eb92a134ffdcd066018f9d872e009d3be7",
+      "source_repo": "tests/roms-src/3ds/extend_registers/build.py",
+      "source_sha": "eea70f9b17fc0eeb648b935c1d922b253e2eea9f607fab9151aa07ab1cf39794",
+      "source_type": "original",
+      "suite": "extend_registers"
+    },
     "3ds/netplay_probe/netplay_probe.v3ds": {
       "build_command": "python3 tests/roms-src/3ds/netplay_probe/build.py",
       "console": "3ds",

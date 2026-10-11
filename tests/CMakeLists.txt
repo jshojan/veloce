@@ -1589,3 +1589,20 @@ add_test(NAME n64_diagnostic_fields COMMAND ${Python3_EXECUTABLE}
     --capture $<TARGET_FILE:n64_integer_trap_capture> --core $<TARGET_FILE:n64_plugin>
     --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_diagnostic_fields)
 set_tests_properties(n64_diagnostic_fields PROPERTIES LABELS "accuracy;owned;integration" TIMEOUT 1200)
+
+add_executable(arm_extend_test cpp/arm_extend_test.cpp ${CMAKE_SOURCE_DIR}/cores/nds/src/arm.cpp)
+target_include_directories(arm_extend_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/nds/src)
+add_test(NAME arm_extend_test COMMAND arm_extend_test)
+set_tests_properties(arm_extend_test PROPERTIES LABELS "unit;accuracy;owned" TIMEOUT 600)
+add_test(NAME ctr_extend_registers COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/3ds/extend_registers/run.py --emulator $<TARGET_FILE:veloce>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/3ds_extend)
+set_tests_properties(ctr_extend_registers PROPERTIES LABELS "accuracy;owned" TIMEOUT 1800)
+add_executable(ctr_extend_checkpoint_test cpp/ctr_extend_checkpoint_test.cpp)
+target_include_directories(ctr_extend_checkpoint_test PRIVATE ${CMAKE_SOURCE_DIR}/include ${SDL2_INCLUDE_DIRS})
+target_link_libraries(ctr_extend_checkpoint_test PRIVATE ${SDL2_LIBRARIES})
+target_compile_definitions(ctr_extend_checkpoint_test PRIVATE SDL_MAIN_HANDLED)
+add_dependencies(ctr_extend_checkpoint_test ctr_plugin)
+add_test(NAME ctr_extend_checkpoint_test COMMAND ctr_extend_checkpoint_test $<TARGET_FILE:ctr_plugin>
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/3ds/extend_registers/extend_registers.v3ds)
+set_tests_properties(ctr_extend_checkpoint_test PROPERTIES LABELS "accuracy;owned;integration" TIMEOUT 180)

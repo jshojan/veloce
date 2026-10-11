@@ -69,6 +69,23 @@ void Arm::step() {
     }
     if(!condition(cond,s.cpsr)) { s.r[15]=pc+4; return; }
     const auto operand=[&](unsigned reg,bool late=false) { return reg==15 ? pc+(late ? 12:8):s.r[reg]; };
+    // ARMv6 extend/extend-and-add. Rn=15 selects the non-accumulating form.
+    if((ins&0x0f8000f0u)==0x06800070u) {
+        const unsigned kind=(ins>>20)&7,rn=(ins>>16)&15,rd=(ins>>12)&15,rm=ins&15;
+        if(!v6 || kind==1 || kind==5 || (ins&0x300u) || rd==15 || rm==15) { s.unsupported=true; return; }
+        const uint32_t source=rotate(s.r[rm],((ins>>10)&3)*8),base=rn==15?0:s.r[rn];
+        const bool sign=!(kind&4);
+        const auto extend=[&](uint32_t value,unsigned bits) {
+            const uint32_t mask=(1u<<bits)-1;value&=mask;
+            return value|((sign && (value&(1u<<(bits-1))))?~mask:0);
+        };
+        if((kind&3)==0) {
+            const uint32_t low=(uint32_t(base&65535)+extend(source,8))&65535;
+            const uint32_t high=((base>>16)+extend(source>>16,8))&65535;
+            s.r[rd]=low|(high<<16);
+        } else s.r[rd]=base+extend(source,(kind&3)==3?16:8);
+        s.r[15]=pc+4; return;
+    }
     const uint32_t reversal=ins&0x0fff0ff0u;
     if(reversal==0x06bf0f30 || reversal==0x06bf0fb0 || reversal==0x06ff0fb0) {
         const unsigned rd=(ins>>12)&15,rm=ins&15;
@@ -357,7 +374,12 @@ void Arm::thumb_step() {
         overflow=((subtract ? a^b:~(a^b))&(a^result)&0x80000000)!=0;
         return result;
     };
-    if((ins&0xff00)==0xba00) {
+    if((ins&0xff00)==0xb200) {
+        if(!v6) { s.unsupported=true; return; }
+        const unsigned kind=(ins>>6)&3,rd=ins&7,rm=(ins>>3)&7,bits=(kind&1)?8:16;
+        const uint32_t mask=(1u<<bits)-1,source=s.r[rm]&mask;
+        s.r[rd]=source|((kind<2 && (source&(1u<<(bits-1))))?~mask:0);
+    } else if((ins&0xff00)==0xba00) {
         const unsigned op=(ins>>6)&3,rd=ins&7,rm=(ins>>3)&7;
         if(!v6 || op==2) { s.unsupported=true; return; }
         const uint32_t source=s.r[rm];

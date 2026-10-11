@@ -123,3 +123,11 @@ section](https://problemkaputt.de/gbatek.htm#dsicontrolregistersscfg), accessed
 through its [Markdown mirror](https://github.com/mgba-emu/gbatek/blob/gh-pages/ds.md#dsicontrolregistersscfg).
 The implementation's initial values, unsupported-circuit handling, diagnostic
 open-bus behavior and scheduling are supplied profile choices.
+
+## Shared ARMv6 decoder isolation
+
+The shared interpreter now implements ARMv6 extension/accumulate instructions
+for 3DS ARM11. DS/DSi ARM9 and ARM7 remain earlier CPU profiles and reject these
+forms diagnostically before data access; no ARMv6 feature is enabled here.
+The shared extension component gate checks profile isolation. Physical undefined
+instruction exceptions and complete CPU behavior remain pending.
