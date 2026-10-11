@@ -3838,3 +3838,16 @@ The component gate checks 14,680,066 unconstrained source/mode/TS observations.
 Physical shutdown/trace/power/reverse-endian behavior, reserved CP0 and full
 hardware/timing remain unfinished; N64 stays 50%. See
 [original cartridge](tests/roms-src/n64/status_fields/README.md).
+
+## N64 TagLo/TagHi/PErr corpus (2026-10-11)
+
+N64 0.57.0 constrains software TagLo/TagHi/PErr fields per NEC Figures 5-18
+and 6-11. The original cartridge independently grades **12,582,912 cases /
+150,994,944 actual RAM/register words**, with both writes, selected full
+sixteen-bit domains, surrounds and direct/taken-delay placement. Source/target/
+non-target fields, executed wrong-read rejection, twelve field faults, six
+malformed streams and native/fast rollback are checked. The component gate
+covers **32,505,856 observations**, including **10,485,760 actual CACHE
+consumers** across every physical tag and every defined tag state. Physical
+reset/timing, undefined tag states and malformed legacy snapshot normalization
+are not proved. N64 remains **50%** of delivery milestones, not hardware accuracy.

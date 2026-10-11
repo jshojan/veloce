@@ -21922,6 +21922,17 @@
       "source_type": "original",
       "suite": "cp0_readonly"
     },
+    "n64/diagnostic_fields/diagnostic_fields.z64": {
+      "build_command": "python3 tests/roms-src/n64/diagnostic_fields/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "32f5387ac405adc30e5a42f645025e14293049e02e531c178c5789f4f1bc834a",
+      "source_repo": "tests/roms-src/n64/diagnostic_fields/build.py",
+      "source_sha": "28813bc6e223e005ab8f68c128fdb0f210b481f69a8b8e1c6bdb1320b63daeaf",
+      "source_type": "original",
+      "suite": "diagnostic_fields"
+    },
     "n64/doubleword_privilege/doubleword_privilege.z64": {
       "build_command": "python3 tests/roms-src/n64/doubleword_privilege/build.py",
       "console": "n64",

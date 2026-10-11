@@ -465,3 +465,13 @@ Twelve ordinary/fast rollback records and complete states match. The component
 gate checks 14,680,066 unconstrained source/mode/TS observations. Full downstream
 shutdown/trace/power/reverse-endian behavior remains pending. See
 [source, artifacts and limits](roms-src/n64/status_fields/README.md).
+
+## N64 TagLo/TagHi/PErr fields (0.57.0)
+
+```sh
+ctest --test-dir build -R '^(n64_diagnostic_fields|n64_diagnostic_fields_test)$' --output-on-failure
+```
+
+The original cartridge grades 12,582,912 actual guest records / 150,994,944 words;
+32,505,856 component observations include every physical tag through defined
+CACHE store/load consumers. See the [domain, oracle and exclusions](roms-src/n64/diagnostic_fields/README.md).
