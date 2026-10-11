@@ -84,12 +84,12 @@ int main(int argc,char** argv) {
     for(unsigned n=0;n<4097;++n)m.clock();std::vector<uint8_t> saved,after,replay;require(m.save(saved),"VI state save");
     for(unsigned n=0;n<100000;++n)m.clock();m.save(after);require(m.restore(saved),"VI restore");for(unsigned n=0;n<100000;++n)m.clock();m.save(replay);require(replay==after,"VI exact continuation");
     for(unsigned field=0;field<20;++field) {
-        if(field==17)continue;auto bad=after;const size_t at=bad.size()-1054600+field*8;
+        if(field==17)continue;auto bad=after;const size_t at=bad.size()-1054640+field*8;
         const uint64_t invalid=field<15?uint64_t(~masks[field])&0xffffffffu:field==15?1024:field==16?4096:field==18?5:2;
         for(unsigned byte=0;byte<8;++byte)bad[at+byte]=uint8_t(invalid>>(56-byte*8));
         require(!m.restore(bad) && m.save(replay) && replay==after,"VI invalid scalar state atomicity");
     }
-    auto old=after;old.resize(old.size()-1054600);old[6]='1';old[7]='1';require(m.restore(old) && v.snapshot()==n64::VideoInterface{}.snapshot(),"S011 neutral VI conversion");
+    auto old=after;old.resize(old.size()-1054640);old[6]='1';old[7]='1';require(m.restore(old) && v.snapshot()==n64::VideoInterface{}.snapshot(),"S011 neutral VI conversion");
     for(unsigned reg=0;reg<16;++reg)for(unsigned width:{1u,2u,8u}) {uint64_t value=77;require(!m.read(address(reg),width,value) && value==77 && !m.write(address(reg),width,0),"VI word width contract");}
     uint64_t value=77;require(!m.read(address(0)+1,4,value) && value==77 && !m.write(address(0)+1,4,0),"VI alignment");require(!m.read(address(15),4,value) && !m.write(address(15),4,0),"pending staged line-buffer data rejected");
     emulator_test::LoadedCore core(argv[1],rom);unsigned captured=0;std::vector<uint32_t> baseline;

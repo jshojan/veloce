@@ -165,7 +165,7 @@
         "register_oracle",
         "states"
       ],
-      "remaining": "Super Mario 64 now renders its logo and animated title head in a bounded private probe. Functional copy-cycle rectangles/triangles, bank-coupled TMEM/palette transfers, raw alpha decisions and hidden byte-write metadata have independent original RAM/register and pinned-reference evidence. A scripted Start/A probe produced no observed menu transition. Full retail boot/gameplay, complete CPU/CP0/devices, physical FPU/RSP timing, complete RDP/audio, one/two-cycle texture rectangles and LOD, random dithering/noise and CI8 alpha thresholds, analog/accessories/presence detection, local multiplayer frontend routing and physical timing remain. Production two-player TCP rollback is verified for the implemented digital profile; four virtual PIF ports are supported."
+      "remaining": "Cached SI/PIF reads now refresh current digital input; an original cartridge grades every 14-button combination and its complement without reformatting. Mario renders its title head and scripted input changes the recorded execution, but reaches an unsupported one-cycle texture rectangle (E4 e4300260002801e0); no menu transition or gameplay is verified. Complete CPU/CP0/devices, physical FPU/RSP timing, complete RDP/audio, one/two-cycle texture rectangles and LOD, random dithering/noise and CI8 alpha thresholds, analog/accessories/presence detection, CIC/EEPROM/Joybus and physical SI timing, local multiplayer frontend routing and physical timing remain. Production two-player TCP rollback and four virtual digital PIF ports are verified for the implemented profile."
     },
     {
       "id": "vb",

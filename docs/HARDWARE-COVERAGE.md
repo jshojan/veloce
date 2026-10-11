@@ -1,6 +1,6 @@
 # Nintendo implementation and hardware test coverage
 
-Current N64 evidence: [Copy-cycle transfers and Mario title head](#copy-cycle-transfers-and-mario-title-head). Earlier increment reports are historical.
+Current N64 evidence: [Cached controller reads and current Mario stop](#cached-controller-reads-and-current-mario-stop). Earlier increment reports are historical.
 
 The goal includes Nintendo core plugins, repository-owned ROMs covering the
 hardware, machine-readable register observations, netplay, seamless controllers,
@@ -3448,7 +3448,7 @@ trace hashes. Quantum means frontend scheduling quantum; the CPU trace uses
 100,000 nominal attempts per quantum. This script is diagnostic input, not a
 controller-driven playability acceptance gate.
 
-Plugin **0.42.0**, ABI v2 and **VN64S028 / 9,527,576 bytes** are current.
+At that increment, plugin **0.42.0**, ABI v2 and **VN64S028 / 9,527,576 bytes** were current.
 Copy uses existing serialized TMEM/DP/hidden state; no new state fields are added.
 N64 stays **45% = 9/20 delivery milestones**. Frontpage and all core percentages
 share the same fixed ledger. CI/CD remains disabled.
@@ -3477,3 +3477,90 @@ CPU/DP/RSP trace are identical; **no menu transition or controller-driven gamepl
 was observed**. The audio count does not establish audible correctness. Current
 core/probe/trace and input-script hashes match the recorded reports. Captures are
 `build/artifacts/retail/n64-copy.png` and `n64-copy-start.png` (PPMs alongside).
+
+
+## Cached controller reads and current Mario stop
+
+A private SI trace explains why Start/A previously had no observed effect: Mario
+formats its controller packet once, then repeatedly reads it. The old core
+sampled buttons on the format write and returned stale replies on later reads.
+At the scripted Start transition, the trace had **49 reads but only three writes**;
+PIF control was already zero and its retained replies still contained zero buttons.
+The [cached libultra read path](https://github.com/n64decomp/libreultra/blob/master/src/io/contreaddata.c),
+[Mupen64Plus SI](https://github.com/mupen64plus/mupen64plus-core/blob/master/src/device/rcp/si/si_controller.c)
+and [ares PIF](https://github.com/ares-emulator/ares/blob/master/ares/n64/pif/hle.cpp)
+corroborate the separate formatting and read-time communication phases.
+
+The original `PifJoybus` module now latches five channel offsets on the format
+flag, clears that flag without sampling buttons, and refreshes the four digital
+controller replies before every SI read DMA. Padding, skipped/reset channels,
+receive-status clearing, command lengths, inactive layouts and bounded malformed
+packets have explicit behavior. A flag-zero replacement write preserves the
+latched offsets. Native analog, controller presence/paks, cartridge Joybus/CIC,
+asynchronous SI/Joybus timing and physical-console validation remain incomplete.
+
+The new original MIT [cached controller cartridge](https://github.com/jshojan/veloce/tree/main/tests/roms-src/n64/controller_cached_reads)
+passes **16,384 cases / 262,144 actual captured 64-bit words**, with exactly one
+format write for the entire run. Each case polls one 14-button combination,
+yields for a real frontend input transition, then polls its complement. Four
+packet words, untouched tail/control and SI/MI registers are captured per read,
+plus the two registers after acknowledgment. Its strict 7/9-word chunks respect
+the sink line limit. The **16-case** control passes, an executed wrong-capture
+cartridge fails every case, and **16 field mutations / seven malformed streams**
+are rejected. The earlier **16,384-case / 131,072-word** controller corpus also
+passes. These exhaust the implemented digital bit combinations, not the full
+physical controller/Joybus/timing corpus.
+
+The component gate passes **131,072 cached digital reads** across all four active
+ports, **81,920 command/receive-length/channel captures**, all **256 control
+bytes**, padding/skip/reset and atomic malformed-state checks. The machine gate
+checks real SI/RAM/interrupt effects, format/read separation, flag-zero replacement,
+exact continuation and **287 atomic state rejections**. **Ten compiled production
+faults** fail after execution, including removal of SI read-time polling; compiler
+failures are not counted. UBSAN and warning-as-error builds pass.
+
+Plugin **0.43.0** retains ABI v2 and writes **VN64S029 / 9,527,616 bytes**.
+Five validated big-endian channel-offset words are appended to S028; current
+save/restore and production host/client replay preserve the retained packet
+layout and actual guest output. Earlier formats import with channels disabled,
+since those states lack the retained layout. Such sessions need a new guest
+format command; restart older retail sessions if they only issue cached reads.
+Existing field/rejection/legacy tests now address their same verified byte
+positions relative to the longer state.
+
+The final private **10,000-quanta / one-billion-attempt** Start/A probe changes
+execution and reaches a new DP stop: one-cycle E4 **`e4300260002801e0`**, reason 1,
+other mode **`802c3f00443079`**. It executes **119,825,466 RSP instructions** with no
+terminal CPU exception or unsupported RSP operation. The final capture remains
+the title head with **PRESS START**; **no menu transition or gameplay is verified**.
+The observed **500,082 audio sample pairs** do not establish audible correctness.
+This exposes the next missing graphics profile; the former idle/copy title-head
+reports are historical. Private bytes/captures and reference implementations are
+not committed. Core/probe/trace/input-script fingerprints match the private report.
+
+N64 remains **45% = 9/20 delivery milestones**. The frontpage and every core
+README share the fixed ledger. CI/CD remains disabled and the whole goal is active.
+
+```sh
+ctest --test-dir build -R '^n64_pif_(joybus_test|state_test|checkpoint_test|joybus_mutants)$' --output-on-failure
+python3 tests/roms-src/n64/controller_cached_reads/run.py
+python3 tests/roms-src/n64/controller_serial/run.py
+python3 tests/roms-src/build.py --original-only --check
+python3 tests/n64_retail_probe.py /path/to/private.z64 --frames 10000 --input-script tests/input/n64-title-start.txt --capture build/artifacts/retail/n64-cached-start.ppm --output build/artifacts/retail/n64-cached-start.json
+```
+
+Artifacts: `build/artifacts/owned/n64_controller_cached_reads/`,
+`build/artifacts/component/n64_pif_joybus/`,
+`build/artifacts/retail/n64-cached-start.json` and private
+`n64-cached-start.png`/`.ppm` in that retail directory.
+
+Final gates: all **70 selected N64 regression/component/checkpoint tests** pass.
+The first batch passed 64; six older PI/RI/MI/RDRAM/cache/SP tests still used
+S028 tail distances and passed their **57.00-second** rerun after those distances
+were corrected. Their rejection checks remain at the same serialized byte fields.
+The new plugin checkpoint additionally rejects malformed Joybus offsets atomically.
+Full build, production TCP rollback, both complete controller guest corpora and
+controls, ten executed faults, UBSAN and **116 original archive reproductions**
+pass. Completion/whitespace checks and current private binary/script fingerprints
+are verified. These functional gates do not establish the full native hardware
+corpus or playable Mario; the one-cycle E4 profile is the next observed stop.

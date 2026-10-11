@@ -351,17 +351,17 @@ static void serial(n64::Machine& m) {
     // Identify and reset commands, absent channels, padding/skips, and invalid lengths.
     for (unsigned command : {0u,255u}) {
         m.pif.fill(0xaa); m.pif[0]=1; m.pif[1]=3; m.pif[2]=uint8_t(command); m.pif[6]=0xfe;
-        write(pif+63,1,1);
+        write(pif+63,1,1); write(si+4,0);
         require(read(pif,8)==0x010300050002feaaull + (uint64_t(command) << 40), "controller identity wrong");
         require(read(pif+63,1)==0, "PIF control not cleared");
     }
     m.pif.fill(0xaa); m.pif[0]=0xff; m.pif[1]=m.pif[2]=m.pif[3]=m.pif[4]=0; m.pif[5]=1; m.pif[6]=4; m.pif[7]=1; m.pif[12]=0xfe;
-    write(pif+63,1,1); require(m.pif[6]==0x84 && m.pif[8]==0xaa, "absent channel overwritten/responded");
+    write(pif+63,1,1); write(si+4,0); require(m.pif[6]==0x84 && m.pif[8]==0xaa, "absent channel overwritten/responded");
     for (unsigned tx = 1; tx <= 63; ++tx) for (unsigned rx = 0; rx <= 63; ++rx) {
         m.pif.fill(0xaa); m.pif[0]=uint8_t(tx); m.pif[1]=uint8_t(rx); m.pif[2]=1;
         if (2+tx+rx < 63) m.pif[2+tx+rx]=0xfe;
         const auto original = m.pif;
-        write(pif+63,1,1);
+        write(pif+63,1,1); write(si+4,0);
         if (tx != 1 || rx != 4) {
             require(m.pif[1]==(rx|0x40), "malformed controller length not rejected");
             for (unsigned k=2; k<63; ++k) require(m.pif[k]==original[k], "malformed packet changed payload");
@@ -372,7 +372,7 @@ static void serial(n64::Machine& m) {
     m.reset(); write(si,0x10000); m.ram[0x10000]=1; m.ram[0x10001]=4; m.ram[0x10002]=1;
     m.ram[0x10007]=0xfe; m.ram[0x1003f]=1;
     m.input_buttons = 1; write(si+16,0);
-    require(read(si+24)==0x1000 && read(mi+8)==2 && m.pif[3]==0x80, "DMA did not sample input/complete");
+    require(read(si+24)==0x1000 && read(mi+8)==2 && m.pif[3]==0, "DMA format sampled input or failed completion");
     write(mi+12,8); m.yielded=true;
     std::vector<uint8_t> saved, after, replay;
     require(m.save(saved), "serial save failed");

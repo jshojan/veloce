@@ -27,5 +27,5 @@ ctest --test-dir build -R '^n64_rdp_dither_checkpoint_test$' --output-on-failure
 python3 tests/roms-src/build.py --original-only --check
 ```
 
-Artifacts: `build/artifacts/owned/n64_rdp_ordered_dither/`. Production S028
+Artifacts: `build/artifacts/owned/n64_rdp_ordered_dither/`. Production S029
 checkpoint replay compares actual subsequent guest output and whole-state bytes.
