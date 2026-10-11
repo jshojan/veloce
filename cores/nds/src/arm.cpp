@@ -162,6 +162,20 @@ void Arm::step() {
         if(load) s.r[rd]=value;
         s.r[15]=pc+4; return;
     }
+    if((ins&0x0fb00ff0u)==0x01000090u) {
+        const unsigned rn=(ins>>16)&15,rd=(ins>>12)&15,rm=ins&15;
+        if(rn==15 || rd==15 || rm==15 || rn==rd || rn==rm) { s.unsupported=true; return; }
+        const bool byte=ins&(1u<<22);
+        const uint32_t address=s.r[rn],source=s.r[rm],location=byte ? address:address&~3u;
+        uint32_t loaded=0;
+        // One interpreter step owns the complete exchange: the dual-CPU
+        // scheduler cannot run a peer between this read and write. A failed
+        // access stops diagnostically and never commits the destination.
+        if(!bus.read(location,byte ? 1:4,loaded)) { s.unsupported=true; return; }
+        if(!bus.write(location,byte ? 1:4,byte ? source&255:source)) { s.unsupported=true; return; }
+        s.r[rd]=byte ? loaded&255:rotate(loaded,(address&3)*8);
+        s.r[15]=pc+4; return;
+    }
     const bool multiply=(ins&0x0fc000f0)==0x00000090;
     const bool long_multiply=(ins&0x0f8000f0)==0x00800090;
     if(multiply || long_multiply) {
