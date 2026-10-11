@@ -3802,3 +3802,17 @@ two-peer TCP netplay). The Watch component gate executes **1,073,745,425
 observations**. Private SM64 native VI walking/jumping/punching and stationary
 controls pass on 0.50.0. All **133 original archives** reproduce; full Release
 build, completion renderer and whitespace checks pass.
+
+## Ordinary N64 frontend local controller routing (2026-10-11)
+
+N64 0.51.0 exposes four local ports. Real SDL virtual gamepads, the production
+Application/default input plugin and original `controller_netplay` cartridge
+produce independently graded SI replies: 194 cases / 1,164 guest RAM words,
+all 24 assignments and each native control on every port with signed-stick
+endpoints/dead zone. Executed neutral/capture cases release inputs; an executed
+swapped-device assignment is rejected at two port replies. Secondary devices
+are isolated from primary fallback/bindings; saved ownership uses unambiguous
+GUID/serial matching. No core ABI/state-format change. Local routing now earns
+the fixed `multiplayer` milestone (N64 50%). Physical controllers, independent
+secondary remapping, accessories and complete native hardware remain pending.
+See [the current implementation and commands](../cores/n64/README.md#four-local-frontend-controller-ports-0510).

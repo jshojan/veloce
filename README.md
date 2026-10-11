@@ -9,7 +9,7 @@
 | SNES | **40%** | 8/20 |
 | Game Boy / Game Boy Color | **40%** | 8/20 |
 | Game Boy Advance | **40%** | 8/20 |
-| Nintendo 64 | **45%** | 9/20 |
+| Nintendo 64 | **50%** | 10/20 |
 | Virtual Boy | **20%** | 4/20 |
 | Nintendo DS | **30%** | 6/20 |
 | Nintendo DSi | **30%** | 6/20 |
@@ -21,7 +21,7 @@
 
 These percentages count the 20 explicit delivery milestones in [the completion ledger](docs/CORE-COMPLETION.md); partial or unverified milestones receive zero credit. Each milestone is worth 5 percentage points. **They are not percentages of native hardware accuracy or retail compatibility.** Bounded profile tests do not complete a whole CPU or hardware subsystem.
 
-Super Mario 64 (USA) was tested locally on 2026-10-11. The six-billion-attempt intro reaches the courtyard. A shared private checkpoint now verifies **analog walking, A jumping and B punching through actual RAM fields**, with stationary neutral controls and no terminal CPU/RSP/DP stop during those continuations. **180 legacy quantum movie frames and six seek boundaries match complete native states**; an executed neutral movie leaves Mario standing. New native sessions advance on **VI field boundaries**, with an original **5,160-case file oracle** and **121 VI movie frames / six exact seeks**; legacy states retain the old budget. Castle entry, menu/level progression, practical normal-speed play, full-title playability and native firmware boot remain unverified. **N64 stays 45%** of the fixed delivery checklist. Its original signed-stick corpus grades 65,536 cases / 1,048,576 RAM/register words; the original one-cycle rectangle corpus grades 1,048,576 cases / 13,631,488 words. All twelve integer trap instructions are now verified by an original **15,728,640-case ROM / 188,743,680 RAM/CP0 words**. Linked word/doubleword loads and conditional stores now have an original **1,048,576-case ROM / 10,485,760 RAM words**, including ERET failures and a live-link checkpoint. Disabled COP2 exception priority now has an original **9,056,256-case ROM / 108,675,072 RAM/CP0 words**, plus an exhaustive encoded-payload component gate. CP0 physical Watch traps now have an original **4,194,816-case ROM / 58,727,424 RAM/CP0 words**, with armed-checkpoint replay and R/W/EXL controls. Physical controller calibration/peripherals, two-cycle graphics/LOD, enabled expansion-coprocessor behavior, precise atomic/cache interference and full CPU/hardware/audio/timing remain unfinished. See [checkpoint control and movie evidence](cores/n64/README.md#private-courtyard-controls-and-movie-checkpoints).
+Super Mario 64 (USA) was tested locally on 2026-10-11. The six-billion-attempt intro reaches the courtyard. A shared private checkpoint now verifies **analog walking, A jumping and B punching through actual RAM fields**, with stationary neutral controls and no terminal CPU/RSP/DP stop during those continuations. **180 legacy quantum movie frames and six seek boundaries match complete native states**; an executed neutral movie leaves Mario standing. New native sessions advance on **VI field boundaries**, with an original **5,160-case file oracle** and **121 VI movie frames / six exact seeks**; legacy states retain the old budget. Castle entry, menu/level progression, practical normal-speed play, full-title playability and native firmware boot remain unverified. **N64 now reaches 50%** of the fixed delivery checklist. Its original signed-stick corpus grades 65,536 cases / 1,048,576 RAM/register words; the original one-cycle rectangle corpus grades 1,048,576 cases / 13,631,488 words. All twelve integer trap instructions are now verified by an original **15,728,640-case ROM / 188,743,680 RAM/CP0 words**. Linked word/doubleword loads and conditional stores now have an original **1,048,576-case ROM / 10,485,760 RAM words**, including ERET failures and a live-link checkpoint. Disabled COP2 exception priority now has an original **9,056,256-case ROM / 108,675,072 RAM/CP0 words**, plus an exhaustive encoded-payload component gate. Four local controller ports now pass **194 ordinary frontend cases / 1,164 guest RAM words**, including all 24 device assignments and an executed wrong-route rejection. CP0 physical Watch traps now have an original **4,194,816-case ROM / 58,727,424 RAM/CP0 words**, with armed-checkpoint replay and R/W/EXL controls. Physical controller calibration/peripherals, two-cycle graphics/LOD, enabled expansion-coprocessor behavior, precise atomic/cache interference and full CPU/hardware/audio/timing remain unfinished. See [checkpoint control and movie evidence](cores/n64/README.md#private-courtyard-controls-and-movie-checkpoints).
 <!-- completion:end -->
 
 A cross-platform, plugin-based emulator framework built for speedrunners and TAS creators.
@@ -270,8 +270,15 @@ The SDL virtual-controller integration test covers identical pads, duplicate
 events, remapping, capture mode, disconnect/reconnect, saved bindings, selection
 after removal, ambiguous identities, and normalized axis endpoints:
 `ctest --test-dir build -L controllers --output-on-failure`.
-Physical USB/Bluetooth, cross-platform driver behavior, and multiplayer routing
-still require verification.
+N64 exposes four local ports in Input Configuration. Player one keeps its saved
+button profile; extra players use standard gamepad buttons, left-stick analog,
+left-trigger Z and right-stick C buttons. A pad belongs to one assigned port.
+Saved port assignments use GUID/serial identity and require reselection when
+identical models cannot be distinguished. All 24 assignments and every native
+button on each port are verified through real SDL virtual devices, the production
+frontend/default input plugin and original guest SI replies in RAM.
+Physical USB/Bluetooth and cross-platform driver behavior remain unverified;
+independent extra-player button remapping is still pending.
 
 ## Building
 

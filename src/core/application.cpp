@@ -792,10 +792,11 @@ bool Application::run_emulation_frame() {
         } else {
             TASFrameData frame{};
             for (int c=0;c<4;++c) frame.controller_inputs[c] = get_local_input(c);
-            if (m_netplay_capable_plugin && m_netplay_capable_plugin->get_max_players()>1 &&
+            auto* local_ports=dynamic_cast<INetplayCapable*>(plugin);
+            if (local_ports && local_ports->get_max_players()>1 &&
                 (frame.controller_inputs[1] || frame.controller_inputs[2] || frame.controller_inputs[3])) {
-                const int count=std::clamp(m_netplay_capable_plugin->get_max_players(),1,4);
-                m_netplay_capable_plugin->run_frame_netplay_n(std::vector<uint32_t>(frame.controller_inputs,frame.controller_inputs+count));
+                const int count=std::clamp(local_ports->get_max_players(),1,4);
+                local_ports->run_frame_netplay_n(std::vector<uint32_t>(frame.controller_inputs,frame.controller_inputs+count));
             } else plugin->run_frame({frame.controller_inputs[0]});
         }
         m_injected_inputs.fill(std::nullopt);
@@ -1236,7 +1237,7 @@ bool Application::get_mapped_binding(int controller, VirtualButton button, Input
     }
     return true;
 }
-uint32_t Application::get_mapped_input(int controller) const { return m_input_manager && controller == 0 ? m_input_manager->get_button_state() : 0; }
+uint32_t Application::get_mapped_input(int controller) const { return m_input_manager ? m_input_manager->get_button_state(controller) : 0; }
 uint32_t Application::encode_controller_input(int controller, uint32_t buttons) const {
     return m_input_manager ? m_input_manager->encode_controller_input(controller,buttons) : buttons;
 }

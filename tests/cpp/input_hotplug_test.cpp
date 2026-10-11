@@ -36,7 +36,7 @@ struct MappedHost final : emu::IInputHost, emu::IMappedInputHost, emu::IControll
     float get_gamepad_axis(int c,int a) const override{return input.get_gamepad_axis(c,a);}
     int get_connected_controller_count() const override{return input.get_connected_controller_count();}
     emu::ControllerInfo get_controller_info(int) const override{return {-1,"",false,0,0,0};}
-    uint32_t get_mapped_input(int c) const override{return c==0?input.get_button_state():0;}
+    uint32_t get_mapped_input(int c) const override{return input.get_button_state(c);}
     uint32_t encode_controller_input(int c,uint32_t b) const override{return input.encode_controller_input(c,b);}
     bool get_mapped_binding(int c,emu::VirtualButton button,emu::InputBinding& binding) const override{
         auto* b=input.get_binding(button);if(c || !b)return false;binding=*b;
@@ -182,6 +182,30 @@ int main() {
         input.set_current_platform("NES"); input.set_current_platform("N64");
         require(input.get_binding(emu::VirtualButton::CRight)->code==SDL_CONTROLLER_BUTTON_Y &&
                 emu::InputManager::get_button_name(emu::VirtualButton::CRight)=="CRight", "N64 binding lost");
+        // Two identical connections may be explicitly assigned independently.
+        input.load_default_bindings_for_platform("N64");
+        input.set_controller_for_port(1,0);
+        require(input.get_active_controller()==-1 && input.get_controller_for_port(1)==0,"port move retained primary selection");
+        require(SDL_JoystickSetVirtualButton(joystick,1,1)==0,SDL_GetError());
+        require(SDL_JoystickSetVirtualAxis(joystick,0,-32768)==0,SDL_GetError());
+        pump(input);
+        require(input.get_button_state()==0 && emu::is_button_pressed(input.get_button_state(1),emu::VirtualButton::B),"secondary digital input leaked to primary");
+        require(input.encode_controller_input(1,input.get_button_state(1))==0x00b0c002,"assigned secondary analog did not follow device");
+        require(input.encode_controller_input(2,0)==0xc000,"unassigned port borrowed another stick");
+        input.set_input_capture_mode(true);
+        require(input.get_button_state(1)==0 && input.encode_controller_input(1,1)==0,"secondary capture leaked input");
+        input.set_input_capture_mode(false);
+        input.set_controller_for_port(2,0);pump(input);
+        require(input.get_controller_for_port(1)==-1 && input.get_button_state(1)==0 && input.get_button_state(2)!=0,"moving device duplicated its port");
+        require(input.save_platform_config("N64"),"secondary persistence save");
+        input.shutdown();input.initialize();pump(input);
+        require(input.get_controller_for_port(2)==-1,"ambiguous identical model restored secondary assignment");
+        require(SDL_JoystickDetachVirtual(1)==0,SDL_GetError());pump(input);
+        input.shutdown();input.initialize();pump(input);
+        require(input.get_controller_for_port(2)==0 && input.get_button_state(2)!=0,"unique saved secondary identity did not restore");
+        input.set_active_controller(0);pump(input);
+        require(input.get_controller_for_port(2)==-1 && input.get_button_state(2)==0,"primary reselection duplicated secondary device");
+
         input.shutdown();
         input.initialize();
         for(const std::string platform:{"GameCube","Wii"}) {

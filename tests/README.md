@@ -315,3 +315,26 @@ two-peer TCP netplay). The Watch component gate executes **1,073,745,425
 observations**. Private SM64 native VI walking/jumping/punching and stationary
 controls pass on 0.50.0. All **133 original archives** reproduce; full Release
 build, completion renderer and whitespace checks pass.
+
+
+## Four ordinary local N64 frontend ports (2026-10-11)
+
+Run `ctest --test-dir build -R '^(input_hotplug_test|n64_local_ports_test)$' --output-on-failure`.
+The frontend gate uses four identical SDL virtual gamepads, the production
+Application/default input plugin and archived original `controller_netplay` ROM.
+Its independent scenario/wire-bit oracle grades 194 cases / 1,164 real guest
+RAM words: all 24 assignments; 14 controls on all four ports; signed-stick
+endpoints/dead zone; executed neutral/capture controls. An additional actual
+swapped-device assignment is rejected at two port replies. Six physical four-port
+TAS frames match ordinary/recorded/playback complete states and three seeks;
+an executed player-four movie mutation differs. Hotplug tests cover ownership
+moves, ambiguous and unique identity restoration, capture and disconnected ports.
+
+Artifacts: `build/artifacts/n64_local_ports/{local-ports.csv,local-ports.json,executed-wrong-route.json,provenance.json,frontend.log,four-local-ports.tas}`.
+Before/after SHA-256 checks bind capture to unchanged binaries and original ROM.
+No private ROMs or artifacts are committed. All 11 selected input/controller/
+state/movie/TCP regression gates and the final four-port gate pass; full Release
+build, completion renderer and whitespace checks pass. Physical USB/Bluetooth,
+independent secondary remapping and full native accessories remain pending.
+This completes native local routing, moving N64 to 50% of the fixed delivery
+ledger; other scores remain unchanged. Actions stays disabled; no CI/CD files.

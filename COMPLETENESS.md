@@ -3746,3 +3746,15 @@ two-peer TCP netplay). The Watch component gate executes **1,073,745,425
 observations**. Private SM64 native VI walking/jumping/punching and stationary
 controls pass on 0.50.0. All **133 original archives** reproduce; full Release
 build, completion renderer and whitespace checks pass.
+
+## Ordinary four-port N64 frontend routing (2026-10-11)
+
+The delivery ledger now credits native local multiplayer routing: **N64 50%,
+10/20 fixed milestones**. Four SDL virtual gamepads route through the production
+frontend/default input plugin to real original guest SI DMA replies. The independent
+file grader verifies 194 cases / 1,164 RAM words, including all 24 assignments,
+14 controls per port, signed stick endpoints/dead zone and executed neutral/capture
+controls. An executed wrong-device assignment is rejected at two port replies.
+Persistence and hotplug use connection ownership and unambiguous saved identity.
+Physical gamepads, independent secondary remapping, full controller accessories,
+whole hardware accuracy and retail playability remain unverified.
