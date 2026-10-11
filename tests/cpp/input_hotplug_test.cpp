@@ -3,6 +3,8 @@
 #include "emu/n64_input.hpp"
 #include <SDL.h>
 #include <filesystem>
+#include <fstream>
+#include <nlohmann/json.hpp>
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -30,7 +32,7 @@ struct MappedHost final : emu::IInputHost, emu::IMappedInputHost, emu::IControll
     explicit MappedHost(emu::InputManager& i):input(i) {}
     uint64_t get_frame_number() const override{return 0;}
     const char* get_platform_name() const override{return input.get_current_platform().c_str();}
-    int get_controller_count() const override{return 1;}
+    int get_controller_count() const override{return 4;}
     bool is_key_pressed(int c) const override{return input.is_key_pressed(c);}
     bool is_gamepad_button_pressed(int c,int b) const override{return input.is_gamepad_button_pressed(c,b);}
     float get_gamepad_axis(int c,int a) const override{return input.get_gamepad_axis(c,a);}
@@ -39,7 +41,8 @@ struct MappedHost final : emu::IInputHost, emu::IMappedInputHost, emu::IControll
     uint32_t get_mapped_input(int c) const override{return input.get_button_state(c);}
     uint32_t encode_controller_input(int c,uint32_t b) const override{return input.encode_controller_input(c,b);}
     bool get_mapped_binding(int c,emu::VirtualButton button,emu::InputBinding& binding) const override{
-        auto* b=input.get_binding(button);if(c || !b)return false;binding=*b;
+        auto* b=input.get_binding(button,c);if(!b)return false;binding=*b;
+        if(c>0 && binding.type!=emu::InputSourceType::Keyboard){binding.device_id=input.get_controller_for_port(c);if(binding.device_id<0)binding.device_id=-2;return true;}
         if(binding.type!=emu::InputSourceType::Keyboard && binding.device_id>=0){
             int instance=binding.device_id;binding.device_id=-2;
             for(int i=0;i<input.get_connected_controller_count();++i)if(input.get_controller_instance_id(i)==instance){binding.device_id=i;break;}
@@ -57,13 +60,13 @@ static void pump(emu::InputManager& input) {
     auto* plugin=create_input_plugin();
     require(plugin->initialize(&host), "mapped plugin initialization failed");
     plugin->begin_frame();
-    const auto state=plugin->get_input_state(0);
-    for(unsigned i=0;i<static_cast<unsigned>(emu::VirtualButton::COUNT);++i){
-        auto button=static_cast<emu::VirtualButton>(i);auto* b=input.get_binding(button);
-        if(b){emu::InputBinding expected{};host.get_mapped_binding(0,button,expected);auto actual=plugin->get_binding(0,button);require(actual==expected && actual.axis_threshold==expected.axis_threshold && actual.axis_positive==expected.axis_positive,"plugin binding differs from saved profile");}
+    std::array<uint32_t,4> states{};for(int port=0;port<4;++port)states[port]=plugin->get_input_state(port);
+    for(int port=0;port<4;++port)for(unsigned i=0;i<static_cast<unsigned>(emu::VirtualButton::COUNT);++i){
+        auto button=static_cast<emu::VirtualButton>(i);auto* b=input.get_binding(button,port);
+        if(b){emu::InputBinding expected{};host.get_mapped_binding(port,button,expected);auto actual=plugin->get_binding(port,button);require(actual==expected && actual.axis_threshold==expected.axis_threshold && actual.axis_positive==expected.axis_positive,"plugin binding differs from saved profile");}
     }
     plugin->shutdown();destroy_input_plugin(plugin);
-    require(state==input.encode_controller_input(0,input.get_button_state()), "default plugin lost mapped hot-plug/profile input");
+    for(int port=0;port<4;++port)require(states[port]==input.encode_controller_input(port,input.get_button_state(port)), "default plugin lost mapped hot-plug/profile input");
 }
 #endif
 
@@ -197,17 +200,57 @@ int main() {
         input.set_input_capture_mode(false);
         input.set_controller_for_port(2,0);pump(input);
         require(input.get_controller_for_port(1)==-1 && input.get_button_state(1)==0 && input.get_button_state(2)!=0,"moving device duplicated its port");
+        input.set_binding(emu::VirtualButton::A,{emu::InputSourceType::GamepadButton,999,SDL_CONTROLLER_BUTTON_B,0,false},2);
+        input.clear_binding(emu::VirtualButton::B,2);
+        input.set_binding(emu::VirtualButton::Z,{emu::InputSourceType::Keyboard,-1,SDL_SCANCODE_V,0,false},3);
+        pump(input);
+        require(input.get_button_state(2)==emu::button_to_mask(emu::VirtualButton::A),"remapped secondary fired cleared default");
+        require(input.get_binding(emu::VirtualButton::Z)->code==SDL_SCANCODE_C,"secondary keyboard profile changed primary");
         require(input.save_platform_config("N64"),"secondary persistence save");
         input.shutdown();input.initialize();pump(input);
         require(input.get_controller_for_port(2)==-1,"ambiguous identical model restored secondary assignment");
+        require(input.get_binding(emu::VirtualButton::A,2)->code==SDL_CONTROLLER_BUTTON_B && !input.get_binding(emu::VirtualButton::B,2) &&
+            input.get_binding(emu::VirtualButton::Z,3)->code==SDL_SCANCODE_V,"restart changed independent maps or cleared binding");
+
         require(SDL_JoystickDetachVirtual(1)==0,SDL_GetError());pump(input);
         input.shutdown();input.initialize();pump(input);
         require(input.get_controller_for_port(2)==0 && input.get_button_state(2)!=0,"unique saved secondary identity did not restore");
+        input.reset_port_bindings(1);
+        require(input.get_binding(emu::VirtualButton::A,2)->code==SDL_CONTROLLER_BUTTON_B && !input.get_binding(emu::VirtualButton::B,2) &&
+            input.get_binding(emu::VirtualButton::Z,3)->code==SDL_SCANCODE_V,"reset changed another player profile");
+        input.set_binding(emu::VirtualButton::A,{emu::InputSourceType::GamepadAxis,-1,SDL_CONTROLLER_AXIS_MAX,.5f,true},2);
+        require(input.get_binding(emu::VirtualButton::A,2)->type==emu::InputSourceType::GamepadButton,"invalid binding replaced live player profile");
+        nlohmann::json saved_profile;{std::ifstream file("config/input_n64.json");file>>saved_profile;}
+        for(int mutant=0;mutant<7;++mutant) {
+            auto bad=saved_profile;
+            auto& map=bad["player_bindings"][1]["A"];
+            switch(mutant) {
+                case 0:bad["player_bindings"]=nlohmann::json::array();break;
+                case 1:map["type"]="Invalid";break;
+                case 2:map["code"]=-1;break;
+                case 3:map["code"]=SDL_CONTROLLER_BUTTON_MAX;break;
+                case 4:map["axis_threshold"]=1.01;break;
+                case 5:map["axis_threshold"]=nullptr;break;
+                case 6:bad["player_bindings"][1]["Unknown"] = map;break;
+            }
+            {std::ofstream file("config/input_n64.json");file<<bad.dump(2);}
+            require(!input.load_platform_config("N64"),"invalid player profile accepted");
+            require(input.get_controller_for_port(2)==0 && input.get_button_state(2)==emu::button_to_mask(emu::VirtualButton::A) &&
+                input.get_binding(emu::VirtualButton::A,2)->code==SDL_CONTROLLER_BUTTON_B && !input.get_binding(emu::VirtualButton::B,2),"invalid player profile mutated live ownership/map/state");
+        }
+        saved_profile.erase("player_bindings");
+        {std::ofstream file("config/input_n64.json");file<<saved_profile.dump(2);}
+        require(input.load_platform_config("N64"),"legacy profile migration failed");pump(input);
+        require(input.get_binding(emu::VirtualButton::A,2)->code==SDL_CONTROLLER_BUTTON_A &&
+            input.get_binding(emu::VirtualButton::B,2)->code==SDL_CONTROLLER_BUTTON_B,"legacy extra players did not receive defaults");
         input.set_active_controller(0);pump(input);
         require(input.get_controller_for_port(2)==-1 && input.get_button_state(2)==0,"primary reselection duplicated secondary device");
 
         input.shutdown();
+        std::filesystem::remove("config/input_n64.json");
         input.initialize();
+        require(input.get_binding(emu::VirtualButton::Z)->code==SDL_SCANCODE_C &&
+            input.get_binding(emu::VirtualButton::Z,2)->code==SDL_CONTROLLER_AXIS_TRIGGERLEFT,"missing config used another platform's defaults");
         for(const std::string platform:{"GameCube","Wii"}) {
             input.set_current_platform(platform);
             require(emu::InputManager::get_platform_buttons(platform).size()==12,"GameCube digital controls missing");

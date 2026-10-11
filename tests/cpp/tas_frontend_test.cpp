@@ -99,10 +99,68 @@ static void local_ports(Application& app,IEmulatorPlugin* core) {
     // Run a swapped-device control, but retain the intended mapping for the independent grader.
     clear();require(SDL_JoystickSetVirtualButton(pads[0],0,1)==0,"wrong-route control");
     assign({1,0,2,3});observe(order,{0,-1,-1,-1},{0,0,0,0},{0,0,0,0});
-    // Record the real physical-input path on all four ports, then replay complete states.
+    // Independently remap each native button on every secondary player.
+    std::ofstream profile_out("player-profiles.csv");profile_out<<"case,port,reply,status,cleared\n";
+    unsigned profile_case=0;
+    const VirtualButton native_controls[]={VirtualButton::A,VirtualButton::B,VirtualButton::Z,VirtualButton::Start,
+        VirtualButton::Up,VirtualButton::Down,VirtualButton::Left,VirtualButton::Right,VirtualButton::L,VirtualButton::R,
+        VirtualButton::CUp,VirtualButton::CDown,VirtualButton::CLeft,VirtualButton::CRight};
+    const int sources[]={0,1,2,3,4,6,9,10,11,12,13,14};
+    auto profile_capture=[&] {
+        pump();app.reset();require(app.step_frame(),"remapped ordinary guest frame");
+        auto word=[&](unsigned address){uint32_t value=0;for(unsigned b=0;b<4;++b)value=(value<<8)|core->read_memory(uint16_t(address+b));return value;};
+        for(int port=0;port<4;++port)profile_out<<profile_case<<','<<port<<','<<word(0x2000+4*port)<<','<<word(0x2010)<<','<<word(0x2014)<<'\n';
+        ++profile_case;
+    };
+    assign({0,1,2,3});
+    auto empty_profile=[&](int port){for(auto button:native_controls)manager.clear_binding(button,port);};
+    for(int port=1;port<4;++port) {
+        for(auto target:native_controls)for(int source:sources)for(int held=0;held<2;++held) {
+            clear();empty_profile(port);
+            manager.set_binding(target,{InputSourceType::GamepadButton,999,source,0,false},port);
+            require(manager.get_binding(target,port)->device_id==-1,"profile retained connection ID");
+            InputBinding view{};require(app.get_mapped_binding(port,target,view) && view.device_id==port,"assigned plugin binding view");
+            require(SDL_JoystickSetVirtualButton(pads[port],source,held)==0,"remapped physical button");profile_capture();
+        }
+        manager.reset_port_bindings(port);
+    }
+    for(int port=1;port<4;++port) {
+        for(auto target:native_controls)for(int source=0;source<6;++source)for(int positive=0;positive<2;++positive)for(int level=0;level<4;++level) {
+            clear();empty_profile(port);
+            manager.set_binding(target,{InputSourceType::GamepadAxis,999,source,.5f,bool(positive)},port);
+            const int values[]={0,16383,16384,24575};
+            const int raw=source<4 ? (positive ? values[level] : -values[level]) : (level==0 ? -32768 : 2*values[level]-32767);
+            require(SDL_JoystickSetVirtualAxis(pads[port],source,raw)==0,"remapped physical axis");
+            pump();
+            auto* controller=SDL_GameControllerFromInstanceID(manager.get_controller_instance_id(port));
+            require(controller && SDL_GameControllerGetAxis(controller,SDL_GameControllerAxis(source))==(source<4?raw:values[level]),"actual SDL stimulus value");
+            profile_capture();
+        }
+        manager.reset_port_bindings(port);
+    }
+    require(profile_case==3024,"profile domain extent");
+    // Different maps survive a platform round trip and stay attached to ports.
+    for(int port=1;port<4;++port) {
+        empty_profile(port);
+        manager.set_binding(VirtualButton::A,{InputSourceType::GamepadButton,-1,sources[port+1],0,false},port);
+    }
+    require(manager.save_platform_config("N64"),"save player profiles");
+    manager.set_current_platform("NES");manager.set_current_platform("N64");assign({0,1,2,3});
+    for(int port=1;port<4;++port)require(manager.get_binding(VirtualButton::A,port)->code==sources[port+1] &&
+        !manager.get_binding(VirtualButton::B,port),"saved profile or cleared binding changed");
+    clear();for(int port=1;port<4;++port)require(SDL_JoystickSetVirtualButton(pads[port],sources[port+1],1)==0,"reloaded profile button");profile_capture();
+    // Moving pads changes physical owners, while the player maps stay separate.
+    clear();assign({0,3,1,2});
+    for(int port=1;port<4;++port)require(SDL_JoystickSetVirtualButton(pads[manager.get_controller_for_port(port)],sources[port+1],1)==0,"moved profile button");profile_capture();
+    // An executed wrong mapping must fail the independent expected wire reply.
+    clear();assign({0,1,2,3});manager.set_binding(VirtualButton::A,{InputSourceType::GamepadButton,-1,3,0,false},1);
+    require(SDL_JoystickSetVirtualButton(pads[1],2,1)==0,"wrong profile mapping control");profile_capture();
+    for(int port=1;port<4;++port)manager.reset_port_bindings(port);
+    // Record remapped physical controls, then replay complete states.
     clear();assign({0,1,2,3});
     for(int i=0;i<4;++i) {
-        require(SDL_JoystickSetVirtualButton(pads[i],i%2,1)==0,"movie physical button");
+        if(i>0) {empty_profile(i);manager.set_binding(VirtualButton::A,{InputSourceType::GamepadButton,-1,SDL_CONTROLLER_BUTTON_X,0,false},i);}
+        require(SDL_JoystickSetVirtualButton(pads[i],i>0?2:0,1)==0,"movie remapped physical button");
         require(SDL_JoystickSetVirtualAxis(pads[i],0,i%2?32767:-32768)==0,"movie physical stick");
     }
     pump();app.reset();
@@ -113,7 +171,7 @@ static void local_ports(Application& app,IEmulatorPlugin* core) {
     require(movie->new_movie("four-local-ports.tas",false),"local movie creation");
     for(int n=0;n<6;++n) {
         require(app.step_frame(),"physical local movie recording");
-        const auto frame=movie->get_frame(n);for(int port=0;port<4;++port)require(frame.controller_inputs[port]!=0,"recorded physical port missing");
+        const auto frame=movie->get_frame(n);for(int port=0;port<4;++port)require(frame.controller_inputs[port]==(port%2?0x0050c001u:0x00b0c001u),"recorded remapped canonical word");
         require(state()==states[n+1],"physical recording differs from ordinary complete state");
     }
     movie->stop_recording();require(movie->save_movie(),"local movie save");
@@ -125,7 +183,7 @@ static void local_ports(Application& app,IEmulatorPlugin* core) {
     require(state()!=states.back(),"wrong player-four movie input did not change state");movie->close_movie();
     app.get_gui_manager().show_settings(true);app.get_gui_manager().begin_frame();app.get_gui_manager().render(app,app.get_renderer());app.get_gui_manager().end_frame();
     for(auto* pad:pads)SDL_JoystickClose(pad);
-    std::cout<<cases<<" ordinary SDL/default-input/frontend/native N64 guest cases captured; six four-port physical movie frames and three seeks match full states; executed player-four movie mutation differs\n";
+    std::cout<<cases<<" ordinary SDL/default-input/frontend/native N64 guest cases captured; 3026 remap/persistence cases and executed wrong-profile rejection; six four-port physical movie frames and three seeks match full states; executed player-four movie mutation differs\n";
 #else
     throw std::runtime_error("SDL virtual pads require 2.0.14");
 #endif

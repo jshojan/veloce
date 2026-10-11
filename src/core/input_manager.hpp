@@ -70,9 +70,10 @@ public:
     int get_controller_for_port(int port) const;
 
     // Input binding configuration
-    void set_binding(VirtualButton button, const InputBinding& binding);
-    const InputBinding* get_binding(VirtualButton button) const;
-    void clear_binding(VirtualButton button);
+    void set_binding(VirtualButton button, const InputBinding& binding, int port = 0);
+    const InputBinding* get_binding(VirtualButton button, int port = 0) const;
+    void clear_binding(VirtualButton button, int port = 0);
+    void reset_port_bindings(int port);
     void load_default_bindings();
     void load_default_bindings_for_platform(const std::string& platform);
 
@@ -112,6 +113,9 @@ private:
     void restore_port_assignments(const std::string& connected_guid = {});
     bool is_secondary_controller(int instance_id) const;
     uint32_t default_gamepad_buttons(int index) const;
+    std::unordered_map<VirtualButton, InputBinding> default_port_bindings() const;
+    void reset_secondary_profiles();
+    uint32_t secondary_buttons(int port) const;
     std::string get_config_path(const std::string& platform) const;
 
     // Current button state bitmask
@@ -152,6 +156,8 @@ private:
     std::array<int, 4> m_port_instances{{-1,-1,-1,-1}};
     std::array<ControllerIdentity, 4> m_port_identities{};
     std::array<uint32_t, 4> m_port_buttons{};
+    // Secondary gamepad bindings are relative to the port assignment.
+    std::array<std::unordered_map<VirtualButton, InputBinding>, 4> m_player_bindings;
 
     // Per-platform bindings cache
     std::map<std::string, std::unordered_map<VirtualButton, InputBinding>> m_platform_bindings;

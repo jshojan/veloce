@@ -3816,3 +3816,16 @@ GUID/serial matching. No core ABI/state-format change. Local routing now earns
 the fixed `multiplayer` milestone (N64 50%). Physical controllers, independent
 secondary remapping, accessories and complete native hardware remain pending.
 See [the current implementation and commands](../cores/n64/README.md#four-local-frontend-controller-ports-0510).
+
+## Extra-player frontend button profiles (2026-10-11)
+
+Secondary controls are independently configurable as assigned-gamepad buttons,
+signed axis thresholds or separate keyboard keys, with isolated Clear/Reset and
+per-platform persistence. Native N64 guest SI replies verify 3,026 cases / 18,156
+RAM words: 1,008 button-remap cases, 2,016 axis cases and two persistence/move
+cases. An actual wrong map is rejected; remapped physical four-port native TAS
+recording/playback/seeks match full states and an executed movie mutant differs.
+Hotplug/default-plugin gates verify saved/cleared maps, identity and seven
+malformed profile rejections. No core ABI/state-layout change. These frontend
+checks leave delivery percentages at N64 50%; full native controller accessories,
+analog-axis remapping and physical USB/Bluetooth remain pending.

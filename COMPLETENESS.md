@@ -3758,3 +3758,15 @@ controls. An executed wrong-device assignment is rejected at two port replies.
 Persistence and hotplug use connection ownership and unambiguous saved identity.
 Physical gamepads, independent secondary remapping, full controller accessories,
 whole hardware accuracy and retail playability remain unverified.
+
+## Independent extra-player frontend profiles (2026-10-11)
+
+The ordinary N64 frontend gate now independently grades 3,026 remap/persistence
+cases / 18,156 real guest SI RAM words in addition to its four-port routing
+corpus. Extra-player profiles support device-relative buttons, axis thresholds,
+separate keyboard keys, persistent clearing and isolated reset. Actual SDL
+stimuli are checked before guest execution; an executed wrong map is rejected.
+Remapped four-port TAS inputs and complete recording/playback states match, with
+three seeks and an executed player-four mutation. Full native hardware,
+accessories, analog remapping and physical device validation remain incomplete;
+**N64 stays 50%** of the fixed delivery milestones.
