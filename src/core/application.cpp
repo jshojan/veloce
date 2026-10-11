@@ -73,11 +73,11 @@ void Application::print_usage(const char* program_name) {
 
 void Application::print_version() {
     std::cout << "Veloce v0.1.0\n";
-    std::cout << "Built for speedrunners with cycle-accurate emulation.\n";
-    std::cout << "Supported systems: NES\n";
+    std::cout << "Plugin-based Nintendo emulation; hardware accuracy varies by core.\n";
+    std::cout << "Available systems are discovered from core plugins.\n";
 }
 
-bool Application::parse_command_line(int argc, char* argv[], std::string& rom_path) {
+Application::CommandLineResult Application::parse_command_line(int argc, char* argv[], std::string& rom_path) {
     rom_path.clear();
 
     for (int i = 1; i < argc; i++) {
@@ -85,11 +85,11 @@ bool Application::parse_command_line(int argc, char* argv[], std::string& rom_pa
 
         if (std::strcmp(arg, "-h") == 0 || std::strcmp(arg, "--help") == 0) {
             print_usage(argv[0]);
-            return false;  // Signal to exit
+            return CommandLineResult::Exit;
         }
         else if (std::strcmp(arg, "-v") == 0 || std::strcmp(arg, "--version") == 0) {
             print_version();
-            return false;  // Signal to exit
+            return CommandLineResult::Exit;
         }
         else if (std::strcmp(arg, "-d") == 0 || std::strcmp(arg, "--debug") == 0) {
             m_debug_mode = true;
@@ -98,7 +98,7 @@ bool Application::parse_command_line(int argc, char* argv[], std::string& rom_pa
         else if (arg[0] == '-') {
             std::cerr << "Unknown option: " << arg << "\n";
             std::cerr << "Use --help for usage information.\n";
-            return false;
+            return CommandLineResult::Error;
         }
         else {
             // Assume it's a ROM path
@@ -106,15 +106,16 @@ bool Application::parse_command_line(int argc, char* argv[], std::string& rom_pa
         }
     }
 
-    return true;
+    return CommandLineResult::Run;
 }
 
 bool Application::initialize(int argc, char* argv[]) {
     // Parse command line arguments
     std::string rom_path;
-    if (!parse_command_line(argc, argv, rom_path)) {
+    const auto command_line = parse_command_line(argc, argv, rom_path);
+    if (command_line != CommandLineResult::Run) {
         m_running = false;
-        return true;  // Not an error, just exit gracefully
+        return command_line == CommandLineResult::Exit;
     }
 
     // Test-result channel: VELOCE_TEST_OUT=<path> (see docs/testing/VELOCE-RESULT.md)
@@ -298,6 +299,8 @@ bool Application::initialize(int argc, char* argv[]) {
 }
 
 void Application::run() {
+    // Informational CLI exits do not create managers or initialize SDL.
+    if (!m_running) return;
     // Headless mode - run without GUI for automated testing
     if (m_headless_mode) {
         auto* active_plugin = m_plugin_manager->get_active_plugin();

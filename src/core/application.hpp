@@ -121,7 +121,8 @@ public:
     void on_netplay_chat_message(int player_id, const char* message) override;
 
 private:
-    bool parse_command_line(int argc, char* argv[], std::string& rom_path);
+    enum class CommandLineResult { Run, Exit, Error };
+    CommandLineResult parse_command_line(int argc, char* argv[], std::string& rom_path);
     void print_usage(const char* program_name);
     void print_version();
 
