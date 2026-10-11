@@ -13,7 +13,7 @@ These percentages count the 20 explicit delivery milestones in [the completion l
 
 Nintendo 64 delivered milestones: Guest sound produces audio samples, Native digital controller/keypad registers consume frontend input, Guest graphics produce rendered video, Parse a native cartridge/executable format (boot scored separately), Native local multiplayer/link input routing, Actual production-plugin TCP peers pass original guest oracle and whole-state comparison, Repository-owned ROM source and reproducible archived image, Separate core plugin and ABI entry points, Actual guest register-file output independently graded on the host, with negative controls, Complete states for the implemented profile and deterministic replay.
 
-Remaining: Cached SI/PIF reads refresh digital and signed-byte analog input. The original 65,536-coordinate corpus grades 1,048,576 actual words; frontend selected-stick mapping, neutral dead zone and canonical input recording are verified. Functional one-cycle E4/E5 rectangles share the existing triangle pixel pipeline; A six-billion-attempt Start/A probe reaches Mario, the lives/star HUD and Lakitu tutorial in the courtyard without a terminal CPU exception or RSP/DP stop. A shared private checkpoint now verifies courtyard analog walking, jumping and punching through RAM and neutral controls; 180 legacy quantum movie frames and six seek boundaries match full states. New native sessions advance to VI field boundaries; an original 5,160-case file oracle and 121 native VI movie frames verify scheduling and replay. Legacy states keep the old budget. Exact physical timing and practical normal-speed play remain unverified. Castle entry, menu/level progression and full-title playability remain unverified. All twelve signed/unsigned register/immediate integer trap instructions are implemented; the original 15,728,640-case corpus grades 188,743,680 actual RAM/CP0 words. Complete CPU/CP0/devices, physical FPU/RSP timing, complete RDP/audio, two-cycle pixels and texture LOD, random dithering/noise and CI8 alpha thresholds, physical analog calibration/accessories/presence detection, CIC/EEPROM/Joybus and physical SI timing remain. Production two-player TCP rollback and four virtual digital/analog PIF ports are verified for the implemented profile. Ordinary frontend local multiplayer is independently graded through SDL virtual pads, the default input plugin and original guest SI RAM replies: 194 cases, all 24 device assignments, 14 controls on four ports and signed stick endpoints/dead zone. Extra players now have independent saved button/key/axis profiles relative to assigned devices: 3,026 real guest cases / 18,156 RAM words, with wrong-map rejection and remapped four-port native movies. Physical USB/Bluetooth validation, analog remapping and full native accessories remain.
+Remaining: Cached SI/PIF reads refresh digital and signed-byte analog input. The original 65,536-coordinate corpus grades 1,048,576 actual words; frontend selected-stick mapping, neutral dead zone and canonical input recording are verified. Functional one-cycle E4/E5 rectangles share the existing triangle pixel pipeline; A six-billion-attempt Start/A probe reaches Mario, the lives/star HUD and Lakitu tutorial in the courtyard without a terminal CPU exception or RSP/DP stop. A shared private checkpoint now verifies courtyard analog walking, jumping and punching through RAM and neutral controls; 180 legacy quantum movie frames and six seek boundaries match full states. New native sessions advance to VI field boundaries; an original 5,160-case file oracle and 121 native VI movie frames verify scheduling and replay. Legacy states keep the old budget. Exact physical timing and practical normal-speed play remain unverified. Castle entry, menu/level progression and full-title playability remain unverified. All twelve signed/unsigned register/immediate integer trap instructions are implemented; the original 15,728,640-case corpus grades 188,743,680 actual RAM/CP0 words. Twenty-eight doubleword integer/LWU families now enforce User/Supervisor mode restrictions; the original 5,768,792-case mapped guest corpus grades 69,225,504 RAM/CP0 words, with executed NOP rejection and native rollback. Complete CPU/CP0/devices, physical FPU/RSP timing, complete RDP/audio, two-cycle pixels and texture LOD, random dithering/noise and CI8 alpha thresholds, physical analog calibration/accessories/presence detection, CIC/EEPROM/Joybus and physical SI timing remain. Production two-player TCP rollback and four virtual digital/analog PIF ports are verified for the implemented profile. Ordinary frontend local multiplayer is independently graded through SDL virtual pads, the default input plugin and original guest SI RAM replies: 194 cases, all 24 device assignments, 14 controls on four ports and signed stick endpoints/dead zone. Extra players now have independent saved button/key/axis profiles relative to assigned devices: 3,026 real guest cases / 18,156 RAM words, with wrong-map rejection and remapped four-port native movies. Physical USB/Bluetooth validation, analog remapping and full native accessories remain.
 <!-- completion:end -->
 
 `n64_plugin` builds `n64.so`/`n64.dll`/`n64.dylib` and implements emulator ABI v2.
@@ -3671,3 +3671,38 @@ and N64 movies/checkpoints, native controller/analog/state tests and production
 two-peer TCP netplay. Full Release build, completion renderer and whitespace
 checks pass. Existing original cartridge archives are unchanged; all new runtime
 captures stay ignored. GitHub Actions remains disabled.
+
+## 64-bit integer mode restrictions (0.52.0)
+
+Doubleword shifts, multiply/divide, add/subtract, loads/stores/merges and linked
+forms, plus LWU, now raise reserved-instruction code 10 in 32-bit User and
+Supervisor modes before arithmetic, address translation or data access. Kernel32
+remains legal. User and Supervisor use their own UX/SX flag; unrelated KX/UX/SX
+flags do not grant access. EXL/ERL force kernel execution. This follows
+[NEC VR4300 chapter 16](https://hack64.net/docs/VR43XX.pdf), including DADD p.409,
+LD p.441 and LWU p.467. No core ABI, S031 state layout or capacity change.
+
+The original [mode-restriction cartridge](../../tests/roms-src/n64/doubleword_privilege/README.md)
+executes **5,768,792 cases / 69,225,504 actual RAM/CP0 words** through mapped low
+code, a real handler and ERET. It covers all sixteen-bit immediates of eleven
+major opcodes, every five-bit immediate shift, four blocked Status profiles and
+ordinary/actual taken-delay execution. Twelve records and complete states match
+ordinary and fast rollback. An executed NOP substitution is rejected in all
+3,032 short cases; result/sequence faults and six malformed streams are rejected.
+
+The component gate checks **37,186,848 observations**: all SPECIAL operand
+payloads for 17 functions in both blocked modes, every major-opcode immediate,
+all base/target allocations at selected offsets, extension/BEV/delay metadata
+and all valid privilege/extension/EXL/ERL combinations. Rejected operations
+preserve GPRs, HI/LO, LLbit and BadVAddr and perform no data access. This is not
+every numerical operand or precise physical exception timing. Full CPU/CP0/COP1
+rights, 32-bit effective-address normalization outside linked helpers, hardware
+and full-title retail playability remain unfinished; **N64 stays 50%**.
+
+Verification: **14 selected gates pass**, combining the 13 successful CPU/
+controller/native movie/state/TCP gates with the corrected machine gate. That
+gate still expected the historical single-port layout; its assertion now checks
+the verified four-port contract. Private SM64 native VI walking/jumping/punching
+and stationary controls pass on 0.52.0. All **134 original archives** reproduce;
+full Release build, completion renderer and whitespace checks pass. CI/CD stays
+removed and GitHub Actions disabled. Artifacts are documented with the cartridge.

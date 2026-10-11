@@ -446,7 +446,7 @@ static void serial_plugin(const char* library, const char* path) {
     std::vector<uint8_t> rom((std::istreambuf_iterator<char>(file)), {});
     emulator_test::LoadedCore core(library, rom);
     const auto* layout = core.plugin->get_controller_layout();
-    require(layout && layout->button_count==14 && layout->controller_count==1, "N64 plugin controls wrong");
+    require(layout && layout->button_count==14 && layout->controller_count==4, "N64 plugin controls wrong");
     using emu::VirtualButton;
     core.plugin->run_frame({emu::button_to_mask(VirtualButton::A)});
     std::vector<uint8_t> saved, baseline, replay;
