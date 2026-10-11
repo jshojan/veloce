@@ -25,6 +25,10 @@ Full platform completion is unknown.
 - All sixteen ARM data-processing operations: AND/EOR/SUB/RSB/ADD/ADC/SBC/RSC,
   TST/TEQ/CMP/CMN, ORR/MOV/BIC/MVN. Register/immediate operands, NZCV flags,
   carry/borrow, signed overflow, flag-preserving forms and source aliases.
+- ARM9 QADD/QSUB/QDADD/QDSUB: signed saturation at each stage, sticky Q,
+  NZCV preservation, conditional execution and source/destination aliases. ARM7
+  and PC operands stop diagnostically; physical exception behavior is pending.
+  See the [original saturating register corpus](../../tests/roms-src/nds/saturating_registers/README.md).
 - MUL/MLA and signed/unsigned long multiplication/accumulation: both result
   words, modulo accumulation, S set/clear, N/Z and preserved defined flags.
   ARM7 unpredictable multiply flags are retained as a model choice.

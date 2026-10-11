@@ -70,6 +70,27 @@ void Arm::step() {
             reversal==0x06bf0fb0 ? pairs:(pairs&0xffffu)|((pairs&0x8000u)?0xffff0000u:0);
         s.r[15]=pc+4; return;
     }
+    // ARMv5TE signed saturation. The doubled operand saturates before the
+    // final add/subtract; either stage sets sticky Q without changing NZCV.
+    if((ins&0x0f900ff0u)==0x01000050u) {
+        const unsigned op=(ins>>21)&3,rn=(ins>>16)&15,rd=(ins>>12)&15,rm=ins&15;
+        if(!v5 || rn==15 || rd==15 || rm==15) { s.unsupported=true; return; }
+        const auto signed_value=[](uint32_t value)->int64_t {
+            return value&0x80000000u ? int64_t(value)-0x100000000LL:value;
+        };
+        bool saturated=false;
+        const auto saturate=[&](int64_t value)->int64_t {
+            if(value>0x7fffffffLL) { saturated=true; return 0x7fffffffLL; }
+            if(value< -0x80000000LL) { saturated=true; return -0x80000000LL; }
+            return value;
+        };
+        const int64_t left=signed_value(s.r[rm]);
+        int64_t right=signed_value(s.r[rn]);
+        if(op&2) right=saturate(right*2);
+        s.r[rd]=uint32_t(saturate((op&1) ? left-right:left+right));
+        if(saturated) s.cpsr|=0x08000000u;
+        s.r[15]=pc+4; return;
+    }
     if((ins&0x0ffffff0)==0x012fff10 || (ins&0x0ffffff0)==0x012fff30) {
         const bool link=ins&0x20;
         if(link && (!v5 || (ins&15)==15)) { s.unsupported=true; return; }

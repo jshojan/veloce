@@ -1372,3 +1372,12 @@ if(VELOCE_XVFB_RUN)
         --artifacts ${CMAKE_BINARY_DIR}/artifacts/tas_frontend --xvfb ${VELOCE_XVFB_RUN})
     set_tests_properties(tas_frontend_test PROPERTIES LABELS "integration" TIMEOUT 100)
 endif()
+
+add_executable(arm_saturation_decode_test cpp/arm_saturation_decode_test.cpp ${CMAKE_SOURCE_DIR}/cores/nds/src/arm.cpp)
+target_include_directories(arm_saturation_decode_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/nds/src)
+add_test(NAME arm_saturation_decode_test COMMAND arm_saturation_decode_test)
+set_tests_properties(arm_saturation_decode_test PROPERTIES LABELS "unit;fast")
+add_test(NAME nds_saturating_registers COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/nds/saturating_registers/run.py --emulator $<TARGET_FILE:veloce>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/nds_saturating)
+set_tests_properties(nds_saturating_registers PROPERTIES LABELS "accuracy;owned" TIMEOUT 1800)

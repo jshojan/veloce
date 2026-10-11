@@ -23,7 +23,9 @@ software and firmware do not boot. Overall platform completion is unknown.**
 
 ## Implemented profile
 
-- Existing [ARM9/ARM7 integer subset](../nds/README.md), separate CPU state,
+- Existing [ARM9/ARM7 integer subset](../nds/README.md), including ARM9
+  QADD/QSUB/QDADD/QDSUB from the shared decoder (original corpus graded on DS),
+  separate CPU state,
   deterministic scheduling and synthetic `dsdebug` register transport.
 - 16 MiB main RAM, 32 KiB legacy shared WRAM and 64 KiB ARM7 private WRAM.
 - SCFG_EXT memory-size bits 14–15 at `04004008`, propagated from ARM9 to ARM7.
