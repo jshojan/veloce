@@ -1,4 +1,5 @@
 #include "core/input_manager.hpp"
+#include "emu/input_plugin.hpp"
 #include <SDL.h>
 #include <filesystem>
 #include <iostream>
@@ -23,11 +24,44 @@ static int attach() {
     return index;
 }
 
+struct MappedHost final : emu::IInputHost, emu::IMappedInputHost {
+    emu::InputManager& input;
+    explicit MappedHost(emu::InputManager& i):input(i) {}
+    uint64_t get_frame_number() const override{return 0;}
+    const char* get_platform_name() const override{return input.get_current_platform().c_str();}
+    int get_controller_count() const override{return 1;}
+    bool is_key_pressed(int c) const override{return input.is_key_pressed(c);}
+    bool is_gamepad_button_pressed(int c,int b) const override{return input.is_gamepad_button_pressed(c,b);}
+    float get_gamepad_axis(int c,int a) const override{return input.get_gamepad_axis(c,a);}
+    int get_connected_controller_count() const override{return input.get_connected_controller_count();}
+    emu::ControllerInfo get_controller_info(int) const override{return {-1,"",false,0,0,0};}
+    uint32_t get_mapped_input(int c) const override{return c==0?input.get_button_state():0;}
+    bool get_mapped_binding(int c,emu::VirtualButton button,emu::InputBinding& binding) const override{
+        auto* b=input.get_binding(button);if(c || !b)return false;binding=*b;
+        if(binding.type!=emu::InputSourceType::Keyboard && binding.device_id>=0){
+            int instance=binding.device_id;binding.device_id=-2;
+            for(int i=0;i<input.get_connected_controller_count();++i)if(input.get_controller_instance_id(i)==instance){binding.device_id=i;break;}
+        }
+        return true;
+    }
+};
+
 static void pump(emu::InputManager& input) {
     SDL_JoystickUpdate();
     SDL_Event event;
     while (SDL_PollEvent(&event)) input.process_event(event);
     input.update();
+    MappedHost host(input);
+    auto* plugin=create_input_plugin();
+    require(plugin->initialize(&host), "mapped plugin initialization failed");
+    plugin->begin_frame();
+    const auto state=plugin->get_input_state(0);
+    for(unsigned i=0;i<static_cast<unsigned>(emu::VirtualButton::COUNT);++i){
+        auto button=static_cast<emu::VirtualButton>(i);auto* b=input.get_binding(button);
+        if(b){emu::InputBinding expected{};host.get_mapped_binding(0,button,expected);auto actual=plugin->get_binding(0,button);require(actual==expected && actual.axis_threshold==expected.axis_threshold && actual.axis_positive==expected.axis_positive,"plugin binding differs from saved profile");}
+    }
+    plugin->shutdown();destroy_input_plugin(plugin);
+    require(state==input.get_button_state(), "default plugin lost mapped hot-plug/profile input");
 }
 #endif
 

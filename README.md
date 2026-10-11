@@ -172,8 +172,11 @@ The frame loop drives the selected `IAudioPlugin` for both streaming and
 frame-end audio. The host resamples processed stereo floats to the SDL device;
 volume/mute, source-rate changes, plugin replacement and rollback suppression
 have executed checks. See [audio integration evidence](plugins/audio_default/README.md#frontend-integration).
-Input currently uses the built-in manager; separate `IInputPlugin` routing
-remains unfinished. Netplay and game plugins are driven by the frontend;
+The selected `IInputPlugin` now supplies frame input. Default Input preserves
+the built-in manager’s saved controller profiles and applies plugin overrides,
+turbo and recording/playback. Local play and netplay read one cached sample per
+logical frame. See [input integration evidence](plugins/input_default/README.md#frontend-integration).
+Alternate TAS plugin routing remains unfinished. Netplay and game plugins are driven by the frontend;
 netplay support depends on the active core's implemented interface and profile.
 Physical controller and audio-device validation remains pending.
 

@@ -236,6 +236,14 @@ bool Application::initialize(int argc, char* argv[]) {
     std::filesystem::path plugin_config_path = m_paths_config->get_config_directory() / "plugins.json";
     m_plugin_manager->load_config(plugin_config_path.string());
 
+    if (m_input_manager) {
+        m_plugin_manager->set_input_host(this);
+        const auto selected = m_plugin_manager->get_selected_plugin_name(PluginType::Input);
+        if (!m_plugin_manager->set_active_plugin(PluginType::Input, selected)) {
+            std::cerr << "Input plugin unavailable; using mapped device input\n";
+        }
+    }
+
     if (m_audio_manager) {
         m_audio_pipeline = std::make_unique<AudioPipeline>(
             [this](const float* samples, size_t count, int rate) {
@@ -269,6 +277,7 @@ bool Application::initialize(int argc, char* argv[]) {
     // instance and creates a new one). Without this, m_netplay_capable_plugin
     // keeps pointing at the destroyed instance while netplay stays connected.
     m_plugin_manager->on_plugin_changed([this](PluginType type, const std::string&) {
+        if (type == PluginType::Input || type == PluginType::Emulator) m_input_sample_valid = false;
         if (type == PluginType::Emulator) {
             update_netplay_cache();
         }
@@ -665,6 +674,7 @@ void Application::process_events() {
                             if (event.key.keysym.mod & KMOD_SHIFT) {
                                 // Load state (Shift+F1-F10)
                                 if (m_savestate_manager->load_state(slot)) {
+                                    reset_input_timeline();
                                     msg << "State loaded from slot " << (slot + 1);
                                     notifications.success(msg.str());
                                     std::cout << msg.str() << std::endl;
@@ -713,6 +723,7 @@ void Application::run_emulation_frame() {
     if (session && session->owns_frame_execution() &&
         session->get_connection_state() == NetplayConnectionState::Connecting) return;
 
+    sample_input();
     m_audio_pipeline->begin_frame();
 
     // Cached connection status is updated by session callbacks.
@@ -722,7 +733,7 @@ void Application::run_emulation_frame() {
         auto* netplay = m_plugin_manager->get_netplay_plugin();
         if (netplay) {
             if (netplay->owns_frame_execution()) {
-                if (!netplay->execute_frame(m_input_manager->get_button_state())) return;
+                if (!netplay->execute_frame(get_local_input(0))) return;
             } else {
                 // Netplay mode: use synchronized input
                 if (!netplay->begin_frame()) {
@@ -754,7 +765,7 @@ void Application::run_emulation_frame() {
     } else {
         // Normal single-player execution
         InputState input;
-        input.buttons = m_input_manager->get_button_state();
+        input.buttons = get_local_input(0);
         plugin->run_frame(input);
     }
 
@@ -836,6 +847,7 @@ bool Application::load_rom(const std::string& path, bool preserve_selected_core)
 
             // Set the controller layout (this also updates the platform)
             m_input_manager->set_controller_layout(layout);
+            if (auto* input = m_plugin_manager->get_input_plugin()) input->set_controller_layout(layout);
         }
 
         // Update window title
@@ -863,6 +875,8 @@ bool Application::load_rom(const std::string& path, bool preserve_selected_core)
         }
     }
 
+    reset_input_timeline();
+
     // Unpause emulation - audio will start automatically once buffer is ready
     // This prevents initial audio crackling from buffer underruns
     m_paused = false;
@@ -885,6 +899,7 @@ void Application::resume() {
 }
 
 void Application::reset() {
+    reset_input_timeline();
     if (auto* netplay = m_plugin_manager->get_netplay_plugin()) netplay->disconnect();
     auto* plugin = m_plugin_manager->get_active_plugin();
     if (plugin && plugin->is_rom_loaded()) {
@@ -1052,6 +1067,7 @@ bool Application::load_state_from_buffer(const std::vector<uint8_t>& buffer) {
     auto* netplay_capable = get_netplay_capable_emulator();
     if (netplay_capable) {
         if (netplay_capable->load_state_fast(buffer.data(), buffer.size())) {
+            if (auto* session = m_plugin_manager->get_netplay_plugin(); !session || !session->is_rolling_back()) reset_input_timeline();
             m_plugin_manager->notify_game_plugins_state_loaded();
             return true;
         }
@@ -1059,6 +1075,7 @@ bool Application::load_state_from_buffer(const std::vector<uint8_t>& buffer) {
 
     // Fall back to standard load state
     if (emulator->load_state(buffer)) {
+        if (auto* session = m_plugin_manager->get_netplay_plugin(); !session || !session->is_rolling_back()) reset_input_timeline();
         m_plugin_manager->notify_game_plugins_state_loaded();
         return true;
     }
@@ -1072,12 +1089,64 @@ void Application::set_controller_input(int controller, uint32_t buttons) {
     (void)buttons;
 }
 
-uint32_t Application::get_local_input(int controller) const {
-    if (m_input_manager && controller == 0) {
-        return m_input_manager->get_button_state();
+void Application::reset_input_timeline() {
+    m_input_sample_valid = false;
+    if (auto* input = m_plugin_manager ? m_plugin_manager->get_input_plugin() : nullptr) {
+        input->stop_recording();
+        input->stop_playback();
     }
-    return 0;
 }
+
+void Application::sample_input() {
+    const auto frame = get_frame_number();
+    if (m_input_sample_valid && m_input_sample_frame == frame) return;
+    m_input_sample_frame = frame;
+    m_input_sample_valid = true;
+    m_input_samples.fill(0);
+    auto* input = m_plugin_manager->get_input_plugin();
+    if (input) input->begin_frame();
+    for (int controller = 0; controller < get_controller_count() && controller < 4; ++controller) {
+        m_input_samples[controller] = input ? input->get_input_state(controller) : get_mapped_input(controller);
+    }
+}
+
+uint32_t Application::get_local_input(int controller) const {
+    if (!m_input_manager || m_input_manager->is_input_capture_mode() || controller < 0 || controller >= 4) return 0;
+    return m_input_sample_valid ? m_input_samples[controller] : get_mapped_input(controller);
+}
+uint64_t Application::get_frame_number() const { return get_frame_count(); }
+int Application::get_controller_count() const {
+    auto* core = m_plugin_manager ? m_plugin_manager->get_active_plugin() : nullptr;
+    auto* layout = core ? core->get_controller_layout() : nullptr;
+    return layout ? std::clamp(layout->controller_count, 1, 4) : 1;
+}
+bool Application::is_key_pressed(int code) const { return m_input_manager && !m_input_manager->is_input_capture_mode() && m_input_manager->is_key_pressed(code); }
+bool Application::is_gamepad_button_pressed(int controller, int button) const { return m_input_manager && !m_input_manager->is_input_capture_mode() && m_input_manager->is_gamepad_button_pressed(controller, button); }
+float Application::get_gamepad_axis(int controller, int axis) const { return m_input_manager && !m_input_manager->is_input_capture_mode() ? m_input_manager->get_gamepad_axis(controller, axis) : 0.0f; }
+int Application::get_connected_controller_count() const { return m_input_manager ? m_input_manager->get_connected_controller_count() : 0; }
+ControllerInfo Application::get_controller_info(int index) const {
+    if (index < 0 || index >= get_connected_controller_count()) return {-1,"",false,0,0,0};
+    m_controller_names.resize(get_connected_controller_count());
+    m_controller_names[index] = m_input_manager->get_controller_name(index);
+    return {index,m_controller_names[index].c_str(),true,SDL_CONTROLLER_BUTTON_MAX,SDL_CONTROLLER_AXIS_MAX,0};
+}
+bool Application::get_mapped_binding(int controller, VirtualButton button, InputBinding& binding) const {
+    if (!m_input_manager || controller != 0) return false;
+    const auto* mapped = m_input_manager->get_binding(button);
+    if (!mapped) return false;
+    binding = *mapped;
+    // GUI profiles persist SDL instance identities; plugin raw polling uses
+    // connected-device indices. Translate only this API view of the binding.
+    if (binding.type != InputSourceType::Keyboard && binding.device_id >= 0) {
+        const int instance = binding.device_id;
+        binding.device_id = -2; // disconnected, never a wildcard
+        for (int i = 0; i < get_connected_controller_count(); ++i) {
+            if (m_input_manager->get_controller_instance_id(i) == instance) { binding.device_id = i; break; }
+        }
+    }
+    return true;
+}
+uint32_t Application::get_mapped_input(int controller) const { return m_input_manager && controller == 0 ? m_input_manager->get_button_state() : 0; }
 
 const char* Application::get_config_directory() const {
     if (m_paths_config) {

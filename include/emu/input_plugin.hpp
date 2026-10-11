@@ -61,6 +61,17 @@ public:
     virtual ControllerInfo get_controller_info(int index) const = 0;
 };
 
+// Optional host capability: frontend bindings already resolve persistent device
+// identities, per-platform profiles and mapping capture. Separate from IInputHost
+// so ABI v1 retains its original vtable. Default Input applies overrides/turbo
+// and recording to this mapped state; other plugins can use raw polling.
+class IMappedInputHost {
+public:
+    virtual ~IMappedInputHost() = default;
+    virtual uint32_t get_mapped_input(int controller) const = 0;
+    virtual bool get_mapped_binding(int controller, VirtualButton button, InputBinding& binding) const { return false; }
+};
+
 // Input plugin interface
 class IInputPlugin {
 public:
