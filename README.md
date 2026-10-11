@@ -41,6 +41,7 @@ These are finite documented domains; **3DS remains 30%** of the delivery checkli
 | [Halfword packing and unsigned byte differences](tests/roms-src/3ds/pack_difference_registers/README.md) | 18,874,368 | 150,994,944 |
 | [UMAAL and signed high-word multiply/rounding](tests/roms-src/3ds/wide_media_multiply_registers/README.md) | 7,340,032 | 73,400,320 |
 | [Dual-halfword multiply, exchange and accumulation](tests/roms-src/3ds/dual_media_multiply_registers/README.md) | 12,582,912 | 125,829,120 |
+| [ARM11 exclusive memory and CLREX](tests/roms-src/3ds/exclusive_memory/README.md) | 5,242,880 | 52,428,800 |
 
 Full CPU/system/MMU/exception/privilege behavior, physical timing, native firmware/
 retail boot, graphics/audio and analog/touch/wireless devices remain unfinished.
@@ -280,7 +281,7 @@ corrects host input, with complete states and eight guest words matching a
 remains pending. Reports remain in `build/artifacts/netplay-nds/`.
 DSi and 3DS also pass production host/viewer replay. The 3DS probe grades
 twelve guest words from both ARM11 contexts and ARM9; both peers match the
-complete 135,791,096-byte baseline. This mirrors one 3DS instance; wireless
+complete 135,791,128-byte baseline. This mirrors one 3DS instance; wireless
 multiplayer is pending. Full rollback states use substantial memory (~1.14 GiB
 per peer at window 8, plus the core). Reports are in
 `build/artifacts/netplay-3ds/`; see [scope and usage](cores/3ds/README.md).
@@ -542,7 +543,7 @@ subset, not whole-core completion.
 | [Switch multiply/divide](tests/roms-src/switch/muldiv_registers/README.md) | 2,071,552 rows / 12,429,312 words matched across 14 forms, both widths and boundary/repeated-byte operands; 33,147,520 component snapshots; physical hardware timing pending | `build/artifacts/owned/switch_muldiv/` |
 | [Switch AArch64 arithmetic](tests/roms-src/switch/arithmetic_registers/README.md) | 1,572,864 observations / 7,864,320 actual words matched across six forms, both widths and carry values; 13,877,248 integer component cases; native hardware scope incomplete | `build/artifacts/owned/switch_arithmetic/` |
 | [Wii U netplay probe](tests/roms-src/wiiu/netplay_probe/README.md) | 100-frame independent TCP peers match complete canonical states and twelve guest words, including high-RAM readbacks; host original input/viewer; native GamePad pending | `build/artifacts/netplay-wiiu/` |
-| [3DS netplay probe](tests/roms-src/3ds/netplay_probe/README.md) | 100-frame independent TCP peers match full 135,791,096-byte states and twelve guest words; host HID/viewer; wireless multiplayer pending | `build/artifacts/netplay-3ds/` |
+| [3DS netplay probe](tests/roms-src/3ds/netplay_probe/README.md) | 100-frame independent TCP peers match full 135,791,128-byte states and twelve guest words; host HID/viewer; wireless multiplayer pending | `build/artifacts/netplay-3ds/` |
 | [DSi netplay probe](tests/roms-src/dsi/netplay_probe/README.md) | 100-frame independent TCP peers match full baseline states and eight guest register words; host keypad/viewer, wireless multiplayer pending | `build/artifacts/netplay-dsi/` |
 | [Nintendo DS long calls](tests/roms-src/nds/long_calls/README.md) | 9,437,184/9,437,184 eight-word snapshots matched: adjacent BL/ARM9 BLX pairs, every high and valid low field individually, both halfword positions, all NZCV/ARM9 Q; physical cache coherence/timing pending | `build/artifacts/owned/nds_long_calls/` |
 | [Nintendo DS stack/block registers](tests/roms-src/nds/multiple_registers/README.md) | 3,720,960/3,720,960 twenty-five-word snapshots matched: every defined list/base encoding, sixteen register/memory seeds, all NZCV/ARM9 Q and POP-PC target states; physical abort/timing pending | `build/artifacts/owned/nds_multiple/` |

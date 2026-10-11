@@ -6,6 +6,10 @@ struct Memory {
     virtual ~Memory()=default;
     virtual bool read(uint32_t address,unsigned bytes,uint32_t& value)=0;
     virtual bool write(uint32_t address,unsigned bytes,uint32_t value)=0;
+    // The bus owner owns reservations and indivisible conditional stores.
+    virtual bool load_exclusive(uint32_t,unsigned,uint64_t&) { return false; }
+    virtual bool store_exclusive(uint32_t,unsigned,uint64_t,uint32_t&) { return false; }
+    virtual bool clear_exclusive() { return false; }
 };
 struct ArmState {
     std::array<uint32_t,16> r{};

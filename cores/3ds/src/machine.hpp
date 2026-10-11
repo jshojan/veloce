@@ -1,5 +1,6 @@
 #pragma once
 #include "../../nds/src/arm.hpp"
+#include "exclusive.hpp"
 #include "emu/emulator_plugin.hpp"
 #include <vector>
 namespace ctr {
@@ -9,6 +10,9 @@ class Machine {
         Bus(Machine& machine,unsigned cpu):owner(machine),id(cpu) {}
         bool read(uint32_t a,unsigned w,uint32_t& v) override { return owner.read(id,a,w,v); }
         bool write(uint32_t a,unsigned w,uint32_t v) override { return owner.write(id,a,w,v); }
+        bool load_exclusive(uint32_t a,unsigned w,uint64_t& v) override {return owner.load_exclusive(id,a,w,v);}
+        bool store_exclusive(uint32_t a,unsigned w,uint64_t v,uint32_t& status) override {return owner.store_exclusive(id,a,w,v,status);}
+        bool clear_exclusive() override {if(id>=2)return false;owner.exclusive.clear(id);return true;}
     } bus0,bus1,bus9;
 public:
     Machine():bus0(*this,0),bus1(*this,1),bus9(*this,2),arm0(bus0,true,true),arm1(bus1,true,true),arm9(bus9,true),
@@ -19,7 +23,10 @@ public:
     void set_input(uint32_t buttons);
     bool read(unsigned cpu,uint32_t address,unsigned width,uint32_t& value);
     bool write(unsigned cpu,uint32_t address,unsigned width,uint32_t value);
-    size_t state_size() const { return 504+fcram.size()+axi.size()+private9.size(); }
+    bool load_exclusive(unsigned id,uint32_t address,unsigned width,uint64_t& value);
+    bool store_exclusive(unsigned id,uint32_t address,unsigned width,uint64_t value,uint32_t& status);
+    Exclusive exclusive;
+    size_t state_size() const { return 536+fcram.size()+axi.size()+private9.size(); }
     size_t save_into(uint8_t*,size_t) const;
     bool restore(const uint8_t*,size_t);
     uint64_t state_hash() const;

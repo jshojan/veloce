@@ -57,6 +57,10 @@ void Arm::step() {
     const uint32_t pc=s.r[15]; uint32_t ins=0;
     if((pc&3) || !bus.read(pc,4,ins)) { s.unsupported=true; return; }
     const unsigned cond=ins>>28;
+    if(ins==0xf57ff01fu) {
+        if(!v6 || !bus.clear_exclusive()){s.unsupported=true;return;}
+        s.r[15]=pc+4;return;
+    }
     if(cond==15 && v5) {
         if((ins&0xfe000000u)!=0xfa000000u) { s.unsupported=true; return; }
         // BLX immediate is unconditional. H supplies target bit one; the
@@ -69,6 +73,29 @@ void Arm::step() {
     }
     if(!condition(cond,s.cpsr)) { s.r[15]=pc+4; return; }
     const auto operand=[&](unsigned reg,bool late=false) { return reg==15 ? pc+(late ? 12:8):s.r[reg]; };
+    const bool exclusive_load=(ins&0x0f900fffu)==0x01900f9fu;
+    const bool exclusive_store=(ins&0x0f900ff0u)==0x01800f90u;
+    if(exclusive_load || exclusive_store){
+        const unsigned kind=(ins>>21)&3,width=kind==0?4:kind==1?8:kind==2?1:2;
+        const unsigned rn=(ins>>16)&15,rd=(ins>>12)&15,rm=ins&15;
+        if(!v6 || rn==15 || rd==15 ||
+           (exclusive_load && width==8 && ((rd&1) || rd>=14)) ||
+           (exclusive_store && (rm==15 || rd==rn || rd==rm ||
+             (width==8 && ((rm&1) || rm>=14 || rd==rm+1))))){s.unsupported=true;return;}
+        const uint32_t address=s.r[rn];
+        // CP15 alignment controls and precise data aborts are still pending;
+        // this supplied profile diagnoses misaligned exclusive accesses.
+        if(address&(width-1)){s.unsupported=true;return;}
+        if(exclusive_load){
+            uint64_t value=0;if(!bus.load_exclusive(address,width,value)){s.unsupported=true;return;}
+            s.r[rd]=uint32_t(value);if(width==8)s.r[rd+1]=uint32_t(value>>32);
+        }else{
+            const uint64_t value=width==8?(uint64_t(s.r[rm+1])<<32)|s.r[rm]:s.r[rm];
+            uint32_t status=0;if(!bus.store_exclusive(address,width,value,status)){s.unsupported=true;return;}
+            s.r[rd]=status;
+        }
+        s.r[15]=pc+4;return;
+    }
     // ARMv6 parallel arithmetic: GE belongs only to the wrapping families.
     // Parallel saturation preserves Q; halving keeps the extra arithmetic bit.
     if((ins&0x0f800010u)==0x06000010u) {

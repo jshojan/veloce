@@ -6,7 +6,7 @@ class Plugin final:public emu::IEmulatorPlugin, public emu::INetplayCapable {
 public:
     emu::EmulatorInfo get_info() override {
         static const char* extensions[]={".v3ds",nullptr};
-        return {"3DS","0.8.0","Veloce","Experimental original ARM11/ARM9 integer programs with ARM11 ARMv6 dual-halfword multiply/exchange/accumulate and UMAAL and signed high-word multiply/rounding, PKHBT/PKHTB, USAD8/USADA8, parallel arithmetic/SEL, SSAT/USAT and dual-halfword saturation plus signed/unsigned extend-and-add and Thumb extension; firmware, graphics/audio and most hardware pending.",extensions,60,0,400,480};
+        return {"3DS","0.9.0","Veloce","Experimental original ARM11/ARM9 integer programs with ARM11 byte/halfword/word/doubleword exclusive loads/stores and CLREX and ARM11 ARMv6 dual-halfword multiply/exchange/accumulate and UMAAL and signed high-word multiply/rounding, PKHBT/PKHTB, USAD8/USADA8, parallel arithmetic/SEL, SSAT/USAT and dual-halfword saturation plus signed/unsigned extend-and-add and Thumb extension; firmware, graphics/audio and most hardware pending.",extensions,60,0,400,480};
     }
     const emu::ControllerLayoutInfo* get_controller_layout() override {
         using emu::VirtualButton;
@@ -39,7 +39,10 @@ public:
     emu::AudioBuffer get_audio() override { return {nullptr,0,48000}; }
     void clear_audio_buffer() override {}
     uint8_t read_memory(uint16_t address) override { return machine.fcram[address]; }
-    void write_memory(uint16_t address,uint8_t value) override { machine.fcram[address]=value; }
+    void write_memory(uint16_t address,uint8_t value) override {
+        machine.exclusive.invalidate(0x20000000u+address,1);
+        machine.fcram[address]=value;
+    }
     bool save_state(std::vector<uint8_t>& state) override { return machine.save(state); }
     bool load_state(const std::vector<uint8_t>& state) override { return machine.restore(state); }
     int get_max_players() const override { return 1; }

@@ -162,7 +162,7 @@ int main(int argc,char** argv) {
         require(std::string(info.name)=="3DS" && std::string(info.file_extensions[0])==".v3ds","3DS plugin identity");
         const auto* layout=plugin.get_controller_layout();require(layout && std::string(layout->platform_name)=="3DS" && layout->button_count==12,"3DS controller layout");
         plugin.run_frame({0xfff});for(unsigned id=0;id<3;++id) require(plugin.read_memory(0x10+id*4)==id,"plugin three-context capture");
-        std::vector<uint8_t> prefix,final,replay;require(plugin.save_state(prefix) && prefix.size()==135791096,"3DS plugin complete state size");
+        std::vector<uint8_t> prefix,final,replay;require(plugin.save_state(prefix) && prefix.size()==135791128,"3DS plugin complete state size");
         auto& netplay=loaded.netplay();require(netplay.get_max_players()==1 && netplay.is_deterministic() && netplay.get_max_state_size()==prefix.size(),"3DS netplay identity");
         require(emulator_test::snapshot(netplay)==prefix && netplay.get_state_hash()==reference_hash(prefix),"plugin canonical fast state/hash");
         require(!netplay.load_state_fast(nullptr,prefix.size()) && !netplay.load_state_fast(prefix.data(),prefix.size()-1),"plugin invalid fast load");

@@ -11,17 +11,18 @@ These percentages count the 20 explicit delivery milestones in [the completion l
 
 Nintendo 3DS delivered milestones: Native digital controller/keypad registers consume frontend input, Actual production-plugin TCP peers pass original guest oracle and whole-state comparison, Repository-owned ROM source and reproducible archived image, Separate core plugin and ABI entry points, Actual guest register-file output independently graded on the host, with negative controls, Complete states for the implemented profile and deterministic replay.
 
-Remaining: ARM11 ARMv6 dual-halfword multiply/exchange/accumulate, UMAAL/high-word multiply, packing/absolute differences, parallel arithmetic/SEL, extension/accumulate and saturation now have original independently graded register images, flags/alias/profile controls and native checkpoint continuations. The new dual multiply image checks 12,582,912 snapshots / 125,829,120 register words. Remaining CPU/MMU, firmware/native formats, graphics/audio, analog/touch and wireless multiplayer remain.
+Remaining: ARM11 ARMv6 dual-halfword multiply/exchange/accumulate, UMAAL/high-word multiply, packing/absolute differences, parallel arithmetic/SEL, extension/accumulate, saturation and exclusive memory/CLREX now have original independently graded register or memory images and finite profile controls. The exclusive image checks 5,242,880 snapshots / 52,428,800 actual words across both ARM11 contexts; the new state includes reservation monitors and accepts legacy states with empty monitors. Remaining CPU/MMU/cache/physical coherence, firmware/native formats, graphics/audio, analog/touch and wireless multiplayer remain.
 <!-- completion:end -->
 
 `ctr_plugin` builds `3ds.so` (or the platform library equivalent), ABI v2,
-version 0.8.0. The separately loadable core executes repository-owned `.v3ds`
+version 0.9.0. The separately loadable core executes repository-owned `.v3ds`
 integer programs on two ARM11 contexts and one ARM9 context. **Native 3DS
 software and firmware do not boot. Complete hardware behavior remains unverified.**
 
 ## Implemented profile
 
-- ARM11-only ARMv6 subsets: ARM/Thumb reversal, signed/unsigned extension and
+- ARM11-only ARMv6 subsets: byte/halfword/word/doubleword exclusive loads and
+  stores plus CLREX; ARM/Thumb reversal, signed/unsigned extension and
   accumulation, scalar/halfword saturation, parallel arithmetic/GE/SEL, halfword
   packing, byte absolute differences, high-word/unsigned wide multiplication,
   and signed dual-halfword multiply/exchange/32-bit or 64-bit accumulation.
@@ -68,8 +69,9 @@ file and physical memory, and contain their entry. ARM11 loads FCRAM or AXI;
 ARM9 can also load private RAM. Maximum image size is 16 MiB. This container
 is not a native 3DS/3DSX/NCCH format or retail boot procedure.
 
-States use `V3DS0001`, a 504-byte identity/CRC/frame/completion/input/CPU prefix
-and all three RAM arrays, totaling **135,791,096 bytes**. Scalar widths, flag
+New states use `V3DS0002`, a 536-byte identity/CRC/frame/completion/input/CPU/
+reservation prefix and all three RAM arrays, totaling **135,791,128 bytes**.
+Legacy `V3DS0001` states load with empty reservations. Scalar widths, flag
 masks, PC alignment, completion bits, ROM identity and exact length validate
 before mutation. CPU model is fixed by the plugin. States are not compatible
 with DS or DSi states.
@@ -106,7 +108,11 @@ python3 tests/roms-src/build.py --original-only --check
 
 Full raw register output is about 1.48 GiB and stays in
 `build/artifacts/owned/3ds_reversal/` with JSON grades and control artifacts.
-CI/CD remains disabled; verification runs locally.
+CI/CD remains disabled; verification runs locally. The new
+[exclusive-memory original ROM](../../tests/roms-src/3ds/exclusive_memory/README.md)
+grades 5,242,880 ten-word snapshots across both ARM11 contexts. Its coherent
+shared-memory monitor invalidates a reservation when any context writes the
+same 32-byte line. Physical cache/MMU operation and timing remain pending.
 
 ## Remaining hardware and modern features
 
@@ -114,7 +120,8 @@ The core now exposes `INetplayCapable`: one host-owned keypad, a joining
 viewer, direct fast-state save/load and full canonical-state FNV hashing.
 Fast serialization writes into preallocated buffers without temporary vectors;
 validation completes before restoration mutates CPU/RAM/input. Fast states
-retain the existing `V3DS0001` format and all 135,791,096 bytes. Null/short
+now use `V3DS0002` and 135,791,128 bytes. Legacy `V3DS0001` loads with empty
+reservations. Null/short
 buffers, guards, full canonical bytes/hash, far-end RAM and exact replay pass
 component and undefined-behavior sanitizer checks.
 
