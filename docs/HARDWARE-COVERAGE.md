@@ -1,6 +1,6 @@
 # Nintendo implementation and hardware test coverage
 
-Current N64 evidence: [Cached controller reads and current Mario stop](#cached-controller-reads-and-current-mario-stop). Earlier increment reports are historical.
+Current N64 evidence: [One-cycle texture rectangles and Mario intro](#one-cycle-texture-rectangles-and-mario-intro). Earlier increment reports are historical.
 
 The goal includes Nintendo core plugins, repository-owned ROMs covering the
 hardware, machine-readable register observations, netplay, seamless controllers,
@@ -3564,3 +3564,60 @@ controls, ten executed faults, UBSAN and **116 original archive reproductions**
 pass. Completion/whitespace checks and current private binary/script fingerprints
 are verified. These functional gates do not establish the full native hardware
 corpus or playable Mario; the one-cycle E4 profile is the next observed stop.
+
+## One-cycle texture rectangles and Mario intro
+
+The cached-controller increment exposed a one-cycle E4 stop. E4/E5 rectangles
+now decode into native constant edges and signed S/T interpolants, then use the
+existing one-cycle triangle pixel pipeline. The exclusive bottom edge, flipped
+texture derivatives, scissor/field, point/three-point/TLUT sampling, combiner,
+ordered dither, alpha/coverage, blender, hidden metadata and primitive depth
+therefore share the tested implementation. Copy and fill keep their established
+profiles. Two-cycle pixels, complete texture LOD and random dithering/noise remain
+unsupported. Plugin **0.44.0** retains ABI v2 and **VN64S029 / 9,527,616 bytes**;
+this change adds no serialized fields.
+
+The original MIT [`rdp_texture_rectangles`](https://github.com/jshojan/veloce/tree/main/tests/roms-src/n64/rdp_texture_rectangles)
+cartridge captures **1,048,576 cases / 13,631,488 actual 64-bit words** through
+real DP and MI EBUS operations. All 65,536 coupled raw coordinate/derivative
+seeds run with both framebuffer sizes, flips, filters and command sources.
+XBUS also enables alpha comparison and alternating field parity. An independent
+integer oracle checks framebuffer, hidden bits, guards and DP/MI registers.
+The 224-case boundary cartridge passes; a separately executed corrupted capture
+fails every row, and thirteen field plus seven strict-stream controls reject.
+This selected domain does not cover every Cartesian combination.
+
+An independent C++ arithmetic gate checks **524,288 rectangle RAM/hidden
+observations**. Four compiled and executed production faults are rejected:
+inclusive bottom, exchanged derivatives, derivative scale and negative derivative
+loss. The optional pinned renderer comparison checks **32,768 rectangles**, each
+including every RAM byte and hidden halfword, history and retained memory color.
+Fractional bounds, fields, formats/sizes, palette/perspective/filtering, ordered
+dither, blending and primitive depth vary in coupled seeds. See the repository's
+`tests/reference/n64-rectangle/README.md` for the exact pin and reproduction.
+Software comparison is not physical hardware validation.
+
+The private Super Mario 64 USA probe with
+`tests/input/n64-title-menu.txt` reaches the **Peach castle intro**, beyond the
+Mario title head. Its bounded **1,000,000,000 CPU attempts** record no terminal
+CPU exception, unsupported RSP operation or DP stop. The capture shows Peach and
+the castle sky; it does not verify menu navigation, playable movement, sound
+correctness or complete boot. Private ROM bytes and captures stay outside git.
+Artifacts: `build/artifacts/retail/n64-rectangle-menu.json` and matching PPM;
+owned evidence: `build/artifacts/owned/n64_rdp_texture_rectangles/` and
+`build/artifacts/component/n64_rdp_rectangle/`.
+
+N64 remains **45% (9/20 delivery milestones)**. The complete retail, graphics,
+controller and timing milestones remain uncredited. All core and front-page
+percentages are synchronized from the fixed ledger. CI/CD remains disabled.
+
+This increment also restores a signed-depth test boundary accidentally altered
+by the prior state-size edit, and adds section garbage collection to the optional
+copy reference commands so they link without unused parallel renderer routines.
+
+Verification for this increment: **72/72 selected N64 component/checkpoint
+regressions pass in 86.69 seconds**, production TCP netplay passes in 3.05 seconds,
+full build completes without warnings, component UBSAN and four executed fault
+controls pass, and **117 original archives reproduce**. The original rectangle
+capture suite and all of its negative controls pass. The private report's core,
+probe, trace, script and capture hashes match the final local artifacts.

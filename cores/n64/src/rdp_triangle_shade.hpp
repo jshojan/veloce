@@ -1,5 +1,6 @@
 #pragma once
 #include "rdp_triangle_attributes.hpp"
+#include "rdp_rectangle.hpp"
 #include <vector>
 #include "rdp_texel_quad.hpp"
 #include "rdp_convert.hpp"
@@ -17,6 +18,14 @@ namespace n64 {
 struct RdpTriangleShade {
     static unsigned draw(const RdpPacket& packet,uint64_t image,uint64_t mode,uint64_t scissor,const RdpCombiner& combiner,std::vector<uint8_t>& ram,const RdpTexture* texture=nullptr,const RdpTmem* tmem=nullptr,const RdpConvert* conversion=nullptr,RdpBlender* blender=nullptr,HiddenRdram* hidden=nullptr,uint32_t depth_image=0,const RdpPrimitiveDepth* primitive=nullptr){
         RdpTriangle triangle;if(!RdpTriangle::decode(packet,triangle))return 1;
+        return draw_decoded(triangle,image,mode,scissor,combiner,ram,texture,tmem,conversion,blender,hidden,depth_image,primitive);
+    }
+    static unsigned rectangle(const RdpPacket& packet,uint64_t image,uint64_t mode,uint64_t scissor,const RdpCombiner& combiner,std::vector<uint8_t>& ram,const RdpTexture* texture=nullptr,const RdpTmem* tmem=nullptr,const RdpConvert* conversion=nullptr,RdpBlender* blender=nullptr,HiddenRdram* hidden=nullptr,uint32_t depth_image=0,const RdpPrimitiveDepth* primitive=nullptr){
+        RdpTriangle triangle;if(!RdpRectangle::decode(packet,false,triangle))return 1;
+        return draw_decoded(triangle,image,mode,scissor,combiner,ram,texture,tmem,conversion,blender,hidden,depth_image,primitive);
+    }
+private:
+    static unsigned draw_decoded(const RdpTriangle& triangle,uint64_t image,uint64_t mode,uint64_t scissor,const RdpCombiner& combiner,std::vector<uint8_t>& ram,const RdpTexture* texture=nullptr,const RdpTmem* tmem=nullptr,const RdpConvert* conversion=nullptr,RdpBlender* blender=nullptr,HiddenRdram* hidden=nullptr,uint32_t depth_image=0,const RdpPrimitiveDepth* primitive=nullptr){
         const bool textured=triangle.texture && texture && tmem;
         const uint64_t sampling=textured?((63ull<<42)|(1ull<<51)):(blender?(2047ull<<41):0);
         const uint64_t dither=(3ull<<38)|(3ull<<36);

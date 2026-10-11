@@ -1,0 +1,14 @@
+# Late Start pulses followed by A, using the port-zero virtual digital ABI.
+0 0
+6000 40
+6100 0
+7000 40
+7100 0
+8000 40
+8100 0
+8500 1
+8600 0
+9000 1
+9100 0
+9500 1
+9600 0

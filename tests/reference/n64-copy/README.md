@@ -8,9 +8,9 @@ The clone and compiled implementation stay outside the repository.
 reference_dir=$(mktemp -d /tmp/veloce-copy-reference.XXXXXX)
 git clone https://github.com/ata4/angrylion-rdp-plus.git "$reference_dir/source"
 git -C "$reference_dir/source" checkout --detach 9c8b9ed3e7d7f00dff8bc872ccdd3fba1a3673fc
-cc -std=c11 -O2 -I "$reference_dir/source/src/core" -I "$reference_dir/source/src/core/n64video" -c tests/reference/n64-copy/reference.c -o "$reference_dir/reference.o"
-c++ -std=c++17 -O2 -I cores/n64/src tests/reference/n64-copy/compare.cpp "$reference_dir/reference.o" -o "$reference_dir/fetch"
-c++ -std=c++17 -O2 -I cores/n64/src tests/reference/n64-copy/draw.cpp "$reference_dir/reference.o" -o "$reference_dir/draw"
+cc -std=c11 -O2 -ffunction-sections -fdata-sections -I "$reference_dir/source/src/core" -I "$reference_dir/source/src/core/n64video" -c tests/reference/n64-copy/reference.c -o "$reference_dir/reference.o"
+c++ -std=c++17 -O2 -Wl,--gc-sections -I cores/n64/src tests/reference/n64-copy/compare.cpp "$reference_dir/reference.o" -o "$reference_dir/fetch"
+c++ -std=c++17 -O2 -Wl,--gc-sections -I cores/n64/src tests/reference/n64-copy/draw.cpp "$reference_dir/reference.o" -o "$reference_dir/draw"
 "$reference_dir/fetch"
 "$reference_dir/draw"
 ```

@@ -91,7 +91,9 @@ public:
         case 62:depth_image=uint32_t(word)&0x3ffffff;break;
         case 63:color_image=word&0x00ffffffffffffffull;break;
         case 36:case 37:
-            if(hidden){reason=RdpCopy::rectangle(packet,color_image,other_mode,scissor,texture,tmem,blender.blend,ram,*hidden);supported=!reason;}else supported=false;break;
+            if(((other_mode>>52)&3)==0){reason=RdpTriangleShade::rectangle(packet,color_image,other_mode,scissor,combiner,ram,&texture,&tmem,&conversion,&blender,hidden,depth_image,&primitive_depth);supported=!reason;}
+            else if(hidden){reason=RdpCopy::rectangle(packet,color_image,other_mode,scissor,texture,tmem,blender.blend,ram,*hidden);supported=!reason;}else {supported=false;}
+            break;
         case 54:reason=RdpFill::draw(word,color_image,other_mode,scissor,fill_color,ram,hidden);supported=!reason;break;
         default:supported=false;break;
         }
