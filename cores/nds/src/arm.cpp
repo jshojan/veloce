@@ -70,6 +70,14 @@ void Arm::step() {
             reversal==0x06bf0fb0 ? pairs:(pairs&0xffffu)|((pairs&0x8000u)?0xffff0000u:0);
         s.r[15]=pc+4; return;
     }
+    if((ins&0x0fff0ff0u)==0x016f0f10u) {
+        const unsigned rd=(ins>>12)&15,rm=ins&15;
+        if(!v5 || rd==15 || rm==15) { s.unsupported=true; return; }
+        unsigned zeros=0;
+        for(uint32_t bit=0x80000000u;bit && !(s.r[rm]&bit);bit>>=1) ++zeros;
+        s.r[rd]=zeros;
+        s.r[15]=pc+4; return;
+    }
     // ARMv5TE signed saturation. The doubled operand saturates before the
     // final add/subtract; either stage sets sticky Q without changing NZCV.
     if((ins&0x0f900ff0u)==0x01000050u) {

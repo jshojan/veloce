@@ -1381,3 +1381,12 @@ add_test(NAME nds_saturating_registers COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/roms-src/nds/saturating_registers/run.py --emulator $<TARGET_FILE:veloce>
     --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/nds_saturating)
 set_tests_properties(nds_saturating_registers PROPERTIES LABELS "accuracy;owned" TIMEOUT 1800)
+
+add_executable(arm_clz_decode_test cpp/arm_clz_decode_test.cpp ${CMAKE_SOURCE_DIR}/cores/nds/src/arm.cpp)
+target_include_directories(arm_clz_decode_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/nds/src)
+add_test(NAME arm_clz_decode_test COMMAND arm_clz_decode_test)
+set_tests_properties(arm_clz_decode_test PROPERTIES LABELS "unit;fast")
+add_test(NAME nds_clz_registers COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/nds/clz_registers/run.py --emulator $<TARGET_FILE:veloce>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/nds_clz)
+set_tests_properties(nds_clz_registers PROPERTIES LABELS "accuracy;owned" TIMEOUT 1800)
