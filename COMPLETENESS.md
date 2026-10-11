@@ -3011,3 +3011,84 @@ tests** and production TCP netplay, including the S028 capacity, FullSync,
 reserved-bit, S027 conversion and primitive guest checkpoint gates. The full
 build, independent component/guest controls, UBSAN and 113-ROM reproducibility
 gates also pass. The frontpage/core percentage verifier is synchronized.
+
+## Ordered dithering and retail command progress
+
+One-cycle RGBA16/RGBA32 rendering now supports magic-matrix, Bayer and disabled
+RGB/alpha dither selectors (0, 1 and 3). Alpha/coverage multiplication precedes
+pixel alpha dithering; alpha-coverage selection replaces that dithered alpha.
+Shade alpha always receives the ordered seed before blender selection. Final
+RGB rounds after blending, including rejected pixels whose green bit feeds
+retained color history. Field mode halves the matrix row index. RGB-disabled
+alpha modes use the native Bayer seed basis. Random selectors, random alpha
+thresholds and combiner noise remain unsupported rather than substituted.
+
+The pipeline-mode bit 55 and unused SetOtherModes bits 54, 32–35 and 15
+are accepted in the settled production one-cycle profile. Pipeline-mode timing
+is not modeled; acceptance does not claim its stall behavior. The original
+[GBI header](https://ultra64.ca/files/documentation/online-manuals/man/header/gbi.htm)
+identifies pipeline mode separately from the obsolete HW 1.0 color-dither field. Untextured triangles also ignore inactive texture controls
+41–51 when the supported combiner does not depend on texture/LOD inputs. The
+[pinned dither](https://github.com/ata4/angrylion-rdp-plus/blob/9c8b9ed3e7d7f00dff8bc872ccdd3fba1a3673fc/src/core/n64video/rdp/dither.c),
+[combiner](https://github.com/ata4/angrylion-rdp-plus/blob/9c8b9ed3e7d7f00dff8bc872ccdd3fba1a3673fc/src/core/n64video/rdp/combiner.c)
+and SetOtherModes/rasterizer reference code ground this settled behavior;
+physical pipeline timing remains unverified.
+
+The independent component oracle passes **18,432 periodic/field matrix-seed
+cases**, all **2,048 byte-color/seed rounds**, **18,874,368 alpha/coverage/shade
+decisions** and **27,648 RGBA16/RGBA32 triangle captures** including ignored
+fields, alpha gates, both alpha-coverage flags and final packing. A separate
+rejected-pixel check verifies that dithered green updates retained history. All **fifteen
+compiled production faults** are rejected after execution. Warning-as-error and
+UBSAN pass. The optional
+[pinned primary adapter](https://github.com/jshojan/veloce/tree/main/tests/reference/n64-dither)
+matches the 18,432 seed cases and 2,048 channel rounds with zero mismatches;
+alpha/triangle sequencing uses the independent oracle, not that adapter.
+
+The original MIT
+[`rdp_ordered_dither`](https://github.com/jshojan/veloce/tree/main/tests/roms-src/n64/rdp_ordered_dither)
+cartridge passes **1,179,648 cases / 15,335,424 actual 64-bit RAM/register words**:
+65,536 coupled RGB/alpha input patterns, nine ordered-selector combinations and
+RDRAM/wrapping-XBUS commands. Command-source partners select ordinary alpha or
+coverage-times-alpha plus alpha-coverage selection; geometry/background are
+fixed. Guest instructions read pixels, gathered hidden metadata, guards and
+DP/MI completion registers. The independent host oracle imports no production
+packing/math. The 252-case control passes, its separately executed wrong-capture
+ROM fails every control row, and all **13 field flips / seven stream controls**
+reject. This is a finite selected joint domain, not complete graphics hardware.
+
+Plugin **0.40.0**, ABI v2, **VN64S028 / 9,527,576 bytes** remain current; ordered
+matrices add no mutable state. Existing state imports and primitive depth are
+preserved. Production checkpoint replay checks subsequent actual guest output
+and full-state bytes. All **114 original ROM archives** reproduce against the
+manifest. N64 stays **45% = 9/20 delivery milestones**. Full graphics/retail
+compatibility remains incomplete, CI/CD stays disabled and the Nintendo goal
+remains active.
+
+The private Super Mario 64 USA probe runs **2,000 quanta / 200 million CPU
+attempts** without a terminal CPU fault or unsupported RSP/DP stop. The original
+22-word `CF000FFA0FFAF006` blocker and following untextured triangle now execute;
+the tested DP stream completes (CURRENT = END = `0x2273f0`, status `0x80`).
+**Nonuniform video is observed for the first time**, but the actual capture is
+still corrupted colored output, not verified gameplay. Boot/playability flags
+remain false. `n64_boot_trace` now records mode, images, scissor, combine,
+primitive depth and tile descriptors for diagnosing later profiles. An optional
+fifth argument to `retail_core_probe` writes the last nonuniform framebuffer as
+PPM. Probe/core/trace hashes are recorded/checked; commercial bytes and private
+captures are not committed.
+
+```sh
+ctest --test-dir build -R '^n64_rdp_(dither|ordered_dither)' --output-on-failure
+python3 tests/roms-src/build.py --original-only --check
+```
+
+Artifacts: `build/artifacts/owned/n64_rdp_ordered_dither/`,
+`build/artifacts/component/n64_rdp_dither/` and
+`build/artifacts/retail/n64-ordered-dither.json`. The private framebuffer capture
+is `build/artifacts/retail/n64-ordered-dither.png` (PPM alongside it).
+
+Final gates pass all **65 selected N64 regression/component/checkpoint tests**,
+production TCP netplay, the full owned guest/control stream, all fifteen
+compiled faults, UBSAN and the 114-ROM reproducibility check. The expanded
+dither test also checks rejected color history. Current private core, trace
+and probe hashes match the report. Frontpage/core percentages stay synchronized.

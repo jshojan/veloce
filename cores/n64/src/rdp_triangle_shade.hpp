@@ -7,9 +7,10 @@
 #include "rdp_blender.hpp"
 #include "rdp_framebuffer.hpp"
 #include "rdp_primitive_depth.hpp"
+#include "rdp_dither.hpp"
 namespace n64 {
 // Functional one-cycle RGBA16/RGBA32: optional blending/AA/alpha-coverage decisions.
-// Interpolated Z comparison/update; no key, dither or previous-pixel feedback. Affine/perspective
+// Interpolated/primitive Z, ordered RGB/alpha dither; no key or prior-pixel feedback. Affine/perspective
 // texture sampling supports cycle-zero filtering/passthrough, color conversion and
 // optional TLUT. SetConvert also supplies K4/K5 combiner inputs.
 // Unsupported profiles reject before any framebuffer write. Physical pipeline/crash timing remains separate work.
@@ -17,13 +18,15 @@ struct RdpTriangleShade {
     static unsigned draw(const RdpPacket& packet,uint64_t image,uint64_t mode,uint64_t scissor,const RdpCombiner& combiner,std::vector<uint8_t>& ram,const RdpTexture* texture=nullptr,const RdpTmem* tmem=nullptr,const RdpConvert* conversion=nullptr,RdpBlender* blender=nullptr,HiddenRdram* hidden=nullptr,uint32_t depth_image=0,const RdpPrimitiveDepth* primitive=nullptr){
         RdpTriangle triangle;if(!RdpTriangle::decode(packet,triangle))return 1;
         const bool textured=triangle.texture && texture && tmem;
-        const uint64_t sampling=textured?((63ull<<42)|(1ull<<51)):0;
+        const uint64_t sampling=textured?((63ull<<42)|(1ull<<51)):(blender?(2047ull<<41):0);
         const uint64_t dither=(3ull<<38)|(3ull<<36);
         const bool depth_mode=mode&48,primitive_mode=mode&4;
         if(primitive_mode && !primitive)return 1;
         if(depth_mode && (!blender || !hidden))return 1;
-        const uint64_t allowed=dither|0xffff0000ull|0x340ull|sampling|(blender?0x7cbdull:0);
-        if((mode&~allowed) || (mode&dither)!=dither || (!blender && ((mode>>30)&3)) || !combiner.independent_one_cycle(textured,conversion!=nullptr) || (textured && !(mode&(1ull<<43)) && !conversion))return 1;
+        const unsigned rgb_dither=unsigned(mode>>38)&3,alpha_dither=unsigned(mode>>36)&3;
+        const uint64_t ignored=blender?((3ull<<54)|(15ull<<32)|(1ull<<15)):0;
+        const uint64_t allowed=ignored|dither|0xffff0000ull|0x340ull|sampling|(blender?0x7cbdull:0);
+        if((mode&~allowed) || (blender?!RdpDither::supported(rgb_dither,alpha_dither):(mode&dither)!=dither) || (!blender && ((mode>>30)&3)) || !combiner.independent_one_cycle(textured,conversion!=nullptr) || (textured && !(mode&(1ull<<43)) && !conversion))return 1;
         const unsigned size=unsigned(image>>51)&3,bytes=size==2?2:4;
         if(((image>>53)&7)!=0 || (size!=3 && !(size==2 && hidden && blender)))return 1;
         if(hidden && hidden->size()!=ram.size())return 5;
@@ -76,7 +79,9 @@ struct RdpTriangleShade {
                     const unsigned delta=primitive_mode?primitive->delta():attributes.delta_z;
                     RdpBlender::DepthInput depth;
                     if(depth_mode){depth.z=z;if(mode&16){depth.word=uint16_t((unsigned(ram[za])<<8)|ram[za+1]);depth.hidden=hidden->halfword(za);}}
-                    const auto result=blender->pixel(mode,color,pixel.rgba[3],memory,RdpCoverage::derivatives(mask).count,mask>>7,delta,depth_mode?&depth:nullptr);
+                    const auto seeds=RdpDither::sample(rgb_dither,alpha_dither,x,y,bounds.field);
+                    auto result=blender->pixel(mode,color,pixel.rgba[3],memory,RdpCoverage::derivatives(mask).count,mask>>7,delta,depth_mode?&depth:nullptr,seeds.alpha);
+                    RdpDither::apply(result.rgb,seeds.rgb);
                     if(!result.write){RdpFramebuffer::rejected(at,bytes,result.rgb,result.coverage,hidden);continue;}
                     RdpFramebuffer::write(at,bytes,result.rgb,result.coverage,ram,hidden);
                     if(mode&32)RdpDepth::store(za,z,RdpDepth::delta_encoding(uint16_t(delta)),ram,*hidden);
