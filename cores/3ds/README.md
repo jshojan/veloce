@@ -26,7 +26,9 @@ software and firmware do not boot. Full platform completion is unmeasured.**
   and stop that context. The shared decoder also supports CLZ and QADD/QSUB/QDADD/QDSUB
   on ARM9/ARM11, plus ARM-state BLX immediate and SWP/SWPB in the supplied legacy alignment model;
   all sixteen ARMv5TE signed DSP multiply forms and LDRD/STRD in the
-  supplied little-endian U=0 alignment profile are also supported.
+  supplied little-endian U=0 alignment profile are also supported, along with
+  ordinary ARM LDM/STM in all four address modes. User-bank/SPSR forms remain
+  unimplemented.
   CLZ/saturation/DSP corpora are graded on DS ARM9, and exchanges on both DS CPUs.
   DSP/doubleword component gates separately check ARM11 aliases and flags.
   Doubleword alignment/endianness configuration and physical aborts are pending.

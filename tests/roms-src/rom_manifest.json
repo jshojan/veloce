@@ -22494,6 +22494,17 @@
       "source_type": "original",
       "suite": "arm_blx_registers"
     },
+    "nds/arm_multiple_registers/arm_multiple_registers.nds": {
+      "build_command": "python3 tests/roms-src/nds/arm_multiple_registers/build.py",
+      "console": "nds",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "8d675bb3939ac6fc5d09c827148c71b0bbe94f63043b817a159da0c158e56d1f",
+      "source_repo": "tests/roms-src/nds/arm_multiple_registers/build.py",
+      "source_sha": "74b506d532a53a4f8f0dd3bb8a7b030d623a328a95f8e2d113031b59afa43867",
+      "source_type": "original",
+      "suite": "arm_multiple_registers"
+    },
     "nds/clz_registers/clz_registers.nds": {
       "build_command": "python3 tests/roms-src/nds/clz_registers/build.py",
       "console": "nds",
