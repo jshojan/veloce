@@ -22538,6 +22538,17 @@
       "source_type": "original",
       "suite": "vi_registers"
     },
+    "n64/watch_exceptions/watch_exceptions.z64": {
+      "build_command": "python3 tests/roms-src/n64/watch_exceptions/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "023b9f78a69c57a71a39576f95ce17bec3c5bfb86ea3fe8842ef0b46366a6577",
+      "source_repo": "tests/roms-src/n64/watch_exceptions/build.py",
+      "source_sha": "9d5f48cae0ce428b9b46d8b8209f814f5ed545c9e533745b93600b41c5fe6d29",
+      "source_type": "original",
+      "suite": "watch_exceptions"
+    },
     "nds/arm_blx_registers/arm_blx_registers.nds": {
       "build_command": "python3 tests/roms-src/nds/arm_blx_registers/build.py",
       "console": "nds",

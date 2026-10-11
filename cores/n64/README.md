@@ -3536,3 +3536,39 @@ linked-memory/native-checkpoint/TAS regressions, and production two-peer TCP
 netplay). Private SM64 native VI walking/jumping/punching and stationary controls
 pass on 0.49.0. All **132 original archives** reproduce; completion renderer and
 whitespace checks pass. The full Release build passes.
+
+
+## 2026-10-11: N64 CP0 physical Watch exceptions
+
+N64 **0.50.0** implements physical eight-byte WatchLo address comparison, R/W
+selection, EXL masking, Watch code 23 and register reserved-bit/readback masks.
+Alignment/translation precede Watch; Watch precedes data bus access. Instruction
+fetch and CACHE are excluded. Scalar, merge, FP and linked accesses share the
+check. The existing S031 CP0 fields preserve an armed WatchLo without changing
+format or the 9,527,616-byte capacity.
+
+The original [Watch cartridge](../../tests/roms-src/n64/watch_exceptions/README.md)
+exports **4,194,816 cases / 58,727,424 RAM/CP0 words**: every eight-byte granule of
+8 MiB RDRAM, read/write and ordinary/actual taken-delay contexts, plus 512
+R/W/lane/matching/EXL controls with executed untrapped memory readback. Its armed
+checkpoint compares twelve ordinary/rollback records and full final states.
+Executed wrong-exception code, eight result faults and six malformed streams
+are rejected independently.
+
+The component domain covers every 2^29 granule of the full 32-bit physical
+address space at read and write senses. Supplementary width/lane/flags/EXL,
+register transfer, translated alias, bus priority and metadata checks use fixed
+operand patterns. This is not all watch/target-address pairs or numerical values.
+Nonzero WatchHi matching, failed conditional-store watches, physical/deferred
+exception behavior, reverse endian and malformed legacy CP0 fields remain
+unverified. Complete CPU/device behavior and full-title retail playability stay
+unfinished; **N64 remains 45%** of fixed delivery milestones. CI/CD stays disabled.
+See the cartridge README for commands and scope; rules follow NEC VR4300 §6.3.8,
+§6.4.3 and §6.4.17.
+
+Verification: **14 selected gates pass** (two Watch gates, eleven machine/cache/
+integer/COP2/linked-memory/native checkpoint/TAS regressions and production
+two-peer TCP netplay). The Watch component gate executes **1,073,745,425
+observations**. Private SM64 native VI walking/jumping/punching and stationary
+controls pass on 0.50.0. All **133 original archives** reproduce; full Release
+build, completion renderer and whitespace checks pass.

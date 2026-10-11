@@ -66,6 +66,7 @@ bool VR4300::read(uint64_t address,unsigned bytes,uint64_t& value,bool fetch,uin
     access_address=bad;access_bytes=bytes;access_store=false;
     if(address&(bytes-1)) {exception(4,pc,delay,bad);return false;}
     Tlb::Translation t;if(!translate(bad,false,pc,delay,t))return false;
+    if(!fetch && !watch(t.physical,false,pc,delay))return false;
     if(!fetch && t.cached && !caches.data_hit(address,t.physical))state.llbit=false;
     if(!caches.read_translated(memory,address,t.physical&~uint32_t(bytes-1),t.cached,bytes,value,fetch)) {
         exception(fetch?6:7,pc,delay);return false;
@@ -76,10 +77,20 @@ bool VR4300::write(uint64_t address,unsigned bytes,uint64_t value,uint8_t mask,u
     access_address=bad;access_bytes=bytes;access_store=true;
     if(address&(bytes-1)) {exception(5,pc,delay,bad);return false;}
     Tlb::Translation t;if(!translate(bad,true,pc,delay,t))return false;
+    if(!watch(t.physical,true,pc,delay))return false;
     if(t.cached && !caches.data_hit(address,t.physical))state.llbit=false;
     if(!caches.write_translated(memory,address,t.physical&~uint32_t(bytes-1),t.cached,bytes,value,mask)) {
         exception(7,pc,delay);return false;
     }
+    return true;
+}
+bool VR4300::watch(uint32_t physical,bool store,uint64_t pc,bool delay) {
+    const auto& s=state;
+    // Watch selects a physical eight-byte granule. EXL masks the comparison;
+    // instruction fetches and CACHE operations do not call this data check.
+    // Nonzero WatchHi describes an unsupported >32-bit physical address.
+    if(!(s.cp0[12]&2) && (s.cp0[18]&(store?1:2)) && !(s.cp0[19]&15) &&
+       (uint32_t(s.cp0[18])&~7u)==(physical&~7u)) {exception(23,pc,delay);return false;}
     return true;
 }
 void VR4300::step() {
@@ -122,6 +133,7 @@ void VR4300::step() {
         access_address=address;access_bytes=bytes;access_store=conditional;
         if(address&(bytes-1)) {fault(conditional?5:4,address);return;}
         Tlb::Translation t;if(!translate(address,conditional,pc,delay,t))return;
+        if(!watch(t.physical,conditional,pc,delay))return;
         if(conditional) {
             // Conservative functional policy for a miss between LL and SC.
             // Translation/alignment exceptions still precede LLbit failure.
@@ -362,6 +374,8 @@ void VR4300::step() {
                 else if(rd==13)s.cp0[13]=(s.cp0[13]&~0x300ull)|(value&0x300);
                 else if(rd==11) {s.cp0[11]=uint32_t(value);s.cp0[13]&=~0x8000ull;}
                 else if(rd==17)s.cp0[17]=value&0x0fffffff; // Diagnostic PA31:4, no LLbit side effect.
+                else if(rd==18)s.cp0[18]=value&0xfffffffb; // PA31:3, R and W; bit 2 is reserved.
+                else if(rd==19)s.cp0[19]=value&15; // Readable compatibility PA35:32 field.
                 else s.cp0[rd]=(rd==14 || rd==30)?value:uint32_t(value);
             } else if(ins==0x42000001) {
                 const auto& e=tlb.entries[unsigned(s.cp0[0])&31];
