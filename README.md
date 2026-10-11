@@ -32,6 +32,8 @@ Twenty-eight doubleword integer/LWU families now enforce User/Supervisor mode re
 3DS ARM11 now implements 36 ARMv6 parallel byte/halfword arithmetic forms, GE flag writes and SEL. The original image grades **19,922,944 snapshots / 179,306,496 actual register words**, including a following SEL that consumes real arithmetic flags. Independent grading, executed negative controls and native checkpoint replay cover the documented finite domains. The whole CPU milestone remains unfinished; 3DS stays **30%**.
 
 3DS ARM11 halfword packing and unsigned byte absolute-difference sums now have an original **18,874,368-case image / 150,994,944 actual register words**, including every encoded packing shift and accumulator wrap controls. Independent file grading, executed negative controls and native checkpoint replay cover finite selected domains. This remains partial CPU support; 3DS stays **30%**.
+
+3DS ARM11 unsigned UMAAL and signed high-word multiply/add/subtract, including rounded forms, now have an original **7,340,032-case image / 73,400,320 actual register words**. Independent arithmetic and executed UMLAL/rounding controls check the distinct seed and rounding rules; native checkpoint replay covers actual continuations. Full CPU and console behavior remain unfinished; 3DS stays **30%**.
 <!-- completion:end -->
 
 A cross-platform, plugin-based emulator framework built for speedrunners and TAS creators.

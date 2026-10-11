@@ -220,7 +220,7 @@
         "register_oracle",
         "states"
       ],
-      "remaining": "ARM11 ARMv6 packing/absolute differences, parallel arithmetic/SEL, extension/accumulate and saturation now have original independently graded register images, flags/alias/profile controls and native checkpoint continuations. The new packing/difference image checks 18,874,368 snapshots / 150,994,944 register words. Remaining CPU/MMU, firmware/native formats, graphics/audio, analog/touch and wireless multiplayer remain."
+      "remaining": "ARM11 ARMv6 UMAAL/high-word multiply, packing/absolute differences, parallel arithmetic/SEL, extension/accumulate and saturation now have original independently graded register images, flags/alias/profile controls and native checkpoint continuations. The new wide multiply image checks 7,340,032 snapshots / 73,400,320 register words. Remaining CPU/MMU, firmware/native formats, graphics/audio, analog/touch and wireless multiplayer remain."
     },
     {
       "id": "gc",

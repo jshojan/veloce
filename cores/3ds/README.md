@@ -11,7 +11,7 @@ These percentages count the 20 explicit delivery milestones in [the completion l
 
 Nintendo 3DS delivered milestones: Native digital controller/keypad registers consume frontend input, Actual production-plugin TCP peers pass original guest oracle and whole-state comparison, Repository-owned ROM source and reproducible archived image, Separate core plugin and ABI entry points, Actual guest register-file output independently graded on the host, with negative controls, Complete states for the implemented profile and deterministic replay.
 
-Remaining: ARM11 ARMv6 packing/absolute differences, parallel arithmetic/SEL, extension/accumulate and saturation now have original independently graded register images, flags/alias/profile controls and native checkpoint continuations. The new packing/difference image checks 18,874,368 snapshots / 150,994,944 register words. Remaining CPU/MMU, firmware/native formats, graphics/audio, analog/touch and wireless multiplayer remain.
+Remaining: ARM11 ARMv6 UMAAL/high-word multiply, packing/absolute differences, parallel arithmetic/SEL, extension/accumulate and saturation now have original independently graded register images, flags/alias/profile controls and native checkpoint continuations. The new wide multiply image checks 7,340,032 snapshots / 73,400,320 register words. Remaining CPU/MMU, firmware/native formats, graphics/audio, analog/touch and wireless multiplayer remain.
 <!-- completion:end -->
 
 `ctr_plugin` builds `3ds.so` (or the platform library equivalent), ABI v2,
@@ -256,3 +256,29 @@ all **143 original archives** reproduce. The full guest capture has zero
 mismatches and stable source/binary hashes. Three native checkpoint prefixes
 compare **6,117 actual register rows** and complete states. Completion renderer
 and whitespace checks pass. CI/CD remains disabled.
+
+## ARM11 high-word and unsigned wide multiplication (2026-10-11)
+
+3DS 0.7.0 adds ARMv6 UMAAL and SMMUL/SMMLA/SMMLS with their rounded forms.
+UMAAL adds both old destination words as independent unsigned 32-bit seeds.
+High-word forms multiply signed operands; rounded subtraction negates the
+product before adding 0x80000000 and extracting the high word. All preserve
+NZCVQ/GE and read sources before aliased writes; invalid profiles/PC operands,
+reserved operations and duplicate UMAAL destinations stop diagnostically.
+The original dual-ARM11 image independently grades **7,340,032 snapshots /
+73,400,320 actual register words**, sweeping selected complemented halfwords,
+four right boundary words and two flag/seed surrounds. These are finite domains.
+The component gate checks **31,559,680 observations**, including quotient/floor
+and independent 16-bit-limb arithmetic, ties, carry, flags/conditions and aliases.
+Executed wrong-result/Q reject all 896 short cases; UMLAL replacement, wrong
+rounding and wrong source reject 128/416/744 cases. Ten field faults and seven
+malformed streams reject. Native checkpoint prefixes compare actual text and
+complete 135,791,096-byte states. Full CPU/media/system/MMU/exception behavior,
+timing, firmware/retail boot, graphics/audio and native devices remain pending.
+ABI/state format are unchanged; 3DS remains **30%**. See
+[original source and domains](../../tests/roms-src/3ds/wide_media_multiply_registers/README.md).
+
+Verification: the full Release build and all **21 selected gates** pass, including
+the **38,338,560-case** original DS multiply regression. All **144 original
+archives** reproduce. The new native corpus has zero mismatches and unchanged
+capture provenance hashes; completion rendering and whitespace checks pass.
