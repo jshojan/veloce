@@ -990,3 +990,25 @@ add_executable(n64_rdp_perspective_triangle_test cpp/n64_rdp_perspective_triangl
 target_include_directories(n64_rdp_perspective_triangle_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src)
 add_test(NAME n64_rdp_perspective_triangle_test COMMAND n64_rdp_perspective_triangle_test)
 set_tests_properties(n64_rdp_perspective_triangle_test PROPERTIES LABELS "unit;accuracy" TIMEOUT 60)
+
+add_executable(n64_rdp_blender_test cpp/n64_rdp_blender_test.cpp)
+target_include_directories(n64_rdp_blender_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src)
+add_test(NAME n64_rdp_blender_test COMMAND n64_rdp_blender_test)
+set_tests_properties(n64_rdp_blender_test PROPERTIES LABELS "unit;accuracy" TIMEOUT 180)
+add_executable(n64_rdp_blender_state_test cpp/n64_rdp_blender_state_test.cpp
+    ${CMAKE_SOURCE_DIR}/cores/n64/src/machine.cpp ${CMAKE_SOURCE_DIR}/cores/n64/src/vr4300.cpp)
+target_include_directories(n64_rdp_blender_state_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src ${CMAKE_SOURCE_DIR}/include)
+add_test(NAME n64_rdp_blender_state_test COMMAND n64_rdp_blender_state_test
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/rdp_one_cycle_blend/rdp_one_cycle_blend.z64)
+set_tests_properties(n64_rdp_blender_state_test PROPERTIES LABELS "unit;accuracy;owned" TIMEOUT 180)
+add_test(NAME n64_rdp_one_cycle_blend COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/rdp_one_cycle_blend/run.py --emulator $<TARGET_FILE:veloce>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_rdp_one_cycle_blend)
+set_tests_properties(n64_rdp_one_cycle_blend PROPERTIES LABELS "accuracy;owned" TIMEOUT 700)
+add_test(NAME n64_rdp_blender_checkpoint_test COMMAND n64_rdp_packet_plugin_test
+    $<TARGET_FILE:n64_plugin> ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/rdp_one_cycle_blend/rdp_one_cycle_blend.z64 blender)
+set_tests_properties(n64_rdp_blender_checkpoint_test PROPERTIES LABELS "integration;netplay;accuracy;owned" TIMEOUT 60)
+add_test(NAME n64_rdp_blender_mutants COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/n64_blender_mutants.py --compiler ${CMAKE_CXX_COMPILER}
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/component/n64_blender)
+set_tests_properties(n64_rdp_blender_mutants PROPERTIES LABELS "unit;accuracy" TIMEOUT 180)
