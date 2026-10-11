@@ -37,10 +37,13 @@ class IAudioHost {
 public:
     virtual ~IAudioHost() = default;
 
-    // Get the requested audio format
+    // Source format for process(): stereo float samples at the current core rate.
+    // Query during each process call: source rate can change between calls.
+    // Before the first call the frontend reports 44100 Hz.
     virtual AudioFormat get_format() const = 0;
 
-    // Push processed audio to output device
+    // Synchronously push processed interleaved floats at that same source rate.
+    // count is individual floats (two per stereo pair); host resamples to device.
     virtual void output_samples(const float* samples, size_t count) = 0;
 
     // Pause/resume audio output
@@ -62,7 +65,8 @@ public:
 
     // Process audio samples from emulator
     // Input: raw samples from emulator
-    // Plugin should call host->output_samples() with processed audio
+    // sample_count is individual floats, not stereo pairs.
+    // Plugin should synchronously call host->output_samples() with processed audio
     virtual void process(const float* input, size_t sample_count) = 0;
 
     // Volume control (0.0 - 1.0)

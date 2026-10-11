@@ -515,6 +515,10 @@ bool PluginManager::activate_video_plugin(const std::string& name) {
 }
 
 bool PluginManager::activate_audio_plugin(const std::string& name) {
+    if (!m_audio_host) {
+        std::cerr << "Audio plugin requires an installed host" << std::endl;
+        return false;
+    }
     const PluginMetadata* metadata = m_registry.find_plugin(PluginType::Audio, name);
     if (!metadata) {
         std::cerr << "Audio plugin not found: " << name << std::endl;
@@ -532,6 +536,16 @@ bool PluginManager::activate_audio_plugin(const std::string& name) {
     IAudioPlugin* instance = create();
     if (!instance) {
         std::cerr << "Failed to create audio plugin instance: " << name << std::endl;
+        return false;
+    }
+
+    // Initialize the candidate before replacing the working backend.
+    if (!instance->initialize(m_audio_host)) {
+        instance->shutdown();
+        using DestroyFunc = void (*)(IAudioPlugin*);
+        auto destroy = reinterpret_cast<DestroyFunc>(handle->destroy_func);
+        if (destroy) destroy(instance);
+        std::cerr << "Failed to initialize audio plugin: " << name << std::endl;
         return false;
     }
 
@@ -890,6 +904,7 @@ void PluginManager::deactivate_plugin(PluginType type) {
             break;
         case PluginType::Audio:
             if (m_active.audio && m_active.audio_handle) {
+                m_active.audio->shutdown();
                 using DestroyFunc = void (*)(IAudioPlugin*);
                 auto destroy = reinterpret_cast<DestroyFunc>(m_active.audio_handle->destroy_func);
                 if (destroy) destroy(m_active.audio);
