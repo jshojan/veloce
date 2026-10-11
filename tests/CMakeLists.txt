@@ -875,7 +875,7 @@ add_test(NAME n64_rdp_packet_plugin_test COMMAND n64_rdp_packet_plugin_test $<TA
     ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/rdp_packets/rdp_packets.z64)
 set_tests_properties(n64_rdp_packet_plugin_test PROPERTIES LABELS "integration;netplay;owned" TIMEOUT 90)
 
-foreach(triangle_part decode edges fill attributes)
+foreach(triangle_part decode edges fill attributes shade)
     add_executable(n64_rdp_triangle_${triangle_part}_test cpp/n64_rdp_triangle_${triangle_part}_test.cpp)
     target_include_directories(n64_rdp_triangle_${triangle_part}_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src)
     add_test(NAME n64_rdp_triangle_${triangle_part}_test COMMAND n64_rdp_triangle_${triangle_part}_test)
@@ -886,6 +886,11 @@ target_include_directories(n64_rdp_coverage_test PRIVATE ${CMAKE_SOURCE_DIR}/cor
 add_test(NAME n64_rdp_coverage_test COMMAND n64_rdp_coverage_test)
 set_tests_properties(n64_rdp_coverage_test PROPERTIES LABELS "unit;accuracy" TIMEOUT 180)
 
+add_executable(n64_rdp_combiner_routing_test cpp/n64_rdp_combiner_routing_test.cpp)
+target_include_directories(n64_rdp_combiner_routing_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src)
+add_test(NAME n64_rdp_combiner_routing_test COMMAND n64_rdp_combiner_routing_test)
+set_tests_properties(n64_rdp_combiner_routing_test PROPERTIES LABELS "unit;accuracy" TIMEOUT 180)
+
 add_test(NAME n64_rdp_triangle_attribute_mutants COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/n64_triangle_attribute_mutants.py --compiler ${CMAKE_CXX_COMPILER}
     --artifacts ${CMAKE_BINARY_DIR}/artifacts/component/n64_triangle_attributes)
@@ -895,3 +900,8 @@ add_test(NAME n64_rdp_triangle_fill COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/rdp_triangle_fill/run.py --emulator $<TARGET_FILE:veloce>
     --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_rdp_triangle_fill)
 set_tests_properties(n64_rdp_triangle_fill PROPERTIES LABELS "accuracy;owned" TIMEOUT 700)
+
+add_test(NAME n64_rdp_triangle_shade COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/rdp_triangle_shade/run.py --emulator $<TARGET_FILE:veloce>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_rdp_triangle_shade)
+set_tests_properties(n64_rdp_triangle_shade PROPERTIES LABELS "accuracy;owned" TIMEOUT 700)
