@@ -20,7 +20,7 @@ public:
             if(!(fields>>quantum))continue;
             if(!(fields>>mask) || fields>>extra)throw std::runtime_error("invalid input fields");
             unsigned q=0;uint32_t m=0;const auto a=std::from_chars(quantum.data(),quantum.data()+quantum.size(),q,10),b=std::from_chars(mask.data(),mask.data()+mask.size(),m,16);
-            if(a.ec!=std::errc{} || a.ptr!=quantum.data()+quantum.size() || b.ec!=std::errc{} || b.ptr!=mask.data()+mask.size() || q>=10000 || (!events.empty() && q<=events.back().quantum))throw std::runtime_error("invalid input transition");
+            if(a.ec!=std::errc{} || a.ptr!=quantum.data()+quantum.size() || b.ec!=std::errc{} || b.ptr!=mask.data()+mask.size() || q>=100000 || (!events.empty() && q<=events.back().quantum))throw std::runtime_error("invalid input transition");
             events.push_back({q,m});
         }
         if(file.bad())throw std::runtime_error("input script read failed");

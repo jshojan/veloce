@@ -9,7 +9,7 @@ int main(int argc,char** argv) {
     if(argc<2 || argc>4)return 2;
     RetailInputSchedule input;try{if(argc==4)input.load(argv[3]);}catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 2;}
     uint64_t limit=12000000;
-    if(argc>=3){try{size_t used=0;limit=std::stoull(argv[2],&used);if(argv[2][used] || !limit || limit>1000000000)return 2;}catch(...){return 2;}}
+    if(argc>=3){try{size_t used=0;limit=std::stoull(argv[2],&used);if(argv[2][used] || !limit || limit>10000000000ULL)return 2;}catch(...){return 2;}}
     std::ifstream file(argv[1],std::ios::binary);if(!file.good())return 2;
     const std::vector<uint8_t> image{std::istreambuf_iterator<char>(file),{}};
     n64::Machine machine;const bool loaded=machine.load(image.data(),image.size());

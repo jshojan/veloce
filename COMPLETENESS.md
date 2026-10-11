@@ -3563,3 +3563,20 @@ defined PC stores are supplied model choices; physical timing, aborts, IRQ/bus
 arbitration and hardware comparisons remain pending. The complete CPU milestone
 is unfulfilled; DS/DSi/3DS stay 30% delivery completion. See the
 [original scope](tests/roms-src/nds/arm_multiple_registers/README.md).
+
+## N64 extended retail observation (2026-10-11)
+
+The local Mario 64 USA probe now reaches Mario, the lives/star HUD and Lakitu
+controller tutorial in the castle courtyard. At six billion CPU attempts it
+records no terminal CPU exception, unsupported RSP operation or DP stop, with
+1,477,417,759 RSP instructions retired. Timed final/checkpoint captures and
+current binary/script/image fingerprints match; an original arithmetic ROM
+verifies the uniform-frame capture correction. Commercial bytes and images
+remain private.
+
+The probe ceiling grows to 100,000 quanta, with current final captures and
+per-10,000-quantum checkpoints replacing last-nonuniform-frame ambiguity.
+Core hardware behavior and original corpus coverage are unchanged. Analog
+movement, menu/level interactions, complete retail boot and playability remain
+unverified, so N64 stays 45% delivery completion. See the
+[current evidence and limits](cores/n64/README.md#extended-mario-intro-and-timed-retail-captures).
