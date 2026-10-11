@@ -45,6 +45,8 @@ little-endian instruction/data memory and an explicit marked cartridge profile.
 - Eight arithmetic bit-string operations (OR/AND/XOR/MOV and complemented
   forms), low-to-high transfers, preserved PSW and working r26–r30. Execution
   is bounded at word boundaries with resumable source/destination buffers.
+- XB/XH low-byte/halfword exchanges, source-register REV, signed 17-bit MPYHW,
+  and CLI/SEI ID manipulation; whole PSW/r30 preservation where applicable.
 - Basic LDSR/STSR for saved PC/PSW, ECR, PSW, ADTRE and cache-enable storage.
   ECR is read-only; reserved PSW bits and system-PC low bits are masked.
   Cache commands beyond enable storage stop as unsupported; no cache executes.
@@ -70,7 +72,8 @@ WRAM maps at `$05000000` and mirrors its 64 KiB storage through region 5. RAM an
 architecturally undefined registers are zeroed by the test profile on load/reset.
 
 Emulator-only `ST.B` to `$04000000` emits one observed character; `ST.W` to
-`$04000004` finishes with unknown status. These debug addresses are not Nintendo
+`$04000004` finishes with unknown status; `ST.W` to `$04000008` emits the
+actual word as eight hexadecimal characters. These debug addresses are not Nintendo
 hardware. The frontend owns the output file, including ROM CRC32 and channel
 metadata. The host grader derives expected values independently; the ROM has no
 expected results or pass verdict. The 16-bit RAM-watch API maps all WRAM.
@@ -174,18 +177,19 @@ Raw observations and reports are in `build/artifacts/owned/vb_integer/`,
 `build/artifacts/owned/vb_address_traps/`, `build/artifacts/owned/vb_memory_ops/`,
 `build/artifacts/owned/vb_bitstrings/` and `build/artifacts/owned/vb_immediates/`.
 They remain local while CI/CD is disabled. Source/image SHA256 values are recorded
-in `tests/roms-src/rom_manifest.json`. `VVBS0002` states store explicit big-endian
+in `tests/roms-src/rom_manifest.json`. The current `VVBS0003` states store explicit big-endian
 scalars for the full CPU, frame/step counters, completion, ROM identity, WRAM
-and pending bit-string buffers. Legacy `VVBS0001` states
+and pending bit-string buffers plus controller state. `VVBS0002` loads with neutral
+controller state. Legacy `VVBS0001` states
 are rejected; recreate them with the updated core.
 Size, version, ROM identity and basic field checks precede any mutation.
 
 ## Remaining platform hardware and features
 
-Bit-string searches, FPU/custom NVC instructions, physical port/peripheral mapping, complete
+Bit-string searches, FPU/remaining NVC instructions, physical port/peripheral mapping, complete
 system registers/PIR/TKCW, other exceptions/external interrupts, caches,
 pipeline/wait-state timing, VIP drawing/display/scanner timing, VSU audio,
-controller serial hardware, link communication, timers and save media remain.
+automatic controller polling/interrupts/timing, link communication, timers and save media remain.
 Valid but unimplemented instructions and unmapped transactions stop execution
 with an explicit serialized `unsupported` flag. Reserved major opcodes `$1B`,
 `$32` and `$36` generate the implemented illegal-instruction exception; remaining
@@ -199,7 +203,7 @@ source/destination banks with canonical aligned addresses and offsets.
 
 Each frontend frame is a bounded 100,000-step scheduling quantum. The counter is
 CPU step attempts, not verified hardware cycles; 20 MHz/50 Hz metadata is nominal.
-Video is a blank 384×224 buffer, audio is empty and input is ignored. Stereo
+Video is a blank 384×224 buffer, audio is empty and input reaches the software-clocked controller. Stereo
 presentation, rendered UI usage, Windows/macOS builds, real hardware and netplay
 for this core remain unverified or unimplemented. Other plugins retain their
 existing networking/controller behavior. The external four-platform suite
@@ -247,3 +251,42 @@ prior plugin fails the new capture contract because it has no native controller
 layout. Virtual Boy earns the digital-input milestone: **25% = 5/20**. Full CPU/
 NVC, VIP/VSU, native boot, saves, netplay and complete hardware/timing remain
 pending; CI/CD stays disabled.
+
+## Nintendo V810 integer extensions (2026-10-11)
+
+Virtual Boy **0.3.0** adds XB, XH, source-register REV, signed **17-bit** MPYHW
+and CLI/SEI ID manipulation. The [original instruction cartridge](../../tests/roms-src/vb/nintendo_registers/README.md)
+emits eight actual register words per snapshot through the frontend-owned file
+channel; it contains no expected answers or verdict. Independent grading matches
+**16,252,928 snapshots / 130,023,424 actual words**, with zero mismatches.
+
+The finite domain includes every halfword in the specified XB/XH/REV surrounds,
+every 17-bit factor on four upper surrounds/four destination patterns/two flag
+seeds, and all 262,144 writable PSWs for each of CLI/SEI. Canonical XB/XH source
+fields are used. These results do not cover every 32-bit operand pair, physical
+timing, noncanonical encodings or the whole CPU. The signed 17-bit quirk follows
+the author's [hardware experiment](https://www.virtual-boy.com/forums/t/nintendo-instruction-cycle-counts/); encodings and status effects follow the
+[authored hardware reference](https://files.virtual-boy.com/download/978651/stsvb.html).
+
+Three executed faulty guests reject: wrong result and wrong PSW each fail all
+1,854 short rows; signed-16 preprocessing fails 224 rows / 288 words, isolated
+to multiply. Eight field faults and seven malformed streams reject. Binaries,
+ROM, generator, CPU/profile sources and grader remain unchanged through capture
+and grading; provenance is recorded alongside the actual files.
+
+The component passes **35,657,783 observations**, comparing complete GPR/SR
+arrays through all register aliases, signed 17-bit factors/all low flags and
+all writable PSWs for six instruction families. It also checks reserved fields,
+unsupported extensions and a tail fetch fault. An additional 65,536 debug-word
+patterns verify actual hexadecimal transport and wrong-width rejection.
+Complete machine states replay each family; the production shared plugin
+replays active output and whole **66,208-byte `VVBS0003`** states for all six
+families. The state format and legacy `VVBS0002` pad migration stay unchanged.
+
+All five affected gates pass (full guest capture: **104.67 seconds**; four
+component/controller/state regressions: **22.09 seconds**). All **152 original
+archives** reproduce; completion rendering and whitespace checks pass. The prior
+CPU fails the new register-alias contract. VB remains **25% = 5/20**: no whole-CPU
+milestone is earned by this subset. Remaining CPU/NVC, caches, timing, VIP/VSU,
+automatic controller polling, native retail boot, saves and netplay remain
+unfinished. CI/CD stays disabled; captures remain ignored locally.

@@ -26300,6 +26300,17 @@
       "source_type": "original",
       "suite": "muldiv"
     },
+    "vb/nintendo_registers/nintendo_registers.vb": {
+      "build_command": "python3 tests/roms-src/vb/nintendo_registers/build.py",
+      "console": "vb",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "27b29f1947b0f534cc80a8d4e01f0ec44c8398f306d8abfc8c45cb59f0f697dd",
+      "source_repo": "tests/roms-src/vb/nintendo_registers/build.py",
+      "source_sha": "7f22b02f2bf29fe95d6017c75767f39b11bb42ba3d5644c328abb33a21a29420",
+      "source_type": "original",
+      "suite": "nintendo_registers"
+    },
     "wii/branch_registers/branch_registers.vwi": {
       "build_command": "python3 tests/roms-src/wii/branch_registers/build.py",
       "console": "wii",

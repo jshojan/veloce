@@ -6,7 +6,7 @@ class Plugin : public emu::IEmulatorPlugin {
 public:
     emu::EmulatorInfo get_info() override {
         static const char* extensions[] = {".vb", nullptr};
-        return {"VB", "0.2.0", "Veloce", "Experimental V810 integer homebrew core; software-clocked dual D-pad input; video, audio, hardware polling/timing and retail compatibility pending.",
+        return {"VB", "0.3.0", "Veloce", "Experimental V810 integer homebrew core; Nintendo integer extensions and software-clocked dual D-pad input; video, audio, hardware polling/timing and retail compatibility pending.",
                 extensions, 50.0, 20000000, 384, 224};
     }
     const emu::ControllerLayoutInfo* get_controller_layout() override {

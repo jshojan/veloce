@@ -44,7 +44,7 @@ headlines or original-ROM domain pass fractions.
 | [Game Boy](#game-boy) | 225 external tests / 31 suites, plus 3 original ROMs | Verified subset only | Blargg serial subset, 2 WRAM checks, 8,388,608 ALU pairs and 73,728 unary pairs verified; Mooneye remains unverified |
 | [GBA](#gba) | 132 external tests / 29 suites, plus 1 original ROM | Partial; 65,536 original ARM shift cases verified | Legacy CPU/memory/BIOS/saves subsets verified; timing/PPU and remaining original hardware corpus pending |
 | N64 | 35 original ROMs; no external catalog | Declared integer/merge/controller/interrupt/PI/RI/MI/device/cache/SP/AI/FPU-control/data/conversion/arithmetic/comparison/TLB/VI/RSP-scalar/vector-transfer/multiply domains verified | Experimental homebrew/native handoff; retail boot pending; full hardware completion unknown; [limits](cores/n64/README.md) |
-| Virtual Boy | 8 original ROMs; no external catalog | 6,512,640 result/PSW pairs plus 4,210,688 multiply/divide and 4,685,824 TRAP/illegal and 4,982,784 address-trap snapshots plus 17,055,744 CAXI/port and 14,680,064 arithmetic bit-string and 100,712,448 immediate-instruction snapshots | Experimental marked homebrew; remaining CPU/NVC, VIP/VSU, hardware controller polling and timing pending; [limits](cores/vb/README.md) |
+| Virtual Boy | 9 original ROMs; no external catalog | 6,512,640 result/PSW pairs plus 4,210,688 multiply/divide and 4,685,824 TRAP/illegal and 4,982,784 address-trap snapshots plus 17,055,744 CAXI/port and 14,680,064 arithmetic bit-string and 100,712,448 immediate-instruction plus 16,252,928 Nintendo-instruction snapshots | Experimental marked homebrew; remaining CPU/NVC, VIP/VSU, hardware controller polling and timing pending; [limits](cores/vb/README.md) |
 | Nintendo DS | 15 original ROMs; no external catalog | 44,238,336 integer plus 38,338,560 multiply plus 51,426,816 Thumb result/CPSR/source/PC observations matched; 10,846,208 saturating arithmetic result/CPSR/source observations matched, with executed wrong-double mutant rejected; 12,646,272 CLZ result/CPSR/source observations matched, with executed off-by-one mutant rejected; 33,300,480 SWP/SWPB register/RAM observations matched on both CPUs, with executed missing-store mutant rejected; 16,777,088 ARM BLX target/LR/CPSR snapshots matched, with executed wrong-H mutant rejected; 15,454,208 DSP multiplication register/CPSR snapshots matched across all sixteen forms, with executed wrong-half mutant rejected; 16,646,144 LDRD/STRD register/RAM snapshots matched, with executed missing-load mutant rejected; 2,881,632 ordinary ARM block-transfer register/RAM snapshots matched on both CPUs; 49,694,208 nine-word memory and 9,437,184 eight-word long-call observations matched; 3,720,960 stack/block observations matched; 4,096/4,096 digital keypad combinations matched; 100-frame TCP host/viewer states and eight guest words match baseline/oracle; DS wireless multiplayer pending; ARM7 unpredictable multiply flags excluded | Experimental marked ARM/Thumb integer homebrew; firmware, User-bank/SPSR block transfers, graphics/audio, peripherals pending; DSi has a separate partial plugin; [limits](cores/nds/README.md) |
 | Nintendo DSi | 2 original ROMs; no external catalog | 387,072/387,072 RAM captures; 67,109,008 component bus observations; 100-frame TCP host/viewer states and eight guest register words match oracle | Experimental dual-CPU expanded-memory profile; firmware/retail boot, full SCFG/MBK, graphics/audio/peripherals and physical timing pending; [limits](cores/dsi/README.md) |
 | Nintendo 3DS | 2 original ROMs; no external catalog | 25,165,824/25,165,824 reversal captures; 36,123,648 component register snapshots; 541,065,300 RAM bus observations; 4,096 HID input combinations; 100-frame TCP host/viewer full states and twelve guest words match baseline/oracle | Experimental supplied ARM11/ARM9 integer profile; native boot, remaining CPU, graphics/audio/peripherals, wireless multiplayer and physical timing pending; full hardware percentage unknown; [limits](cores/3ds/README.md) |
@@ -4108,3 +4108,42 @@ prior plugin fails the new capture contract because it has no native controller
 layout. Virtual Boy earns the digital-input milestone: **25% = 5/20**. Full CPU/
 NVC, VIP/VSU, native boot, saves, netplay and complete hardware/timing remain
 pending; CI/CD stays disabled.
+
+## Nintendo V810 integer extensions (2026-10-11)
+
+Virtual Boy **0.3.0** adds XB, XH, source-register REV, signed **17-bit** MPYHW
+and CLI/SEI ID manipulation. The [original instruction cartridge](tests/roms-src/vb/nintendo_registers/README.md)
+emits eight actual register words per snapshot through the frontend-owned file
+channel; it contains no expected answers or verdict. Independent grading matches
+**16,252,928 snapshots / 130,023,424 actual words**, with zero mismatches.
+
+The finite domain includes every halfword in the specified XB/XH/REV surrounds,
+every 17-bit factor on four upper surrounds/four destination patterns/two flag
+seeds, and all 262,144 writable PSWs for each of CLI/SEI. Canonical XB/XH source
+fields are used. These results do not cover every 32-bit operand pair, physical
+timing, noncanonical encodings or the whole CPU. The signed 17-bit quirk follows
+the author's [hardware experiment](https://www.virtual-boy.com/forums/t/nintendo-instruction-cycle-counts/); encodings and status effects follow the
+[authored hardware reference](https://files.virtual-boy.com/download/978651/stsvb.html).
+
+Three executed faulty guests reject: wrong result and wrong PSW each fail all
+1,854 short rows; signed-16 preprocessing fails 224 rows / 288 words, isolated
+to multiply. Eight field faults and seven malformed streams reject. Binaries,
+ROM, generator, CPU/profile sources and grader remain unchanged through capture
+and grading; provenance is recorded alongside the actual files.
+
+The component passes **35,657,783 observations**, comparing complete GPR/SR
+arrays through all register aliases, signed 17-bit factors/all low flags and
+all writable PSWs for six instruction families. It also checks reserved fields,
+unsupported extensions and a tail fetch fault. An additional 65,536 debug-word
+patterns verify actual hexadecimal transport and wrong-width rejection.
+Complete machine states replay each family; the production shared plugin
+replays active output and whole **66,208-byte `VVBS0003`** states for all six
+families. The state format and legacy `VVBS0002` pad migration stay unchanged.
+
+All five affected gates pass (full guest capture: **104.67 seconds**; four
+component/controller/state regressions: **22.09 seconds**). All **152 original
+archives** reproduce; completion rendering and whitespace checks pass. The prior
+CPU fails the new register-alias contract. VB remains **25% = 5/20**: no whole-CPU
+milestone is earned by this subset. Remaining CPU/NVC, caches, timing, VIP/VSU,
+automatic controller polling, native retail boot, saves and netplay remain
+unfinished. CI/CD stays disabled; captures remain ignored locally.
