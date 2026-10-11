@@ -1255,3 +1255,6 @@ add_dependencies(snes_test_channel_plugin_test snes_plugin)
 add_test(NAME snes_test_channel_plugin_test COMMAND snes_test_channel_plugin_test $<TARGET_FILE:snes_plugin>
     ${CMAKE_BINARY_DIR}/artifacts/owned/snes_result_channel)
 set_tests_properties(snes_test_channel_plugin_test PROPERTIES LABELS "integration;accuracy;owned" TIMEOUT 30)
+
+add_test(NAME cli_exit_test COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/cli_exit_test.py $<TARGET_FILE:veloce>)
+set_tests_properties(cli_exit_test PROPERTIES LABELS "integration;fast" TIMEOUT 45)

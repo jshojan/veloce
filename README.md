@@ -30,9 +30,9 @@ A cross-platform, plugin-based emulator framework built for speedrunners and TAS
 
 | Platform | Status |
 |----------|--------|
-| Windows  | Supported |
-| Linux    | Supported |
-| macOS    | Supported (x86/ARM) |
+| Windows  | Build configured; runtime unverified in this workspace |
+| Linux    | Build and executed local gates verified |
+| macOS    | Build configured; runtime unverified in this workspace |
 
 ## Overview
 
@@ -166,6 +166,14 @@ All plugin interfaces are defined in include/emu/:
 - USB gamepad support with hot-plugging
 - Debug tools (memory viewer, CPU/PPU state)
 
+### Frontend plugin wiring
+
+The frame loop currently uses the built-in input and audio managers. The
+separate `IInputPlugin` and `IAudioPlugin` implementations can load, but are not
+driven by that loop. Netplay and game plugins are driven by the frontend;
+netplay support depends on the active core's implemented interface and profile.
+Physical controller and audio-device validation remains pending.
+
 ### Speedrun Features
 
 - Millisecond-precision live timer with splits
@@ -176,7 +184,10 @@ All plugin interfaces are defined in include/emu/:
 - Per-game auto-splitter support via game plugins
 - LiveSplit integration (planned)
 
-### TAS Features
+### TAS Features (frontend integration pending)
+
+`ITASPlugin` and the default implementation exist. The application frame loop
+does not drive them yet; the capabilities below are not available end to end.
 
 - Frame-by-frame movie recording and playback
 - Greenzone (automatic savestate snapshots for seeking)
@@ -252,17 +263,20 @@ still require verification.
 
 ### Prerequisites
 
-Dependencies (SDL2, Dear ImGui, nlohmann/json) are automatically downloaded via CMake FetchContent.
+Requires a C++17 compiler and CMake 3.16+. CMake uses system SDL2 when available;
+otherwise it fetches SDL2. Dear ImGui and nlohmann/json are fetched at configure
+time, so a first configure needs network access and Git. Python 3 is required
+while `VELOCE_BUILD_TESTS` is enabled (the default).
 
 **Linux (Ubuntu/Debian):**
 ```bash
-sudo apt-get install -y build-essential cmake libgl-dev libglu1-mesa-dev
+sudo apt-get install -y build-essential cmake git python3 libgl-dev libsdl2-dev
 ```
 
 **macOS:**
 ```bash
 xcode-select --install
-brew install cmake
+brew install cmake sdl2
 ```
 
 **Windows:**
@@ -337,6 +351,10 @@ Environment Variables:
   INPUT=frame:hexmask,...  Deterministic button-press schedule for tests
                             that need scripted input.
 ```
+
+`--help` and `--version` exit before initializing SDL, plugins or runtime paths.
+Unknown options exit with status 1. Seven executed CLI cases cover both short
+and long flags, a missing-ROM/help combination and diagnostic/version output.
 
 ### Hotkeys
 
@@ -679,8 +697,18 @@ veloce/
 - [gba-tests](https://github.com/jsmolka/gba-tests) - GBA emulator test ROMs by jsmolka
 - [hw-test](https://codeberg.org/nba-emu/hw-test) - GBA hardware timing tests by fleroviux (NanoBoyAdvance), rebuilt with a result-channel patch
 - [snes-tests](https://github.com/gilyon/snes-tests) - SNES emulator test ROMs by gilyon
+- [stb_image_write](https://github.com/nothings/stb) - Screenshot encoding
+- Game Boy test sources: [Blargg](https://github.com/retrio/gb-test-roms), [Mooneye](https://github.com/Gekkio/mooneye-test-suite), [SameSuite](https://github.com/LIJI32/SameSuite), and the [c-sp collection](https://github.com/c-sp/gameboy-test-roms)
+- Additional supplemental tests: [mGBA suite](https://github.com/mgba-emu/suite), [alyosha GBA tests](https://github.com/alyosha-tas/gba-tests), [PeterLemon SNES](https://github.com/PeterLemon/SNES), and [holy-mapperel](https://github.com/pinobatch/holy-mapperel)
 - [Project64](https://www.pj64-emu.com/) - Plugin architecture inspiration
 
 ## License
 
 MIT License - See [LICENSE](LICENSE) file.
+
+## Branch reconciliation
+
+The older README refresh has been reconciled with current implementation and
+executed evidence. Its outdated four-core, missing-file-channel and missing-
+netplay status was superseded. See the [branch integration record](docs/BRANCH-INTEGRATION.md).
+CI/CD remains disabled; run the documented gates locally.
