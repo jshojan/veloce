@@ -8,6 +8,7 @@
 #include "rdp_texture.hpp"
 #include "rdp_tmem.hpp"
 #include "rdp_packet.hpp"
+#include "rdp_triangle_fill.hpp"
 namespace n64 {
 // Shared CPU/RSP DP interface and bounded, functional RDP fill engine.
 // Command issue/counters are nominal clocks, not DMA FIFO or rasterizer timing.
@@ -63,6 +64,10 @@ public:
         const unsigned op=unsigned(word>>56)&63;
         bool supported=true;unsigned reason=1;
         switch(op){
+        case 8:case 9:case 10:case 11:case 12:case 13:case 14:case 15:
+            if(((other_mode>>52)&3)==3){reason=RdpTriangleFill::draw(packet,color_image,other_mode,scissor,fill_color,ram);supported=!reason;}
+            else supported=false;
+            break;
         case 0:case 38:case 39:case 40:break; // NOP and settled load/pipe/tile barriers.
         case 41:pipeline=false;interrupt=true;break; // Actual FullSync command, never a range-end IRQ.
         case 45:scissor=word&0x00ffffffffffffffull;break;
