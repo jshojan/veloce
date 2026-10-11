@@ -1,14 +1,19 @@
 #pragma once
 #include "rdp_tmem.hpp"
 namespace n64 {
+struct RdpTexelQuad;
 // Canonical big-endian TMEM reads. YUV returns signed U/V and unconverted Y/A;
 // filtering, conversion coefficients, division/LOD and pipeline timing are not
 // performed here. Palette lane identifies the physical replicated TLUT bank.
 struct RdpTexelFetch {
     using Color=std::array<int32_t,4>;
     static Color read(const RdpTmem& memory,const RdpTexture::Tile& tile,int32_t s,int32_t t){
+        return read_row(memory,tile,s,t,tile.address()+tile.line()*(uint32_t(t)&255));
+    }
+private:
+    friend struct RdpTexelQuad;
+    static Color read_row(const RdpTmem& memory,const RdpTexture::Tile& tile,int32_t s,int32_t t,uint32_t base){
         const unsigned format=tile.format()<5?tile.format():4,size=tile.size();
-        const uint32_t base=tile.address()+tile.line()*(uint32_t(t)&255);
         const uint32_t byte=(base*8+uint32_t(s))^((t&1)?4u:0u);
         const uint32_t short_at=(base*4+uint32_t(s))^((t&1)?2u:0u);
         if(format==1){
@@ -31,9 +36,13 @@ struct RdpTexelFetch {
         if(format==3 && size==2)return ia16(v);
         return {int32_t(v>>8),int32_t(v&255),int32_t(v>>8),int32_t(v&255)};
     }
+public:
     static unsigned palette_index(const RdpTmem& memory,const RdpTexture::Tile& tile,int32_t s,int32_t t){
+        return index_row(memory,tile,s,t,tile.address()+tile.line()*(uint32_t(t)&255));
+    }
+private:
+    static unsigned index_row(const RdpTmem& memory,const RdpTexture::Tile& tile,int32_t s,int32_t t,uint32_t base){
         const unsigned kind=tile.format()<5?(tile.format()+2)&3:2;
-        const uint32_t base=tile.address()+tile.line()*(uint32_t(t)&255);
         const unsigned byte=(base*8+uint32_t(s))^((t&1)?4u:0u);
         if(!tile.size()){
             unsigned nibble;
@@ -44,6 +53,7 @@ struct RdpTexelFetch {
         if(tile.size()==1 || kind==3)return memory.bytes[byte&2047];
         return half(memory,((base*4+uint32_t(s))^((t&1)?2u:0u))&1023)>>8;
     }
+public:
     static Color palette(const RdpTmem& memory,unsigned index,unsigned lane,bool intensity_alpha){
         const unsigned v=half(memory,1024+((index&255)*4)+(lane&3));return intensity_alpha?ia16(v):rgba16(v);
     }

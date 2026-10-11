@@ -1,6 +1,6 @@
 # Nintendo implementation and hardware test coverage
 
-Current N64 evidence: [texture filtering arithmetic and current Mario status](#texture-filter-and-conversion-arithmetic). Earlier increment reports are historical.
+Current N64 evidence: [coupled texture sampling and current Mario status](#coupled-tmem-and-tlut-sampling). Earlier increment reports are historical.
 
 The goal includes Nintendo core plugins, repository-owned ROMs covering the
 hardware, machine-readable register observations, netplay, seamless controllers,
@@ -2519,3 +2519,59 @@ core/trace hashes still match the private Mario report at
 with uniform video and unverified boot/playability. Plugin **0.30.0**, ABI v2
 and **VN64S024** remain current. N64 stays **45% = 9/20 delivery milestones**.
 CI/CD remains disabled; the full Nintendo implementation goal remains active.
+
+
+## Coupled TMEM and TLUT sampling
+
+Four-corner TMEM reads now preserve neighboring-row carry after the initial
+8-bit row normalization. Format aliases retain the scalar reader's decoding;
+YUV chroma uses its coupled horizontal stride while luma uses the ordinary
+neighbor. YUV4/8 and palette modes remap B/A corners when the chroma and luma
+triangles differ. TLUT reads select physical banks by corner and chroma
+triangle, supporting both RGBA5551 and IA16 interpretations. Nearest TLUT mode
+reads all four banks of one index. These rules follow the
+[RDP author's coupled TMEM model](https://github.com/ata4/angrylion-rdp-plus/blob/master/src/core/n64video/rdp/tmem.c).
+
+Independent byte-address, fixed-code expansion and lane-assignment oracles
+pass **2,097,152 raw quad captures**, **8,388,608 palette quad captures** and
+**3,145,728 row-carry captures**. Quad captures include 65,536 selected signed
+S/T and neighbor-difference patterns across every format/size encoding;
+palette captures test both interpretations and coupled/nearest modes against
+nonidentical physical banks. Row-carry probes cover every tile base/line pair
+for RGBA, YUV and intensity at every size, with a selected row-255-to-256
+transition. These patterns do not exhaust all arbitrary TMEM contents or all
+independent coordinate/neighbor combinations.
+
+A further **1,536 composed load/filter captures** run RGBA16/RGBA32 data through
+the actual TMEM loader, tile coordinate processing, coupled fetch and mid-texel
+filtering. Four source pixels and their independently averaged colors are
+checked across 256 patterns and three wrap-sensitive bases. **1,024 actual
+TLUT load/fetch captures** verify full 256-entry palette loads, CI8 sampling,
+both palette interpretations and coupled/nearest modes. The palette load tile
+uses the zero-size descriptor prescribed by the
+[SDK's LoadTLUT macros](https://ultra64.ca/files/documentation/online-manuals/man/header/gbi.htm).
+
+Warning-as-error compilation and UBSAN pass. The registered coupled-fetch
+and production-fault gates pass. The unmodified runner baseline passes and
+all nine compiled faults are rejected, covering row carry, chroma stride,
+palette banks, lane remapping, nearest index selection, YUV nibble/alpha/luma
+addressing and palette type. Compilation failures never count as rejection.
+The existing scalar fetch, scalar fault, descriptor, coordinate and filter
+gates also pass after the shared scalar decoder refactor. Artifacts:
+`build/artifacts/component/n64_texel_quad/`. From the repository root:
+
+```sh
+cmake --build build --target n64_rdp_texel_quad_test
+ctest --test-dir build -R '^n64_rdp_texel_quad_' --output-on-failure
+```
+
+This module has component and composed-path evidence, with no guest sampling
+output corpus yet. Pixel rendering, mode/convert command state, persistent
+previous texels, point sampling without TLUT, perspective/LOD and complete
+blending/depth/hidden-memory behavior remain unfinished. Software oracles do
+not establish physical timing. Production core/trace hashes still match the
+private Mario report at `build/artifacts/retail/n64-one-cycle-shade.json`.
+Mario remains graphics-blocked with uniform video and unverified boot/playability.
+Plugin **0.30.0**, ABI v2 and **VN64S024** remain current. N64 stays
+**45% = 9/20 delivery milestones**. CI/CD remains disabled; the full Nintendo
+implementation goal remains active.
