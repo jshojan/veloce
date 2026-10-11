@@ -70,7 +70,7 @@ void Machine::reset() {
 }
 void Machine::clock() {
     // One nominal CPU clock per interpreter attempt: physical CPI is unmodeled.
-    rsp_phase+=2;if(rsp_phase>=3){rsp_phase-=3;rsp.step(sp_interface,dp_interface,sp,ram);dp_interface.tick(ram,sp,dp_interrupt);}
+    rsp_phase+=2;if(rsp_phase>=3){rsp_phase-=3;rsp.step(sp_interface,dp_interface,sp,ram);dp_interface.tick(ram,sp,dp_interrupt,&hidden);}
     crystal_phase+=48681818;
     if(crystal_phase>=93750000) {crystal_phase-=93750000;audio_interface.tick(ram);video_interface.tick();}
     output_phase+=48000;

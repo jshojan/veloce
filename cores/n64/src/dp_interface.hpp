@@ -50,7 +50,7 @@ public:
         // Read-only writes ignored as a deterministic convention; physical bus behavior ungraded.
         return true;
     }
-    void tick(std::vector<uint8_t>& ram,const std::array<uint8_t,8192>& sp,bool& interrupt){
+    void tick(std::vector<uint8_t>& ram,const std::array<uint8_t,8192>& sp,bool& interrupt,HiddenRdram* hidden=nullptr){
         if(pipeline){clock=(clock+1)&0xffffff;pipe_busy=(pipe_busy+1)&0xffffff;}
         if(current==active_end && start_valid && end_valid)activate();
         if((flags&6) || blocked)return;
@@ -69,8 +69,8 @@ public:
         bool supported=true;unsigned reason=1;
         switch(op){
         case 8:case 9:case 10:case 11:case 12:case 13:case 14:case 15:
-            if(((other_mode>>52)&3)==3){reason=RdpTriangleFill::draw(packet,color_image,other_mode,scissor,fill_color,ram);supported=!reason;}
-            else if(((other_mode>>52)&3)==0){reason=RdpTriangleShade::draw(packet,color_image,other_mode,scissor,combiner,ram,&texture,&tmem,&conversion,&blender);supported=!reason;}
+            if(((other_mode>>52)&3)==3){reason=RdpTriangleFill::draw(packet,color_image,other_mode,scissor,fill_color,ram,hidden);supported=!reason;}
+            else if(((other_mode>>52)&3)==0){reason=RdpTriangleShade::draw(packet,color_image,other_mode,scissor,combiner,ram,&texture,&tmem,&conversion,&blender,hidden);supported=!reason;}
             else supported=false;
             break;
         case 0:case 38:case 39:case 40:break; // NOP and settled load/pipe/tile barriers.
@@ -85,7 +85,7 @@ public:
         case 58:case 59:case 60:combiner.command(op,word);break;
         case 62:depth_image=uint32_t(word)&0x3ffffff;break;
         case 63:color_image=word&0x00ffffffffffffffull;break;
-        case 54:reason=RdpFill::draw(word,color_image,other_mode,scissor,fill_color,ram);supported=!reason;break;
+        case 54:reason=RdpFill::draw(word,color_image,other_mode,scissor,fill_color,ram,hidden);supported=!reason;break;
         default:supported=false;break;
         }
         if(!supported){block(word,reason);return;}

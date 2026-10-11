@@ -484,6 +484,17 @@
       "source_type": "original",
       "suite": "rdp_fill_pipeline"
     },
+    "n64/rdp_hidden_rgba16/rdp_hidden_rgba16.z64": {
+      "build_command": "python3 tests/roms-src/n64/rdp_hidden_rgba16/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "c78e764a446d3a7154bfb7fe22c6dcdeabbda822566cdc8f850be16781e2512d",
+      "source_repo": "tests/roms-src/n64/rdp_hidden_rgba16/build.py",
+      "source_sha": "2d42b30be875275c7cce06cba05021e5d64ab1255197ee1980197d97d964e359",
+      "source_type": "original",
+      "suite": "rdp_hidden_rgba16"
+    },
     "n64/rdp_one_cycle_blend/rdp_one_cycle_blend.z64": {
       "build_command": "python3 tests/roms-src/n64/rdp_one_cycle_blend/build.py",
       "console": "n64",
