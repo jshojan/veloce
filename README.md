@@ -21,7 +21,7 @@
 
 These percentages count the 20 explicit delivery milestones in [the completion ledger](docs/CORE-COMPLETION.md); partial or unverified milestones receive zero credit. Each milestone is worth 5 percentage points. **They are not percentages of native hardware accuracy or retail compatibility.** Bounded profile tests do not complete a whole CPU or hardware subsystem.
 
-Super Mario 64 (USA) was tested locally on 2026-10-10: **loads and passes SET_Z_IMAGE and actual color/depth-buffer clears**. The longer trace reaches 200 million CPU attempts without a terminal fault. The longer probe now reports no unsupported RSP instruction and a real BREAK; RDP TMEM block/tile/palette transfers now pass; shaded/textured/depth-tested triangles remain blocked; video stays uniform and boot/playability are unverified. See the [repeatable local probe](cores/n64/README.md#local-retail-regression-target).
+Super Mario 64 (USA) was tested locally on 2026-10-10: **loads and passes SET_Z_IMAGE and actual color/depth-buffer clears**. The current private trace reaches 200 million CPU attempts without a terminal fault. RDP TMEM block/tile/palette transfers pass, and the reader now retains the complete **22/22-word triangle packet** at **0x227160**, advancing fetched CURRENT to **0x227210**. Shaded/textured/depth-tested triangle rendering remains blocked; video stays uniform and boot/playability are unverified. See the [current packet evidence and repeatable private probe](cores/n64/README.md#rdp-complete-command-packets).
 <!-- completion:end -->
 
 A cross-platform, plugin-based emulator framework built for speedrunners and TAS creators.
