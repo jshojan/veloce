@@ -1,5 +1,16 @@
 {
   "roms": {
+    "3ds/dual_media_multiply_registers/dual_media_multiply_registers.v3ds": {
+      "build_command": "python3 tests/roms-src/3ds/dual_media_multiply_registers/build.py",
+      "console": "3ds",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "703ad6e676d0531df90314287e1c4015247c9552a307b6f13f1eb21bccbe773f",
+      "source_repo": "tests/roms-src/3ds/dual_media_multiply_registers/build.py",
+      "source_sha": "48a3cdf5ac8aa9192a7d913a8243e08145a5b14b2cec2f4b65d80ed64744b3ff",
+      "source_type": "original",
+      "suite": "dual_media_multiply_registers"
+    },
     "3ds/extend_registers/extend_registers.v3ds": {
       "build_command": "python3 tests/roms-src/3ds/extend_registers/build.py",
       "console": "3ds",

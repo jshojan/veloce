@@ -4013,3 +4013,24 @@ complete 135,791,096-byte states. Full CPU/media/system/MMU/exception behavior,
 timing, firmware/retail boot, graphics/audio and native devices remain pending.
 ABI/state format are unchanged; 3DS remains **30%**. See
 [original source and domains](../tests/roms-src/3ds/wide_media_multiply_registers/README.md).
+
+## ARM11 dual-halfword multiplication (2026-10-11)
+
+3DS 0.8.0 adds SMUAD/SMUSD, SMLAD/SMLSD and SMLALD/SMLSLD, each with
+second-operand exchange. Signed halfword products are summed or subtracted;
+32-bit final overflow sets sticky Q, while long accumulation preserves flags.
+Sources and accumulators are read before aliases; earlier CPU profiles, PC,
+reserved operations and duplicate long destinations stop diagnostically.
+The original dual-ARM11 image independently grades **12,582,912 snapshots /
+125,829,120 actual register words** across complete selected low halfwords,
+a fixed high halfword, four right words and two correlated flag/seed surrounds.
+The component gate passes **55,320,578 observations**, including independent
+carry arithmetic, overflow cancellation, conditions, flags, aliases and invalid
+encodings. Executed 1,536-row result/Q/subtract/source controls reject all;
+removing accumulation rejects 1,024 rows and wrong exchange rejects 720.
+Ten field faults and seven malformed streams reject. Native checkpoint prefixes
+compare actual output and complete 135,791,096-byte states. This is finite
+instruction coverage: full CPU/system/MMU/exception/privilege behavior, timing,
+firmware/retail boot, graphics/audio and devices remain pending. ABI/state formats
+are unchanged; 3DS remains **30%**. See
+[original source and domains](../tests/roms-src/3ds/dual_media_multiply_registers/README.md).

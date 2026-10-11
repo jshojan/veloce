@@ -11,16 +11,22 @@ These percentages count the 20 explicit delivery milestones in [the completion l
 
 Nintendo 3DS delivered milestones: Native digital controller/keypad registers consume frontend input, Actual production-plugin TCP peers pass original guest oracle and whole-state comparison, Repository-owned ROM source and reproducible archived image, Separate core plugin and ABI entry points, Actual guest register-file output independently graded on the host, with negative controls, Complete states for the implemented profile and deterministic replay.
 
-Remaining: ARM11 ARMv6 UMAAL/high-word multiply, packing/absolute differences, parallel arithmetic/SEL, extension/accumulate and saturation now have original independently graded register images, flags/alias/profile controls and native checkpoint continuations. The new wide multiply image checks 7,340,032 snapshots / 73,400,320 register words. Remaining CPU/MMU, firmware/native formats, graphics/audio, analog/touch and wireless multiplayer remain.
+Remaining: ARM11 ARMv6 dual-halfword multiply/exchange/accumulate, UMAAL/high-word multiply, packing/absolute differences, parallel arithmetic/SEL, extension/accumulate and saturation now have original independently graded register images, flags/alias/profile controls and native checkpoint continuations. The new dual multiply image checks 12,582,912 snapshots / 125,829,120 register words. Remaining CPU/MMU, firmware/native formats, graphics/audio, analog/touch and wireless multiplayer remain.
 <!-- completion:end -->
 
 `ctr_plugin` builds `3ds.so` (or the platform library equivalent), ABI v2,
-version 0.2.0. The separately loadable core executes repository-owned `.v3ds`
+version 0.8.0. The separately loadable core executes repository-owned `.v3ds`
 integer programs on two ARM11 contexts and one ARM9 context. **Native 3DS
-software and firmware do not boot. Full platform completion is unmeasured.**
+software and firmware do not boot. Complete hardware behavior remains unverified.**
 
 ## Implemented profile
 
+- ARM11-only ARMv6 subsets: ARM/Thumb reversal, signed/unsigned extension and
+  accumulation, scalar/halfword saturation, parallel arithmetic/GE/SEL, halfword
+  packing, byte absolute differences, high-word/unsigned wide multiplication,
+  and signed dual-halfword multiply/exchange/32-bit or 64-bit accumulation.
+  Original register-output sources and finite domains are linked in the
+  [front-page coverage table](../../README.md#3ds-arm11-instruction-coverage).
 - The [DS integer interpreter](../nds/README.md), with ARMv6 ARM/Thumb REV,
   REV16 and REVSH enabled only for ARM11. Unsupported instructions diagnose
   and stop that context. The shared decoder also supports CLZ and QADD/QSUB/QDADD/QDSUB
@@ -32,7 +38,7 @@ software and firmware do not boot. Full platform completion is unmeasured.**
   CLZ/saturation/DSP corpora are graded on DS ARM9, and exchanges on both DS CPUs.
   DSP/doubleword component gates separately check ARM11 aliases and flags.
   Doubleword alignment/endianness configuration and physical aborts are pending.
-  Remaining ARMv6 DSP extensions and platform-specific timing are pending.
+  Remaining ARMv6 media/system instructions and platform-specific timing are pending.
 - Shared 128 MiB FCRAM at `20000000–27ffffff`, shared 512 KiB AXI RAM at
   `1ff80000–1fffffff`, and 1 MiB ARM9 private RAM at `08000000–080fffff`.
   Bus byte/halfword/word access is little endian; unmapped reads/writes reject,
@@ -282,3 +288,30 @@ Verification: the full Release build and all **21 selected gates** pass, includi
 the **38,338,560-case** original DS multiply regression. All **144 original
 archives** reproduce. The new native corpus has zero mismatches and unchanged
 capture provenance hashes; completion rendering and whitespace checks pass.
+
+## ARM11 dual-halfword multiplication (2026-10-11)
+
+3DS 0.8.0 adds SMUAD/SMUSD, SMLAD/SMLSD and SMLALD/SMLSLD, each with
+second-operand exchange. Signed halfword products are summed or subtracted;
+32-bit final overflow sets sticky Q, while long accumulation preserves flags.
+Sources and accumulators are read before aliases; earlier CPU profiles, PC,
+reserved operations and duplicate long destinations stop diagnostically.
+The original dual-ARM11 image independently grades **12,582,912 snapshots /
+125,829,120 actual register words** across complete selected low halfwords,
+a fixed high halfword, four right words and two correlated flag/seed surrounds.
+The component gate passes **55,320,578 observations**, including independent
+carry arithmetic, overflow cancellation, conditions, flags, aliases and invalid
+encodings. Executed 1,536-row result/Q/subtract/source controls reject all;
+removing accumulation rejects 1,024 rows and wrong exchange rejects 720.
+Ten field faults and seven malformed streams reject. Native checkpoint prefixes
+compare actual output and complete 135,791,096-byte states. This is finite
+instruction coverage: full CPU/system/MMU/exception/privilege behavior, timing,
+firmware/retail boot, graphics/audio and devices remain pending. ABI/state formats
+are unchanged; 3DS remains **30%**. See
+[original source and domains](../../tests/roms-src/3ds/dual_media_multiply_registers/README.md).
+
+Verification: full Release build and all **22 selected gates** pass, including
+the adjacent **7,340,032-case** high-word/UMAAL image. The new **12,582,912-case**
+image has zero mismatches with unchanged capture provenance. Checkpoints compare
+**5,450 actual rows** and complete states. All **145 original archives** reproduce;
+completion rendering and whitespace checks pass. CI/CD remains disabled.
