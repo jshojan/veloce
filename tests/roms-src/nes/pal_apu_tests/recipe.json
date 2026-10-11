@@ -1,0 +1,29 @@
+{
+  "console": "nes",
+  "suite": "pal_apu_tests",
+  "description": "Blargg pal_apu_tests 01-03 (the three wired in cores/nes/tests/test_config.json). The 2005 sources target blargg's custom devcart assembler and runtime (runtime_rom_common.a even includes a ppu_util.a upstream never shipped in this directory), so the build translates the upstream test + support files to asm6f with tests/roms-src/include/runtime2005/to_asm6f.sed and links them against Veloce's runtime2005 (validation.a replacement reporting the $F8 result over the $401E VELOCE-RESULT/1 port; veloce_rom2005*.a ROM wrapper) (NES-3).",
+  "license": "blargg (Shay Green) 2005 test code; upstream pal_apu_tests/readme.txt carries no licence statement (plan section 8 treats blargg's NES test ROMs as freely usable). Nothing from upstream is committed: sources are fetched at the pinned SHA and translated at build time.",
+  "repo": {
+    "url": "https://github.com/christopherpow/nes-test-roms.git",
+    "sha": "95d8f621ae55cee0d09b91519a8989ae0e64753b"
+  },
+  "toolchain_stage": "asm6f",
+  "golden_gate": false,
+  "golden_gate_reason": "Upstream's binaries were built by blargg's own 2005 devcart assembler with a runtime (console.a/debug.a/ppu_util.a, on-screen text + beeps) that this build deliberately replaces, and one of its files (ppu_util.a) is not in the directory at the pinned SHA; no byte-identical rebuild is possible. Verified behaviourally instead; see PROVENANCE.md.",
+  "rom_variant": "veloce",
+  "build": {
+    "workdir": "pal_apu_tests/source",
+    "commands": [
+      "rm -rf vbuild && mkdir vbuild",
+      "for f in 01.len_ctr 02.len_table 03.irq_flag prefix_apu sync_apu delays; do sed -E -f /veloce-include/runtime2005/to_asm6f.sed $f.a > vbuild/$f.a || exit 1; done",
+      "cp /veloce-include/veloce-test-asm6f.inc /veloce-include/runtime2005/validation.a /veloce-include/runtime2005/veloce_rom2005.a /veloce-include/runtime2005/veloce_rom2005_end.a vbuild/",
+      "cd vbuild",
+      "for t in 01.len_ctr 02.len_table 03.irq_flag; do printf 'VELOCE_SUITE EQU \"pal_apu_tests.%s\"\\nINCLUDE \"veloce_rom2005.a\"\\nINCLUDE \"%s.a\"\\nINCLUDE \"delays.a\"\\nINCLUDE \"veloce_rom2005_end.a\"\\n' $t $t > veloce_$t.asm && asm6f -q veloce_$t.asm ../../$t.nes || exit 1; done"
+    ],
+    "artifacts": {
+      "pal_apu_tests/01.len_ctr.nes": "01.len_ctr.nes",
+      "pal_apu_tests/02.len_table.nes": "02.len_table.nes",
+      "pal_apu_tests/03.irq_flag.nes": "03.irq_flag.nes"
+    }
+  }
+}

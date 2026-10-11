@@ -5,7 +5,9 @@
 #
 # Targets registered:
 #   testkit_selftest    - fast pure-logic unit test (no ROMs, no emulator)
+#   rom_build_selftest  - fast unit test of build.py's Recipe/local_source logic (no docker)
 #   test_file_sink      - C++ unit test of the VELOCE_TEST_OUT sink (stub plugin)
+#   nes_test_channel    - C++ unit test of the NES $401E port + blargg6000 adapter
 #   validate_configs    - schema validation of every test_config.json
 #   accuracy_<console>  - full per-console accuracy run (needs network for ROMs)
 #   accuracy_all        - cross-console aggregate scorecard
@@ -169,6 +171,12 @@ add_test(
 )
 set_tests_properties(validate_configs PROPERTIES LABELS "unit;fast")
 
+add_test(
+    NAME rom_build_selftest
+    COMMAND ${Python3_EXECUTABLE} ${VELOCE_TESTS_DIR}/roms-src/selftest.py
+)
+set_tests_properties(rom_build_selftest PROPERTIES LABELS "unit;fast")
+
 # Test-result sink (plugin ABI v2): TestFileSink driven by a stub plugin.
 add_executable(test_file_sink
     ${VELOCE_TESTS_DIR}/cpp/test_file_sink_test.cpp
@@ -247,6 +255,17 @@ add_test(NAME gba_arm_shifts
             --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/gba_shifts)
 set_tests_properties(gba_arm_shifts PROPERTIES LABELS "accuracy;owned"
     TIMEOUT 240 REQUIRED_FILES $<TARGET_FILE:veloce>)
+# NES test channel: $401E/$401F port + blargg6000 adapter against a recording sink.
+add_executable(nes_test_channel_test
+    ${VELOCE_TESTS_DIR}/cpp/nes_test_channel_test.cpp
+    ${CMAKE_SOURCE_DIR}/cores/nes/src/test_channel.cpp
+)
+target_include_directories(nes_test_channel_test PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/cores/nes/src
+)
+add_test(NAME nes_test_channel COMMAND nes_test_channel_test)
+set_tests_properties(nes_test_channel PROPERTIES LABELS "unit;fast")
 
 # --- per-console accuracy suites (slow: download ROMs, run emulator) ------
 foreach(console nes snes gb gba)
@@ -1171,3 +1190,10 @@ set_tests_properties(n64_rdp_texture_rectangles PROPERTIES LABELS "accuracy;owne
 add_test(NAME n64_rdp_rectangle_checkpoint_test COMMAND n64_rdp_packet_plugin_test
     $<TARGET_FILE:n64_plugin> ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/rdp_texture_rectangles/rdp_texture_rectangles.z64 hidden)
 set_tests_properties(n64_rdp_rectangle_checkpoint_test PROPERTIES LABELS "integration;netplay;accuracy;owned" TIMEOUT 60)
+
+add_executable(nes_test_channel_plugin_test cpp/nes_test_channel_plugin_test.cpp)
+target_include_directories(nes_test_channel_plugin_test PRIVATE ${CMAKE_SOURCE_DIR}/include ${SDL2_INCLUDE_DIRS})
+target_link_libraries(nes_test_channel_plugin_test PRIVATE ${SDL2_LIBRARIES})
+add_dependencies(nes_test_channel_plugin_test nes_plugin)
+add_test(NAME nes_test_channel_plugin_test COMMAND nes_test_channel_plugin_test $<TARGET_FILE:nes_plugin>)
+set_tests_properties(nes_test_channel_plugin_test PROPERTIES LABELS "integration;accuracy;owned" TIMEOUT 30)

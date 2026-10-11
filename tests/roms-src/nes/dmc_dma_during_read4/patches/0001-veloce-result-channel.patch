@@ -1,0 +1,123 @@
+diff --git a/dmc_dma_during_read4/source/common/common.inc b/dmc_dma_during_read4/source/common/common.inc
+index c781bc6..4d418b3 100644
+--- a/dmc_dma_during_read4/source/common/common.inc
++++ b/dmc_dma_during_read4/source/common/common.inc
+@@ -12,7 +12,9 @@
+ ;dma  =  1  ; set to 0 to disable DMA
+ 
+ CHR_RAM=1
++CUSTOM_EXIT=1 ; Veloce: exit comes from veloce-blargg.inc
+ .include "shell.inc"
++.include "veloce-blargg.inc"
+ .include "sync_dmc.s"
+ 
+ run_tests:
+diff --git a/dmc_dma_during_read4/source/dma_2007_read.s b/dmc_dma_during_read4/source/dma_2007_read.s
+index 5ae2074..53eb325 100644
+--- a/dmc_dma_during_read4/source/dma_2007_read.s
++++ b/dmc_dma_during_read4/source/dma_2007_read.s
+@@ -61,7 +61,10 @@ end:  lda $2007
+       rts
+ 
+ main: ; Run above routines with synchronized DMC DMA
++      VB_BEGIN "dmc_dma_during_read4.dma_2007_read"
+       jsr run_tests
+       
+       jsr print_crc
++      ; Veloce: either documented hardware result (header above)
++      VB_CRC #1,"dma_during_2007_read_output",$159A7A8F,$5E3DF9C4
+       rts
+diff --git a/dmc_dma_during_read4/source/dma_2007_write.s b/dmc_dma_during_read4/source/dma_2007_write.s
+index aa4a5ca..043e4ca 100644
+--- a/dmc_dma_during_read4/source/dma_2007_write.s
++++ b/dmc_dma_during_read4/source/dma_2007_write.s
+@@ -63,7 +63,9 @@ end:  lda #0
+       rts
+ 
+ main: ; Run above routines with synchronized DMC DMA
++      VB_BEGIN "dmc_dma_during_read4.dma_2007_write"
+       jsr run_tests
+       
+-      check_crc $28F53CA4
+-      jmp tests_passed
++      ; Veloce: upstream's own check_crc value, reported as a CHECK
++      VB_CRC #1,"dma_during_2007_write_output",$28F53CA4
++      rts
+diff --git a/dmc_dma_during_read4/source/dma_4016_read.s b/dmc_dma_during_read4/source/dma_4016_read.s
+index 5573481..17033b1 100644
+--- a/dmc_dma_during_read4/source/dma_4016_read.s
++++ b/dmc_dma_during_read4/source/dma_4016_read.s
+@@ -40,7 +40,9 @@ end:  ; Count number of bits until controller
+       rts
+ 
+ main: ; Run above routines with synchronized DMC DMA
++      VB_BEGIN "dmc_dma_during_read4.dma_4016_read"
+       jsr run_tests
+-      check_crc $F0AB808C
+-      jmp tests_passed
++      ; Veloce: upstream's own check_crc value, reported as a CHECK
++      VB_CRC #1,"dma_during_4016_read_output",$F0AB808C
++      rts
+ 
+diff --git a/dmc_dma_during_read4/source/double_2007_read.s b/dmc_dma_during_read4/source/double_2007_read.s
+index e3b806b..cd58055 100644
+--- a/dmc_dma_during_read4/source/double_2007_read.s
++++ b/dmc_dma_during_read4/source/double_2007_read.s
+@@ -10,7 +10,9 @@
+ ;85CFD627 or F018C287 or 440EF923 or E52F41A5
+ 
+ CHR_RAM=1
++CUSTOM_EXIT=1 ; Veloce: exit comes from veloce-blargg.inc
+ .include "shell.inc"
++.include "veloce-blargg.inc"
+ 
+ begin:      
+       ; Disable PPU
+@@ -50,7 +52,8 @@ end:
+       jsr print_newline
+       rts
+ 
+-main: jsr begin
++main: VB_BEGIN "dmc_dma_during_read4.double_2007_read"
++      jsr begin
+       ldx #$00
+       lda $20F7,x ; reads $2007 once
+       jsr end
+@@ -61,4 +64,6 @@ main: jsr begin
+       jsr end
+       
+       jsr print_crc
++      ; Veloce: any of the four documented hardware results (header above)
++      VB_CRC #1,"double_2007_read_output",$85CFD627,$F018C287,$440EF923,$E52F41A5
+       rts
+diff --git a/dmc_dma_during_read4/source/read_write_2007.s b/dmc_dma_during_read4/source/read_write_2007.s
+index 1fd5f32..8775d97 100644
+--- a/dmc_dma_during_read4/source/read_write_2007.s
++++ b/dmc_dma_during_read4/source/read_write_2007.s
+@@ -5,7 +5,9 @@
+ ;33 11 22 33 09 55 66 77 
+ 
+ CHR_RAM=1
++CUSTOM_EXIT=1 ; Veloce: exit comes from veloce-blargg.inc
+ .include "shell.inc"
++.include "veloce-blargg.inc"
+ 
+ begin:
+       ; Disable PPU
+@@ -47,6 +49,7 @@ end:
+       rts
+ 
+ main: ; Manually read before write
++      VB_BEGIN "dmc_dma_during_read4.read_write_2007"
+       jsr begin
+       ldx #0
+       lda #9
+@@ -61,5 +64,6 @@ main: ; Manually read before write
+       sta $2007,x ; reads then writes $2007
+       jsr end
+       
+-      check_crc $0F877C4B
+-      jmp tests_passed
++      ; Veloce: upstream's own check_crc value, reported as a CHECK
++      VB_CRC #1,"read_write_2007_output",$0F877C4B
++      rts

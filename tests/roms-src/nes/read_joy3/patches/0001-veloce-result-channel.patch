@@ -1,0 +1,152 @@
+diff --git a/read_joy3/source/count_errors.s b/read_joy3/source/count_errors.s
+index 729a3c8..77992fd 100644
+--- a/read_joy3/source/count_errors.s
++++ b/read_joy3/source/count_errors.s
+@@ -6,13 +6,22 @@
+ 
+ dmc_rate = 15 ; 0 to 15
+ 
++; Veloce: upstream's own test_failed path (read_joy returned non-zero) is
++; check 1; exit comes from veloce-blargg.inc
++CUSTOM_EXIT = 1
++VB_RESULT_ID = 1
++.define VB_RESULT_NAME "read_joy_result_correct"
+ .include "shell.inc"
++.include "veloce-blargg.inc"
+ .include "read_joy.inc"
+ 
+ iter = 1000
+ zp_byte conflicts
++zp_byte conflicts_hi ; Veloce: 8-bit count wraps; keep the carry
+ 
+ main:
++	VB_BEGIN "read_joy3.count_errors"
++	
+ 	; Start DMC
+ 	lda #$40+dmc_rate
+ 	sta $4010
+@@ -43,6 +52,14 @@ main:
+ 	jsr print_dec
+ 	print_str "/1000"
+ 	
++	; Veloce: report the count and whether any conflict happened
++	VB_REG "conflicts_hi",conflicts_hi
++	VB_REG "conflicts_lo",conflicts
++	lda conflicts
++	ora conflicts_hi
++	sta conflicts_hi
++	VB_FLAG #2,"dmc_dma_conflict_seen",conflicts_hi
++	
+ test:   jsr read_joy
+ 	pha
+ 	pha
+@@ -65,6 +82,8 @@ test:   jsr read_joy
+ 	print_cc bne,'X','-'
+ 	beq :+
+ 	inc conflicts
++	bne :+
++	inc conflicts_hi
+ :       
+ 	; Be sure read worked correctly
+ 	pla
+diff --git a/read_joy3/source/count_errors_fast.s b/read_joy3/source/count_errors_fast.s
+index f210231..935918e 100644
+--- a/read_joy3/source/count_errors_fast.s
++++ b/read_joy3/source/count_errors_fast.s
+@@ -4,13 +4,19 @@
+ 
+ dmc_rate = 15 ; 0 to 15
+ 
++; Veloce: exit comes from veloce-blargg.inc
++CUSTOM_EXIT = 1
+ .include "shell.inc"
++.include "veloce-blargg.inc"
+ .include "read_joy.inc"
+ 
+ iter = 1000
+ zp_byte errors
++zp_byte errors_hi ; Veloce: 8-bit count wraps; keep the carry
+ 
+ main:
++	VB_BEGIN "read_joy3.count_errors_fast"
++	
+ 	; Start DMC
+ 	lda #$40+dmc_rate
+ 	sta $4010
+@@ -33,6 +39,8 @@ main:
+ 	cmp #0
+ 	beq :+
+ 	inc errors
++	bne :+
++	inc errors_hi
+ :
+ 	dex
+ 	bne @loop
+@@ -45,4 +53,12 @@ main:
+ 	jsr print_dec
+ 	print_str "/1000"
+ 	
++	; Veloce: report the count and whether any DMC-corrupted read happened
++	VB_REG "errors_hi",errors_hi
++	VB_REG "errors_lo",errors
++	lda errors
++	ora errors_hi
++	sta errors_hi
++	VB_FLAG #1,"dmc_dma_corrupted_read_seen",errors_hi
++	
+ 	rts
+diff --git a/read_joy3/source/test_buttons.s b/read_joy3/source/test_buttons.s
+index 7e4c89e..ad58d3b 100644
+--- a/read_joy3/source/test_buttons.s
++++ b/read_joy3/source/test_buttons.s
+@@ -2,14 +2,22 @@
+ ; Runs DMC while testing, to be sure it doesn't
+ ; affect anything.
+ 
++; Veloce: upstream's own tests_passed/test_failed verdict is check 1;
++; exit comes from veloce-blargg.inc
++CUSTOM_EXIT = 1
++VB_RESULT_ID = 1
++.define VB_RESULT_NAME "each_button_read_alone_in_order"
+ .include "shell.inc"
++.include "veloce-blargg.inc"
+ .include "read_joy.inc"
+ 
+ zp_byte button
+ 
+ dmc_rate = 15 ; 0 to 15
+ 
+-main:   ; Start DMC
++main:   VB_BEGIN "read_joy3.test_buttons"
++	
++	; Start DMC
+ 	lda #$40+dmc_rate
+ 	sta $4010
+ 	lda #$FF
+diff --git a/read_joy3/source/thorough_test.s b/read_joy3/source/thorough_test.s
+index 2cfa7e5..a046a6e 100644
+--- a/read_joy3/source/thorough_test.s
++++ b/read_joy3/source/thorough_test.s
+@@ -5,14 +5,21 @@
+ 
+ iter = 1000
+ 
++; Veloce: upstream's own tests_passed/test_failed verdict is check 1;
++; exit comes from veloce-blargg.inc
++CUSTOM_EXIT = 1
++VB_RESULT_ID = 1
++.define VB_RESULT_NAME "read_joy_reliable_at_every_dmc_timing"
+ .include "shell.inc"
++.include "veloce-blargg.inc"
+ .include "sync_dmc.s"
+ .include "read_joy.inc"
+ 
+ log_size = 4
+ zp_res log,log_size
+ 
+-main:   for_loop16 test,0,iter,+1
++main:   VB_BEGIN "read_joy3.thorough_test"
++	for_loop16 test,0,iter,+1
+ 	jmp tests_passed
+ 
+ test:   jsr sync_dmc

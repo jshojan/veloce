@@ -1,0 +1,36 @@
+{
+  "console": "nes",
+  "suite": "cpu_interrupts_v2",
+  "description": "Blargg cpu_interrupts_v2: IRQ/NMI/BRK interaction timing. cpu_interrupts.nes combined ROM out of scope, same reason as instr_test-v5.",
+  "license": "public domain / freely redistributable (Shay Green (blargg)'s test framework); see upstream cpu_interrupts_v2/source/readme.txt",
+  "repo": {
+    "url": "https://github.com/christopherpow/nes-test-roms.git",
+    "sha": "95d8f621ae55cee0d09b91519a8989ae0e64753b"
+  },
+  "toolchain_stage": "cc65",
+  "golden_gate": false,
+  "golden_gate_reason": "Same issue tests/roms-src/nes/cpu_dummy_reads/PROVENANCE.md documents: the shared common/delay.s countdown idiom ('adc #-1' / 'sbc #-1') needs ca65's '--feature force_range' to assemble at all (no ca65 in cc65's git history accepts a bare out-of-range immediate byte). With that feature on, the rebuilt ROM is the same size (40976 bytes) as upstream's shipped copy but differs at 1803 byte(s), first divergence at file offset 0x6241 (25153) (inside the CHARS-adjacent PRG bank, same region cpu_dummy_reads diverges in) -- consistent with cpu_dummy_reads's unconfirmed theory that '--feature force_range' changes which of shell.inc's jeq/jne/jpl/jmi longbranch.mac macros resolve short vs. long somewhere upstream in the same object file. Verified behaviourally instead (this suite's own NES-2 report has the double-build determinism check): two independent rebuilds of the unmodified source are byte-identical to each other, so the pipeline is reproducible even though it doesn't reproduce this specific pre-existing binary. See cpu_dummy_reads/PROVENANCE.md for the full investigation; not repeated per suite.",
+  "rom_variant": "upstream",
+  "build": {
+    "workdir": "cpu_interrupts_v2/source",
+    "commands": [
+      "ca65 --feature force_range --smart -t nes -I common -I /opt/rom-toolchain/cc65-asminc -o 1_cli_latency.o 1-cli_latency.s",
+      "ld65 -C nes.cfg 1_cli_latency.o -o ../rom_singles/1-cli_latency.nes",
+      "ca65 --feature force_range --smart -t nes -I common -I /opt/rom-toolchain/cc65-asminc -o 2_nmi_and_brk.o 2-nmi_and_brk.s",
+      "ld65 -C nes.cfg 2_nmi_and_brk.o -o ../rom_singles/2-nmi_and_brk.nes",
+      "ca65 --feature force_range --smart -t nes -I common -I /opt/rom-toolchain/cc65-asminc -o 3_nmi_and_irq.o 3-nmi_and_irq.s",
+      "ld65 -C nes.cfg 3_nmi_and_irq.o -o ../rom_singles/3-nmi_and_irq.nes",
+      "ca65 --feature force_range --smart -t nes -I common -I /opt/rom-toolchain/cc65-asminc -o 4_irq_and_dma.o 4-irq_and_dma.s",
+      "ld65 -C nes.cfg 4_irq_and_dma.o -o ../rom_singles/4-irq_and_dma.nes",
+      "ca65 --feature force_range --smart -t nes -I common -I /opt/rom-toolchain/cc65-asminc -o 5_branch_delays_irq.o 5-branch_delays_irq.s",
+      "ld65 -C nes.cfg 5_branch_delays_irq.o -o ../rom_singles/5-branch_delays_irq.nes"
+    ],
+    "artifacts": {
+      "cpu_interrupts_v2/rom_singles/1-cli_latency.nes": "1-cli_latency.nes",
+      "cpu_interrupts_v2/rom_singles/2-nmi_and_brk.nes": "2-nmi_and_brk.nes",
+      "cpu_interrupts_v2/rom_singles/3-nmi_and_irq.nes": "3-nmi_and_irq.nes",
+      "cpu_interrupts_v2/rom_singles/4-irq_and_dma.nes": "4-irq_and_dma.nes",
+      "cpu_interrupts_v2/rom_singles/5-branch_delays_irq.nes": "5-branch_delays_irq.nes"
+    }
+  }
+}

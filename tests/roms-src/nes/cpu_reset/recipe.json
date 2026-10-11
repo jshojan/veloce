@@ -1,0 +1,27 @@
+{
+  "console": "nes",
+  "suite": "cpu_reset",
+  "description": "Blargg cpu_reset: register/RAM state right after a CPU reset.",
+  "license": "public domain / freely redistributable (Shay Green (blargg)'s test framework); see upstream cpu_reset/source/readme.txt",
+  "repo": {
+    "url": "https://github.com/christopherpow/nes-test-roms.git",
+    "sha": "95d8f621ae55cee0d09b91519a8989ae0e64753b"
+  },
+  "toolchain_stage": "cc65",
+  "golden_gate": false,
+  "golden_gate_reason": "Same issue tests/roms-src/nes/cpu_dummy_reads/PROVENANCE.md documents: the shared common/delay.s countdown idiom ('adc #-1' / 'sbc #-1') needs ca65's '--feature force_range' to assemble at all (no ca65 in cc65's git history accepts a bare out-of-range immediate byte). With that feature on, the rebuilt ROM is the same size (40976 bytes) as upstream's shipped copy but differs at 1217 byte(s), first divergence at file offset 0x6266 (25190) (inside the CHARS-adjacent PRG bank, same region cpu_dummy_reads diverges in) -- consistent with cpu_dummy_reads's unconfirmed theory that '--feature force_range' changes which of shell.inc's jeq/jne/jpl/jmi longbranch.mac macros resolve short vs. long somewhere upstream in the same object file. Verified behaviourally instead (this suite's own NES-2 report has the double-build determinism check): two independent rebuilds of the unmodified source are byte-identical to each other, so the pipeline is reproducible even though it doesn't reproduce this specific pre-existing binary. See cpu_dummy_reads/PROVENANCE.md for the full investigation; not repeated per suite.",
+  "rom_variant": "upstream",
+  "build": {
+    "workdir": "cpu_reset/source",
+    "commands": [
+      "ca65 --feature force_range --smart -t nes -I common -I /opt/rom-toolchain/cc65-asminc -o registers.o registers.s",
+      "ld65 -C nes.cfg registers.o -o ../registers.nes",
+      "ca65 --feature force_range --smart -t nes -I common -I /opt/rom-toolchain/cc65-asminc -o ram_after_reset.o ram_after_reset.s",
+      "ld65 -C nes.cfg ram_after_reset.o -o ../ram_after_reset.nes"
+    ],
+    "artifacts": {
+      "cpu_reset/registers.nes": "registers.nes",
+      "cpu_reset/ram_after_reset.nes": "ram_after_reset.nes"
+    }
+  }
+}

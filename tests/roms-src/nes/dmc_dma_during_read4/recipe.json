@@ -1,0 +1,39 @@
+{
+  "console": "nes",
+  "suite": "dmc_dma_during_read4",
+  "description": "Blargg dmc_dma_during_read4 (5 ROMs), rebuilt on blargg's modern shell (instr_test-v5/source/common) with the suite's own DMC-sync code (common/sync_dmc.s, common/common.inc); patches/ make each ROM report its result over the $401E VELOCE-RESULT/1 port (tests/roms-src/include/veloce-blargg.inc). Upstream's shipped binaries use an older console+serial shell and never write the $6000 block (NES-3).",
+  "license": "blargg (Shay Green) test code; upstream dmc_dma_during_read4/source/readme.txt carries no licence statement (plan section 8 treats blargg's NES test ROMs as freely usable). Only Veloce's patch is committed; sources are fetched at the pinned SHA.",
+  "repo": {
+    "url": "https://github.com/christopherpow/nes-test-roms.git",
+    "sha": "95d8f621ae55cee0d09b91519a8989ae0e64753b"
+  },
+  "toolchain_stage": "cc65",
+  "golden_gate": false,
+  "golden_gate_reason": "Rebuilt on purpose against a different shell than the one upstream's binary was built with (instr_test-v5/source/common, blargg's modern shell with text_out.s, instead of this suite's own older console+serial common/), so the result cannot be byte-identical by construction. For the record, the unmodified source built against its OWN common/ with the same toolchain is the same size as upstream's shipped ROM but not byte-identical either (1242-1250 bytes differ per ROM, first divergence at file offset 0x6072-0x6472) -- the same '--feature force_range' situation tests/roms-src/nes/cpu_dummy_reads/PROVENANCE.md documents. Verified behaviourally instead; see PROVENANCE.md.",
+  "rom_variant": "veloce",
+  "build": {
+    "workdir": "dmc_dma_during_read4/source",
+    "commands": [
+      "rm -rf vcommon && mkdir vcommon",
+      "cp ../../instr_test-v5/source/common/* vcommon/",
+      "cp common/sync_dmc.s common/common.inc vcommon/",
+      "ca65 --feature force_range --smart -t nes -I vcommon -I /veloce-include -I /opt/rom-toolchain/cc65-asminc -o dma_2007_read.o dma_2007_read.s",
+      "ld65 -C ../../instr_test-v5/source/nes.cfg dma_2007_read.o -o ../dma_2007_read.nes",
+      "ca65 --feature force_range --smart -t nes -I vcommon -I /veloce-include -I /opt/rom-toolchain/cc65-asminc -o dma_2007_write.o dma_2007_write.s",
+      "ld65 -C ../../instr_test-v5/source/nes.cfg dma_2007_write.o -o ../dma_2007_write.nes",
+      "ca65 --feature force_range --smart -t nes -I vcommon -I /veloce-include -I /opt/rom-toolchain/cc65-asminc -o dma_4016_read.o dma_4016_read.s",
+      "ld65 -C ../../instr_test-v5/source/nes.cfg dma_4016_read.o -o ../dma_4016_read.nes",
+      "ca65 --feature force_range --smart -t nes -I vcommon -I /veloce-include -I /opt/rom-toolchain/cc65-asminc -o double_2007_read.o double_2007_read.s",
+      "ld65 -C ../../instr_test-v5/source/nes.cfg double_2007_read.o -o ../double_2007_read.nes",
+      "ca65 --feature force_range --smart -t nes -I vcommon -I /veloce-include -I /opt/rom-toolchain/cc65-asminc -o read_write_2007.o read_write_2007.s",
+      "ld65 -C ../../instr_test-v5/source/nes.cfg read_write_2007.o -o ../read_write_2007.nes"
+    ],
+    "artifacts": {
+      "dmc_dma_during_read4/dma_2007_read.nes": "dma_2007_read.nes",
+      "dmc_dma_during_read4/dma_2007_write.nes": "dma_2007_write.nes",
+      "dmc_dma_during_read4/dma_4016_read.nes": "dma_4016_read.nes",
+      "dmc_dma_during_read4/double_2007_read.nes": "double_2007_read.nes",
+      "dmc_dma_during_read4/read_write_2007.nes": "read_write_2007.nes"
+    }
+  }
+}

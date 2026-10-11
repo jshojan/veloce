@@ -83,7 +83,7 @@ def evaluate(path: Path, operands: int, rom: bytes) -> dict:
         lines = path.read_text(encoding="ascii").splitlines()
         require(bool(lines), "empty result file")
         # The NES core's public identity is PRG+CHR, excluding the iNES header.
-        expected_header = f"#VELOCE 1 core=NES rom_crc32={zlib.crc32(rom[16:]):08x} channels=port"
+        expected_header = f"#VELOCE 1 core=NES rom_crc32={zlib.crc32(rom[16:]):08x} channels=port,blargg6000"
         require(lines[0] == expected_header, "wrong result header, core, ROM identity, or channel")
         require(lines[1:4] == ["VELOCE 1 nes alu_exhaustive",
                              f"INFO operands={operands} groups={len(GROUPS)}", "REG probe=56"],
