@@ -11,7 +11,7 @@ These percentages count the 20 explicit delivery milestones in [the completion l
 
 Nintendo 3DS delivered milestones: Native digital controller/keypad registers consume frontend input, Actual production-plugin TCP peers pass original guest oracle and whole-state comparison, Repository-owned ROM source and reproducible archived image, Separate core plugin and ABI entry points, Actual guest register-file output independently graded on the host, with negative controls, Complete states for the implemented profile and deterministic replay.
 
-Remaining: ARM11 ARMv6 twelve ARM extend/accumulate forms and four Thumb extension forms now have an original 13,631,488-case image / 95,420,416 register words, separate flags/alias/profile checks and actual native checkpoint continuations. Remaining CPU/MMU, firmware/native formats, graphics/audio, analog/touch and wireless multiplayer remain.
+Remaining: ARM11 ARMv6 extension/accumulate and scalar/dual-halfword saturation now have original independently graded register images, flags/alias/profile controls and actual native checkpoint continuations. The new saturation image checks 12,582,912 snapshots / 88,080,384 register words. Remaining CPU/MMU, firmware/native formats, graphics/audio, analog/touch and wireless multiplayer remain.
 <!-- completion:end -->
 
 `ctr_plugin` builds `3ds.so` (or the platform library equivalent), ABI v2,
@@ -174,3 +174,29 @@ regressions and DS/DSi/3DS TCP rollback. The checkpoint gate compares **6,180
 actual continuation rows** and complete states at the documented prefixes.
 All **140 original ROM archives reproduce**; completion rendering and whitespace
 checks pass. This increment supplies no native firmware/retail boot evidence.
+
+## ARM11 saturation register files (2026-10-11)
+
+3DS 0.4.0 adds ARMv6 SSAT/USAT and SSAT16/USAT16, including every encoded
+width, LSL/ASR control and sticky Q. NZCV/GE are unchanged; aliases read sources
+before writes. Earlier CPU profiles and PC operands stop diagnostically.
+The original dual-ARM11 image independently grades **12,582,912 snapshots /
+88,080,384 actual register words**. Scalar inputs cover sign-extended bytes at
+all controls; dual inputs sweep each halfword with complemented lane pairs.
+This is bounded coverage. The component gate checks **64,101,056 observations**,
+including wider selected inputs, conditions, all flag states, aliases and CPU
+profile restrictions; the prior decoder fails it. Short guest controls reject
+all 132,096 wrong-result/wrong-Q cases and 71,184 wrong-source cases. Seven
+field faults and seven malformed streams reject. Three native checkpoints
+compare actual continuation text and complete 135,791,096-byte states.
+Full CPU/media/system support, timing/MMU/exceptions, firmware/native retail,
+graphics/audio and analog/touch/wireless remain pending. No delivery milestone
+is newly complete; 3DS remains **30%**. See [source and finite domains](../../tests/roms-src/3ds/saturation_registers/README.md).
+
+Verification for 0.4.0: full Release build, **19 distinct selected gates pass**,
+and all **141 original archives** reproduce. The first network attempts were
+blocked by sandbox socket restrictions; all three pass with local TCP enabled.
+The full capture has zero mismatches and fixed source/binary fingerprints.
+Completion renderer and whitespace checks pass. This increment changes neither
+the native state format nor the emulator ABI and does not add a fresh private
+Mario 64 capture.

@@ -33,6 +33,17 @@
       "source_type": "original",
       "suite": "reversal_registers"
     },
+    "3ds/saturation_registers/saturation_registers.v3ds": {
+      "build_command": "python3 tests/roms-src/3ds/saturation_registers/build.py",
+      "console": "3ds",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "90f2306ea28a82005987822ad0bd7b09d5528ec0e2251e2377eac68844941730",
+      "source_repo": "tests/roms-src/3ds/saturation_registers/build.py",
+      "source_sha": "8eb016acf71c7a8f92d2359a4ebcfe11a12122be5b9c2336997f76d38f87fa5e",
+      "source_type": "original",
+      "suite": "saturation_registers"
+    },
     "dsi/netplay_probe/netplay_probe.vdsi": {
       "build_command": "python3 tests/roms-src/dsi/netplay_probe/build.py",
       "console": "dsi",
