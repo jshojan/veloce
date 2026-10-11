@@ -1,0 +1,18 @@
+# Absolute scheduling quanta; dismiss intro dialogue, then allow Mario to land.
+# Tagged canonical words: neutral C000, A C001.
+60000 c001
+60100 c000
+60400 c001
+60500 c000
+60800 c001
+60900 c000
+61200 c001
+61300 c000
+61600 c001
+61700 c000
+62000 c001
+62100 c000
+62400 c001
+62500 c000
+62800 c001
+62900 c000

@@ -7,15 +7,54 @@
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
+#include <charconv>
+#include <map>
+#include <set>
+#include <iterator>
 using namespace emu;
 void require(bool ok,const char* why){if(!ok)throw std::runtime_error(why);}
+static void checkpoint_movie(Application& app,IEmulatorPlugin* core,ITASPlugin* movie,IInputPlugin* input,const char* path,unsigned count,uint32_t word){
+    std::ifstream file(path,std::ios::binary);require(file.good(),"checkpoint file");
+    const std::vector<uint8_t> start{std::istreambuf_iterator<char>(file),{}};
+    require(core->load_state(start),"native checkpoint restore");
+    auto state=[&](){std::vector<uint8_t> out;require(core->save_state(out),"checkpoint native state");return out;};
+    auto write=[&](const char* name){const auto bytes=state();std::ofstream f(name,std::ios::binary);f.write(reinterpret_cast<const char*>(bytes.data()),bytes.size());require(bool(f),"checkpoint output");};
+    const std::set<unsigned> watch={0,std::min(59u,count),std::min(60u,count),std::min(61u,count),std::min(120u,count),count};
+    std::map<unsigned,std::vector<uint8_t>> baseline;baseline[0]=state();
+    for(unsigned n=0;n<count;++n){TASFrameData frame{};frame.frame_number=n;frame.controller_inputs[0]=word;
+        require(app.run_replay_frame(frame),"ordinary checkpoint frame");if(watch.count(n+1))baseline[n+1]=state();}
+    write("checkpoint-baseline.state");require(core->load_state(start),"recording checkpoint restore");
+    require(movie->new_movie("checkpoint-movie.tas",true),"checkpoint movie");
+    for(int c=0;c<4;++c)input->set_input_override(c,c==0?word:0);
+    for(unsigned n=0;n<count;++n){require(app.step_frame(),"checkpoint record frame");auto frame=movie->get_frame(n);
+        require(frame.controller_inputs[0]==word && !frame.controller_inputs[1] && !frame.controller_inputs[2] && !frame.controller_inputs[3],"canonical recorded inputs");
+        if(watch.count(n+1))require(state()==baseline.at(n+1),"recorded checkpoint state");}
+    movie->stop_recording();require(movie->save_movie(),"save checkpoint movie");write("checkpoint-recorded.state");
+    for(int c=0;c<4;++c)input->set_input_override(c,0);
+    require(movie->open_movie("checkpoint-movie.tas"),"reopen checkpoint movie");movie->start_playback();app.pause();
+    for(unsigned n=0;n<count;++n){require(app.step_frame(),"checkpoint playback frame");if(watch.count(n+1))require(state()==baseline.at(n+1),"checkpoint playback state");}
+    write("checkpoint-playback.state");
+    require(movie->get_mode()==TASMode::Stopped && app.is_paused(),"checkpoint EOF pause");
+    for(auto target:watch){movie->seek_to_frame(target);require(movie->get_current_frame()==target && state()==baseline.at(target),"checkpoint movie seek");require(app.get_audio_manager().get_buffered_samples()==0,"checkpoint seek audio");}
+    for(unsigned n=0;n<count;++n){auto frame=movie->get_frame(n);frame.controller_inputs[0]=0;movie->set_frame(n,frame);}
+    movie->start_playback();app.pause();for(unsigned n=0;n<count;++n)require(app.step_frame(),"wrong-input checkpoint frame");
+    require(state()!=baseline.at(count),"checkpoint wrong input changed no state");write("checkpoint-wrong-input.state");
+    app.get_gui_manager().show_tas_editor(true);app.get_gui_manager().begin_frame();app.get_gui_manager().render(app,app.get_renderer());app.get_gui_manager().end_frame();
+    std::cout<<count<<" native checkpoint movie frames; recording/playback states and "<<watch.size()<<" seek boundaries match; executed neutral-input control differs PASS\n";
+}
 int main(int argc,char** argv){try {
-    require(argc==2,"ROM argument");Application app;
-    require(app.initialize(argc,argv),"initialize");app.pause();
+    const bool checkpoint_mode=argc==6 && std::string(argv[2])=="--checkpoint";
+    require(argc==2 || checkpoint_mode,"ROM argument");Application app;
+    require(app.initialize(2,argv),"initialize");app.pause();
     auto* core=app.get_plugin_manager().get_active_plugin();
     auto* movie=app.get_plugin_manager().get_tas_plugin();
     auto* input=app.get_plugin_manager().get_input_plugin();
     require(core&&movie&&input,"selected plugins");
+    if(checkpoint_mode){unsigned count=0;uint32_t word=0;const std::string frames=argv[4],mask=argv[5];
+        const auto a=std::from_chars(frames.data(),frames.data()+frames.size(),count),b=std::from_chars(mask.data(),mask.data()+mask.size(),word,16);
+        require(a.ec==std::errc{} && a.ptr==frames.data()+frames.size() && count && count<=2000 && b.ec==std::errc{} && b.ptr==mask.data()+mask.size(),"checkpoint movie domain");
+        checkpoint_movie(app,core,movie,input,argv[3],count,word);app.shutdown();return 0;
+    }
     std::ofstream ram("ram-observations.txt");
     auto state=[&](){std::vector<uint8_t> out;require(core->save_state(out),"save native state");return out;};
     auto observe=[&](const char* phase,int n){ram<<phase<<' '<<n<<' '<<int(core->read_memory(0x12))<<' '<<int(core->read_memory(0x13))<<'\n';};

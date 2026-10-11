@@ -1,0 +1,2 @@
+# Same checkpoint/control duration as directional and button probes.
+64000 c000

@@ -509,6 +509,17 @@ add_executable(retail_core_probe cpp/retail_core_probe.cpp)
 target_include_directories(retail_core_probe PRIVATE ${CMAKE_SOURCE_DIR}/include ${SDL2_INCLUDE_DIRS})
 target_link_libraries(retail_core_probe PRIVATE ${SDL2_LIBRARIES})
 target_compile_definitions(retail_core_probe PRIVATE SDL_MAIN_HANDLED)
+add_executable(n64_state_inspect cpp/n64_state_inspect.cpp
+    ${CMAKE_SOURCE_DIR}/cores/n64/src/machine.cpp ${CMAKE_SOURCE_DIR}/cores/n64/src/vr4300.cpp)
+target_include_directories(n64_state_inspect PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src ${CMAKE_SOURCE_DIR}/include)
+add_test(NAME retail_checkpoint_test COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/retail_checkpoint_test.py --probe $<TARGET_FILE:retail_core_probe>
+    --inspect $<TARGET_FILE:n64_state_inspect> --trace $<TARGET_FILE:n64_boot_trace>
+    --core $<TARGET_FILE:n64_plugin>
+    --rom ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/controller_cached_reads/controller_cached_reads.z64
+    --other-rom ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/integer_registers/integer_registers.z64
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/retail-checkpoint)
+set_tests_properties(retail_checkpoint_test PROPERTIES LABELS "integration;owned" TIMEOUT 60)
 
 add_executable(n64_boot_trace cpp/n64_boot_trace.cpp
     ${CMAKE_SOURCE_DIR}/cores/n64/src/machine.cpp ${CMAKE_SOURCE_DIR}/cores/n64/src/vr4300.cpp)
@@ -1375,6 +1386,13 @@ if(VELOCE_XVFB_RUN)
         --rom ${CMAKE_SOURCE_DIR}/tests/roms-src/nes/netplay_probe/netplay_probe.nes
         --artifacts ${CMAKE_BINARY_DIR}/artifacts/tas_frontend --xvfb ${VELOCE_XVFB_RUN})
     set_tests_properties(tas_frontend_test PROPERTIES LABELS "integration" TIMEOUT 100)
+    add_test(NAME n64_tas_checkpoint_test COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/retail_tas_checkpoint_test.py
+        --test $<TARGET_FILE:tas_frontend_test> --core $<TARGET_FILE:n64_plugin>
+        --input $<TARGET_FILE:input_default> --audio $<TARGET_FILE:audio_default> --tas $<TARGET_FILE:tas_default>
+        --probe $<TARGET_FILE:retail_core_probe> --inspect $<TARGET_FILE:n64_state_inspect>
+        --rom ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/controller_cached_reads/controller_cached_reads.z64
+        --artifacts ${CMAKE_BINARY_DIR}/artifacts/n64_tas_checkpoint --xvfb ${VELOCE_XVFB_RUN})
+    set_tests_properties(n64_tas_checkpoint_test PROPERTIES LABELS "integration;owned" TIMEOUT 210)
 endif()
 
 add_executable(arm_saturation_decode_test cpp/arm_saturation_decode_test.cpp ${CMAKE_SOURCE_DIR}/cores/nds/src/arm.cpp)
