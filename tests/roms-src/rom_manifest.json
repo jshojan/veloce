@@ -26234,6 +26234,17 @@
       "source_type": "original",
       "suite": "bitstrings"
     },
+    "vb/cartridge_ram/cartridge_ram.vb": {
+      "build_command": "python3 tests/roms-src/vb/cartridge_ram/build.py",
+      "console": "vb",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "ef5287e3a7c0e72d48de6db268f3363806e7c1e6d4f9782767db167993a2a6a3",
+      "source_repo": "tests/roms-src/vb/cartridge_ram/build.py",
+      "source_sha": "353c67ba8f2f89c4bc37fce2531ff7ab13aa5e81da86338657d37003b89832b3",
+      "source_type": "original",
+      "suite": "cartridge_ram"
+    },
     "vb/controller_serial/controller_serial.vb": {
       "build_command": "python3 tests/roms-src/vb/controller_serial/build.py",
       "console": "vb",

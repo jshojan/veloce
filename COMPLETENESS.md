@@ -44,7 +44,7 @@ headlines or original-ROM domain pass fractions.
 | [Game Boy](#game-boy) | 225 external tests / 31 suites, plus 3 original ROMs | Verified subset only | Blargg serial subset, 2 WRAM checks, 8,388,608 ALU pairs and 73,728 unary pairs verified; Mooneye remains unverified |
 | [GBA](#gba) | 132 external tests / 29 suites, plus 1 original ROM | Partial; 65,536 original ARM shift cases verified | Legacy CPU/memory/BIOS/saves subsets verified; timing/PPU and remaining original hardware corpus pending |
 | N64 | 35 original ROMs; no external catalog | Declared integer/merge/controller/interrupt/PI/RI/MI/device/cache/SP/AI/FPU-control/data/conversion/arithmetic/comparison/TLB/VI/RSP-scalar/vector-transfer/multiply domains verified | Experimental homebrew/native handoff; retail boot pending; full hardware completion unknown; [limits](cores/n64/README.md) |
-| Virtual Boy | 9 original ROMs; no external catalog | 6,512,640 result/PSW pairs plus 4,210,688 multiply/divide and 4,685,824 TRAP/illegal and 4,982,784 address-trap snapshots plus 17,055,744 CAXI/port and 14,680,064 arithmetic bit-string and 100,712,448 immediate-instruction plus 16,252,928 Nintendo-instruction snapshots | Experimental marked homebrew; remaining CPU/NVC, VIP/VSU, hardware controller polling and timing pending; [limits](cores/vb/README.md) |
+| Virtual Boy | 10 original ROMs; no external catalog | 6,512,640 result/PSW pairs plus 4,210,688 multiply/divide and 4,685,824 TRAP/illegal and 4,982,784 address-trap snapshots plus 17,055,744 CAXI/port and 14,680,064 arithmetic bit-string and 100,712,448 immediate-instruction plus 16,252,928 Nintendo-instruction snapshots | Experimental marked homebrew; remaining CPU/NVC, VIP/VSU, hardware controller polling and timing pending; [limits](cores/vb/README.md) |
 | Nintendo DS | 15 original ROMs; no external catalog | 44,238,336 integer plus 38,338,560 multiply plus 51,426,816 Thumb result/CPSR/source/PC observations matched; 10,846,208 saturating arithmetic result/CPSR/source observations matched, with executed wrong-double mutant rejected; 12,646,272 CLZ result/CPSR/source observations matched, with executed off-by-one mutant rejected; 33,300,480 SWP/SWPB register/RAM observations matched on both CPUs, with executed missing-store mutant rejected; 16,777,088 ARM BLX target/LR/CPSR snapshots matched, with executed wrong-H mutant rejected; 15,454,208 DSP multiplication register/CPSR snapshots matched across all sixteen forms, with executed wrong-half mutant rejected; 16,646,144 LDRD/STRD register/RAM snapshots matched, with executed missing-load mutant rejected; 2,881,632 ordinary ARM block-transfer register/RAM snapshots matched on both CPUs; 49,694,208 nine-word memory and 9,437,184 eight-word long-call observations matched; 3,720,960 stack/block observations matched; 4,096/4,096 digital keypad combinations matched; 100-frame TCP host/viewer states and eight guest words match baseline/oracle; DS wireless multiplayer pending; ARM7 unpredictable multiply flags excluded | Experimental marked ARM/Thumb integer homebrew; firmware, User-bank/SPSR block transfers, graphics/audio, peripherals pending; DSi has a separate partial plugin; [limits](cores/nds/README.md) |
 | Nintendo DSi | 2 original ROMs; no external catalog | 387,072/387,072 RAM captures; 67,109,008 component bus observations; 100-frame TCP host/viewer states and eight guest register words match oracle | Experimental dual-CPU expanded-memory profile; firmware/retail boot, full SCFG/MBK, graphics/audio/peripherals and physical timing pending; [limits](cores/dsi/README.md) |
 | Nintendo 3DS | 2 original ROMs; no external catalog | 25,165,824/25,165,824 reversal captures; 36,123,648 component register snapshots; 541,065,300 RAM bus observations; 4,096 HID input combinations; 100-frame TCP host/viewer full states and twelve guest words match baseline/oracle | Experimental supplied ARM11/ARM9 integer profile; native boot, remaining CPU, graphics/audio/peripherals, wireless multiplayer and physical timing pending; full hardware percentage unknown; [limits](cores/3ds/README.md) |
@@ -4147,3 +4147,45 @@ CPU fails the new register-alias contract. VB remains **25% = 5/20**: no whole-C
 milestone is earned by this subset. Remaining CPU/NVC, caches, timing, VIP/VSU,
 automatic controller polling, native retail boot, saves and netplay remain
 unfinished. CI/CD stays disabled; captures remain ignored locally.
+
+## Configured Virtual Boy cartridge SRAM (2026-10-11)
+
+Virtual Boy **0.4.0** adds optional SRAM in the native cartridge region for
+explicitly configured original cartridges. Seven power-of-two capacities from
+1 KiB through 64 KiB are supported, with board/module mirrors, little-endian
+storage, reset retention, battery import/export and complete SRAM states.
+See the [original cartridge RAM corpus](tests/roms-src/vb/cartridge_ram/README.md) for the descriptor, full finite
+domain and remaining physical/native-cartridge scope.
+
+The actual shared-plugin guest matches **8,388,608 eight-word snapshots /
+67,108,864 words**, zero mismatches, through every byte/value of the 8 KiB module
+and four selected mirrors. Neighbor guards and preserved status are graded
+independently. All exported battery bytes match the actual guest's final writes.
+Executed wrong-read and missing-store controls fail 960/1,023 short rows and
+960/2,046 words; eight field faults and seven malformed streams reject.
+Capture sources/binaries/ROM/assembler/grader hashes remain unchanged.
+
+The component checks **136,839,168 bus observations**, across every byte/value
+of all seven capacities/four mirrors and repeated-half patterns on both wide
+widths at selected wrap/end addresses. It checks reset retention, state replay,
+legacy neutral initialization and invalid image/state/boundary atomicity.
+The production frontend writes/restores exact `.sav` bytes through unload,
+reset, reload and fresh plugin-manager sessions. Shutdown flushes data; invalid
+battery lengths/files reject before mutation. Tests use isolated save paths.
+
+RAM-bearing state format **VVBS0004** appends an eight-byte capacity and all
+SRAM bytes after the prior CPU/WRAM/pad prefix: **66,216 + capacity bytes**.
+No-RAM ROMs keep **VVBS0003 = 66,208 bytes**. Legacy VVBS0002/VVBS0003 states
+initialize neutral SRAM. Active native complete-state and output replay match;
+older readers cannot load VVBS0004.
+
+All seven affected gates pass: full cartridge capture in **43.82 seconds**,
+six component/controller/frontend/state regressions in **23.72 seconds**.
+The old no-RAM Nintendo guest controls and all six native instruction-family
+checkpoint continuations also pass. All **153 original archives** reproduce;
+Release builds, completion rendering and whitespace checks pass. The prior core
+fails the declared cartridge-capacity contract. VB remains **25% = 5/20**.
+Native cartridge RAM-size detection, physical width/lane wiring, wait states
+and complete persistent-media scope remain unverified, so no saves milestone
+is earned. Remaining CPU/NVC, graphics/audio, timing, native retail boot and
+netplay are unfinished. CI/CD stays disabled.

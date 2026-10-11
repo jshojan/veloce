@@ -1774,3 +1774,24 @@ add_test(NAME vb_nintendo_registers COMMAND ${Python3_EXECUTABLE}
     --emulator $<TARGET_FILE:veloce> --core $<TARGET_FILE:vb_plugin> --state-test $<TARGET_FILE:vb_nintendo_plugin_state_test>
     --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/vb_nintendo)
 set_tests_properties(vb_nintendo_registers PROPERTIES LABELS "integration;accuracy;owned" TIMEOUT 2100)
+
+add_executable(vb_cartridge_ram_test cpp/vb_cartridge_ram_test.cpp
+    ${CMAKE_SOURCE_DIR}/cores/vb/src/machine.cpp ${CMAKE_SOURCE_DIR}/cores/vb/src/v810.cpp)
+target_include_directories(vb_cartridge_ram_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/vb/src ${CMAKE_SOURCE_DIR}/include)
+add_test(NAME vb_cartridge_ram_test COMMAND vb_cartridge_ram_test ${CMAKE_SOURCE_DIR}/tests/roms-src/vb/cartridge_ram/cartridge_ram.vb)
+set_tests_properties(vb_cartridge_ram_test PROPERTIES LABELS "unit;accuracy;owned" TIMEOUT 180)
+add_executable(vb_cartridge_capture cpp/vb_cartridge_capture.cpp)
+target_include_directories(vb_cartridge_capture PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(vb_cartridge_capture PRIVATE SDL2::SDL2)
+add_executable(vb_battery_frontend_test cpp/vb_battery_frontend_test.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/plugin_manager.cpp ${CMAKE_SOURCE_DIR}/src/core/plugin_registry.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/plugin_config.cpp ${CMAKE_SOURCE_DIR}/src/core/paths_config.cpp)
+target_include_directories(vb_battery_frontend_test PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(vb_battery_frontend_test PRIVATE nlohmann_json::nlohmann_json ${CMAKE_DL_LIBS})
+add_test(NAME vb_battery_frontend_test COMMAND vb_battery_frontend_test $<TARGET_FILE:vb_plugin>
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/vb/cartridge_ram/cartridge_ram.vb ${CMAKE_BINARY_DIR}/artifacts/owned/vb_battery_frontend)
+set_tests_properties(vb_battery_frontend_test PROPERTIES LABELS "integration;owned" TIMEOUT 30)
+add_test(NAME vb_cartridge_ram COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/vb/cartridge_ram/run.py $<TARGET_FILE:vb_cartridge_capture> $<TARGET_FILE:vb_plugin>
+    ${CMAKE_BINARY_DIR}/artifacts/owned/vb_cartridge_ram)
+set_tests_properties(vb_cartridge_ram PROPERTIES LABELS "integration;accuracy;owned" TIMEOUT 900)
