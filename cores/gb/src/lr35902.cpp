@@ -530,7 +530,8 @@ int LR35902::step() {
             break;
 
         // LD B, r
-        case 0x40: break;  // LD B, B
+        // LD B, B: a no-op, and the Mooneye/SameSuite "magic breakpoint".
+        case 0x40: m_bus.on_debug_breakpoint(m_b, m_c, m_d, m_e, m_h, m_l); break;
         case 0x41: m_b = m_c; break;
         case 0x42: m_b = m_d; break;
         case 0x43: m_b = m_e; break;

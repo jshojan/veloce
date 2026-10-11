@@ -80,6 +80,13 @@ void MBC::load_state(const uint8_t*& data, size_t& remaining) {
     m_ram_enabled = (*data++ != 0); remaining--;
 }
 
+// MBC0 optional RAM uses a fixed decoder, with no enable/bank registers.
+uint8_t MBC0::read_ram(uint16_t address) {
+    return address < 0x2000 && address < m_ram.size() ? m_ram[address] : 0xFF;
+}
+void MBC0::write_ram(uint16_t address, uint8_t value) {
+    if (address < 0x2000 && address < m_ram.size()) m_ram[address] = value;
+}
 // MBC0 - No banking
 void MBC0::write(uint16_t address, uint8_t value) {
     (void)address;

@@ -3621,3 +3621,14 @@ full build completes without warnings, component UBSAN and four executed fault
 controls pass, and **117 original archives reproduce**. The original rectangle
 capture suite and all of its negative controls pass. The private report's core,
 probe, trace, script and capture hashes match the final local artifacts.
+
+
+## Game Boy result-channel integration (2026-10-11)
+
+Current Game Boy evidence and remaining scope are in the
+[core README](../cores/gb/README.md#result-channel-branch-integration-2026-10-11).
+Legacy adapter bootstrap verdicts and source reproducibility do not establish
+whole-platform hardware accuracy. The original arithmetic/unary corpora retain
+independent register grading. Unbanked ROM+RAM headers 08/09 now have a fixed
+8 KiB functional RAM profile, with no new state fields; licensed-cartridge
+hardware validation remains unavailable for these header types.

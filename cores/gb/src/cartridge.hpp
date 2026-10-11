@@ -45,6 +45,12 @@ public:
     std::vector<uint8_t> get_save_data() const;
     bool set_save_data(const std::vector<uint8_t>& data);
 
+    // Test-result channel support: raw cart RAM (bank 0 at offset 0),
+    // regardless of MBC banking or RAM-enable, and a way to zero it so a
+    // test run never starts from a stale battery save.
+    uint8_t peek_ram(size_t offset) const { return offset < m_ram.size() ? m_ram[offset] : 0xFF; }
+    void clear_ram();
+
     // Save state
     void save_state(std::vector<uint8_t>& data);
     void load_state(const uint8_t*& data, size_t& remaining);

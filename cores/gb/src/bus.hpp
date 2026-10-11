@@ -13,6 +13,7 @@ class LR35902;
 class PPU;
 class APU;
 class Cartridge;
+class TestChannel;
 
 // Game Boy Memory Bus
 class Bus {
@@ -25,6 +26,8 @@ public:
     void connect_ppu(PPU* ppu) { m_ppu = ppu; }
     void connect_apu(APU* apu) { m_apu = apu; }
     void connect_cartridge(Cartridge* cart) { m_cartridge = cart; }
+    // Test-result channel (VELOCE_TEST_OUT); nullptr = none.
+    void connect_test_channel(TestChannel* channel) { m_test_channel = channel; }
 
     // CGB mode
     void set_cgb_mode(bool cgb) { m_cgb_mode = cgb; }
@@ -61,10 +64,9 @@ public:
     // Serial
     void step_serial(int cycles);
 
-    // Serial output capture (for test ROMs)
-    const std::string& get_serial_output() const { return m_serial_output; }
-    void clear_serial_output() { m_serial_output.clear(); }
-    void set_test_sink(emu::ITestSink* sink) { m_test_sink = sink; }
+    // LD B,B executed (Mooneye "magic breakpoint"); forwarded to the test
+    // channel's fingerprint adapter.
+    void on_debug_breakpoint(uint8_t b, uint8_t c, uint8_t d, uint8_t e, uint8_t h, uint8_t l);
 
     // Save state
     void save_state(std::vector<uint8_t>& data);
@@ -76,6 +78,7 @@ private:
     PPU* m_ppu = nullptr;
     APU* m_apu = nullptr;
     Cartridge* m_cartridge = nullptr;
+    TestChannel* m_test_channel = nullptr;
 
     // Memory
     std::array<uint8_t, 0x2000> m_wram;      // 8KB Work RAM (banked on CGB)
@@ -125,8 +128,6 @@ private:
     // Serial internals
     int m_serial_counter = 0;
     int m_serial_bits = 0;
-    std::string m_serial_output;  // Captured serial output for test ROMs
-    emu::ITestSink* m_test_sink = nullptr;  // Borrowed from application
 
     // CGB mode flag
     bool m_cgb_mode = false;
