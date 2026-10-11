@@ -25,6 +25,12 @@ Full platform completion is unknown.
 - All sixteen ARM data-processing operations: AND/EOR/SUB/RSB/ADD/ADC/SBC/RSC,
   TST/TEQ/CMP/CMN, ORR/MOV/BIC/MVN. Register/immediate operands, NZCV flags,
   carry/borrow, signed overflow, flag-preserving forms and source aliases.
+- Ordinary ARM LDM/STM (S=0): IA/IB/DA/DB, every nonempty register list,
+  write-back and defined base aliases, PC loads with ARM9 interworking and
+  unchanged flags. The [original register/RAM corpus](../../tests/roms-src/nds/arm_multiple_registers/README.md)
+  grades both CPUs using single-register capture instructions. Unpredictable
+  base/list cases stop. User-bank/SPSR transfers remain unimplemented. Supplied
+  U=0 accesses ignore low address bits; physical aborts/timing remain pending.
 - ARM9 LDRD/STRD: consecutive even/odd register pairs, immediate/register
   offsets, pre/post/offset addressing, add/subtract, write-back and valid
   aliases, with flags preserved. The [original register/RAM corpus](../../tests/roms-src/nds/doubleword_registers/README.md)
@@ -316,7 +322,7 @@ in the ROM manifest. Component evidence is separate from the original-ROM domain
 
 ## Remaining hardware and features
 
-ARM block transfers,
+ARM User-bank block transfers and SPSR exception returns,
 Other ARM9 architecture extensions,
 Privileged modes,
 banked registers, SPSR, exceptions/interrupts, CP15/MPU/cache/TCM, firmware and

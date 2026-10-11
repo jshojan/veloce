@@ -45,7 +45,7 @@ headlines or original-ROM domain pass fractions.
 | [GBA](#gba) | 132 external tests / 29 suites, plus 1 original ROM | Partial; 65,536 original ARM shift cases verified | Legacy CPU/memory/BIOS/saves subsets verified; timing/PPU and remaining original hardware corpus pending |
 | N64 | 35 original ROMs; no external catalog | Declared integer/merge/controller/interrupt/PI/RI/MI/device/cache/SP/AI/FPU-control/data/conversion/arithmetic/comparison/TLB/VI/RSP-scalar/vector-transfer/multiply domains verified | Experimental homebrew/native handoff; retail boot pending; full hardware completion unknown; [limits](cores/n64/README.md) |
 | Virtual Boy | 7 original ROMs; no external catalog | 6,512,640 result/PSW pairs plus 4,210,688 multiply/divide and 4,685,824 TRAP/illegal and 4,982,784 address-trap snapshots plus 17,055,744 CAXI/port and 14,680,064 arithmetic bit-string and 100,712,448 immediate-instruction snapshots | Experimental marked homebrew; remaining CPU/NVC, VIP/VSU, controllers and timing pending; [limits](cores/vb/README.md) |
-| Nintendo DS | 14 original ROMs; no external catalog | 44,238,336 integer plus 38,338,560 multiply plus 51,426,816 Thumb result/CPSR/source/PC observations matched; 10,846,208 saturating arithmetic result/CPSR/source observations matched, with executed wrong-double mutant rejected; 12,646,272 CLZ result/CPSR/source observations matched, with executed off-by-one mutant rejected; 33,300,480 SWP/SWPB register/RAM observations matched on both CPUs, with executed missing-store mutant rejected; 16,777,088 ARM BLX target/LR/CPSR snapshots matched, with executed wrong-H mutant rejected; 15,454,208 DSP multiplication register/CPSR snapshots matched across all sixteen forms, with executed wrong-half mutant rejected; 16,646,144 LDRD/STRD register/RAM snapshots matched, with executed missing-load mutant rejected; 49,694,208 nine-word memory and 9,437,184 eight-word long-call observations matched; 3,720,960 stack/block observations matched; 4,096/4,096 digital keypad combinations matched; 100-frame TCP host/viewer states and eight guest words match baseline/oracle; DS wireless multiplayer pending; ARM7 unpredictable multiply flags excluded | Experimental marked ARM/Thumb integer homebrew; firmware, ARM block transfers, graphics/audio, peripherals pending; DSi has a separate partial plugin; [limits](cores/nds/README.md) |
+| Nintendo DS | 15 original ROMs; no external catalog | 44,238,336 integer plus 38,338,560 multiply plus 51,426,816 Thumb result/CPSR/source/PC observations matched; 10,846,208 saturating arithmetic result/CPSR/source observations matched, with executed wrong-double mutant rejected; 12,646,272 CLZ result/CPSR/source observations matched, with executed off-by-one mutant rejected; 33,300,480 SWP/SWPB register/RAM observations matched on both CPUs, with executed missing-store mutant rejected; 16,777,088 ARM BLX target/LR/CPSR snapshots matched, with executed wrong-H mutant rejected; 15,454,208 DSP multiplication register/CPSR snapshots matched across all sixteen forms, with executed wrong-half mutant rejected; 16,646,144 LDRD/STRD register/RAM snapshots matched, with executed missing-load mutant rejected; 2,881,632 ordinary ARM block-transfer register/RAM snapshots matched on both CPUs; 49,694,208 nine-word memory and 9,437,184 eight-word long-call observations matched; 3,720,960 stack/block observations matched; 4,096/4,096 digital keypad combinations matched; 100-frame TCP host/viewer states and eight guest words match baseline/oracle; DS wireless multiplayer pending; ARM7 unpredictable multiply flags excluded | Experimental marked ARM/Thumb integer homebrew; firmware, User-bank/SPSR block transfers, graphics/audio, peripherals pending; DSi has a separate partial plugin; [limits](cores/nds/README.md) |
 | Nintendo DSi | 2 original ROMs; no external catalog | 387,072/387,072 RAM captures; 67,109,008 component bus observations; 100-frame TCP host/viewer states and eight guest register words match oracle | Experimental dual-CPU expanded-memory profile; firmware/retail boot, full SCFG/MBK, graphics/audio/peripherals and physical timing pending; [limits](cores/dsi/README.md) |
 | Nintendo 3DS | 2 original ROMs; no external catalog | 25,165,824/25,165,824 reversal captures; 36,123,648 component register snapshots; 541,065,300 RAM bus observations; 4,096 HID input combinations; 100-frame TCP host/viewer full states and twelve guest words match baseline/oracle | Experimental supplied ARM11/ARM9 integer profile; native boot, remaining CPU, graphics/audio/peripherals, wireless multiplayer and physical timing pending; full hardware percentage unknown; [limits](cores/3ds/README.md) |
 | GameCube | 10 original ROMs; no external catalog | 49,152/49,152 arithmetic and 74,752/74,752 branch and 42,108,928/42,108,928 condition and 6,324,224/6,324,224 integer logical and 9,437,184/9,437,184 rotate/mask and 4,416,528/4,416,528 shift/unary and 25,168,384/25,168,384 carry arithmetic snapshots and 8,420,320/8,420,320 defined multiply/divide results matched; 1,056 undefined division rows have defined flags/preserved fields checked; 12,586,368/12,586,368 memory-transfer snapshots matched | Experimental supplied integer profile; full hardware completion unknown; [limits](cores/ppc/README.md) |
@@ -3539,3 +3539,27 @@ pending. A failed second store leaves the first bus effect intact and commits no
 base update; diagnostic behavior is not a measured physical exception. Remaining
 CPU/mode/device/firmware milestones stay unfinished, so DS/DSi/3DS remain 30%
 delivery completion. See the [domain and limits](tests/roms-src/nds/doubleword_registers/README.md).
+
+## Ordinary ARM block transfers (2026-10-11)
+
+LDM/STM S=0 now execute across IA/IB/DA/DB, all nonempty lists and defined
+write-back/base combinations in the shared ARM interpreter. An original DS
+cartridge grades 2,881,632 snapshots on both CPUs (100,857,120 actual words),
+with every legal list in the declared sweep, boundary lists across all non-PC
+bases/flags, conditions and finite seed patterns. It captures all registers
+through single-register instructions, then emits paired register/memory lines
+preserving all 35 words within the existing 255-byte transport limit.
+
+The 50,385,536-check component gate covers list/base fields on ARM7/ARM9/ARM11,
+address modes, flags, wrap/lane boundaries, PC targets, diagnostic rejection
+and failed-store prefixes. Ten affected component gates pass. The corrected
+reduced original passes 1,276,424 snapshots; an executed wrong-start mutant
+fails 153,986. Register/RAM corruptions and eight damaged streams are rejected.
+All 127 original ROM archives rebuild against the manifest.
+
+S=1 User-bank and SPSR exception-return forms require unfinished banked-register,
+mode/privilege and exception work. Default U=0 alignment and implementation-
+defined PC stores are supplied model choices; physical timing, aborts, IRQ/bus
+arbitration and hardware comparisons remain pending. The complete CPU milestone
+is unfulfilled; DS/DSi/3DS stay 30% delivery completion. See the
+[original scope](tests/roms-src/nds/arm_multiple_registers/README.md).

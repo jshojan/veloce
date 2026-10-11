@@ -173,6 +173,34 @@ void Arm::step() {
         if(ins&(1u<<24)) s.r[14]=pc+4;
         s.r[15]=pc+8+extended; return;
     }
+    if((ins&0x0e000000u)==0x08000000u) {
+        const bool pre=ins&(1u<<24),up=ins&(1u<<23),user=ins&(1u<<22),wb=ins&(1u<<21),load=ins&(1u<<20);
+        const unsigned rn=(ins>>16)&15,list=ins&0xffff;
+        // User-bank and exception-return transfers require banked registers
+        // and SPSR, which are not yet supplied by this CPU profile.
+        if(user || rn==15 || !list || (wb && (list&(1u<<rn)) &&
+            (load || (list&((1u<<rn)-1))))) { s.unsupported=true; return; }
+        unsigned count=0;for(unsigned reg=0;reg<16;++reg)count+=(list>>reg)&1;
+        const auto before=s.r;auto values=before;
+        const uint32_t base=before[rn],span=count*4;
+        const uint32_t begin=up ? base+(pre ? 4:0):base-span+(pre ? 0:4);
+        uint32_t address=begin&~3u;
+        for(unsigned reg=0;reg<16;++reg)if(list&(1u<<reg)) {
+            const uint32_t source=reg==15 ? pc+(v5 ? 8:12):before[reg];
+            if(!(load ? bus.read(address,4,values[reg]):bus.write(address,4,source))) {
+                s.unsupported=true; return;
+            }
+            address+=4;
+        }
+        if(load && (list&0x8000) && v5 && (values[15]&3)==2) { s.unsupported=true; return; }
+        if(load)s.r=values;
+        if(wb)s.r[rn]=up ? base+span:base-span;
+        if(load && (list&0x8000)) {
+            if(v5)s.cpsr=(s.cpsr&~0x20u)|((values[15]&1)<<5);
+            s.r[15]=values[15]&((v5 && (values[15]&1)) ? ~1u:~3u);
+        }else s.r[15]=pc+4;
+        return;
+    }
     if((ins&0x0c000000)==0x04000000) {
         const bool pre=ins&(1u<<24),up=ins&(1u<<23),byte=ins&(1u<<22),wb=ins&(1u<<21),load=ins&(1u<<20);
         const unsigned rn=(ins>>16)&15,rd=(ins>>12)&15;

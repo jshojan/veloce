@@ -1426,3 +1426,12 @@ add_test(NAME nds_doubleword_registers COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/roms-src/nds/doubleword_registers/run.py --emulator $<TARGET_FILE:veloce>
     --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/nds_doubleword)
 set_tests_properties(nds_doubleword_registers PROPERTIES LABELS "accuracy;owned" TIMEOUT 1800)
+
+add_executable(arm_multiple_decode_test cpp/arm_multiple_decode_test.cpp ${CMAKE_SOURCE_DIR}/cores/nds/src/arm.cpp)
+target_include_directories(arm_multiple_decode_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/nds/src)
+add_test(NAME arm_multiple_decode_test COMMAND arm_multiple_decode_test)
+set_tests_properties(arm_multiple_decode_test PROPERTIES LABELS "unit;accuracy" TIMEOUT 180)
+add_test(NAME nds_arm_multiple_registers COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/nds/arm_multiple_registers/run.py --emulator $<TARGET_FILE:veloce>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/nds_arm_multiple)
+set_tests_properties(nds_arm_multiple_registers PROPERTIES LABELS "accuracy;owned" TIMEOUT 1800)
