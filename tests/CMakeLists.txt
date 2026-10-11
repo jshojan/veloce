@@ -954,3 +954,18 @@ add_test(NAME n64_rdp_texture_plugin_replay_test COMMAND n64_rdp_packet_plugin_t
     $<TARGET_FILE:n64_plugin>
     ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/rdp_triangle_texture/rdp_triangle_texture.z64 texture)
 set_tests_properties(n64_rdp_texture_plugin_replay_test PROPERTIES LABELS "integration;netplay;accuracy")
+add_executable(n64_rdp_convert_test cpp/n64_rdp_convert_test.cpp
+    ${CMAKE_SOURCE_DIR}/cores/n64/src/machine.cpp ${CMAKE_SOURCE_DIR}/cores/n64/src/vr4300.cpp)
+target_include_directories(n64_rdp_convert_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src ${CMAKE_SOURCE_DIR}/include)
+add_test(NAME n64_rdp_convert_test COMMAND n64_rdp_convert_test
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/rdp_triangle_texture/rdp_triangle_texture.z64)
+set_tests_properties(n64_rdp_convert_test PROPERTIES LABELS "unit;accuracy;owned" TIMEOUT 180)
+
+add_test(NAME n64_rdp_color_convert COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/rdp_color_convert/run.py --emulator $<TARGET_FILE:veloce>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_rdp_color_convert)
+set_tests_properties(n64_rdp_color_convert PROPERTIES LABELS "accuracy;owned" TIMEOUT 700)
+add_test(NAME n64_rdp_conversion_plugin_replay_test COMMAND n64_rdp_packet_plugin_test
+    $<TARGET_FILE:n64_plugin>
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/rdp_color_convert/rdp_color_convert.z64 conversion)
+set_tests_properties(n64_rdp_conversion_plugin_replay_test PROPERTIES LABELS "integration;netplay;accuracy")

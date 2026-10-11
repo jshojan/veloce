@@ -39,12 +39,15 @@ struct RdpTextureFilter {
         return result;
     }
     static Color convert(const Quad& q,const Options& options,const std::array<unsigned,4>& coefficients){
+        std::array<int64_t,4> k{};for(unsigned i=0;i<4;++i)k[i]=2*signed9(int32_t(coefficients[i]&511))+1;
+        return convert_weights(q,options,k);
+    }
+    static Color convert_weights(const Quad& q,const Options& options,const std::array<int64_t,4>& k){
         const unsigned s=options.s&31,t=options.t&31,uv=options.yuv?(s>>1)|(options.odd_s?16u:0u):s;
         const auto& chroma=q[uv+t>=32?3:0];const auto& luma=q[s+t>=32?3:0];
         const int64_t u=options.convert_one?signed9(options.previous[0]):chroma[0];
         const int64_t v=options.convert_one?signed9(options.previous[1]):chroma[1];
         const int64_t y=options.convert_one?signed9(options.previous[2]):luma[2];
-        std::array<int64_t,4> k{};for(unsigned i=0;i<4;++i)k[i]=2*signed9(int32_t(coefficients[i]&511))+1;
         return {unsigned(y+floor(k[0]*v+128,256))&511,unsigned(y+floor(k[1]*u+k[2]*v+128,256))&511,unsigned(y+floor(k[3]*u+128,256))&511,unsigned(y)&511};
     }
 private:

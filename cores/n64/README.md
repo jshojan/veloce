@@ -1,6 +1,6 @@
 # Experimental Nintendo 64 core plugin
 
-Current N64 evidence: [affine textured pixels and current Mario status](#affine-textured-triangle-pixels). Earlier increment reports are historical.
+Current N64 evidence: [SetConvert/color conversion and current Mario status](#setconvert-and-texture-color-conversion). Earlier increment reports are historical.
 
 <!-- completion:start -->
 ## Completion percentage
@@ -13,7 +13,7 @@ These percentages count the 20 explicit delivery milestones in [the completion l
 
 Nintendo 64 delivered milestones: Guest sound produces audio samples, Native digital controller/keypad registers consume frontend input, Guest graphics produce rendered video, Parse a native cartridge/executable format (boot scored separately), Actual production-plugin TCP peers pass original guest oracle and whole-state comparison, Repository-owned ROM source and reproducible archived image, Separate core plugin and ABI entry points, Actual guest register-file output independently graded on the host, with negative controls, Complete states for the implemented profile and deterministic replay.
 
-Remaining: Super Mario 64 passes SET_Z_IMAGE and real color/depth-buffer clears, then reaches the 200-million-attempt trace bound without a terminal CPU fault. RSP reciprocal/square-root/move now pass; the longer probe reports no unsupported RSP instruction and a real BREAK. RDP TMEM block/tile/palette transfers now pass; functional one-cycle RGBA32 shade/primitive/environment and affine textured pixels pass original framebuffer/register oracles; Mario’s textured/depth-tested triangle profile remains blocked; video stays uniform. Native boot/playability, full CPU/CP0/devices, FPU physical timing, rare RSP operations and pipeline/interlock timing, complete RDP/audio, hidden coverage/depth bits, analog/accessories/presence detection, local multiplayer frontend routing and physical timing remain. Production two-player TCP rollback is verified for the implemented digital profile; four virtual PIF ports are supported.
+Remaining: Super Mario 64 passes SET_Z_IMAGE and real color/depth-buffer clears, then reaches the 200-million-attempt trace bound without a terminal CPU fault. RSP reciprocal/square-root/move now pass; the longer probe reports no unsupported RSP instruction and a real BREAK. RDP TMEM block/tile/palette transfers now pass; functional one-cycle RGBA32 shade/primitive/environment and affine textured/color-converted pixels pass original framebuffer/register oracles; Mario’s textured/depth-tested triangle profile remains blocked; video stays uniform. Native boot/playability, full CPU/CP0/devices, FPU physical timing, rare RSP operations and pipeline/interlock timing, complete RDP/audio, hidden coverage/depth bits, analog/accessories/presence detection, local multiplayer frontend routing and physical timing remain. Production two-player TCP rollback is verified for the implemented digital profile; four virtual PIF ports are supported.
 <!-- completion:end -->
 
 `n64_plugin` builds `n64.so`/`n64.dll`/`n64.dylib` and implements emulator ABI v2.
@@ -2177,3 +2177,73 @@ full AA/blending/depth/hidden-memory behavior, complete devices/audio and
 physical timing remain unfinished. State completeness is limited to the implemented profile; the full Nintendo
 implementation goal remains active. N64 stays **45% = 9/20 delivery milestones**;
 CI/CD remains disabled.
+
+
+## SetConvert and texture color conversion
+
+SetConvert now retains all six nine-bit fields, including the K2 field split
+across the command's two words. K0..K3 supply signed odd conversion weights;
+K4/K5 supply the native cycle-one combiner routes. The functional affine
+RGBA32 path supports color conversion with cycle-zero filtering disabled,
+using separate chroma/luma triangle selection, as well as the preceding
+filter/passthrough modes. The initial zero weights and programmed zero-field
+weights are distinct states. Arithmetic and command decoding follow the
+[RDP author's conversion model](https://github.com/ata4/angrylion-rdp-plus/blob/master/src/core/n64video/rdp/tex.c).
+
+The new original
+[color-conversion ROM](https://github.com/jshojan/veloce/tree/main/tests/roms-src/n64/rdp_color_convert)
+passes **1,318,912 cases / 17,145,856 actual 64-bit framebuffer/guard/register
+observations**, with zero mismatches. **1,048,576** cases cover every K0..K3
+field encoding independently against 256 selected source-byte patterns under
+both command sources. **262,144** cases cover every K4/K5 pair in a real
+texture/constant combiner equation with an RGBA16 source family. **8,192**
+cases cover all fractional pairs under selected YUV16/YUV32/RGBA16/IA16 tiles,
+fixed coefficients and both RDRAM/wrapping XBUS sources. UV, Y and corner
+patterns are correlated; independent U/V/Y triples, joint K0..K3 tuples and
+all palette/gradient/geometry combinations are not exhaustive.
+
+The host independently models logical source pixels, signed coefficient and
+combiner arithmetic, and an explicit quarter-row point grid. A 425-case
+control passes; a separately executed wrong-capture ROM is rejected in every
+row. All thirteen observation-field corruptions and seven malformed/domain/
+trailer stream controls are rejected. **98,304** independent component command
+captures cover every coefficient field, opcode aliases, ignored bits and both
+command sources. Four component framebuffer goldens distinguish mixed chroma/
+luma selection, zero initial weights, odd programmed weights and the signed
+coefficient boundary. Warning-as-error compilation and UBSAN pass. The
+refactored filter arithmetic's baseline passes and all nine compiled production
+faults are rejected by its repeatable runner.
+
+State **VN64S025** appends **8 bytes**, totaling **8,478,952 bytes**, for the
+packed fields and a programmed-state flag. Reserved/noncanonical conversion
+states reject atomically. S024 imports preserve every preceding byte and
+initialize conversion state to zero; the earlier state imports remain tested.
+State-offset fixtures were updated for the new tail while preserving their
+original field and legacy-import checks. All 46 machine/device/FPU/RSP/RDP/
+netplay regression gates pass across the recorded runs. The new production
+conversion checkpoint gate and existing texture/partial-packet checkpoint
+gates pass: exact subsequent actual guest output, full-state replay, current
+netplay-ABI capacity and atomic malformed-state rejection. Production TCP
+rollback passes with local sockets enabled. All **106 repository-owned archived
+ROMs** reproduce and match their manifest.
+
+Artifacts: `build/artifacts/owned/n64_rdp_color_convert/`. From the repository
+root:
+
+```sh
+python3 tests/roms-src/build.py n64/rdp_color_convert --original-only
+ctest --test-dir build -R '^n64_rdp_(color_convert|convert_test|conversion_plugin_replay_test)' --output-on-failure
+```
+
+The private Mario probe was repeated with current plugin/trace binaries at
+**200 million CPU attempts**, with no terminal CPU fault. The same complete
+**22/22-word CF000FFA0FFAF006 packet at 0x227160**, fetched CURRENT **0x227210**
+and reason 1 remain; video is uniform and native boot/playability unverified.
+Report: `build/artifacts/retail/n64-color-convert.json` (ignored; no commercial
+bytes committed). Plugin **0.32.0**, ABI v2 and S025 are current.
+
+Perspective/LOD, two-cycle feedback and previous texels, full AA/blending/depth/
+hidden-memory behavior, complete devices/audio, hardware-wide corpora and
+physical timing remain unfinished. The full Nintendo implementation goal
+remains active. N64 stays **45% = 9/20 delivery milestones**; CI/CD remains
+disabled.

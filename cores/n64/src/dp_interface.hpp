@@ -6,6 +6,7 @@
 #include "rdp_combiner.hpp"
 #include "rdp_fill.hpp"
 #include "rdp_texture.hpp"
+#include "rdp_convert.hpp"
 #include "rdp_tmem.hpp"
 #include "rdp_packet.hpp"
 #include "rdp_triangle_fill.hpp"
@@ -21,6 +22,7 @@ public:
     uint64_t blocked_word=0,color_image=0,other_mode=0,scissor=0;
     RdpCombiner combiner;
     RdpTexture texture;
+    RdpConvert conversion;
     RdpTmem tmem;
     RdpPacket packet;
     uint32_t depth_image=0;
@@ -67,11 +69,12 @@ public:
         switch(op){
         case 8:case 9:case 10:case 11:case 12:case 13:case 14:case 15:
             if(((other_mode>>52)&3)==3){reason=RdpTriangleFill::draw(packet,color_image,other_mode,scissor,fill_color,ram);supported=!reason;}
-            else if(((other_mode>>52)&3)==0){reason=RdpTriangleShade::draw(packet,color_image,other_mode,scissor,combiner,ram,&texture,&tmem);supported=!reason;}
+            else if(((other_mode>>52)&3)==0){reason=RdpTriangleShade::draw(packet,color_image,other_mode,scissor,combiner,ram,&texture,&tmem,&conversion);supported=!reason;}
             else supported=false;
             break;
         case 0:case 38:case 39:case 40:break; // NOP and settled load/pipe/tile barriers.
         case 41:pipeline=false;interrupt=true;break; // Actual FullSync command, never a range-end IRQ.
+        case 44:conversion.command(word);break;
         case 45:scissor=word&0x00ffffffffffffffull;break;
         case 47:other_mode=word&0x00ffffffffffffffull;break;
         case 55:fill_color=uint32_t(word);break;

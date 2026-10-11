@@ -48,13 +48,14 @@ struct RdpCombiner {
     // LOD computation, key/conversion state or noise generation. A caller may
     // explicitly enable its current TEXEL0 input; TEXEL1 stays excluded.
     // Zero multiplier selectors make A/B electrically irrelevant.
-    bool independent_one_cycle(bool texel0=false) const {
+    bool independent_one_cycle(bool texel0=false,bool coefficients=false) const {
         const auto m=cycle(1);
         const auto rgb=[texel0](unsigned v){return (texel0 && v==1) || v==3 || v==4 || v==5 || v>=8;};
         const auto add=[texel0](unsigned v){return (texel0 && v==1) || v>=3;};
         const auto alpha=[texel0](unsigned v){return (texel0 && v==1) || v>=3;};
-        const bool factor=(texel0 && (m.rgb_c==1 || m.rgb_c==8)) || m.rgb_c==3 || m.rgb_c==4 || m.rgb_c==5 || m.rgb_c==10 || m.rgb_c==11 || m.rgb_c==12 || m.rgb_c==14 || m.rgb_c>=16;
-        return factor && (m.rgb_c>=16 || ((rgb(m.rgb_a) || m.rgb_a==6) && rgb(m.rgb_b))) && add(m.rgb_d)
+        const auto rgb_b=[&](unsigned v){return rgb(v) || (coefficients && v==7);};
+        const bool factor=(coefficients && m.rgb_c==15) || (texel0 && (m.rgb_c==1 || m.rgb_c==8)) || m.rgb_c==3 || m.rgb_c==4 || m.rgb_c==5 || m.rgb_c==10 || m.rgb_c==11 || m.rgb_c==12 || m.rgb_c==14 || m.rgb_c>=16;
+        return factor && (m.rgb_c>=16 || ((rgb(m.rgb_a) || m.rgb_a==6) && rgb_b(m.rgb_b))) && add(m.rgb_d)
             && alpha(m.alpha_c) && (m.alpha_c==7 || (alpha(m.alpha_a) && alpha(m.alpha_b))) && alpha(m.alpha_d);
     }
     Cycle cycle(unsigned n) const {
