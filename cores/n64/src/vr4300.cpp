@@ -66,6 +66,7 @@ bool VR4300::read(uint64_t address,unsigned bytes,uint64_t& value,bool fetch,uin
     access_address=bad;access_bytes=bytes;access_store=false;
     if(address&(bytes-1)) {exception(4,pc,delay,bad);return false;}
     Tlb::Translation t;if(!translate(bad,false,pc,delay,t))return false;
+    if(!fetch && t.cached && !caches.data_hit(address,t.physical))state.llbit=false;
     if(!caches.read_translated(memory,address,t.physical&~uint32_t(bytes-1),t.cached,bytes,value,fetch)) {
         exception(fetch?6:7,pc,delay);return false;
     }
@@ -75,6 +76,7 @@ bool VR4300::write(uint64_t address,unsigned bytes,uint64_t value,uint8_t mask,u
     access_address=bad;access_bytes=bytes;access_store=true;
     if(address&(bytes-1)) {exception(5,pc,delay,bad);return false;}
     Tlb::Translation t;if(!translate(bad,true,pc,delay,t))return false;
+    if(t.cached && !caches.data_hit(address,t.physical))state.llbit=false;
     if(!caches.write_translated(memory,address,t.physical&~uint32_t(bytes-1),t.cached,bytes,value,mask)) {
         exception(7,pc,delay);return false;
     }
@@ -110,6 +112,30 @@ void VR4300::step() {
     s.delay_slot = false;
     auto put = [&](unsigned reg, uint64_t value) { if (reg) s.gpr[reg] = value; };
     auto fault = [&](unsigned code, uint64_t bad = 0) { exception(code, pc, delay, bad); };
+    auto linked_memory = [&](bool wide,bool conditional) {
+        const unsigned mode=(s.cp0[12]&6)?0:unsigned(s.cp0[12]>>3)&3;
+        if(wide && mode && !(s.cp0[12]&(mode==1?64:32))) {fault(10);return;}
+        const unsigned bytes=wide?8:4;
+        // In 32-bit mode the manual ignores the high half when forming VA.
+        const bool extended=s.cp0[12]&(mode==0?128:mode==1?64:32);
+        const auto address=extended?a+imm:sign32(uint32_t(a+imm));
+        access_address=address;access_bytes=bytes;access_store=conditional;
+        if(address&(bytes-1)) {fault(conditional?5:4,address);return;}
+        Tlb::Translation t;if(!translate(address,conditional,pc,delay,t))return;
+        if(conditional) {
+            // Conservative functional policy for a miss between LL and SC.
+            // Translation/alignment exceptions still precede LLbit failure.
+            if(t.cached && !caches.data_hit(address,t.physical))s.llbit=false;
+            if(s.llbit && !caches.write_translated(memory,address,t.physical,t.cached,bytes,b,uint8_t((1u<<bytes)-1))) {fault(7);return;}
+            put(rt,s.llbit?1:0);
+        } else {
+            uint64_t value=0;
+            if(t.cached && !caches.data_hit(address,t.physical))s.llbit=false;
+            if(!caches.read_translated(memory,address,t.physical,t.cached,bytes,value,false)) {fault(7);return;}
+            put(rt,wide?value:sign32(uint32_t(value)));
+            s.cp0[17]=(t.physical>>4)&0x0fffffff;s.llbit=true;
+        }
+    };
     auto branch = [&](bool take, bool likely = false) {
         if (likely && !take) { s.pc = s.next_pc; s.next_pc += 4; }
         else { s.delay_slot = true; if (take) s.next_pc = pc + 4 + imm * 4; }
@@ -335,6 +361,7 @@ void VR4300::step() {
                 else if(rd==20)s.cp0[20]=(s.cp0[20]&0x1fffffff0ull)|(value&0xfffffffe00000000ull);
                 else if(rd==13)s.cp0[13]=(s.cp0[13]&~0x300ull)|(value&0x300);
                 else if(rd==11) {s.cp0[11]=uint32_t(value);s.cp0[13]&=~0x8000ull;}
+                else if(rd==17)s.cp0[17]=value&0x0fffffff; // Diagnostic PA31:4, no LLbit side effect.
                 else s.cp0[rd]=(rd==14 || rd==30)?value:uint32_t(value);
             } else if(ins==0x42000001) {
                 const auto& e=tlb.entries[unsigned(s.cp0[0])&31];
@@ -349,6 +376,7 @@ void VR4300::step() {
                 if(s.cp0[12]&4) {s.cp0[12]&=~4ull;s.pc=s.cp0[30];}
                 else {s.cp0[12]&=~2ull;s.pc=s.cp0[14];}
                 s.next_pc=s.pc+4;s.delay_slot=false;
+                s.llbit=false;
             } else fault(10);
             break;
         }
@@ -429,11 +457,18 @@ void VR4300::step() {
             uint32_t tag=uint32_t(s.cp0[28]);
             Tlb::Translation t;access_address=a+imm;access_bytes=0;access_store=false;
             if(rt>=13 && !translate(a+imm,false,pc,delay,t))break;
+            const auto old_flags=(rt&1)?caches.data[((a+imm)>>4)&511].flags:caches.instruction[((a+imm)>>5)&511].flags;
             if(!caches.operation_translated(memory,rt,a+imm,t.physical,tag)) {fault(7);break;}
+            const auto new_flags=(rt&1)?caches.data[((a+imm)>>4)&511].flags:caches.instruction[((a+imm)>>5)&511].flags;
+            if((old_flags&1) && !(new_flags&1))s.llbit=false;
             if(rt==4 || rt==5) {s.cp0[28]=tag;s.cp0[29]=0;}
             break;
         }
         case 49: fp_memory(4,false); break;
+        case 48: linked_memory(false,false); break;
+        case 52: linked_memory(true,false); break;
+        case 56: linked_memory(false,true); break;
+        case 60: linked_memory(true,true); break;
         case 53: fp_memory(8,false); break;
         case 57: fp_memory(4,true); break;
         case 61: fp_memory(8,true); break;

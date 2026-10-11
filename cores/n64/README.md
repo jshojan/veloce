@@ -184,8 +184,8 @@ cmake --build build --target veloce n64_plugin n64_machine_test n64_pi_test n64_
 ctest --test-dir build -R '^n64_' --output-on-failure
 ```
 
-`VN64S030` states store explicit big-endian scalars, all GPR/CP0 registers,
-HI/LO, both PCs, pending delay state, instruction/frame counters, completion,
+`VN64S031` states store explicit big-endian scalars, all GPR/CP0 registers,
+HI/LO, both PCs, pending delay state and LLbit, instruction/frame counters, completion,
 RAM and SP storage, PIF RAM, SI address/completion, MI mask, latched digital
 input and debug yield state, plus 13 PI registers, PI IRQ and boot mode (120 bytes), six RI controls and a current-loaded flag (56 bytes), plus MI mode and pending DP (16 bytes) and 36 device-register scalars (288 bytes), plus all cache tags/valid/dirty flags and data (40,960 bytes) and nine SP interface scalars (72 bytes), plus 15 AI scalars, five host-clock/ring scalars and 32,768 bytes of pending PCM storage (32,928 bytes). FCR31 is stored as an 8-byte validated scalar, followed by 32 TLB entries as four 8-byte scalars each (1,024 bytes). VI adds 20 validated 8-byte scalars (160 bytes), including registers, current line, crystal phase, field count, leap pattern and interrupt latch. FPR data appends 32 raw 64-bit scalars (256 bytes). S019 appends a validated depth-image address (8 bytes); S018 and earlier restore its neutral value. S018 appends three combiner/color state scalars (24 bytes); S017 and earlier restore neutral combiner state. S017 appends eight validated raw 48-bit accumulator lanes in 64-bit slots (64 bytes); S016 and earlier restore neutral accumulators. S016 appends 64 packed vector doublewords and three flags (536 bytes); S015 and earlier restore neutral vector storage/flags. S015 appends 19 DP scalars (152 bytes); S014 and earlier restore reset DP control/counters/pipeline while preserving previously stored IRQ state. S014 appends scalar RSP execution and its clock phase (304 bytes); legacy S013 and earlier restore neutral scalar registers/phase and resume sequentially at SP PC. Legacy `VN64S012` restores zero FPR storage. `VN64S011` restores reset VI; `VN64S010` restores neutral TLB entries; `VN64S009` restores neutral FCR31; `VN64S008` restores neutral AI/host audio; `VN64S007` restores reset SP controls; `VN64S006` restores invalid caches; `VN64S005` restores reset device registers; `VN64S004` states restore with neutral MI mode/DP; `VN64S003` states restore with neutral RI; `VN64S002` loads only for homebrew, with neutral PI/RI; `VN64S001` is rejected. ROM data is immutable and referenced by identity. Size,
 version, ROM identity and basic field validation precede restoration. The
@@ -200,7 +200,7 @@ CPI and video-rate pacing are unverified.
 ## Remaining hardware and modern features
 
 PIF/IPL/CIC and retail boot, TLB multiple-hit/shutdown behavior and remaining address edge cases, cache errors and pipeline timing,
-full CP0, remaining interrupt producers and timing, LL/SC, traps,
+full CP0, remaining interrupt producers and timing, precise linked-memory/cache interference,
 FPU physical pipeline behavior, remaining RSP vector arithmetic/reciprocal state, complete RDP, VI filters/diagnostic line buffer/physical timing, full AI/DAC physical behavior, full RDRAM initialization and remaining RI/PI behavior, full SI/MI/PIF,
 physical analog calibration/accessories and local multiplayer frontend routing,
 save media, retail graphics and RSP audio microcode, expansion devices and physical hardware
@@ -3466,3 +3466,44 @@ ctest --test-dir build -R '^n64_integer_trap(s|_test)$' --output-on-failure
 Instruction and exception rules follow the NEC
 [VR4300 manual](https://hack64.net/docs/VR43XX.pdf), §6.4.14 and its instruction appendix.
 Physical exception latency and pipeline/hazard effects remain unverified.
+
+
+## Linked word and doubleword memory instructions
+
+As of **0.48.0 / 2026-10-11**, LL/LLD and SC/SCD execute through translated,
+cache-backed memory. Word loads sign-extend, conditional stores preserve their
+source before writing the success result, and ERET clears LLbit. CP0 LLAddr is
+a diagnostic PA31:4 register. Defined 32-bit kernel doubleword forms ignore the
+upper virtual-address half; user/supervisor restrictions and failed-condition
+alignment/TLB exception precedence are checked.
+
+The original [linked-memory cartridge](../../tests/roms-src/n64/linked_memory/README.md)
+grades **1,048,576 cases / 10,485,760 actual RAM words**: every signed offset, both
+widths, four data patterns and uninterrupted/ERET failure contexts. It rejects
+executed missing-ERET code, four result-field faults and six malformed streams.
+The component gate checks **1,312,684 observations**, including register/zero/alias,
+privilege, fault and diagnostic register checks. This is a finite operand corpus, not all numeric values.
+
+S031 keeps the **9,527,616-byte** capacity: prefix flag bit 16 persists LLbit,
+alongside bit 0 yield and bit 8 VI scheduling. S030 imports preserve scheduling
+and clear LLbit; older imports retain their documented defaults. Actual live-link
+ordinary/fast rollback continuation compares full states and guest RAM; all
+61 reserved prefix flag bits are rejected atomically.
+
+Data-cache misses during load/store access and actual cache invalidations clear the link in
+this functional model. Exact hardware interference/snooping/DMA, instruction
+cache effects, reverse endian behavior and pipeline/bus timing remain unverified.
+Uncached links and mismatched LL/SC addresses are undefined and excluded from
+accuracy goldens. Complete CPU/device behavior and full-title SM64 playability
+remain unfinished; **N64 stays 45%** of the fixed delivery checklist.
+
+Rules follow the NEC [VR4300 manual](https://hack64.net/docs/VR43XX.pdf), §3.1,
+§5.4.7 and the linked-memory instruction descriptions. See the cartridge README
+for commands, output format and scope.
+
+All **131 original archives** reproduce with this increment. Private SM64 VI
+walking/jumping/punching and stationary controls pass on the current core.
+
+Private SM64 production movie verification on **0.48.0** also passes: **121 native
+VI frames**, complete ordinary/record/play states and **six exact seek boundaries**;
+an executed neutral-input movie differs. Production two-peer TCP netplay passes.

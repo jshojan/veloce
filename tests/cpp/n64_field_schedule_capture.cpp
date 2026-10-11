@@ -40,8 +40,8 @@ int main(int argc,char** argv){try{
     // Mode is serialized, restored atomically and preserved across reset. Legacy
     // S029 always resumes the exact old quantum regardless of native boot mode.
     std::vector<uint8_t> saved,replay;require(core.plugin->save_state(saved),"mode save");
-    require(saved.size()==9527616 && saved[6]=='3' && saved[7]=='0',"S030 exact ABI capacity");
-    for(unsigned bit=0;bit<64;++bit){if(bit==0 || bit==8)continue;auto bad=saved;bad[639-bit/8]|=uint8_t(1u<<(bit%8));require(!core.plugin->load_state(bad) && core.plugin->save_state(replay) && replay==saved,"reserved schedule flag atomic rejection");}
+    require(saved.size()==9527616 && saved[6]=='3' && saved[7]=='1',"S031 exact ABI capacity");
+    for(unsigned bit=0;bit<64;++bit){if(bit==0 || bit==8 || bit==16)continue;auto bad=saved;bad[639-bit/8]|=uint8_t(1u<<(bit%8));require(!core.plugin->load_state(bad) && core.plugin->save_state(replay) && replay==saved,"reserved schedule flag atomic rejection");}
     scheduling->set_frame_scheduling(emu::FrameScheduling::InstructionQuantum);require(core.plugin->load_state(saved) && scheduling->get_frame_scheduling()==emu::FrameScheduling::VideoField,"field schedule restore");
     auto old=saved;old[6]='2';old[7]='9';old[638]=0;require(core.plugin->load_state(old) && scheduling->get_frame_scheduling()==emu::FrameScheduling::InstructionQuantum,"S029 exact legacy scheduling");
     const auto before=core.plugin->get_cycle_count();core.plugin->run_frame({});require(core.plugin->get_cycle_count()-before==100000,"actual imported quantum budget");
@@ -73,5 +73,5 @@ int main(int argc,char** argv){try{
         initial.save(saved);require(core.plugin->load_state(saved),"debug completion start");const auto before_debug=core.plugin->get_cycle_count();core.plugin->run_frame({});
         require(core.plugin->get_cycle_count()-before_debug==1 && core.plugin->save_state(saved) && be(saved,offset==4?32:632)==(offset==4?1:257),"native debug done/yield boundary");
     }
-    std::cout<<"5160 actual VI boundaries, guest CURRENT RAM, S030 mode/62 rejection controls, S029 budget and native reset, ordinary/rollback and blank startup PASS\n";return 0;
+    std::cout<<"5160 actual VI boundaries, guest CURRENT RAM, S030 mode/61 rejection controls, S029 budget and native reset, ordinary/rollback and blank startup PASS\n";return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}

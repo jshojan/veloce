@@ -280,7 +280,7 @@ static void append(std::vector<uint8_t>& data, uint64_t value) {
 }
 bool Machine::save(std::vector<uint8_t>& data) const {
     if (rom.empty()) return false;
-    data.assign({'V','N','6','4','S','0','3','0'});
+    data.assign({'V','N','6','4','S','0','3','1'});
     data.reserve(current_state_size);
     append(data, identity); append(data, crc); append(data, frames); append(data, done);
     const auto& s = cpu.state;
@@ -288,7 +288,7 @@ bool Machine::save(std::vector<uint8_t>& data) const {
     for (auto value : s.cp0) append(data, value);
     for (auto value : {s.hi, s.lo, s.pc, s.next_pc, s.instructions, uint64_t(s.delay_slot)}) append(data, value);
     append(data, si_address); append(data, input_buttons); append(data, si_interrupt); append(data, mi_mask);
-    append(data, uint64_t(yielded)|(frame_scheduling==emu::FrameScheduling::VideoField?0x100:0));
+    append(data, uint64_t(yielded)|(frame_scheduling==emu::FrameScheduling::VideoField?0x100:0)|(s.llbit?0x10000:0));
     data.insert(data.end(), pif.begin(), pif.end());
     data.insert(data.end(), ram.begin(), ram.end());
     data.insert(data.end(), sp.begin(), sp.end());
@@ -357,7 +357,8 @@ bool Machine::restore(const std::vector<uint8_t>& data) {
     const bool hidden_previous=!std::memcmp(data.data(),"VN64S026",8);
     const bool primitive_previous=!std::memcmp(data.data(),"VN64S027",8);
     const bool joybus_previous=!std::memcmp(data.data(),"VN64S028",8);
-    const bool scheduled=!std::memcmp(data.data(),"VN64S030",8);
+    const bool linked=!std::memcmp(data.data(),"VN64S031",8);
+    const bool scheduled=linked || !std::memcmp(data.data(),"VN64S030",8);
     const bool current=scheduled || !std::memcmp(data.data(),"VN64S029",8);
     if((!legacy && !previous && !ri_previous && !mi_previous && !devices_previous && !caches_previous && !sp_previous && !audio_previous && !fpu_previous && !tlb_previous && !video_previous && !scalar_previous && !dp_previous && !vector_previous && !accumulator_previous && !combiner_previous && !depth_previous && !divider_previous && !texture_previous && !tmem_previous && !controllers_previous && !packet_previous && !conversion_previous && !blender_previous && !hidden_previous && !(primitive_previous || joybus_previous || current)) || data.size()!=prefix+ram_size+sp.size()+(legacy?0:previous?120:ri_previous?176:mi_previous?192:devices_previous?480:caches_previous?41440:sp_previous?41512:audio_previous?74440:fpu_previous?74448:tlb_previous?75472:video_previous?75632:scalar_previous?75888:dp_previous?75888+rsp_state_size:vector_previous?75888+rsp_state_size+dp_state_size:accumulator_previous?75888+rsp_state_size+dp_state_size+vector_state_size:combiner_previous?75888+rsp_state_size+dp_state_size+vector_state_size+accumulator_state_size:depth_previous?75888+rsp_state_size+dp_state_size+vector_state_size+accumulator_state_size+combiner_state_size:75888+rsp_state_size+dp_state_size+vector_state_size+accumulator_state_size+combiner_state_size+depth_image_state_size+(divider_previous?0:divider_state_size+(texture_previous?0:texture_state_size+(tmem_previous?0:tmem_state_size+((packet_previous || conversion_previous || blender_previous || hidden_previous || (primitive_previous || joybus_previous || current))?controller_state_size:0)+((conversion_previous || blender_previous || hidden_previous || (primitive_previous || joybus_previous || current))?packet_state_size:0)+((blender_previous || hidden_previous || (primitive_previous || joybus_previous || current))?conversion_state_size:0)+((hidden_previous || (primitive_previous || joybus_previous || current))?blender_state_size:0)+((primitive_previous || joybus_previous || current)?hidden_state_size:0)))))+((joybus_previous || current)?primitive_depth_state_size:0)+(current?joybus_state_size:0) ||
         (legacy && boot_mode!=BootMode::Homebrew)) return false;
@@ -373,8 +374,9 @@ bool Machine::restore(const std::vector<uint8_t>& data) {
     if (saved_done > 1 || saved_delay > 1 || s.gpr[0] != 0) return false;
     const auto saved_si_address = take(), saved_input = take(), saved_irq = take(), saved_mask = take(), saved_yield = take();
     if (saved_si_address > 0xffffff || saved_input > 0xffffffff || saved_irq > 1 || saved_mask > 63 ||
-        (scheduled?(saved_yield&~uint64_t(0x101))!=0:saved_yield>1)) return false;
+        (scheduled?(saved_yield&~uint64_t(linked?0x10101:0x101))!=0:saved_yield>1)) return false;
     s.delay_slot = saved_delay;
+    s.llbit=linked && (saved_yield&0x10000);
     const size_t memory_position=position;
     std::array<uint32_t,13> saved_pi{};uint64_t saved_pi_irq=0;
     if(!legacy) {

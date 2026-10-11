@@ -3660,3 +3660,24 @@ strict file controls are independently checked. The component gate covers
 Full-state/rollback continuation and private SM64 VI controls pass. All 130
 original archives reproduce. The full CPU, LL/SC, physical timing and whole-title
 playability remain unfinished; the fixed N64 delivery score remains 45%.
+
+
+## 2026-10-11: N64 linked memory
+
+N64 0.48.0 implements LL/LLD and SC/SCD with ERET link clearing and S031
+live-link checkpoint persistence. The original cartridge grades 1,048,576 cases /
+10,485,760 actual RAM words over every signed offset, both widths, four input
+patterns and successful/ERET failure paths. Executed missing-ERET controls and
+strict result/stream faults are rejected independently. Component checks cover
+registers, privilege, faults and diagnostic LLAddr behavior. Native complete-state
+rollback and S030 imports are verified. See the core and original cartridge
+READMEs for commands and exact scope. Cache interference is a conservative
+functional model; physical interference, complete CPU/timing and whole-title
+retail playability remain unverified. N64 stays 45%; CI/CD stays disabled.
+
+All **131 original archives** reproduce; private SM64 VI control continuations
+pass on the current build. Completion scores are unchanged.
+
+Private SM64 production movie verification on **0.48.0** also passes: **121 native
+VI frames**, complete ordinary/record/play states and **six exact seek boundaries**;
+an executed neutral-input movie differs. Production two-peer TCP netplay passes.
