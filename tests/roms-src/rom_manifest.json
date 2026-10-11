@@ -22021,6 +22021,17 @@
       "source_type": "original",
       "suite": "integer_registers"
     },
+    "n64/integer_traps/integer_traps.z64": {
+      "build_command": "python3 tests/roms-src/n64/integer_traps/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "6380c09b8acb83220ffbd9a00891f688d62b947e0f792b8f2a4e64df6df095fc",
+      "source_repo": "tests/roms-src/n64/integer_traps/build.py",
+      "source_sha": "5f5ba2508b4f2e6d8aa63da0606d00a1b57628836c3dedf4d546e6b594843bc9",
+      "source_type": "original",
+      "suite": "integer_traps"
+    },
     "n64/interrupts/interrupts.z64": {
       "build_command": "python3 tests/roms-src/n64/interrupts/build.py",
       "console": "n64",

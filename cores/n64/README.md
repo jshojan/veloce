@@ -13,7 +13,7 @@ These percentages count the 20 explicit delivery milestones in [the completion l
 
 Nintendo 64 delivered milestones: Guest sound produces audio samples, Native digital controller/keypad registers consume frontend input, Guest graphics produce rendered video, Parse a native cartridge/executable format (boot scored separately), Actual production-plugin TCP peers pass original guest oracle and whole-state comparison, Repository-owned ROM source and reproducible archived image, Separate core plugin and ABI entry points, Actual guest register-file output independently graded on the host, with negative controls, Complete states for the implemented profile and deterministic replay.
 
-Remaining: Cached SI/PIF reads refresh digital and signed-byte analog input. The original 65,536-coordinate corpus grades 1,048,576 actual words; frontend selected-stick mapping, neutral dead zone and canonical input recording are verified. Functional one-cycle E4/E5 rectangles share the existing triangle pixel pipeline; A six-billion-attempt Start/A probe reaches Mario, the lives/star HUD and Lakitu tutorial in the courtyard without a terminal CPU exception or RSP/DP stop. A shared private checkpoint now verifies courtyard analog walking, jumping and punching through RAM and neutral controls; 180 legacy quantum movie frames and six seek boundaries match full states. New native sessions advance to VI field boundaries; an original 5,160-case file oracle and 121 native VI movie frames verify scheduling and replay. Legacy states keep the old budget. Exact physical timing and practical normal-speed play remain unverified. Castle entry, menu/level progression and full-title playability remain unverified. Complete CPU/CP0/devices, physical FPU/RSP timing, complete RDP/audio, two-cycle pixels and texture LOD, random dithering/noise and CI8 alpha thresholds, physical analog calibration/accessories/presence detection, CIC/EEPROM/Joybus and physical SI timing, local multiplayer frontend routing and physical timing remain. Production two-player TCP rollback and four virtual digital/analog PIF ports are verified for the implemented profile.
+Remaining: Cached SI/PIF reads refresh digital and signed-byte analog input. The original 65,536-coordinate corpus grades 1,048,576 actual words; frontend selected-stick mapping, neutral dead zone and canonical input recording are verified. Functional one-cycle E4/E5 rectangles share the existing triangle pixel pipeline; A six-billion-attempt Start/A probe reaches Mario, the lives/star HUD and Lakitu tutorial in the courtyard without a terminal CPU exception or RSP/DP stop. A shared private checkpoint now verifies courtyard analog walking, jumping and punching through RAM and neutral controls; 180 legacy quantum movie frames and six seek boundaries match full states. New native sessions advance to VI field boundaries; an original 5,160-case file oracle and 121 native VI movie frames verify scheduling and replay. Legacy states keep the old budget. Exact physical timing and practical normal-speed play remain unverified. Castle entry, menu/level progression and full-title playability remain unverified. All twelve signed/unsigned register/immediate integer trap instructions are implemented; the original 15,728,640-case corpus grades 188,743,680 actual RAM/CP0 words. Complete CPU/CP0/devices, physical FPU/RSP timing, complete RDP/audio, two-cycle pixels and texture LOD, random dithering/noise and CI8 alpha thresholds, physical analog calibration/accessories/presence detection, CIC/EEPROM/Joybus and physical SI timing, local multiplayer frontend routing and physical timing remain. Production two-player TCP rollback and four virtual digital/analog PIF ports are verified for the implemented profile.
 <!-- completion:end -->
 
 `n64_plugin` builds `n64.so`/`n64.dll`/`n64.dylib` and implements emulator ABI v2.
@@ -3429,3 +3429,40 @@ The field boundary policy follows Nintendo's
 [VI/vertical-retrace description](https://jrra.zone/n64/doc/pro-man/pro30/30-01.htm).
 The arithmetic oracle checks the implemented nominal clock model; it is not a
 measurement of a physical console.
+
+## Integer trap instructions
+
+As of **0.47.0 / 2026-10-11**, TGE/TGEU, TLT/TLTU, TEQ/TNE and their immediate
+forms execute their signed/unsigned conditions. True conditions use trap
+exception **13** on the existing common-vector path. False conditions advance
+normally. Immediate operands sign-extend even for unsigned comparison. Software
+code bits do not change the condition; sources, `$zero`, HI/LO and unrelated
+memory remain unchanged. Delay traps capture branch EPC/BD; nested EXL preserves
+prior EPC/BD; BEV selects the existing boot vector. State remains S030 with no
+extra latches or capacity change.
+
+The original [trap cartridge](../../tests/roms-src/n64/integer_traps/README.md)
+grades **15,728,640 cases / 188,743,680 actual RAM/CP0 words**, with every immediate
+and software-code encoding over its documented operand patterns and ordinary/
+taken-delay contexts. Its native handler reports raw state and returns with ERET;
+no expected answers are embedded in the ROM. The independent oracle rejects
+actual opposite-condition execution in all 15,360 control cases, twelve output
+faults and seven damaged/order streams. Production save/fast rollback replay
+compares full states and real guest RAM output.
+
+The native component gate checks **37,810,176 observations**, including defined
+32-bit operands, the 64-bit profile, all source-register/code/immediate encodings,
+`$zero`/aliases, nested/BEV behavior and actual branch/likely-annul sequences.
+This is not exhaustive over all 32-bit/64-bit input pairs or physical pipeline
+behavior. Complete CPU/CP0/devices, including LL/SC, remain unfinished; N64 stays
+**45%**. Existing machine/state/checkpoint regressions and the private SM64 native
+VI controls pass with this build. All **130 original archives** reproduce.
+
+```bash
+cmake --build build --target n64_integer_trap_test n64_integer_trap_capture
+ctest --test-dir build -R '^n64_integer_trap(s|_test)$' --output-on-failure
+```
+
+Instruction and exception rules follow the NEC
+[VR4300 manual](https://hack64.net/docs/VR43XX.pdf), §6.4.14 and its instruction appendix.
+Physical exception latency and pipeline/hazard effects remain unverified.

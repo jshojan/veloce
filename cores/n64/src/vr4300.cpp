@@ -270,6 +270,12 @@ void VR4300::step() {
         case 0x2d: add(rd, a, b, true, false, false); break;
         case 0x2e: add(rd, a, b, true, true, true); break;
         case 0x2f: add(rd, a, b, true, true, false); break;
+        case 0x30: if(!signed_less(a,b))fault(13); break;
+        case 0x31: if(a>=b)fault(13); break;
+        case 0x32: if(signed_less(a,b))fault(13); break;
+        case 0x33: if(a<b)fault(13); break;
+        case 0x34: if(a==b)fault(13); break;
+        case 0x36: if(a!=b)fault(13); break;
         case 0x38: put(rd, b << sa); break;
         case 0x3a: put(rd, b >> sa); break;
         case 0x3b: put(rd, arithmetic_right(b, sa)); break;
@@ -285,7 +291,17 @@ void VR4300::step() {
                 const bool negative = a >> 63;
                 if (rt & 16) put(31, pc + 8);
                 branch((rt & 1) ? !negative : negative, rt & 2);
-            } else fault(10);
+            } else switch(rt){
+                // Even unsigned trap immediates are sign-extended to the GPR
+                // width before comparison. They never write the encoded rt.
+                case 8: if(!signed_less(a,imm))fault(13); break;
+                case 9: if(a>=imm)fault(13); break;
+                case 10: if(signed_less(a,imm))fault(13); break;
+                case 11: if(a<imm)fault(13); break;
+                case 12: if(a==imm)fault(13); break;
+                case 14: if(a!=imm)fault(13); break;
+                default: fault(10); break;
+            }
             break;
         case 2: jump(((pc + 4) & ~0x0fffffffull) | (uint64_t(ins & 0x03ffffff) << 2)); break;
         case 3: put(31, pc + 8); jump(((pc + 4) & ~0x0fffffffull) | (uint64_t(ins & 0x03ffffff) << 2)); break;

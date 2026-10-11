@@ -1468,3 +1468,18 @@ add_test(NAME n64_vi_field_schedule COMMAND ${Python3_EXECUTABLE}
     --capture $<TARGET_FILE:n64_field_schedule_capture> --core $<TARGET_FILE:n64_plugin>
     --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_vi_field_schedule)
 set_tests_properties(n64_vi_field_schedule PROPERTIES LABELS "integration;owned" TIMEOUT 800)
+
+add_executable(n64_integer_trap_test cpp/n64_integer_trap_test.cpp
+    ${CMAKE_SOURCE_DIR}/cores/n64/src/vr4300.cpp)
+target_include_directories(n64_integer_trap_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src ${CMAKE_SOURCE_DIR}/include)
+add_test(NAME n64_integer_trap_test COMMAND n64_integer_trap_test)
+set_tests_properties(n64_integer_trap_test PROPERTIES LABELS "unit;accuracy;owned" TIMEOUT 180)
+add_executable(n64_integer_trap_capture cpp/n64_integer_trap_capture.cpp)
+target_include_directories(n64_integer_trap_capture PRIVATE ${CMAKE_SOURCE_DIR}/include ${SDL2_INCLUDE_DIRS})
+target_link_libraries(n64_integer_trap_capture PRIVATE ${SDL2_LIBRARIES})
+add_dependencies(n64_integer_trap_capture n64_plugin)
+add_test(NAME n64_integer_traps COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/integer_traps/run.py
+    --capture $<TARGET_FILE:n64_integer_trap_capture> --core $<TARGET_FILE:n64_plugin>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_integer_traps)
+set_tests_properties(n64_integer_traps PROPERTIES LABELS "accuracy;owned" TIMEOUT 1800)

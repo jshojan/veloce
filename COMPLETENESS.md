@@ -3649,3 +3649,14 @@ wrong-register controls. Private SM64 controls pass at VI boundaries, and 121
 native movie fields/six seeks compare complete states. All 129 original archives
 reproduce. Delivery remains 45%; physical timing, practical normal-speed play and
 full-title playability remain unverified. See the N64 README for scope and commands.
+
+## 2026-10-11: N64 integer traps
+
+N64 0.47.0 implements all twelve signed/unsigned register/immediate trap forms.
+The original finite corpus grades 15,728,640 cases / 188,743,680 actual RAM/CP0
+words; its native handler/ERET observations, opposite-condition execution and
+strict file controls are independently checked. The component gate covers
+37,810,176 32/64-bit register/code/immediate and branch/nested/BEV observations.
+Full-state/rollback continuation and private SM64 VI controls pass. All 130
+original archives reproduce. The full CPU, LL/SC, physical timing and whole-title
+playability remain unfinished; the fixed N64 delivery score remains 45%.

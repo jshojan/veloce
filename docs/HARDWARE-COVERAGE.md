@@ -3703,3 +3703,16 @@ changes frontend frame meaning for new native sessions; it does not award physic
 hardware timing accuracy or expand the fixed completion score. Private SM64 VI
 controls and 121-field movie replay supplement the original corpus. See
 `tests/roms-src/n64/vi_field_schedule/README.md` for precise exclusions.
+
+## 2026-10-11: N64 integer trap profile
+
+The original `integer_traps` cartridge covers every 16-bit trap immediate and
+10-bit register software code over its stated full-width operand patterns and
+ordinary/taken-delay contexts. Its actual handler writes RAM/CP0 observations;
+the host grades 15,728,640 cases / 188,743,680 words without guest expected answers.
+Actual opposite-condition controls fail all 15,360 cases; twelve field faults,
+six strict stream errors and an order fault are rejected. Native full-state/
+rollback replay covers the output/exception path. A 37,810,176-observation
+component gate adds all source register encodings, defined 32-bit operands,
+nested/BEV behavior and actual branch/likely-annul cases. No full-CPU or physical
+pipeline accuracy claim is made; consult the cartridge README for exclusions.
