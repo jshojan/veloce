@@ -11,21 +11,21 @@ These percentages count the 20 explicit delivery milestones in [the completion l
 
 Nintendo Switch delivered milestones: Parse a native cartridge/executable format (boot scored separately), Repository-owned ROM source and reproducible archived image, Separate core plugin and ABI entry points, Actual guest register-file output independently graded on the host, with negative controls, Complete states for the implemented profile and deterministic replay.
 
-Remaining: Integer LDP/STP/LDNP/STNP/LDPSW paired transfers now have an original independently graded 2,490,368-snapshot / 24,903,680-word NSO image, executed controls and native state replay. Full AArch64 CPU/extensions/exceptions, native RAM/MMU/processes, compressed/hash-checked NSO and other formats, firmware/HOS/retail boot, graphics/audio, native controllers/devices, saves/netplay, physical timing and complete original hardware corpus remain. Current execution is an original uncompressed NSO0 integer process profile; retail playability is unverified.
+Remaining: Integer paired and single transfers now have original independently graded NSO images, executed controls and complete native-state replay. The new signed/unscaled/writeback/register-offset image checks 7,188,480 snapshots / 57,507,840 register words. Full AArch64 CPU/extensions/exceptions, native RAM/MMU/processes, compressed/hash-checked NSO and other formats, firmware/HOS/retail boot, graphics/audio, native controllers/devices, saves/netplay, physical timing and complete original hardware corpus remain. Current execution is an original uncompressed NSO0 integer process profile; retail playability is unverified.
 <!-- completion:end -->
 
 `switch_plugin` builds `switch.so` / `switch.dll` / `switch.dylib`, discovered by
 emulator ABI v2 alongside the other cores. It executes original AArch64 code
 from an **uncompressed NSO0 executable**. Firmware/native boot, HOS services,
 retail games, graphics/audio and native peripherals are unimplemented.
-Plugin version is **0.8.0**. This is a functional integer process profile, with no hardware timing claim.
+Plugin version is **0.9.0**. This is a functional integer process profile, with no hardware timing claim.
 
 ## Execution and loader
 
 Implemented: 32/64-bit ADD/SUB immediate and shifted-register forms, flag-setting
 forms, ADC/ADCS/SBC/SBCS, AND/ORR/EOR/ANDS and inverted operands, LSL/LSR/ASR/ROR
 operand shifts, MOVN/MOVZ/MOVK, ADR/ADRP, B/BL/B.cond, CBZ/CBNZ, BR/BLR/RET,
-unsigned-offset byte/halfword/word/doubleword LDR/STR, integer LDP/STP/LDNP/STNP/LDPSW pairs, NOP and MRS/MSR NZCV,
+unsigned/unscaled/unprivileged/pre/post-index/register-offset integer loads/stores, signed byte/halfword/word loads, integer LDP/STP/LDNP/STNP/LDPSW pairs, NOP and MRS/MSR NZCV,
 MADD/MSUB, signed/unsigned long and high multiply, SDIV/UDIV, CSEL/CSINC/CSINV/CSNEG, variable LSL/LSR/ASR/ROR,
 RBIT, REV16/REV32/REV64, CLZ/CLS, SBFM/BFM/UBFM, EXTR, logical immediates, and CCMP/CCMN register/immediate forms.
 W-register results clear the upper half. SP and XZR uses follow the instruction
@@ -363,3 +363,30 @@ Executed integration: the full Release build and all **25 Switch gates** pass,
 including the prior original instruction corpora. The new 2,490,368-row file
 has zero mismatches and unchanged capture provenance. All **146 original
 archives** reproduce; completion rendering and whitespace checks pass.
+
+## Switch single-register memory transfers (2026-10-11)
+
+Switch 0.9.0 adds signed loads and unscaled, unprivileged, pre/post-index and
+extended-register offset integer transfers. NZCV, SP/XZR, W upper clearing,
+signed byte offsets, UXTW/LSL/SXTW/SXTX scaling and aliases are verified.
+The original NSO independently grades **7,188,480 snapshots / 57,507,840 actual
+register words**. All signed 9-bit fields have correlated base/flag surrounds;
+unsigned fields and register indices are finite selections. The component passes
+**17,457,707 observations**, including complete unsigned fields, register aliases
+and diagnostic/fault behavior. Complement memory guards ensure off-by-one
+controls are observable. Executed result/flag mutations reject 3,328 short rows;
+wrong immediate offsets, sign extension and skipped stores reject 1,664/640/
+1,024 rows. Eight field faults and seven malformed streams reject. Actual
+production captures and complete states replay; single-access SP/cross-map faults
+and unprivileged text protection have machine evidence. ABI/state layout remain
+unchanged. The supplied process permissions do not establish EL/MMU/SCTLR/UAO
+behavior or precise architectural exceptions. Literal/prefetch/atomic/SIMD memory
+families, full CPU/platform behavior, timing, firmware/HOS/retail boot,
+graphics/audio, controllers and netplay remain pending. Switch stays **25%**;
+CI/CD is disabled. See [original source and domains](../../tests/roms-src/switch/single_transfer_registers/README.md).
+
+Executed integration: full Release build and all **29 Switch gates** pass,
+including prior original instruction corpora and production replay. The new
+7,188,480-row capture has zero mismatches and unchanged source/binary provenance.
+All **147 original archives** reproduce; completion rendering and whitespace
+checks pass. CI/CD remains disabled.

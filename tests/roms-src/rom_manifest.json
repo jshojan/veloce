@@ -26179,6 +26179,17 @@
       "source_type": "original",
       "suite": "select_registers"
     },
+    "switch/single_transfer_registers/single_transfer_registers.nso": {
+      "build_command": "python3 tests/roms-src/switch/single_transfer_registers/build.py",
+      "console": "switch",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "b831c415f5d25d1d9b618c92487fce2a7443651c69ca77853c73de97bd90e84e",
+      "source_repo": "tests/roms-src/switch/single_transfer_registers/build.py",
+      "source_sha": "6c401d83b925c929446c8ae9d7e2076c0f6f7d83e8640115e0816c1905af9736",
+      "source_type": "original",
+      "suite": "single_transfer_registers"
+    },
     "vb/address_traps/address_traps.vb": {
       "build_command": "python3 tests/roms-src/vb/address_traps/build.py",
       "console": "vb",

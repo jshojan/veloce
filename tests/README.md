@@ -618,3 +618,24 @@ unchanged; older readers cannot restore diagnostic 6. Full CPU/MMU/exceptions,
 physical memory ordering/timing, native firmware/HOS/retail boot, graphics/audio,
 controllers and netplay remain pending. Switch stays **25%**; CI/CD remains
 disabled. See [original source and finite domains](roms-src/switch/pair_transfer_registers/README.md).
+
+## Switch single-register memory transfers (2026-10-11)
+
+Switch 0.9.0 adds signed loads and unscaled, unprivileged, pre/post-index and
+extended-register offset integer transfers. NZCV, SP/XZR, W upper clearing,
+signed byte offsets, UXTW/LSL/SXTW/SXTX scaling and aliases are verified.
+The original NSO independently grades **7,188,480 snapshots / 57,507,840 actual
+register words**. All signed 9-bit fields have correlated base/flag surrounds;
+unsigned fields and register indices are finite selections. The component passes
+**17,457,707 observations**, including complete unsigned fields, register aliases
+and diagnostic/fault behavior. Complement memory guards ensure off-by-one
+controls are observable. Executed result/flag mutations reject 3,328 short rows;
+wrong immediate offsets, sign extension and skipped stores reject 1,664/640/
+1,024 rows. Eight field faults and seven malformed streams reject. Actual
+production captures and complete states replay; single-access SP/cross-map faults
+and unprivileged text protection have machine evidence. ABI/state layout remain
+unchanged. The supplied process permissions do not establish EL/MMU/SCTLR/UAO
+behavior or precise architectural exceptions. Literal/prefetch/atomic/SIMD memory
+families, full CPU/platform behavior, timing, firmware/HOS/retail boot,
+graphics/audio, controllers and netplay remain pending. Switch stays **25%**;
+CI/CD is disabled. See [original source and domains](roms-src/switch/single_transfer_registers/README.md).

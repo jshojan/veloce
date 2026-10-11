@@ -220,12 +220,31 @@ bool Aarch64::step(){
         }
         if(writeback)put(rn,updated,true);
     }
-    else if((w&0x3b000000)==0x39000000){
-        const unsigned size=1u<<(w>>30),op=(w>>22)&3;
-        if(op>1 || (w&(1u<<26)))return fail(3,pc,w);
-        const uint64_t address=reg(rn,true)+uint64_t((w>>10)&4095)*size;
-        if(op){uint64_t value;if(!bus.read(address,size,value))return fail(4,address,w);put(rd,value);}
-        else if(!bus.write(address,size,reg(rd)))return fail(5,address,w);
+    else if((w&0x3b000000)==0x39000000 || (w&0x3b000000)==0x38000000){
+        const unsigned scale=w>>30,size=1u<<scale,op=(w>>22)&3;
+        const bool unsigned_offset=w&(1u<<24),register_offset=!unsigned_offset && (w&(1u<<21));
+        const unsigned mode=(w>>10)&3;
+        const bool writeback=!unsigned_offset && !register_offset && (mode==1 || mode==3);
+        if((w&(1u<<26)) || (op>=2 && (scale==3 || (op==3 && scale==2))) ||
+           (writeback && rn!=31 && rn==rd))return fail(3,pc,w);
+        uint64_t offset=0;
+        if(unsigned_offset)offset=uint64_t((w>>10)&4095)*size;
+        else if(register_offset){
+            const unsigned option=(w>>13)&7;
+            if(mode!=2 || !(option&2))return fail(3,pc,w);
+            offset=reg(rm);
+            if(!(option&1))offset=option&4?uint64_t(signed_bits(offset,32)):uint32_t(offset);
+            if(w&(1u<<12))offset<<=scale;
+        } else offset=uint64_t(signed_bits((w>>12)&511,9));
+        const uint64_t base=reg(rn,true);
+        if(rn==31 && (base&15))return fail(6,base,w);
+        const uint64_t updated=base+offset,address=writeback && mode==1?base:updated;
+        if(op){
+            uint64_t value=0;if(!bus.read(address,size,value))return fail(4,address,w);
+            if(op>=2){value=uint64_t(signed_bits(value,size*8));if(op==3)value=uint32_t(value);}
+            put(rd,value);
+        } else if(!bus.write(address,size,reg(rd)))return fail(5,address,w);
+        if(writeback)put(rn,updated,true);
     }
     else return fail(3,pc,w);
     state.pc=next;return true;
