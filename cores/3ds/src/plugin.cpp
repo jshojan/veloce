@@ -6,7 +6,7 @@ class Plugin final:public emu::IEmulatorPlugin, public emu::INetplayCapable {
 public:
     emu::EmulatorInfo get_info() override {
         static const char* extensions[]={".v3ds",nullptr};
-        return {"3DS","0.4.0","Veloce","Experimental original ARM11/ARM9 integer programs with ARM11 ARMv6 SSAT/USAT and dual-halfword saturation plus signed/unsigned extend-and-add and Thumb extension; firmware, graphics/audio and most hardware pending.",extensions,60,0,400,480};
+        return {"3DS","0.5.0","Veloce","Experimental original ARM11/ARM9 integer programs with ARM11 ARMv6 parallel arithmetic/SEL, SSAT/USAT and dual-halfword saturation plus signed/unsigned extend-and-add and Thumb extension; firmware, graphics/audio and most hardware pending.",extensions,60,0,400,480};
     }
     const emu::ControllerLayoutInfo* get_controller_layout() override {
         using emu::VirtualButton;

@@ -220,7 +220,7 @@
         "register_oracle",
         "states"
       ],
-      "remaining": "ARM11 ARMv6 extension/accumulate and scalar/dual-halfword saturation now have original independently graded register images, flags/alias/profile controls and actual native checkpoint continuations. The new saturation image checks 12,582,912 snapshots / 88,080,384 register words. Remaining CPU/MMU, firmware/native formats, graphics/audio, analog/touch and wireless multiplayer remain."
+      "remaining": "ARM11 ARMv6 extension/accumulate, scalar/dual-halfword saturation and 36 parallel arithmetic forms plus SEL now have original independently graded register images, flags/alias/profile controls and native checkpoint continuations. The new parallel image checks 19,922,944 snapshots / 179,306,496 register words. Remaining CPU/MMU, firmware/native formats, graphics/audio, analog/touch and wireless multiplayer remain."
     },
     {
       "id": "gc",

@@ -69,6 +69,43 @@ void Arm::step() {
     }
     if(!condition(cond,s.cpsr)) { s.r[15]=pc+4; return; }
     const auto operand=[&](unsigned reg,bool late=false) { return reg==15 ? pc+(late ? 12:8):s.r[reg]; };
+    // ARMv6 parallel arithmetic: GE belongs only to the wrapping families.
+    // Parallel saturation preserves Q; halving keeps the extra arithmetic bit.
+    if((ins&0x0f800010u)==0x06000010u) {
+        const unsigned family=(ins>>20)&7,op=(ins>>5)&7;
+        const unsigned rn=(ins>>16)&15,rd=(ins>>12)&15,rm=ins&15;
+        if(!v6 || family==0 || family==4 || (op!=0 && op!=1 && op!=2 && op!=3 && op!=4 && op!=7) ||
+           (ins&0xf00u)!=0xf00u || rn==15 || rd==15 || rm==15) {s.unsupported=true;return;}
+        const unsigned bits=op>=4?8:16,lanes=32/bits,mode=family&3;
+        const bool sign=family<4,exchange=op==1 || op==2;
+        const uint32_t mask=(1u<<bits)-1,left=s.r[rn],right=s.r[rm];
+        uint32_t result=0,ge=0;
+        for(unsigned lane=0;lane<lanes;++lane) {
+            const uint32_t a=(left>>(bits*lane))&mask,b=(right>>(bits*(exchange?(lane^1):lane)))&mask;
+            const int64_t x=sign && (a&(1u<<(bits-1)))?int64_t(a)-(1ll<<bits):a;
+            const int64_t y=sign && (b&(1u<<(bits-1)))?int64_t(b)-(1ll<<bits):b;
+            const bool subtract=op==3 || op==7 || (op==1 && lane==0) || (op==2 && lane==1);
+            int64_t value=subtract?x-y:x+y;
+            if(mode==1) {
+                const bool greater=sign || subtract?value>=0:value>mask;
+                if(greater)ge|=(bits==16?3u:1u)<<(bits*lane/8);
+            } else if(mode==2) {
+                const int64_t minimum=sign?-(1ll<<(bits-1)):0,maximum=sign?(1ll<<(bits-1))-1:mask;
+                if(value<minimum)value=minimum;else if(value>maximum)value=maximum;
+            } else value=value>=0?value/2:-((-value+1)/2);
+            result|=(uint32_t(value)&mask)<<(bits*lane);
+        }
+        s.r[rd]=result;
+        if(mode==1)s.cpsr=(s.cpsr&~0x000f0000u)|(ge<<16);
+        s.r[15]=pc+4;return;
+    }
+    if((ins&0x0ff00ff0u)==0x06800fb0u) {
+        const unsigned rn=(ins>>16)&15,rd=(ins>>12)&15,rm=ins&15;
+        if(!v6 || rn==15 || rd==15 || rm==15){s.unsupported=true;return;}
+        const uint32_t left=s.r[rn],right=s.r[rm];uint32_t result=0;
+        for(unsigned lane=0;lane<4;++lane)result|=(((s.cpsr>>(16+lane))&1?left:right)&(255u<<(lane*8)));
+        s.r[rd]=result;s.r[15]=pc+4;return;
+    }
     // ARMv6 extend/extend-and-add. Rn=15 selects the non-accumulating form.
     if((ins&0x0f8000f0u)==0x06800070u) {
         const unsigned kind=(ins>>20)&7,rn=(ins>>16)&15,rd=(ins>>12)&15,rm=ins&15;
@@ -200,6 +237,14 @@ void Arm::step() {
         const unsigned rd=(ins>>12)&15;
         if(rd==15) { s.unsupported=true; return; }
         s.r[rd]=s.cpsr; s.r[15]=pc+4; return;
+    }
+    // ARMv6 CPSR_s/CPSR_fs writes expose GE without changing reserved bits.
+    if((ins&0x0ff7fff0u)==0x0124f000u || (ins&0x0ff7f000u)==0x0324f000u) {
+        if(!v6 || (!(ins&(1u<<25)) && (ins&15)==15)){s.unsupported=true;return;}
+        const uint32_t value=(ins&(1u<<25))?rotate(ins&255,((ins>>8)&15)*2):s.r[ins&15];
+        if((value&0x06f0fc00u) || ((s.cpsr&31)!=0x10 && (value&0x01000020u))){s.unsupported=true;return;}
+        const uint32_t mask=0x000f0000u|((ins&(1u<<19))?0xf8000000u:0);
+        s.cpsr=(s.cpsr&~mask)|(value&mask);s.r[15]=pc+4;return;
     }
     if((ins&0x0ffffff0)==0x0128f000 || (ins&0x0ffff000)==0x0328f000) {
         const uint32_t value=(ins&(1u<<25)) ? rotate(ins&255,((ins>>8)&15)*2):operand(ins&15);
