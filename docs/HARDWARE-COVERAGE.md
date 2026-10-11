@@ -1,6 +1,6 @@
 # Nintendo implementation and hardware test coverage
 
-Current N64 evidence: [subpixel coverage helpers and the current Mario probe](#rdp-subpixel-coverage-helpers). Earlier increment reports are historical.
+Current N64 evidence: [triangle interpolation and current Mario status](#triangle-row-interpolation). Earlier increment reports are historical.
 
 The goal includes Nintendo core plugins, repository-owned ROMs covering the
 hardware, machine-readable register observations, netplay, seamless controllers,
@@ -2274,3 +2274,45 @@ mutant fails all **9,288** short cases; all thirteen field and seven malformed
 stream controls reject. The existing DP and triangle fill component gates pass
 in **3.03 seconds**; the registered coverage gate passes in **1.18 seconds**.
 Artifacts: `build/artifacts/owned/n64_triangle_coverage_regression/`.
+
+## Triangle row interpolation
+
+A functional interpolation module now prepares **RGBA, S/T/W and Z** from
+decoded triangle coefficients. It handles modular row accumulation, the
+major-edge load subrow, fractional-X correction, clipped-start wrap, quantized
+pixel increments, coverage-position shade/depth correction and depth-gradient
+normalization. Arithmetic follows the
+[RDP author's rasterizer model](https://github.com/ata4/angrylion-rdp-plus/blob/master/src/core/n64video/rdp/rasterizer.c);
+these software oracles do not establish physical raster timing.
+
+The separate incremental host oracle passes **196,608 row captures** and
+**2,949,120 pixel captures**, including all eight interpolants. Additional
+checks cover **327,680 depth-normalization inputs**, **4,194,304 shade-gradient
+corrections** (all signed 13-bit gradients, both axes and every coverage mask),
+**12,582,912 depth corrections** (all 22-bit depth codes under three selected
+masks/gradients), and **131,072 constant-shade/mask combinations**. Invalid
+row/pixel bounds reject atomically. The final component passes UBSAN with
+clean warning-as-error compilation.
+
+Five related component gates pass in **2.98 seconds**; the fault-runner gate
+passes in **6.90 seconds**. The repository's
+repeatable fault runner first verifies the unmodified module, then requires
+all **eight deliberately faulty module variants** to fail the independent
+oracle; compilation errors do not count as rejection. Artifacts:
+`build/artifacts/component/n64_triangle_attributes/`. From the repository root:
+
+```sh
+cmake --build build --target n64_rdp_triangle_attributes_test
+ctest --test-dir build -R '^n64_rdp_triangle_(attributes_test|attribute_mutants)$' --output-on-failure
+```
+
+This module is not yet connected to one/two-cycle framebuffer rendering. It
+has component evidence, with no guest interpolation-output corpus yet.
+Perspective division, texture sampling, blending, hidden memory bits and depth
+testing remain pending. Production core/trace executable hashes still match
+the preceding private Mario report (`build/artifacts/retail/n64-coverage.json`):
+Mario remains blocked at its shaded/textured/depth-tested triangle, with
+uniform video and unverified boot/playability. No commercial bytes are
+archived. Plugin **0.29.0**, ABI v2 and **VN64S024** remain unchanged.
+N64 stays **45% = 9/20 delivery milestones**. CI/CD remains disabled; the full
+Nintendo implementation goal remains active.
