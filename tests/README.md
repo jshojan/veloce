@@ -360,3 +360,22 @@ Delivery percentages are unchanged (N64 50%); no CI/CD is added.
 Final verification: 11/11 selected input/controller/state/movie/TCP gates pass,
 including the expanded frontend profile corpus. Full Release build, completion
 renderer and whitespace checks pass; original archived images are unchanged.
+
+## Original N64 integer mode restrictions (2026-10-11)
+
+Run `ctest --test-dir build -R '^n64_doubleword_privilege(_test)?$' --output-on-failure`.
+The [original cartridge](roms-src/n64/doubleword_privilege/README.md) grades
+5,768,792 real mapped guest cases / 69,225,504 RAM/CP0 words for 28 doubleword
+integer/LWU families. The component domain checks 37,186,848 encoding, mode,
+exception metadata, operand preservation and no-data-access observations. The
+actual NOP mutant fails every 3,032 short case; result/sequence and malformed
+streams are rejected. Twelve records and complete states match native fast
+rollback. Artifacts remain in `build/artifacts/owned/n64_doubleword_privilege/`.
+
+Fourteen selected CPU/input/controller/state/movie/TCP gates pass, combining the
+13 passing regression gates with the fresh machine gate after its historical
+one-port assertion was updated to the verified four-port layout. Private SM64 VI
+controls pass on 0.52.0; all 134 original archives reproduce. Full Release build,
+completion renderer and whitespace checks pass. Non-linked 32-bit address
+normalization, remaining CP0/COP1 rights, physical timing and complete hardware
+remain pending. N64 stays 50%; no CI/CD is added.

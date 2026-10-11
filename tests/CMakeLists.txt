@@ -1529,3 +1529,13 @@ add_test(NAME n64_watch_exceptions COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_
     --capture $<TARGET_FILE:n64_watch_capture> --core $<TARGET_FILE:n64_plugin>
     --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_watch_exceptions)
 set_tests_properties(n64_watch_exceptions PROPERTIES LABELS "accuracy;owned" TIMEOUT 1800)
+
+add_executable(n64_doubleword_privilege_test cpp/n64_doubleword_privilege_test.cpp ${CMAKE_SOURCE_DIR}/cores/n64/src/vr4300.cpp)
+target_include_directories(n64_doubleword_privilege_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src ${CMAKE_SOURCE_DIR}/include)
+add_test(NAME n64_doubleword_privilege_test COMMAND n64_doubleword_privilege_test)
+set_tests_properties(n64_doubleword_privilege_test PROPERTIES LABELS "unit;accuracy;owned" TIMEOUT 600)
+add_test(NAME n64_doubleword_privilege COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/doubleword_privilege/run.py
+    --capture $<TARGET_FILE:n64_integer_trap_capture> --core $<TARGET_FILE:n64_plugin>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_doubleword_privilege)
+set_tests_properties(n64_doubleword_privilege PROPERTIES LABELS "accuracy;owned;integration" TIMEOUT 1200)

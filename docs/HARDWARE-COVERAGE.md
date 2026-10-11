@@ -3829,3 +3829,17 @@ Hotplug/default-plugin gates verify saved/cleared maps, identity and seven
 malformed profile rejections. No core ABI/state-layout change. These frontend
 checks leave delivery percentages at N64 50%; full native controller accessories,
 analog-axis remapping and physical USB/Bluetooth remain pending.
+
+## N64 64-bit integer mode restrictions (2026-10-11)
+
+N64 0.52.0 checks 28 doubleword integer/LWU families before arithmetic or data
+access. Kernel32 remains legal; User/Supervisor require UX/SX. EXL/ERL override
+the stored privilege. The mapped original guest corpus verifies 5,768,792 cases /
+69,225,504 real RAM/CP0 words: eleven complete immediate domains and six complete
+immediate-shift fields at four blocked profiles and two actual placements.
+Executed NOP, result/sequence and malformed stream controls are rejected; native
+checkpoint/rollback records and full states match. The component gate covers
+37,186,848 encoding/mode/metadata/no-data observations. This leaves numerical
+operand cross-products, physical timing, full CP0/COP1 rights, non-linked 32-bit
+address normalization and complete hardware pending. No ABI/state-format change;
+N64 stays 50%. See [source, grading and limits](../tests/roms-src/n64/doubleword_privilege/README.md).

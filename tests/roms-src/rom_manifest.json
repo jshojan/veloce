@@ -21900,6 +21900,17 @@
       "source_type": "original",
       "suite": "cop2_unusable"
     },
+    "n64/doubleword_privilege/doubleword_privilege.z64": {
+      "build_command": "python3 tests/roms-src/n64/doubleword_privilege/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "34890375a0c83ea3798c14be4d5f472dba959dd2db153f5969ea1a835d3bad91",
+      "source_repo": "tests/roms-src/n64/doubleword_privilege/build.py",
+      "source_sha": "ec9eef27dfb8a6c439577d8da196522ffb839bc4901632ab7f2b229bcf17ed45",
+      "source_type": "original",
+      "suite": "doubleword_privilege"
+    },
     "n64/dp_fill_rectangles/dp_fill_rectangles.z64": {
       "build_command": "python3 tests/roms-src/n64/dp_fill_rectangles/build.py",
       "console": "n64",

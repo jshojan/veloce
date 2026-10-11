@@ -227,6 +227,14 @@ void VR4300::step() {
         const uint64_t value = left ? b >> (lane * 8) : b << ((bytes - 1 - lane) * 8);
         write(aligned,bytes,value,mask,pc,delay,address);
     };
+    // Doubleword integer instructions and LWU require 64-bit User/Supervisor mode;
+    // Kernel32 remains legal. Decode this before arithmetic or data access.
+    const unsigned mode=(s.cp0[12]&6)?0:unsigned(s.cp0[12]>>3)&3;
+    const bool wide_integer=op==0 ?
+        (fn==20 || fn==22 || fn==23 || (fn>=28 && fn<=31) ||
+         (fn>=44 && fn<=47) || fn==56 || fn==58 || fn==59 || fn==60 || fn==62 || fn==63) :
+        (op==24 || op==25 || op==26 || op==27 || op==39 || op==44 || op==45 || op==52 || op==55 || op==60 || op==63);
+    if(wide_integer && mode && !(s.cp0[12]&(mode==1?64:32))) {fault(10);return;}
     if (op == 0) {
         switch (fn) {
         case 0x00: put(rd, sign32(uint32_t(b) << sa)); break;

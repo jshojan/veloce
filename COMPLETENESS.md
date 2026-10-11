@@ -3770,3 +3770,15 @@ Remapped four-port TAS inputs and complete recording/playback states match, with
 three seeks and an executed player-four mutation. Full native hardware,
 accessories, analog remapping and physical device validation remain incomplete;
 **N64 stays 50%** of the fixed delivery milestones.
+
+## N64 doubleword integer and LWU privilege checks (2026-10-11)
+
+The original mapped guest now independently grades 5,768,792 cases / 69,225,504
+RAM/CP0 words for 28 restricted integer families in 32-bit User/Supervisor modes.
+The component gate checks 37,186,848 encoding/mode/metadata/no-data observations,
+including allowed Kernel32 and extended modes. Actual NOP execution and malformed
+captures are rejected; native checkpoint/rollback matches full states. Private
+SM64 VI movement/action/neutral controls pass on 0.52.0. Fourteen selected gates
+pass after fixing an obsolete single-port layout expectation; all 134 original
+archives reproduce. Full CPU/devices/physical timing and retail playability stay
+unverified. N64 remains 50%; CI/CD remains removed and Actions disabled.
