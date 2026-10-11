@@ -204,3 +204,16 @@ host/client input. `ctest -R '^n64_pif_'` exercises these gates and ten executed
 production faults. S029 appends forty retained-layout bytes, for 9,527,616 total;
 older states import with channels disabled until the guest formats a new packet.
 See the core README for the next private Mario one-cycle E4 stop and limits.
+
+## N64 native VI scheduling and S030
+
+New native sessions advance at functional VI field endings; legacy states and
+homebrew diagnostics keep their old 100k CPU budget. S030 saves that choice
+without growing the state. Reset preserves it, so legacy movie reset events
+keep the same schedule. The original `n64_vi_field_schedule` integration gate
+checks 5,160 native records / 46,440 output words, executed wrong-register and
+old-budget controls, state compatibility and bounded startup/termination.
+Private `tests/n64_retail_vi.py` verifies SM64 courtyard input and optional
+VI movie artifacts without archiving private bytes. Full playability, physical
+timing and practical normal-speed play remain unverified. See the N64 core
+README and original cartridge README for exact coverage and reproduction.

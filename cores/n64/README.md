@@ -13,7 +13,7 @@ These percentages count the 20 explicit delivery milestones in [the completion l
 
 Nintendo 64 delivered milestones: Guest sound produces audio samples, Native digital controller/keypad registers consume frontend input, Guest graphics produce rendered video, Parse a native cartridge/executable format (boot scored separately), Actual production-plugin TCP peers pass original guest oracle and whole-state comparison, Repository-owned ROM source and reproducible archived image, Separate core plugin and ABI entry points, Actual guest register-file output independently graded on the host, with negative controls, Complete states for the implemented profile and deterministic replay.
 
-Remaining: Cached SI/PIF reads refresh digital and signed-byte analog input. The original 65,536-coordinate corpus grades 1,048,576 actual words; frontend selected-stick mapping, neutral dead zone and canonical input recording are verified. Functional one-cycle E4/E5 rectangles share the existing triangle pixel pipeline; A six-billion-attempt Start/A probe reaches Mario, the lives/star HUD and Lakitu tutorial in the courtyard without a terminal CPU exception or RSP/DP stop. A shared private checkpoint now verifies courtyard analog walking, jumping and punching through RAM and neutral controls; 180 production frontend movie frames and six seek boundaries match full states. Castle entry, menu/level progression and full-title playability remain unverified. Complete CPU/CP0/devices, physical FPU/RSP timing, complete RDP/audio, two-cycle pixels and texture LOD, random dithering/noise and CI8 alpha thresholds, physical analog calibration/accessories/presence detection, CIC/EEPROM/Joybus and physical SI timing, local multiplayer frontend routing and physical timing remain. Production two-player TCP rollback and four virtual digital/analog PIF ports are verified for the implemented profile.
+Remaining: Cached SI/PIF reads refresh digital and signed-byte analog input. The original 65,536-coordinate corpus grades 1,048,576 actual words; frontend selected-stick mapping, neutral dead zone and canonical input recording are verified. Functional one-cycle E4/E5 rectangles share the existing triangle pixel pipeline; A six-billion-attempt Start/A probe reaches Mario, the lives/star HUD and Lakitu tutorial in the courtyard without a terminal CPU exception or RSP/DP stop. A shared private checkpoint now verifies courtyard analog walking, jumping and punching through RAM and neutral controls; 180 legacy quantum movie frames and six seek boundaries match full states. New native sessions advance to VI field boundaries; an original 5,160-case file oracle and 121 native VI movie frames verify scheduling and replay. Legacy states keep the old budget. Exact physical timing and practical normal-speed play remain unverified. Castle entry, menu/level progression and full-title playability remain unverified. Complete CPU/CP0/devices, physical FPU/RSP timing, complete RDP/audio, two-cycle pixels and texture LOD, random dithering/noise and CI8 alpha thresholds, physical analog calibration/accessories/presence detection, CIC/EEPROM/Joybus and physical SI timing, local multiplayer frontend routing and physical timing remain. Production two-player TCP rollback and four virtual digital/analog PIF ports are verified for the implemented profile.
 <!-- completion:end -->
 
 `n64_plugin` builds `n64.so`/`n64.dll`/`n64.dylib` and implements emulator ABI v2.
@@ -184,31 +184,35 @@ cmake --build build --target veloce n64_plugin n64_machine_test n64_pi_test n64_
 ctest --test-dir build -R '^n64_' --output-on-failure
 ```
 
-`VN64S019` states store explicit big-endian scalars, all GPR/CP0 registers,
+`VN64S030` states store explicit big-endian scalars, all GPR/CP0 registers,
 HI/LO, both PCs, pending delay state, instruction/frame counters, completion,
 RAM and SP storage, PIF RAM, SI address/completion, MI mask, latched digital
 input and debug yield state, plus 13 PI registers, PI IRQ and boot mode (120 bytes), six RI controls and a current-loaded flag (56 bytes), plus MI mode and pending DP (16 bytes) and 36 device-register scalars (288 bytes), plus all cache tags/valid/dirty flags and data (40,960 bytes) and nine SP interface scalars (72 bytes), plus 15 AI scalars, five host-clock/ring scalars and 32,768 bytes of pending PCM storage (32,928 bytes). FCR31 is stored as an 8-byte validated scalar, followed by 32 TLB entries as four 8-byte scalars each (1,024 bytes). VI adds 20 validated 8-byte scalars (160 bytes), including registers, current line, crystal phase, field count, leap pattern and interrupt latch. FPR data appends 32 raw 64-bit scalars (256 bytes). S019 appends a validated depth-image address (8 bytes); S018 and earlier restore its neutral value. S018 appends three combiner/color state scalars (24 bytes); S017 and earlier restore neutral combiner state. S017 appends eight validated raw 48-bit accumulator lanes in 64-bit slots (64 bytes); S016 and earlier restore neutral accumulators. S016 appends 64 packed vector doublewords and three flags (536 bytes); S015 and earlier restore neutral vector storage/flags. S015 appends 19 DP scalars (152 bytes); S014 and earlier restore reset DP control/counters/pipeline while preserving previously stored IRQ state. S014 appends scalar RSP execution and its clock phase (304 bytes); legacy S013 and earlier restore neutral scalar registers/phase and resume sequentially at SP PC. Legacy `VN64S012` restores zero FPR storage. `VN64S011` restores reset VI; `VN64S010` restores neutral TLB entries; `VN64S009` restores neutral FCR31; `VN64S008` restores neutral AI/host audio; `VN64S007` restores reset SP controls; `VN64S006` restores invalid caches; `VN64S005` restores reset device registers; `VN64S004` states restore with neutral MI mode/DP; `VN64S003` states restore with neutral RI; `VN64S002` loads only for homebrew, with neutral PI/RI; `VN64S001` is rejected. ROM data is immutable and referenced by identity. Size,
 version, ROM identity and basic field validation precede restoration. The
 instruction counter counts CPU step attempts including interrupt entry,
 **not actual VR4300 cycles**;
-each frontend frame is a bounded 100,000-instruction scheduling quantum,
-not an emulated VI field. The nominal metadata rate is NTSC/93.75 MHz only.
+new native sessions end each frontend call at the next functional VI field boundary.
+Homebrew diagnostics and imported S029 or older states retain the bounded
+100,000-attempt quantum. S030 stores this mode; see [VI scheduling](#vi-field-scheduling-and-legacy-states).
+The nominal metadata rate remains NTSC/60 Hz and 93.75 MHz; exact physical
+CPI and video-rate pacing are unverified.
 
 ## Remaining hardware and modern features
 
 PIF/IPL/CIC and retail boot, TLB multiple-hit/shutdown behavior and remaining address edge cases, cache errors and pipeline timing,
 full CP0, remaining interrupt producers and timing, LL/SC, traps,
 FPU physical pipeline behavior, remaining RSP vector arithmetic/reciprocal state, complete RDP, VI filters/diagnostic line buffer/physical timing, full AI/DAC physical behavior, full RDRAM initialization and remaining RI/PI behavior, full SI/MI/PIF,
-analog and multiplayer controllers,
+physical analog calibration/accessories and local multiplayer frontend routing,
 save media, retail graphics and RSP audio microcode, expansion devices and physical hardware
 validation remain. Unimplemented opcodes raise a reserved-instruction exception.
 Unsupported aligned physical accesses raise IBE/DBE; precise physical board/open-bus responses remain unverified.
 Merge memory supports translated big-endian RAM/SP storage; reverse-endian
 modes, MMIO partial writes and precise transaction timing remain pending.
-There is no N64 netplay capability yet. VI renders unfiltered guest RAM and AI
-produces PCM; RSP/RDP game graphics and RSP audio microcode remain incomplete.
-Digital input is routed to the first SI/PIF controller. Windows/macOS builds and rendered GUI usage
-remain unverified. The external four-platform suite matrix does not yet include
+The core provides deterministic four-input rollback and verified two-player TCP
+netplay for its implemented profile. All four virtual PIF ports accept digital
+and signed-byte analog words. VI renders unfiltered guest RAM and AI produces
+PCM; complete RSP/RDP graphics and audio remain unfinished. Native Linux GUI
+movie replay has been exercised; Windows/macOS builds remain unverified. The external four-platform suite matrix does not yet include
 N64; its original ROM and component gates run locally with CTest; CI/CD is disabled.
 
 ## Native cartridge handoff and settled PI DMA
@@ -466,7 +470,8 @@ serial-bit distortion for short periods, analog interpolation/filtering, dynamic
 clock-register phase rules and physical FIFO/IRQ latency remain unverified.
 The current profile uses NTSC's 48,681,818 Hz crystal against nominal 93,750,000
 CPU clocks, with one clock per interpreter attempt. That CPU/device relationship
-is an approximation; the 100,000-attempt frontend quantum is not a VI frame.
+is an approximation. Legacy/diagnostic 100,000-attempt quanta are not VI frames;
+new native sessions use [VI field scheduling](#vi-field-scheduling-and-legacy-states).
 PAL/MPAL and hardware timing need separate implementation and evidence.
 
 The core converts PCM to normalized floats and 48 kHz using deterministic sample
@@ -3338,3 +3343,89 @@ in the GUI, open the private ROM, choose Movie editor, open the generated
 `build/artifacts/retail/analog/tas/checkpoint-movie.tas`, and play from its start.
 After the movie pauses at EOF, resume with the selected gamepad's left stick or
 T/F/G/H; arrows remain the digital D-pad.
+
+## VI field scheduling and legacy states
+
+As of **0.46.0 / 2026-10-11**, a new native cartridge session advances each
+ordinary or rollback frame to the next functional VI field ending. Input stays
+constant through that call. The frontend, TAS recorder and rollback execution
+use this same core path. This replaces the previous 100,000-attempt budget for
+new native sessions; it does not establish physical VR4300 cycle accuracy or
+practical normal-speed play.
+
+Homebrew diagnostics still default to 100,000 attempts. S029 and older states,
+including existing private movie checkpoints, restore that same budget. **S030**
+is still **9,527,616 bytes**: bit 0 of the old yield scalar is the debug yield,
+bit 8 selects VI fields, and all other bits are rejected atomically. Scheduling
+mode is therefore preserved by ordinary states, fast rollback states and movie
+checkpoints. Reset preserves the current mode, including legacy movie reset
+events; loading a new native cartridge selects VI fields again. The optional
+[`IFrameScheduling`](../../include/emu/frame_scheduling.hpp) capability allows
+an explicit diagnostic mode change without changing the core ABI.
+
+The current VI model stops counting when blank/unconfigured. During that startup
+condition the scheduler advances 1,562,500 nominal CPU attempts (1/60 second).
+A 6,250,000-attempt cap bounds timing rewrites and diagnostic counter saturation.
+Guest debug yield/completion ends the call immediately. A normal stable field
+reaches its boundary before that cap, including the largest supported timing
+combination. NTSC crystal/CPU clock relationships remain the existing functional
+approximation; PAL/MPAL, exact rate pacing, blank-screen VI hardware behavior,
+physical CPI, DMA arbitration and pipeline timing remain unfinished.
+
+### Original file evidence
+
+The original [VI field cartridge](../../tests/roms-src/n64/vi_field_schedule/README.md)
+configures VI and continually copies the actual CURRENT register into native
+RAM. The production plugin captures **5,160 records / 46,440 graded output
+words**: all 4,096 horizontal terminal counts, all 1,024 vertical terminal counts
+in separate domains, plus 40 leap/parity/partial-field cases. Each record spans
+two ordinary calls. A separate Python event/clock oracle checks instruction
+attempts, CURRENT, phase, field/leap counters, crystal remainder, actual guest
+RAM, frontend count and saved mode. This is a scheduler integration corpus;
+it is not every horizontal × vertical combination or measured hardware timing.
+
+Actual old-budget execution fails **5,160/5,160 records**. An executed guest
+reading WIDTH instead of CURRENT fails **1,062 records**. Nine output-field
+faults and seven malformed/identity/order/footer stream controls are rejected.
+Additional native tests cover S030 reserved flags, S029 import, mode-preserving reset and fresh native load,
+ordinary/rollback complete-state equality, the largest field, blank startup,
+saturated-counter bounds and debug yield/completion. All **129 original ROM
+archives** reproduce against the committed generator/image ledger.
+
+```bash
+cmake --build build --target n64_plugin n64_field_schedule_capture
+ctest --test-dir build -R '^n64_vi_field_schedule$' --output-on-failure
+python3 tests/roms-src/build.py --original-only --check
+```
+
+### Private SM64 VI evidence
+
+From the existing standing courtyard checkpoint, an explicit one-field
+continuation reaches a field boundary without moving Mario. Matched native
+continuations then verify **12 VI fields of walking (66.463 units)**,
+**two fields of jumping (+42 units)** and **two fields of punching**; matched
+neutral inputs stay stationary. Paired raw traces hold the same constant input
+for the exact observed CPU-attempt interval and encounter no terminal CPU,
+RSP or DP stop. They do not relabel their diagnostic quanta as VI fields.
+
+**121 production frontend VI movie frames** match ordinary, recorded and
+played-back complete states. Seeks at 0/59/60/61/120/121 are exact and clear
+queued audio. A neutral movie changes actual guest movement. Private artifacts
+remain ignored under `build/artifacts/retail/vi-fields/`; the ROM, RAM states,
+movies and screenshots are never committed. The previous quantum movie remains
+a separate legacy scheduling check. N64 remains **45%** of the fixed delivery
+checklist; castle entry, menu/level progression and full-title playability are
+unverified.
+
+The same local checkpoint can be reproduced with:
+
+```bash
+python3 tests/n64_retail_vi.py "$YOUR_PRIVATE_SM64_US_ROM" \
+  --checkpoint "$YOUR_PRIVATE_STANDING_CHECKPOINT" \
+  --artifacts build/artifacts/retail/vi-fields
+```
+
+The field boundary policy follows Nintendo's
+[VI/vertical-retrace description](https://jrra.zone/n64/doc/pro-man/pro30/30-01.htm).
+The arithmetic oracle checks the implemented nominal clock model; it is not a
+measurement of a physical console.

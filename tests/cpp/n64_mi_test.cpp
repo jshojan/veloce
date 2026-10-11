@@ -75,7 +75,7 @@ int main(int argc,char** argv) {
         require(m.done && m.mi_mode==0 && m.mi_mask==63 && m.si_interrupt && m.pi_interrupt,"loaded MI corpus completion");
         m.reset();require(!m.mi_mode && !m.dp_interrupt,"MI reset");
         auto native=rom;std::memcpy(native.data()+0x34,"V64IP001",8);
-        require(m.load(native.data(),native.size()) && m.save(state),"native state");old=state;old.resize(old.size()-1129936);old[6]='0';old[7]='4';m.mi_mode=1023;m.dp_interrupt=true;
+        require(m.load(native.data(),native.size()) && m.save(state),"native state");m.frame_scheduling=emu::FrameScheduling::InstructionQuantum;m.save(state);old=state;old.resize(old.size()-1129936);old[6]='0';old[7]='4';m.mi_mode=1023;m.dp_interrupt=true;
         require(m.restore(old) && m.save(replay) && replay==state,"native S004 conversion");
         std::cout<<"16777216 mode transitions, 262144 mask transitions and 512 pending/mask combinations matched; DP ack/IRQ/ERET, atomic access/state rejection, replay, old states and loaded plugin passed\n";
         return 0;

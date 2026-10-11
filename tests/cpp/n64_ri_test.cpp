@@ -57,7 +57,7 @@ int main(int argc,char** argv) {
         // Original opt-in native entry: prove previous native states convert too.
         auto native=rom;std::memcpy(native.data()+0x34,"V64IP001",8);
         require(m.load(native.data(),native.size()),"native profile load");
-        require(m.save(state),"native save");old=state;old.resize(old.size()-1129992);old[6]='0';old[7]='3';
+        require(m.save(state),"native save");m.frame_scheduling=emu::FrameScheduling::InstructionQuantum;m.save(state);old=state;old.resize(old.size()-1129992);old[6]='0';old[7]='3';
         put(m,1,127);put(m,2,1);
         require(m.restore(old) && m.save(replay) && replay==state,"native S003 conversion");
         std::cout<<"524288 refresh values, 131072 mode/config/select combinations, 16 latencies and 65536 error clears matched; latching, atomic rejection, states and loaded plugin passed\n";

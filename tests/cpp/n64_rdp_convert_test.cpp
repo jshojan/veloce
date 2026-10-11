@@ -40,12 +40,12 @@ int main(int argc,char** argv){try{
     n64::Machine machine;check(machine.load(rom.data(),rom.size()));auto& dp=machine.dp_interface;
     put(machine.ram,0x100,0xec3fffffffffffff);put(machine.ram,0x108,0xe900000000000000);
     dp.flags=2;dp.write(0,0x100);dp.write(1,0x110);
-    std::vector<uint8_t> saved,after,replay;check(machine.save(saved) && saved.size()==9527616 && saved[7]=='9');
+    std::vector<uint8_t> saved,after,replay;check(machine.save(saved) && saved.size()==9527616 && saved[6]=='3' && saved[7]=='0');
     dp.flags=0;machine.clock();machine.clock();machine.clock();check(machine.save(after) && dp.conversion.snapshot()==((1ull<<55)-1) && machine.dp_interrupt);
     check(machine.restore(saved));dp.flags=0;machine.clock();machine.clock();machine.clock();check(machine.save(replay) && replay==after);
     for(unsigned bit=55;bit<64;++bit){auto bad=after;bad[bad.size()-1048672+7-bit/8]|=uint8_t(1u<<(bit%8));check(!machine.restore(bad) && machine.save(replay) && replay==after);}
     auto bad=after;bad[bad.size()-1048672+1]&=~64u;check(!machine.restore(bad) && machine.save(replay) && replay==after);
-    auto old=after;old.resize(old.size()-1048672);old[7]='4';check(machine.restore(old) && dp.conversion.snapshot()==0 && machine.save(replay) && std::equal(old.begin()+8,old.end(),replay.begin()+8));
+    auto old=after;old.resize(old.size()-1048672);old[6]='2';old[7]='4';check(machine.restore(old) && dp.conversion.snapshot()==0 && machine.save(replay) && std::equal(old.begin()+8,old.end(),replay.begin()+8));
     machine.reset();check(dp.conversion.snapshot()==0);
-    std::cout<<commands<<" independent field/alias/DRAM-XBUS commands; "<<pixels<<" mixed-chroma/luma framebuffer goldens; reset weights, FullSync and S029 replay/rejection/S024 import PASS\n";return 0;
+    std::cout<<commands<<" independent field/alias/DRAM-XBUS commands; "<<pixels<<" mixed-chroma/luma framebuffer goldens; reset weights, FullSync and S030 replay/rejection/S024 import PASS\n";return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}

@@ -3638,3 +3638,14 @@ progression, full-title playability, native firmware boot, physical peripherals
 and timing remain unfinished. Native VI frame scheduling and practical
 normal-speed gameplay are pending. **N64 remains 45%; all fixed milestone scores
 are unchanged. CI/CD remains disabled.**
+
+## 2026-10-11: N64 native VI frame scheduling
+
+N64 0.46.0 now advances new native sessions to functional VI field endings on
+the ordinary/rollback/TAS path. S030 preserves mode without growing the state;
+legacy S029 and older checkpoints retain the historical 100k budget. The original
+file corpus checks 5,160 records / 46,440 output words, with actual old-budget and
+wrong-register controls. Private SM64 controls pass at VI boundaries, and 121
+native movie fields/six seeks compare complete states. All 129 original archives
+reproduce. Delivery remains 45%; physical timing, practical normal-speed play and
+full-title playability remain unverified. See the N64 README for scope and commands.

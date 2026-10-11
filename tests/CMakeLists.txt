@@ -1457,3 +1457,14 @@ add_test(NAME nds_arm_multiple_registers COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/roms-src/nds/arm_multiple_registers/run.py --emulator $<TARGET_FILE:veloce>
     --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/nds_arm_multiple)
 set_tests_properties(nds_arm_multiple_registers PROPERTIES LABELS "accuracy;owned" TIMEOUT 1800)
+
+add_executable(n64_field_schedule_capture cpp/n64_field_schedule_capture.cpp
+    ${CMAKE_SOURCE_DIR}/cores/n64/src/machine.cpp ${CMAKE_SOURCE_DIR}/cores/n64/src/vr4300.cpp)
+target_include_directories(n64_field_schedule_capture PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src ${CMAKE_SOURCE_DIR}/include ${SDL2_INCLUDE_DIRS})
+target_link_libraries(n64_field_schedule_capture PRIVATE ${SDL2_LIBRARIES})
+add_dependencies(n64_field_schedule_capture n64_plugin)
+add_test(NAME n64_vi_field_schedule COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/vi_field_schedule/run.py
+    --capture $<TARGET_FILE:n64_field_schedule_capture> --core $<TARGET_FILE:n64_plugin>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_vi_field_schedule)
+set_tests_properties(n64_vi_field_schedule PROPERTIES LABELS "integration;owned" TIMEOUT 800)

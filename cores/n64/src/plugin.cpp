@@ -4,11 +4,11 @@
 #include "emu/netplay_plugin.hpp"
 
 namespace n64 {
-class Plugin : public emu::IEmulatorPlugin, public emu::INetplayCapable {
+class Plugin : public emu::IEmulatorPlugin, public emu::INetplayCapable, public emu::IFrameScheduling {
 public:
     emu::EmulatorInfo get_info() override {
         static const char* extensions[] = {".z64", ".v64", ".n64", nullptr};
-        return {"N64", "0.45.0", "Veloce", "Experimental integer core with TLB translation, FPU register/memory transfers and controls/branches, conversions and S/D arithmetic/comparisons, primary caches, shared hidden CPU/DMA RDRAM and uncached MI EBUS metadata, settled PI/SI/SP, SP scalar execution and vector transfers/multiply/accumulate/comparison/integer-ALU/reciprocal/square-root/move/clipping, shared DP controls with complete packet framing and partial-command states, RDP raw fill/color-depth clears and shared hidden RDP fill/framebuffer coverage and rejected color-write history and functional one-cycle E4/E5 texture rectangles and RGBA16/RGBA32 shade/primitive/environment and affine/perspective textured/color-converted pixels with ordered RGB/alpha dithering and one-cycle interpolated/primitive depth comparison/update and SetPrimDepth state and blending/AA/alpha-coverage decisions and fog/blend state and SetConvert state, scissoring and sync and combiner/color and tile/texture-image state and functional TMEM block/tile/palette transfers and copy-cycle rectangle/triangle bank transfers with raw alpha comparison and hidden byte-write metadata and RI/MI/RDRAM device controls and CIC-6102 IPL3 handoff; retail boot/playability, RSP/RDP graphics, RSP audio microcode, exact timing and physical analog calibration pending; functional AI PCM and unfiltered VI framebuffer output; persistent SI/PIF command layouts and digital and signed-byte analog input polling on every read DMA.",
+        return {"N64", "0.46.0", "Veloce", "Experimental integer core with TLB translation, FPU register/memory transfers and controls/branches, conversions and S/D arithmetic/comparisons, primary caches, shared hidden CPU/DMA RDRAM and uncached MI EBUS metadata, settled PI/SI/SP, SP scalar execution and vector transfers/multiply/accumulate/comparison/integer-ALU/reciprocal/square-root/move/clipping, shared DP controls with complete packet framing and partial-command states, RDP raw fill/color-depth clears and shared hidden RDP fill/framebuffer coverage and rejected color-write history and functional one-cycle E4/E5 texture rectangles and RGBA16/RGBA32 shade/primitive/environment and affine/perspective textured/color-converted pixels with ordered RGB/alpha dithering and one-cycle interpolated/primitive depth comparison/update and SetPrimDepth state and blending/AA/alpha-coverage decisions and fog/blend state and SetConvert state, scissoring and sync and combiner/color and tile/texture-image state and functional TMEM block/tile/palette transfers and copy-cycle rectangle/triangle bank transfers with raw alpha comparison and hidden byte-write metadata and RI/MI/RDRAM device controls and CIC-6102 IPL3 handoff; retail boot/playability, RSP/RDP graphics, RSP audio microcode, exact timing and physical analog calibration pending; functional AI PCM and unfiltered VI framebuffer output; persistent SI/PIF command layouts and digital and signed-byte analog input polling on every read DMA.",
                 extensions, 60.0, 93750000, 320, 240};
     }
     const emu::ControllerLayoutInfo* get_controller_layout() override {
@@ -28,11 +28,13 @@ public:
             {VirtualButton::CDown,"C Down",.82f,.53f,.1f,.12f,false},
             {VirtualButton::CLeft,"C Left",.71f,.39f,.1f,.12f,false},
             {VirtualButton::CRight,"C Right",.93f,.39f,.1f,.12f,false}};
-        static const emu::ControllerLayoutInfo layout = {"N64","N64 digital controls (stick pending)",
+        static const emu::ControllerLayoutInfo layout = {"N64","N64 digital and analog controls",
             emu::ControllerShape::Modern,2.0f,buttons,14,1};
         return &layout;
     }
     bool load_rom(const uint8_t* data, size_t size) override { return machine.load(data, size); }
+    emu::FrameScheduling get_frame_scheduling() const override {return machine.frame_scheduling;}
+    void set_frame_scheduling(emu::FrameScheduling mode) override {machine.frame_scheduling=mode;}
     void unload_rom() override { machine.rom.clear(); machine.crc = 0; machine.identity = 0; machine.entry = 0; machine.boot_mode=Machine::BootMode::Homebrew; machine.reset(); }
     bool is_rom_loaded() const override { return !machine.rom.empty(); }
     uint32_t get_rom_crc32() const override { return machine.crc; }
@@ -85,10 +87,7 @@ private:
     bool is_loaded() const {return !machine.rom.empty();}
     void step_quantum(bool canonical_audio=false){
         if(!is_loaded())return;
-        machine.yielded=false;
-        // Bounded frontend scheduling quantum, not VI/pipeline timing.
-        for(unsigned i=0;i<100000 && !machine.done && !machine.yielded;++i)machine.cpu.step();
-        ++machine.frames;
+        machine.run_frontend_frame();
         if(m_audio_callback){const auto a=get_audio();if(a.sample_count)m_audio_callback(a.samples,size_t(a.sample_count),a.sample_rate);clear_audio_buffer();}
         else if(canonical_audio)clear_audio_buffer();
     }

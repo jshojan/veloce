@@ -42,6 +42,7 @@ bool Machine::load(const uint8_t* data, size_t size) {
     for (auto byte : image) { identity ^= byte; identity *= 1099511628211ull; }
     entry = sign32(start);
     boot_mode=mode;
+    frame_scheduling=mode==BootMode::Homebrew?emu::FrameScheduling::InstructionQuantum:emu::FrameScheduling::VideoField;
     rom = std::move(image);
     reset();
     return true;
@@ -67,6 +68,24 @@ void Machine::reset() {
         const auto config=uint32_t(be(rom.data(),4));
         pi[5]=config&255;pi[6]=(config>>8)&255;pi[7]=(config>>16)&15;pi[8]=(config>>20)&3;
     }
+}
+void Machine::run_frontend_frame() {
+    if(rom.empty())return;
+    yielded=false;
+    const bool field_mode=frame_scheduling==emu::FrameScheduling::VideoField;
+    const auto field=video_interface.fields;
+    // Blank/unconfigured VI has no field ending in the current functional VI
+    // model. Advance one nominal NTSC interval during startup. The larger cap
+    // bounds guest timing rewrites and a saturated field counter; it exceeds
+    // the largest supported stable VI period (512 lines * 4096 VI clocks).
+    constexpr unsigned startup_budget=1562500,field_budget=6250000;
+    const unsigned budget=field_mode?field_budget:100000;
+    for(unsigned attempt=0;attempt<budget && !done && !yielded;++attempt){
+        cpu.step();
+        if(field_mode && (video_interface.fields!=field ||
+            (attempt+1>=startup_budget && !video_interface.active())))break;
+    }
+    ++frames;
 }
 void Machine::clock() {
     // One nominal CPU clock per interpreter attempt: physical CPI is unmodeled.
@@ -261,14 +280,15 @@ static void append(std::vector<uint8_t>& data, uint64_t value) {
 }
 bool Machine::save(std::vector<uint8_t>& data) const {
     if (rom.empty()) return false;
-    data.assign({'V','N','6','4','S','0','2','9'});
+    data.assign({'V','N','6','4','S','0','3','0'});
     data.reserve(current_state_size);
     append(data, identity); append(data, crc); append(data, frames); append(data, done);
     const auto& s = cpu.state;
     for (auto value : s.gpr) append(data, value);
     for (auto value : s.cp0) append(data, value);
     for (auto value : {s.hi, s.lo, s.pc, s.next_pc, s.instructions, uint64_t(s.delay_slot)}) append(data, value);
-    append(data, si_address); append(data, input_buttons); append(data, si_interrupt); append(data, mi_mask); append(data, yielded);
+    append(data, si_address); append(data, input_buttons); append(data, si_interrupt); append(data, mi_mask);
+    append(data, uint64_t(yielded)|(frame_scheduling==emu::FrameScheduling::VideoField?0x100:0));
     data.insert(data.end(), pif.begin(), pif.end());
     data.insert(data.end(), ram.begin(), ram.end());
     data.insert(data.end(), sp.begin(), sp.end());
@@ -337,7 +357,8 @@ bool Machine::restore(const std::vector<uint8_t>& data) {
     const bool hidden_previous=!std::memcmp(data.data(),"VN64S026",8);
     const bool primitive_previous=!std::memcmp(data.data(),"VN64S027",8);
     const bool joybus_previous=!std::memcmp(data.data(),"VN64S028",8);
-    const bool current=!std::memcmp(data.data(),"VN64S029",8);
+    const bool scheduled=!std::memcmp(data.data(),"VN64S030",8);
+    const bool current=scheduled || !std::memcmp(data.data(),"VN64S029",8);
     if((!legacy && !previous && !ri_previous && !mi_previous && !devices_previous && !caches_previous && !sp_previous && !audio_previous && !fpu_previous && !tlb_previous && !video_previous && !scalar_previous && !dp_previous && !vector_previous && !accumulator_previous && !combiner_previous && !depth_previous && !divider_previous && !texture_previous && !tmem_previous && !controllers_previous && !packet_previous && !conversion_previous && !blender_previous && !hidden_previous && !(primitive_previous || joybus_previous || current)) || data.size()!=prefix+ram_size+sp.size()+(legacy?0:previous?120:ri_previous?176:mi_previous?192:devices_previous?480:caches_previous?41440:sp_previous?41512:audio_previous?74440:fpu_previous?74448:tlb_previous?75472:video_previous?75632:scalar_previous?75888:dp_previous?75888+rsp_state_size:vector_previous?75888+rsp_state_size+dp_state_size:accumulator_previous?75888+rsp_state_size+dp_state_size+vector_state_size:combiner_previous?75888+rsp_state_size+dp_state_size+vector_state_size+accumulator_state_size:depth_previous?75888+rsp_state_size+dp_state_size+vector_state_size+accumulator_state_size+combiner_state_size:75888+rsp_state_size+dp_state_size+vector_state_size+accumulator_state_size+combiner_state_size+depth_image_state_size+(divider_previous?0:divider_state_size+(texture_previous?0:texture_state_size+(tmem_previous?0:tmem_state_size+((packet_previous || conversion_previous || blender_previous || hidden_previous || (primitive_previous || joybus_previous || current))?controller_state_size:0)+((conversion_previous || blender_previous || hidden_previous || (primitive_previous || joybus_previous || current))?packet_state_size:0)+((blender_previous || hidden_previous || (primitive_previous || joybus_previous || current))?conversion_state_size:0)+((hidden_previous || (primitive_previous || joybus_previous || current))?blender_state_size:0)+((primitive_previous || joybus_previous || current)?hidden_state_size:0)))))+((joybus_previous || current)?primitive_depth_state_size:0)+(current?joybus_state_size:0) ||
         (legacy && boot_mode!=BootMode::Homebrew)) return false;
     size_t position = 8;
@@ -351,7 +372,8 @@ bool Machine::restore(const std::vector<uint8_t>& data) {
     const uint64_t saved_delay = take();
     if (saved_done > 1 || saved_delay > 1 || s.gpr[0] != 0) return false;
     const auto saved_si_address = take(), saved_input = take(), saved_irq = take(), saved_mask = take(), saved_yield = take();
-    if (saved_si_address > 0xffffff || saved_input > 0xffffffff || saved_irq > 1 || saved_mask > 63 || saved_yield > 1) return false;
+    if (saved_si_address > 0xffffff || saved_input > 0xffffffff || saved_irq > 1 || saved_mask > 63 ||
+        (scheduled?(saved_yield&~uint64_t(0x101))!=0:saved_yield>1)) return false;
     s.delay_slot = saved_delay;
     const size_t memory_position=position;
     std::array<uint32_t,13> saved_pi{};uint64_t saved_pi_irq=0;
@@ -461,7 +483,8 @@ bool Machine::restore(const std::vector<uint8_t>& data) {
     hidden=std::move(saved_hidden);joybus=saved_joybus;
     cpu.state = s;cpu.caches=saved_caches;cpu.tlb=saved_tlb; frames = saved_frames; done = saved_done;
     si_address = uint32_t(saved_si_address); input_buttons = uint32_t(saved_input);other_input_buttons=saved_other_input; si_interrupt = saved_irq;
-    mi_mask = uint8_t(saved_mask); yielded = saved_yield;
+    mi_mask = uint8_t(saved_mask); yielded = saved_yield&1;
+    frame_scheduling=scheduled && (saved_yield&0x100)?emu::FrameScheduling::VideoField:emu::FrameScheduling::InstructionQuantum;
     pi=saved_pi;pi_interrupt=saved_pi_irq;ri=saved_ri;ri_current_loaded=saved_current_loaded;mi_mode=uint16_t(saved_mode);dp_interrupt=saved_dp;rdram_devices=saved_devices;sp_interface=saved_sp;rsp=saved_rsp;rsp_phase=saved_rsp_phase;dp_interface=saved_dp_interface;audio_interface=saved_audio;video_interface=saved_video;audio_samples=saved_samples;crystal_phase=saved_crystal;output_phase=saved_output;audio_head=saved_head;audio_count=saved_count;audio_dropped=saved_dropped;
     std::copy_n(data.begin() + position, 64, pif.begin()); position += 64;
     std::copy_n(data.begin() + position, ram_size, ram.begin());

@@ -79,7 +79,7 @@ int main(int argc,char** argv) {
         emulator_test::LoadedCore core(argv[1],rom);
         for(unsigned frame=0;frame<1000;++frame) {core.plugin->run_frame({});require(core.plugin->save_state(state) && m.restore(state),"loaded plugin device state");if(m.done)break;}
         require(m.done,"device original program incomplete");
-        auto native=rom;std::memcpy(native.data()+0x34,"V64IP001",8);require(m.load(native.data(),native.size()) && m.save(state),"native fixture");old=state;old.resize(old.size()-1129920);old[6]='0';old[7]='5';m.rdram_devices.restore(base);require(m.restore(old) && m.save(replay) && replay==state,"native legacy conversion");
+        auto native=rom;std::memcpy(native.data()+0x34,"V64IP001",8);require(m.load(native.data(),native.size()) && m.save(state),"native fixture");m.frame_scheduling=emu::FrameScheduling::InstructionQuantum;m.save(state);old=state;old.resize(old.size()-1129920);old[6]='0';old[7]='5';m.rdram_devices.restore(base);require(m.restore(old) && m.save(replay) && replay==state,"native legacy conversion");
         std::cout<<"262144 ID writes, 2113536 delay/repeat cases, 131072 selector/register aliases and 256 mode patterns matched; discovery, broadcast, MI one-shot/upper, states, rejection and loaded plugin passed\n";return 0;
     } catch(const std::exception& e) {std::cerr<<e.what()<<'\n';return 1;}
 }

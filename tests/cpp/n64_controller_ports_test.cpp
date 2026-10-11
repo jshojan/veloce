@@ -29,7 +29,7 @@ int main(int argc,char** argv){try{
  std::vector<uint8_t> state,after;require(m.save(state) && state.size()==n64::Machine::current_state_size,"exact current state extent");
  m.input_buttons=0;m.other_input_buttons.fill(0);require(m.restore(state) && m.save(after) && after==state,"all controller inputs replay");
  for(unsigned port=0;port<3;++port){auto bad=state;bad[bad.size()-1048896+port*8]=1;require(!m.restore(bad) && m.save(after) && after==state,"reserved controller state rejects atomically");}
- auto old=state;old.resize(old.size()-1048896);old[7]='2';require(m.restore(old) && m.input_buttons==0x12345678 && m.other_input_buttons==std::array<uint32_t,3>{} && m.dp_interface.tmem.bytes[4095]==0x5c,"S022 neutral additional controllers preserves prefix");
+ auto old=state;old.resize(old.size()-1048896);old[6]='2';old[7]='2';require(m.restore(old) && m.input_buttons==0x12345678 && m.other_input_buttons==std::array<uint32_t,3>{} && m.dp_interface.tmem.bytes[4095]==0x5c,"S022 neutral additional controllers preserves prefix");
  require(m.save(after) && std::equal(old.begin()+8,old.end(),after.begin()+8),"S022 preceding fields unchanged");
  for(bool extra:{false,true}){auto bad=state;if(extra)bad.push_back(0);else bad.pop_back();require(m.restore(state) && !m.restore(bad) && m.save(after) && after==state,"invalid controller state length atomicity");}
  m.reset();require(!m.input_buttons && m.other_input_buttons==std::array<uint32_t,3>{},"reset neutral inputs");

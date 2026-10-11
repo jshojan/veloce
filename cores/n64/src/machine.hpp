@@ -8,6 +8,7 @@
 #include "audio_interface.hpp"
 #include "video_interface.hpp"
 #include "emu/emulator_plugin.hpp"
+#include "emu/frame_scheduling.hpp"
 #include <vector>
 
 namespace n64 {
@@ -19,6 +20,7 @@ public:
     void reset();
     uint8_t interrupt_pending() const override { return ((video_interface.interrupt && (mi_mask & 8)) || (audio_interface.interrupt && (mi_mask & 4)) || (sp_interface.interrupt && (mi_mask & 1)) || (si_interrupt && (mi_mask & 2)) || (pi_interrupt && (mi_mask & 16)) || (dp_interrupt && (mi_mask & 32))) ? 4 : 0; }
     void clock() override;
+    void run_frontend_frame();
     void clear_audio() {audio_head=audio_count=0;}
     bool read(uint64_t address, unsigned bytes, uint64_t& value) override;
     bool write(uint64_t address, unsigned bytes, uint64_t value) override;
@@ -36,6 +38,7 @@ public:
     uint64_t identity = 0, frames = 0;
     uint64_t entry = 0;
     bool done = false, yielded = false;
+    emu::FrameScheduling frame_scheduling=emu::FrameScheduling::InstructionQuantum;
     std::array<uint8_t, 64> pif{};
     PifJoybus joybus;
     uint32_t si_address = 0, input_buttons = 0;
