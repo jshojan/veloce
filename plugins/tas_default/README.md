@@ -4,7 +4,7 @@ Tool-assisted speedrun movie editor and player for Veloce.
 
 ## Overview
 
-The Default TAS Plugin provides comprehensive TAS functionality including movie recording, playback, frame editing, and the greenzone system for instant seeking. It supports FCEUX FM2 movie import and includes undo/redo with 100 levels of history.
+The Default TAS Plugin implements movie operations, frame editing and seek snapshots. Its backend is tested through a deterministic host; application routing and editor controls remain unfinished.
 
 ## Features
 
@@ -26,7 +26,7 @@ The plugin implements the ITASPlugin interface defined in include/emu/tas_plugin
 | Property | Value |
 |----------|-------|
 | Name | TAS Editor |
-| Version | 1.0.0 |
+| Version | 2.0.0 |
 | Author | Veloce Team |
 | File Formats | .fm2, .tas |
 
@@ -34,7 +34,7 @@ The plugin implements the ITASPlugin interface defined in include/emu/tas_plugin
 
 | Mode | Description |
 |------|-------------|
-| Stopped | No movie loaded |
+| Stopped | Movie inactive; live input passes through |
 | Recording | Recording new inputs |
 | Playing | Playing back movie |
 | ReadOnly | Playing, cannot modify |
@@ -78,29 +78,86 @@ The plugin implements the ITASPlugin interface defined in include/emu/tas_plugin
 - remove_marker(frame) - Remove marker
 - get_marker_count/frame/description() - Access markers
 
-## File Formats
+## Movie files
 
-### Native Format (.tas)
+New `.tas` files use **TAS2**, with explicit little-endian fields rather than
+compiler struct padding. Reads check bounds, complete payloads, string
+termination, canonical frame numbers, state flags and slot numbers. Failed
+loads preserve the previous movie. Same-build legacy TAS1 files can be imported;
+TAS1 portability across compilers/architectures is not promised. Imported FM2
+files require Save As to a native filename; saving cannot overwrite the FM2
+source with native binary data.
 
-Binary format with:
-- Magic: "TAS1"
-- TASMovieInfo header
-- Optional start state
-- Frame data array
+[TAS2 layout and limits](../../../docs/testing/TAS-MOVIES.md) describes the
+1,000,000-frame, 64 MiB state and 100 MiB file limits. Native state bytes still
+belong to the relevant core/build; TAS2 file portability does not make those
+bytes portable across core state-format versions.
 
-### FM2 Import
+### FM2 import
 
-Imports FCEUX movie format:
-- Parses header comments
-- Reads frame lines (|1|23456789|)
-- Maps NES button layout
+Import follows the [FCEUX format specification](https://fceux.com/web/help/fm2.html):
+ASCII or binary logs, two gamepad/empty ports or Four Score, empty expansion
+port, and soft-reset commands. Controller bytes map into frontend virtual-button
+masks. All 256×256 two-port combinations are checked in both log encodings;
+four-port tests cover every byte value per port under stated patterns. Other
+commands, Zapper/expansion devices and embedded FCEUX states are rejected.
+Declared log length is honored. MD5/GUID/timing metadata is not used to validate
+native playback; native CRC32 checks cannot validate FM2 ROM identity. Native playback checks
+nonzero CRC32 and nonempty platform metadata before resetting/restoring the host.
 
-## Greenzone System
+## Frame lifecycle and seeking
 
-Automatic savestates every 60 frames during recording:
-- Enables instant seeking during playback
-- Invalidated when frames are edited
-- Trades memory for seek speed
+**TAS ABI 2** adds `on_frame_completed()` and synchronous
+`ITASHost::run_replay_frame()`. Rebuild TAS plugins/hosts against this header;
+ABI1 libraries are rejected before any factory/vtable invocation. Other plugin
+ABI versions are unchanged.
+
+`on_frame()` samples one movie frame for every controller, independently of
+query order. Repeated reads return that sample; they do not advance recording
+or playback. Commit once with `on_frame_completed()` after actual emulation.
+Do not commit a waiting/retried frame. Stopped mode passes through live input.
+
+Greenzone snapshots are saved after every 60 completed movie frames. Boundary N
+represents state after N inputs, immediately before input N. Editing input N
+keeps boundary N and invalidates later boundaries; undo/redo invalidate cached
+states. Read-only mode blocks frame/clipboard/history edits.
+
+Seek restores the nearest earlier snapshot or the initial state, then calls the
+host's synchronous replay method for each required frame. It does not queue GUI
+frame-advance requests or count them as executed frames. Seeking to the terminal
+movie boundary is allowed. Failed replay attempts restore the saved host state;
+a host that also rejects restoration cannot provide that recovery guarantee.
+Successful seeking pauses at the requested boundary and does not count as a
+rerecord. Reset/state events must be executed by the replay host.
+
+## Verified backend evidence
+
+- **131,072 actual imported FM2 records** enumerate every two-port byte pair
+  in ASCII and binary, with soft-reset flags. **512 Four Score records** cover
+  every byte value on each port using stated patterns, not all four-port tuples.
+- Independently packed TAS2 bytes include high input bits, start-state data,
+  reset/save flags and signed slot fields. All **1,786 truncation prefixes**,
+  trailing bytes and malformed fields are rejected. Malformed FM2 payloads and
+  unsupported devices/commands fail.
+- A deterministic four-port host executes **121 committed frames**. Repeated
+  and shuffled controller reads retain one sample; exact snapshot/replay
+  boundaries (0/59/60/61/120/121), failed replay restoration, playback, state
+  starts, editing/history and noncanonical legacy bool fields are checked.
+- A real ABI1 fixture is rejected before its factory runs; the actual ABI2
+  default library is discovered successfully.
+
+```bash
+cmake -S . -B build
+cmake --build build
+ctest --test-dir build -R '^(tas_movie_format_test|tas_runtime_test|tas_registry_test)$' --output-on-failure
+```
+
+Artifacts remain under `build/artifacts/tas_formats/` and
+`build/artifacts/tas_runtime/`. These verify movie data and host sequencing;
+they are not native guest register/RAM hardware accuracy ROMs. Frontend/editor
+routing, native core replay/state events, cross-core state compatibility, full
+FM2 peripherals, movie identity/timing validation and physical hardware remain
+unfinished or unverified. No core completion milestone is added.
 
 ## Building
 
@@ -110,6 +167,7 @@ Built automatically as part of Veloce. See main README for build instructions.
 
 | File | Purpose |
 |------|---------|
-| src/default_tas_plugin.cpp | Plugin implementation |
+| src/default_tas_plugin.cpp | Movie operations and frame lifecycle |
+| src/movie_file.cpp | Bounded native and FM2 file parsing |
 | CMakeLists.txt | Build configuration |
 

@@ -12,7 +12,7 @@
     #define EMU_PLUGIN_EXPORT
 #endif
 
-#define EMU_TAS_PLUGIN_API_VERSION 1
+#define EMU_TAS_PLUGIN_API_VERSION 2
 
 namespace emu {
 
@@ -73,6 +73,11 @@ public:
     virtual bool save_state_to_buffer(std::vector<uint8_t>& buffer) = 0;
     virtual bool load_state_from_buffer(const std::vector<uint8_t>& buffer) = 0;
 
+    // Execute one complete replay frame synchronously, including its reset/state
+    // events. Return false if it cannot execute. frame_advance() only requests
+    // a future GUI frame and must not be used for a synchronous seek loop.
+    virtual bool run_replay_frame(const TASFrameData& frame) = 0;
+
     // ROM info
     virtual const char* get_rom_name() const = 0;
     virtual uint32_t get_rom_crc32() const = 0;
@@ -127,6 +132,9 @@ public:
     // Called each frame by the core
     // Returns the input to use for this frame
     virtual uint32_t on_frame(int controller) = 0;
+    // Commit the sampled movie frame after actual emulation. Call once, after
+    // every controller has been read. Never call for a waiting/retried frame.
+    virtual void on_frame_completed() = 0;
 
     // Frame operations for editing
     virtual TASFrameData get_frame(uint64_t frame) const = 0;

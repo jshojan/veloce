@@ -2,6 +2,7 @@
 # Non-core plugins go to the plugins/ directory
 add_library(tas_default SHARED
     src/default_tas_plugin.cpp
+    src/movie_file.cpp
 )
 
 target_include_directories(tas_default PRIVATE

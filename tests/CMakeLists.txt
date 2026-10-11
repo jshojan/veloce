@@ -1332,3 +1332,27 @@ add_dependencies(input_lifecycle_test input_frontend_fixture)
 add_test(NAME input_lifecycle_test COMMAND input_lifecycle_test $<TARGET_FILE:input_frontend_fixture>
     ${CMAKE_BINARY_DIR}/artifacts/input_lifecycle)
 set_tests_properties(input_lifecycle_test PROPERTIES LABELS "integration;fast" TIMEOUT 30)
+
+add_executable(tas_movie_probe cpp/tas_movie_probe.cpp)
+add_executable(tas_runtime_test cpp/tas_runtime_test.cpp)
+foreach(target tas_movie_probe tas_runtime_test)
+    target_include_directories(${target} PRIVATE ${CMAKE_SOURCE_DIR}/include)
+    target_link_libraries(${target} PRIVATE tas_default)
+endforeach()
+add_test(NAME tas_movie_format_test COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/tas_movie_format_test.py
+    --probe $<TARGET_FILE:tas_movie_probe> --artifacts ${CMAKE_BINARY_DIR}/artifacts/tas_formats)
+set_tests_properties(tas_movie_format_test PROPERTIES LABELS "integration;formats" TIMEOUT 100)
+add_test(NAME tas_runtime_test COMMAND tas_runtime_test ${CMAKE_BINARY_DIR}/artifacts/tas_runtime)
+set_tests_properties(tas_runtime_test PROPERTIES LABELS "integration;fast" TIMEOUT 30)
+
+add_library(tas_v1_fixture SHARED cpp/tas_v1_fixture.cpp)
+target_include_directories(tas_v1_fixture PRIVATE ${CMAKE_SOURCE_DIR}/include)
+set_target_properties(tas_v1_fixture PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/fixtures/tas_v1
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/fixtures/tas_v1)
+add_executable(tas_registry_test cpp/tas_registry_test.cpp ${CMAKE_SOURCE_DIR}/src/core/plugin_registry.cpp)
+target_include_directories(tas_registry_test PRIVATE ${CMAKE_SOURCE_DIR}/include ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(tas_registry_test PRIVATE ${CMAKE_DL_LIBS})
+add_dependencies(tas_registry_test tas_v1_fixture tas_default)
+add_test(NAME tas_registry_test COMMAND tas_registry_test $<TARGET_FILE:tas_v1_fixture> $<TARGET_FILE:tas_default>
+    ${CMAKE_BINARY_DIR}/artifacts/tas_v1_factory_marker)
+set_tests_properties(tas_registry_test PROPERTIES LABELS "integration;fast" TIMEOUT 30)
