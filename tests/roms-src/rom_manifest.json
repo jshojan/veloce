@@ -583,6 +583,17 @@
       "source_type": "original",
       "suite": "rdp_texture_perspective"
     },
+    "n64/rdp_texture_rectangles/rdp_texture_rectangles.z64": {
+      "build_command": "python3 tests/roms-src/n64/rdp_texture_rectangles/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "8de7a1451bbd4563ea6ea9d1ca8263cbfbc0b087429f8d34cd5d436523532b47",
+      "source_repo": "tests/roms-src/n64/rdp_texture_rectangles/build.py",
+      "source_sha": "447ef28965f86ee897a23235ec98b0d2f278d4637edeaa2fd8830aac7374d20f",
+      "source_type": "original",
+      "suite": "rdp_texture_rectangles"
+    },
     "n64/rdp_tile_commands/rdp_tile_commands.z64": {
       "build_command": "python3 tests/roms-src/n64/rdp_tile_commands/build.py",
       "console": "n64",

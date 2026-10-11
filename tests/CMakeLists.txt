@@ -1155,3 +1155,19 @@ add_test(NAME n64_pif_joybus_mutants COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/n64_pif_joybus_mutants.py --compiler ${CMAKE_CXX_COMPILER}
     --artifacts ${CMAKE_BINARY_DIR}/artifacts/component/n64_pif_joybus)
 set_tests_properties(n64_pif_joybus_mutants PROPERTIES LABELS "unit;accuracy" TIMEOUT 240)
+
+add_executable(n64_rdp_rectangle_test cpp/n64_rdp_rectangle_test.cpp)
+target_include_directories(n64_rdp_rectangle_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src)
+add_test(NAME n64_rdp_rectangle_test COMMAND n64_rdp_rectangle_test)
+set_tests_properties(n64_rdp_rectangle_test PROPERTIES LABELS "unit;accuracy" TIMEOUT 90)
+add_test(NAME n64_rdp_rectangle_mutants COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/n64_rdp_rectangle_mutants.py --compiler ${CMAKE_CXX_COMPILER}
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/component/n64_rdp_rectangle)
+set_tests_properties(n64_rdp_rectangle_mutants PROPERTIES LABELS "unit;accuracy" TIMEOUT 240)
+add_test(NAME n64_rdp_texture_rectangles COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/rdp_texture_rectangles/run.py --emulator $<TARGET_FILE:veloce>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_rdp_texture_rectangles)
+set_tests_properties(n64_rdp_texture_rectangles PROPERTIES LABELS "accuracy;owned" TIMEOUT 1400)
+add_test(NAME n64_rdp_rectangle_checkpoint_test COMMAND n64_rdp_packet_plugin_test
+    $<TARGET_FILE:n64_plugin> ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/rdp_texture_rectangles/rdp_texture_rectangles.z64 hidden)
+set_tests_properties(n64_rdp_rectangle_checkpoint_test PROPERTIES LABELS "integration;netplay;accuracy;owned" TIMEOUT 60)
