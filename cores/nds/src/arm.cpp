@@ -162,7 +162,7 @@ void Arm::step() {
         if(rd==15) { s.unsupported=true; return; }
         s.r[rd]=s.cpsr; s.r[15]=pc+4; return;
     }
-    if((ins&0x0ffff000)==0x0128f000 || (ins&0x0ffff000)==0x0328f000) {
+    if((ins&0x0ffffff0)==0x0128f000 || (ins&0x0ffff000)==0x0328f000) {
         const uint32_t value=(ins&(1u<<25)) ? rotate(ins&255,((ins>>8)&15)*2):operand(ins&15);
         const uint32_t mask=v5 ? 0xf8000000u:0xf0000000u;
         s.cpsr=(s.cpsr&~mask)|(value&mask); s.r[15]=pc+4; return;
@@ -195,6 +195,33 @@ void Arm::step() {
         }
         if(!load || rd!=15) s.r[15]=pc+4;
         return;
+    }
+    if((ins&0x0e1000d0u)==0x000000d0u) {
+        const bool pre=ins&(1u<<24),up=ins&(1u<<23),immediate=ins&(1u<<22),wb=ins&(1u<<21);
+        const bool store=ins&0x20,update=!pre || wb;
+        const unsigned rn=(ins>>16)&15,rd=(ins>>12)&15,rm=ins&15;
+        if(!v5 || (rd&1) || rd>=14 || (!pre && wb) ||
+           (update && (rn==15 || rn==rd || rn==rd+1)) ||
+           (!immediate && ((ins&0xf00) || rm==15 ||
+               (!store && (rm==rd || rm==rd+1)) || (!v6 && update && rn==rm)))) {
+            s.unsupported=true; return;
+        }
+        const uint32_t offset=immediate ? ((ins>>4)&0xf0)|(ins&15):s.r[rm];
+        const uint32_t base=operand(rn),adjusted=up ? base+offset:base-offset,address=pre ? adjusted:base;
+        // Supplied little-endian, CP15 U=0 alignment profile. Configurable
+        // ARMv6 alignment/endianness and physical data aborts remain pending.
+        if(address&7) { s.unsupported=true; return; }
+        uint32_t low=s.r[rd],high=s.r[rd+1];
+        if(store) {
+            // Each bus call may have effects. A rejected second store does not
+            // roll back the first; diagnostic stops are not precise exceptions.
+            if(!bus.write(address,4,low) || !bus.write(address+4,4,high)) { s.unsupported=true; return; }
+        } else {
+            if(!bus.read(address,4,low) || !bus.read(address+4,4,high)) { s.unsupported=true; return; }
+            s.r[rd]=low;s.r[rd+1]=high;
+        }
+        if(update) s.r[rn]=adjusted;
+        s.r[15]=pc+4; return;
     }
     if((ins&0x0e000090)==0x00000090 && (ins&0x60)) {
         const bool pre=ins&(1u<<24),up=ins&(1u<<23),immediate=ins&(1u<<22),wb=ins&(1u<<21),load=ins&(1u<<20);

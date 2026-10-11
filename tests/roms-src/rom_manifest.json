@@ -22505,6 +22505,17 @@
       "source_type": "original",
       "suite": "clz_registers"
     },
+    "nds/doubleword_registers/doubleword_registers.nds": {
+      "build_command": "python3 tests/roms-src/nds/doubleword_registers/build.py",
+      "console": "nds",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "502683903e9d167271e922b599aaa361f4a024653aa1f14e618a8badf46ce6f0",
+      "source_repo": "tests/roms-src/nds/doubleword_registers/build.py",
+      "source_sha": "3823e9e3b5b4b31d535f7b7622f6ecf423a55d2d110bbebb75519254efb09833",
+      "source_type": "original",
+      "suite": "doubleword_registers"
+    },
     "nds/dsp_multiply_registers/dsp_multiply_registers.nds": {
       "build_command": "python3 tests/roms-src/nds/dsp_multiply_registers/build.py",
       "console": "nds",
