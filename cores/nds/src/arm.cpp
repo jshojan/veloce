@@ -108,6 +108,46 @@ void Arm::step() {
         if(saturated) s.cpsr|=0x08000000u;
         s.r[15]=pc+4; return;
     }
+    // ARMv5TE DSP multiply family. Read all sources and accumulator halves
+    // before writing an aliased destination. These operations do not saturate.
+    if((ins&0x0f900090u)==0x01000080u) {
+        const unsigned kind=(ins>>21)&3,high=(ins>>16)&15,low=(ins>>12)&15;
+        const unsigned rs=(ins>>8)&15,rm=ins&15;
+        const bool x=ins&0x20,y=ins&0x40;
+        const bool long_accumulate=kind==2;
+        const bool accumulate=kind==0 || (kind==1 && !x);
+        if(!v5 || high==15 || rm==15 || rs==15 ||
+           ((long_accumulate || accumulate) && low==15) ||
+           (long_accumulate && low==high) ||
+           (!long_accumulate && !accumulate && low!=0)) {
+            s.unsupported=true; return;
+        }
+        const auto signed_word=[](uint32_t value)->int64_t {
+            return value&0x80000000u ? int64_t(value)-0x100000000LL:value;
+        };
+        const auto half=[](uint32_t value,bool top)->int64_t {
+            const uint32_t lane=(value>>(top ? 16:0))&0xffffu;
+            return lane&0x8000u ? int64_t(lane)-65536:lane;
+        };
+        int64_t product=(kind==1 ? signed_word(s.r[rm]):half(s.r[rm],x))*half(s.r[rs],y);
+        if(kind==1) {
+            // Discard low sixteen bits, including for a negative product.
+            // Integer division alone would incorrectly round toward zero.
+            product=product>=0 ? product/65536:-((-product+65535)/65536);
+        }
+        if(long_accumulate) {
+            const uint64_t accumulator=(uint64_t(s.r[high])<<32)|s.r[low];
+            const uint64_t result=accumulator+uint64_t(product);
+            s.r[low]=uint32_t(result);s.r[high]=uint32_t(result>>32);
+        } else {
+            if(accumulate) {
+                product+=signed_word(s.r[low]);
+                if(product>0x7fffffffLL || product< -0x80000000LL) s.cpsr|=0x08000000u;
+            }
+            s.r[high]=uint32_t(product);
+        }
+        s.r[15]=pc+4; return;
+    }
     if((ins&0x0ffffff0)==0x012fff10 || (ins&0x0ffffff0)==0x012fff30) {
         const bool link=ins&0x20;
         if(link && (!v5 || (ins&15)==15)) { s.unsupported=true; return; }

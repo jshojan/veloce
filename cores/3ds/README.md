@@ -25,9 +25,10 @@ software and firmware do not boot. Full platform completion is unmeasured.**
   REV16 and REVSH enabled only for ARM11. Unsupported instructions diagnose
   and stop that context. The shared decoder also supports CLZ and QADD/QSUB/QDADD/QDSUB
   on ARM9/ARM11, plus ARM-state BLX immediate and SWP/SWPB in the supplied legacy alignment model;
-  CLZ/saturation corpora are graded on DS ARM9, and exchanges on both DS CPUs.
-  Full DSP ISA and
-  platform-specific timing remain unverified.
+  all sixteen ARMv5TE signed DSP multiply forms are also supported.
+  CLZ/saturation/DSP corpora are graded on DS ARM9, and exchanges on both DS CPUs.
+  The DSP component gate independently checks ARM11 register aliases and flags.
+  Remaining ARMv6 DSP extensions and platform-specific timing are pending.
 - Shared 128 MiB FCRAM at `20000000–27ffffff`, shared 512 KiB AXI RAM at
   `1ff80000–1fffffff`, and 1 MiB ARM9 private RAM at `08000000–080fffff`.
   Bus byte/halfword/word access is little endian; unmapped reads/writes reject,

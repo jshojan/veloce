@@ -22505,6 +22505,17 @@
       "source_type": "original",
       "suite": "clz_registers"
     },
+    "nds/dsp_multiply_registers/dsp_multiply_registers.nds": {
+      "build_command": "python3 tests/roms-src/nds/dsp_multiply_registers/build.py",
+      "console": "nds",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "ba1b1540808cbbc619dc4da39cb73dfa38a9ffbfcdf93ef4e3b7d4a7fc9a9729",
+      "source_repo": "tests/roms-src/nds/dsp_multiply_registers/build.py",
+      "source_sha": "d650f16df3a6fe4484528f4c94185f5147950ca8ea420764dd9bd4601a051a6e",
+      "source_type": "original",
+      "suite": "dsp_multiply_registers"
+    },
     "nds/integer_registers/integer_registers.nds": {
       "build_command": "python3 tests/roms-src/nds/integer_registers/build.py",
       "console": "nds",
