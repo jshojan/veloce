@@ -2,7 +2,8 @@
 #include "rdp_coverage.hpp"
 #include "rdp_depth.hpp"
 namespace n64 {
-// One-cycle color/depth decisions with dithering disabled.
+// One-cycle color/depth decisions with an optional ordered alpha seed.
+// The caller applies final RGB dithering after these decisions.
 // Memory RGB is a retained latch; disabling image reads only replaces its alpha.
 struct RdpBlender {
     using Color=std::array<unsigned,4>;
@@ -18,14 +19,15 @@ struct RdpBlender {
         return force?(sum>>5)&255:divide(((a&~3u)+(b&~3u)+4)*512|((sum>>2)&2047));
     }
     struct DepthInput {unsigned z=0;uint16_t word=0;unsigned hidden=0;};
-    Result pixel(uint64_t mode,Color color,unsigned shade_alpha,uint32_t memory,unsigned count,unsigned cvbit,unsigned delta_z,const DepthInput* depth=nullptr){
+    Result pixel(uint64_t mode,Color color,unsigned shade_alpha,uint32_t memory,unsigned count,unsigned cvbit,unsigned delta_z,const DepthInput* depth=nullptr,unsigned alpha_dither=0){
         Result out;
         const unsigned memory_coverage=(mode&64)?(memory>>5)&7:7;
         if(mode&64)memory_rgb=memory>>8;
         const unsigned alpha256=color[3]==255?256:color[3];
         const unsigned scaled=(alpha256*count+4)>>3;
         if(mode&4096)count=(scaled>>5)&15;
-        color[3]=(mode&8192)?std::min(255u,(mode&4096)?scaled:count*32):color[3];
+        color[3]=(mode&8192)?std::min(255u,(mode&4096)?scaled:count*32):std::min(255u,alpha256+alpha_dither);
+        shade_alpha=std::min(255u,shade_alpha+alpha_dither);
         const auto decision=RdpDepth::compare(depth && (mode&16),unsigned(mode>>10)&3,mode&8,mode&16384,depth?depth->z:0,uint16_t(delta_z),depth?depth->word:0,depth?depth->hidden:0,count,memory_coverage);
         count=decision.coverage;
         const bool overflow=decision.overflow;

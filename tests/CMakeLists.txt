@@ -1101,3 +1101,19 @@ set_tests_properties(n64_rdp_primitive_depth PROPERTIES LABELS "accuracy;owned" 
 add_test(NAME n64_rdp_primitive_checkpoint_test COMMAND n64_rdp_packet_plugin_test
     $<TARGET_FILE:n64_plugin> ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/rdp_primitive_depth/rdp_primitive_depth.z64 primitive)
 set_tests_properties(n64_rdp_primitive_checkpoint_test PROPERTIES LABELS "integration;netplay;accuracy;owned" TIMEOUT 60)
+
+add_executable(n64_rdp_dither_test cpp/n64_rdp_dither_test.cpp)
+target_include_directories(n64_rdp_dither_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src)
+add_test(NAME n64_rdp_dither_test COMMAND n64_rdp_dither_test)
+set_tests_properties(n64_rdp_dither_test PROPERTIES LABELS "unit;accuracy" TIMEOUT 180)
+add_test(NAME n64_rdp_dither_mutants COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/n64_rdp_dither_mutants.py --compiler ${CMAKE_CXX_COMPILER}
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/component/n64_rdp_dither)
+set_tests_properties(n64_rdp_dither_mutants PROPERTIES LABELS "unit;accuracy" TIMEOUT 240)
+add_test(NAME n64_rdp_ordered_dither COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/rdp_ordered_dither/run.py --emulator $<TARGET_FILE:veloce>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_rdp_ordered_dither)
+set_tests_properties(n64_rdp_ordered_dither PROPERTIES LABELS "accuracy;owned" TIMEOUT 700)
+add_test(NAME n64_rdp_dither_checkpoint_test COMMAND n64_rdp_packet_plugin_test
+    $<TARGET_FILE:n64_plugin> ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/rdp_ordered_dither/rdp_ordered_dither.z64 hidden)
+set_tests_properties(n64_rdp_dither_checkpoint_test PROPERTIES LABELS "integration;netplay;accuracy;owned" TIMEOUT 60)

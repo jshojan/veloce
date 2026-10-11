@@ -52,6 +52,12 @@ int main(int argc,char** argv) {
         if(n)std::cout<<',';
         std::cout<<'"'<<std::hex<<std::setw(16)<<std::setfill('0')<<machine.dp_interface.packet.words[n]<<'"';
     }
+    const auto& dp=machine.dp_interface;
+    std::cout<<"],\"dp_color_image\":\""<<std::hex<<dp.color_image
+             <<"\",\"dp_other_mode\":\""<<dp.other_mode<<"\",\"dp_scissor\":\""<<dp.scissor
+             <<"\",\"dp_combine\":\""<<dp.combiner.combine<<"\",\"dp_depth_image\":\""<<dp.depth_image
+             <<"\",\"dp_primitive_depth\":\""<<dp.primitive_depth.snapshot()<<"\",\"dp_tile_descriptors\":[";
+    for(unsigned n=0;n<8;++n){if(n)std::cout<<',';std::cout<<'"'<<dp.texture.tiles[n].descriptor<<'"';}
     std::cout<<"],\"retail_boot_verified\":false,\"playability_verified\":false}\n";
     return 0;
 }

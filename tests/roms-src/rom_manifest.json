@@ -506,6 +506,17 @@
       "source_type": "original",
       "suite": "rdp_one_cycle_blend"
     },
+    "n64/rdp_ordered_dither/rdp_ordered_dither.z64": {
+      "build_command": "python3 tests/roms-src/n64/rdp_ordered_dither/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "244bf6528a7eaa52de0fb68ba02a2be41e63329e46280acc6acfebabbaaea267",
+      "source_repo": "tests/roms-src/n64/rdp_ordered_dither/build.py",
+      "source_sha": "5814273a0642de64229b3042bbd4c6d1bf9d707a415a746472ac553013b21533",
+      "source_type": "original",
+      "suite": "rdp_ordered_dither"
+    },
     "n64/rdp_packets/rdp_packets.z64": {
       "build_command": "python3 tests/roms-src/n64/rdp_packets/build.py",
       "console": "n64",

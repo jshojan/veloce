@@ -17,7 +17,7 @@ def main():
     if result.returncode:raise RuntimeError(result.stdout+result.stderr or 'probe failed before ROM observation')
     report=json.loads(result.stdout)
     report.update(requested_quanta=args.frames,console='N64',rom_sha256=hashlib.sha256(args.rom.read_bytes()).hexdigest(),rom_size=args.rom.stat().st_size,
-                  core_sha256=hashlib.sha256(args.core.read_bytes()).hexdigest(),status='execution-smoke' if report['loaded'] else 'blocked',
+                  core_sha256=hashlib.sha256(args.core.read_bytes()).hexdigest(),probe_sha256=hashlib.sha256(args.probe.read_bytes()).hexdigest(),status='execution-smoke' if report['loaded'] else 'blocked',
                   detail='Execution signals do not establish boot or playability.' if report['loaded'] else 'The image is malformed or its native boot variant is unsupported; retail boot remains unverified.')
     if report['loaded']:
         traced=subprocess.run([str(args.trace.resolve()),str(args.rom.resolve()),str(args.frames*100000)],capture_output=True,text=True,timeout=90)
