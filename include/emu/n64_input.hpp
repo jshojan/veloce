@@ -36,13 +36,13 @@ inline int axis(uint32_t word, unsigned index) {
     return value<128 ? int(value) : int(value)-256;
 }
 // Frontend policy, not a physical controller calibration: independent axial
-// dead zone, rescaled to +/-80. The canonical word carries integers only.
-inline int quantize(float value) {
-    if (!std::isfinite(value)) return 0;
+// dead zone, rescaled to a configured integer range (default +/-80).
+inline int quantize(float value, float deadzone=0.15f, int range=80) {
+    if (!std::isfinite(value) || !std::isfinite(deadzone) || deadzone<0 || deadzone>=1 || range<1 || range>127) return 0;
     value=std::clamp(value,-1.0f,1.0f);
     const float magnitude=std::abs(value);
-    if (magnitude<=0.15f) return 0;
-    const int result=int(std::lround((magnitude-0.15f)*(80.0f/0.85f)));
+    if (magnitude<=deadzone) return 0;
+    const int result=int(std::lround((magnitude-deadzone)*(float(range)/(1.0f-deadzone))));
     return value<0 ? -result : result;
 }
 }

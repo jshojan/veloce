@@ -475,3 +475,13 @@ ctest --test-dir build -R '^(n64_diagnostic_fields|n64_diagnostic_fields_test)$'
 The original cartridge grades 12,582,912 actual guest records / 150,994,944 words;
 32,505,856 component observations include every physical tag through defined
 CACHE store/load consumers. See the [domain, oracle and exclusions](roms-src/n64/diagnostic_fields/README.md).
+
+## Saved analog profiles through actual N64 guest RAM
+
+`n64_local_ports_test` now independently grades another 4,035 stick-profile
+cases / 24,210 RAM words. Source/polarity/dead-zone/range controls feed the
+ordinary SDL/default-plugin/frontend path into the original SI reply cartridge.
+Binary/source/ROM hashes stay fixed during capture. The executed wrong source
+rejects; twelve malformed profiles reject, legacy fields migrate, saved maps follow
+ports, and remapped sticks replay full movie states. `input_hotplug_test` covers
+restart, ambiguous/unique reconnect and player reset isolation.
