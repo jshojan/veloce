@@ -26157,6 +26157,17 @@
       "source_type": "original",
       "suite": "muldiv_registers"
     },
+    "switch/pair_transfer_registers/pair_transfer_registers.nso": {
+      "build_command": "python3 tests/roms-src/switch/pair_transfer_registers/build.py",
+      "console": "switch",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "88a10258c0419d8efc592e7603ad9877f5016e12058406744574ab5969fdd115",
+      "source_repo": "tests/roms-src/switch/pair_transfer_registers/build.py",
+      "source_sha": "d4b4484fa00e6548eaeadeb650ec811626dc776384c8e97748c16a76133b3635",
+      "source_type": "original",
+      "suite": "pair_transfer_registers"
+    },
     "switch/select_registers/select_registers.nso": {
       "build_command": "python3 tests/roms-src/switch/select_registers/build.py",
       "console": "switch",

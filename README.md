@@ -45,6 +45,15 @@ These are finite documented domains; **3DS remains 30%** of the delivery checkli
 Full CPU/system/MMU/exception/privilege behavior, physical timing, native firmware/
 retail boot, graphics/audio and analog/touch/wireless devices remain unfinished.
 See the [3DS core README](cores/3ds/README.md) for the implemented profile and limits.
+
+Switch's AArch64 plugin now implements integer paired loads/stores, signed-word
+pair loads, pre/post-index writeback and non-temporal pair transfers. Its
+[original NSO and independent file oracle](tests/roms-src/switch/pair_transfer_registers/README.md)
+grade **2,490,368 snapshots / 24,903,680 actual register words**, including every
+encoded displacement, SP/general bases and executed faulty variants. Complete
+native-state replay covers successful and terminal-fault continuations. This
+remains an integer process profile; native firmware/HOS/retail boot and full
+hardware are unfinished. Switch stays **25%**.
 <!-- completion:end -->
 
 A cross-platform, plugin-based emulator framework built for speedrunners and TAS creators.

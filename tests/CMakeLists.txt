@@ -1671,3 +1671,22 @@ set_tests_properties(ctr_dual_media_multiply_registers PROPERTIES LABELS "accura
 add_test(NAME ctr_dual_media_multiply_checkpoint_test COMMAND ctr_extend_checkpoint_test $<TARGET_FILE:ctr_plugin>
     ${CMAKE_SOURCE_DIR}/tests/roms-src/3ds/dual_media_multiply_registers/dual_media_multiply_registers.v3ds)
 set_tests_properties(ctr_dual_media_multiply_checkpoint_test PROPERTIES LABELS "accuracy;owned;integration" TIMEOUT 180)
+
+add_executable(switch_pair_transfer_test cpp/switch_pair_transfer_test.cpp ${CMAKE_SOURCE_DIR}/cores/switch/src/aarch64.cpp)
+target_include_directories(switch_pair_transfer_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/switch/src)
+target_compile_features(switch_pair_transfer_test PRIVATE cxx_std_17)
+add_test(NAME switch_pair_transfer_test COMMAND switch_pair_transfer_test)
+set_tests_properties(switch_pair_transfer_test PROPERTIES LABELS "unit;accuracy;owned" TIMEOUT 180)
+add_test(NAME switch_pair_transfer_registers COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/switch/pair_transfer_registers/run.py --emulator $<TARGET_FILE:veloce>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/switch_pair_transfer)
+set_tests_properties(switch_pair_transfer_registers PROPERTIES LABELS "accuracy;owned" TIMEOUT 600)
+add_test(NAME switch_pair_transfer_plugin_state_test COMMAND switch_plugin_state_test $<TARGET_FILE:switch_plugin>
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/switch/pair_transfer_registers/pair_transfer_registers.nso)
+set_tests_properties(switch_pair_transfer_plugin_state_test PROPERTIES LABELS "integration;accuracy;owned" TIMEOUT 90)
+add_executable(switch_pair_transfer_machine_test cpp/switch_pair_transfer_machine_test.cpp ${CMAKE_SOURCE_DIR}/cores/switch/src/aarch64.cpp ${CMAKE_SOURCE_DIR}/cores/switch/src/machine.cpp)
+target_include_directories(switch_pair_transfer_machine_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/switch/src ${CMAKE_SOURCE_DIR}/include)
+target_compile_features(switch_pair_transfer_machine_test PRIVATE cxx_std_17)
+add_test(NAME switch_pair_transfer_machine_test COMMAND switch_pair_transfer_machine_test
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/switch/pair_transfer_registers/pair_transfer_registers.nso)
+set_tests_properties(switch_pair_transfer_machine_test PROPERTIES LABELS "unit;integration;accuracy;owned" TIMEOUT 90)
