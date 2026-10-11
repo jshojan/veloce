@@ -169,3 +169,25 @@ uncovered-subsystem caveat. `tests/run_all.py` renders the cross-console roll-up
    (`scorecard_to_dict`) so `tests/run_all.py` can aggregate it locally.
 
 Fast sanity check for the framework itself: `python tests/veloce_testkit/selftest.py`.
+
+## N64 copy-cycle and private controller diagnostics
+
+The original [copy rectangle cartridge](roms-src/n64/rdp_copy_rectangles/README.md)
+grades 1,572,864 cases / 20,447,232 actual framebuffer, hidden-RAM, guard and DP/MI
+register words. Its executed wrong-capture, 13 field and seven malformed-stream
+controls are mandatory. Component, executed production-fault and S028 replay
+gates run through `ctest -R '^n64_rdp_copy_(test|mutants|checkpoint_test)$'`.
+An optional [pinned renderer comparison](reference/n64-copy/README.md) stays
+outside the repo. All 115 original archives reproduce without network or SDK.
+
+`n64_retail_probe.py --input-script tests/input/n64-title-start.txt --capture
+build/artifacts/retail/n64-copy-start.ppm` accepts a private ROM positional path
+and `--frames 10000`. Each input line is decimal scheduling quantum followed by
+hexadecimal port-zero virtual-button mask, with optional `#` comments. Transitions
+must strictly increase and fall in 0..9999; masks are raw 32-bit values without
+`0x`. Start is `40`, A is `1`, and a mask is retained until the next transition.
+Both production probe and CPU trace read the same file; the report records its
+SHA256. The trace uses 100,000 nominal CPU attempts per quantum. This is a bounded
+digital diagnostic, with no analog, physical timing or playability verdict.
+Capture metadata is recorded only when the current probe writes a capture.
+Private bytes/captures stay in ignored build artifacts.

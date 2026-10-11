@@ -1,19 +1,22 @@
 #include "machine.hpp"
+#include "retail_input_schedule.hpp"
 #include <fstream>
 #include <iostream>
 #include <iterator>
 #include <iomanip>
 #include <string>
 int main(int argc,char** argv) {
-    if(argc!=2 && argc!=3)return 2;
+    if(argc<2 || argc>4)return 2;
+    RetailInputSchedule input;try{if(argc==4)input.load(argv[3]);}catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 2;}
     uint64_t limit=12000000;
-    if(argc==3){try{size_t used=0;limit=std::stoull(argv[2],&used);if(argv[2][used] || !limit || limit>1000000000)return 2;}catch(...){return 2;}}
+    if(argc>=3){try{size_t used=0;limit=std::stoull(argv[2],&used);if(argv[2][used] || !limit || limit>1000000000)return 2;}catch(...){return 2;}}
     std::ifstream file(argv[1],std::ios::binary);if(!file.good())return 2;
     const std::vector<uint8_t> image{std::istreambuf_iterator<char>(file),{}};
     n64::Machine machine;const bool loaded=machine.load(image.data(),image.size());
     if(!loaded) {std::cout<<"{\"loaded\":false}\n";return 0;}
     bool fault=false;uint64_t handled_exceptions=0;uint32_t last_status=0;
     for(uint64_t n=0;n<limit && !machine.done;++n) {
+        if(n%100000==0)machine.input_buttons=input.at(unsigned(n/100000));
         last_status=uint32_t(machine.cpu.state.cp0[12]);machine.cpu.step();
         if(machine.cpu.exception_taken) {
             const unsigned code=(machine.cpu.state.cp0[13]>>2)&31;

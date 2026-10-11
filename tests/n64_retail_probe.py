@@ -6,6 +6,8 @@ ROOT=Path(__file__).resolve().parents[1]
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('rom',type=Path)
+    p.add_argument('--input-script',type=Path,help='Sorted decimal quantum / hexadecimal port-zero virtual-button transitions.')
+    p.add_argument('--capture',type=Path,help='Local PPM framebuffer capture; never committed.')
     p.add_argument('--frames',type=int,default=120,help='Frontend scheduling quanta (1..10000); trace uses 100000 nominal CPU attempts per quantum.')
     p.add_argument('--probe',type=Path,default=ROOT/'build/bin/retail_core_probe')
     p.add_argument('--core',type=Path,default=ROOT/'build/bin/cores/n64.so')
@@ -13,14 +15,22 @@ def main():
     p.add_argument('--output',type=Path,default=ROOT/'build/artifacts/retail/n64.json')
     args=p.parse_args()
     if not 1<=args.frames<=10000:p.error('--frames must be 1..10000')
-    result=subprocess.run([str(args.probe.resolve()),str(args.core.resolve()),str(args.rom.resolve()),str(args.frames)],capture_output=True,text=True,timeout=90)
+    command=[str(args.probe.resolve()),str(args.core.resolve()),str(args.rom.resolve()),str(args.frames)]
+    if args.capture:
+        args.capture.parent.mkdir(parents=True,exist_ok=True)
+        command.append(str(args.capture.resolve()))
+    elif args.input_script:command.append('-')
+    if args.input_script:command.append(str(args.input_script.resolve()))
+    result=subprocess.run(command,capture_output=True,text=True,timeout=180)
     if result.returncode:raise RuntimeError(result.stdout+result.stderr or 'probe failed before ROM observation')
     report=json.loads(result.stdout)
     report.update(requested_quanta=args.frames,console='N64',rom_sha256=hashlib.sha256(args.rom.read_bytes()).hexdigest(),rom_size=args.rom.stat().st_size,
                   core_sha256=hashlib.sha256(args.core.read_bytes()).hexdigest(),probe_sha256=hashlib.sha256(args.probe.read_bytes()).hexdigest(),status='execution-smoke' if report['loaded'] else 'blocked',
                   detail='Execution signals do not establish boot or playability.' if report['loaded'] else 'The image is malformed or its native boot variant is unsupported; retail boot remains unverified.')
     if report['loaded']:
-        traced=subprocess.run([str(args.trace.resolve()),str(args.rom.resolve()),str(args.frames*100000)],capture_output=True,text=True,timeout=90)
+        trace_command=[str(args.trace.resolve()),str(args.rom.resolve()),str(args.frames*100000)]
+        if args.input_script:trace_command.append(str(args.input_script.resolve()))
+        traced=subprocess.run(trace_command,capture_output=True,text=True,timeout=180)
         if traced.returncode:raise RuntimeError(traced.stdout+traced.stderr or 'boot trace failed')
         report['boot_trace']=json.loads(traced.stdout)
         report['trace_sha256']=hashlib.sha256(args.trace.read_bytes()).hexdigest()
@@ -33,6 +43,8 @@ def main():
         elif report['boot_trace'].get('dp_blocked'):
             report['status']='boot-blocked'
             report['detail']='The display processor stopped on an unsupported command/profile. Read dp_blocked_word and reason; retail boot/playability remain unverified.'
+    if args.input_script:report['input_script']=dict(path=str(args.input_script.resolve()),sha256=hashlib.sha256(args.input_script.read_bytes()).hexdigest(),format='decimal quantum / hexadecimal virtual port-zero mask; retained until next transition')
+    if args.capture and report.get('capture_written'):report['capture']=dict(path=str(args.capture.resolve()),sha256=hashlib.sha256(args.capture.read_bytes()).hexdigest())
     args.output.parent.mkdir(parents=True,exist_ok=True);args.output.write_text(json.dumps(report,indent=2)+'\n')
     print(json.dumps(report,indent=2));return 0
 if __name__=='__main__':raise SystemExit(main())

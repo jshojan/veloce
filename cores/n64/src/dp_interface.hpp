@@ -5,6 +5,7 @@
 #include <algorithm>
 #include "rdp_combiner.hpp"
 #include "rdp_fill.hpp"
+#include "rdp_copy.hpp"
 #include "rdp_texture.hpp"
 #include "rdp_convert.hpp"
 #include "rdp_tmem.hpp"
@@ -73,6 +74,7 @@ public:
         case 8:case 9:case 10:case 11:case 12:case 13:case 14:case 15:
             if(((other_mode>>52)&3)==3){reason=RdpTriangleFill::draw(packet,color_image,other_mode,scissor,fill_color,ram,hidden);supported=!reason;}
             else if(((other_mode>>52)&3)==0){reason=RdpTriangleShade::draw(packet,color_image,other_mode,scissor,combiner,ram,&texture,&tmem,&conversion,&blender,hidden,depth_image,&primitive_depth);supported=!reason;}
+            else if(((other_mode>>52)&3)==2 && hidden){reason=RdpCopy::triangle(packet,color_image,other_mode,scissor,texture,tmem,blender.blend,ram,*hidden);supported=!reason;}
             else supported=false;
             break;
         case 0:case 38:case 39:case 40:break; // NOP and settled load/pipe/tile barriers.
@@ -88,6 +90,8 @@ public:
         case 58:case 59:case 60:combiner.command(op,word);break;
         case 62:depth_image=uint32_t(word)&0x3ffffff;break;
         case 63:color_image=word&0x00ffffffffffffffull;break;
+        case 36:case 37:
+            if(hidden){reason=RdpCopy::rectangle(packet,color_image,other_mode,scissor,texture,tmem,blender.blend,ram,*hidden);supported=!reason;}else supported=false;break;
         case 54:reason=RdpFill::draw(word,color_image,other_mode,scissor,fill_color,ram,hidden);supported=!reason;break;
         default:supported=false;break;
         }

@@ -13,7 +13,7 @@ These percentages count the 20 explicit delivery milestones in [the completion l
 
 Nintendo 64 delivered milestones: Guest sound produces audio samples, Native digital controller/keypad registers consume frontend input, Guest graphics produce rendered video, Parse a native cartridge/executable format (boot scored separately), Actual production-plugin TCP peers pass original guest oracle and whole-state comparison, Repository-owned ROM source and reproducible archived image, Separate core plugin and ABI entry points, Actual guest register-file output independently graded on the host, with negative controls, Complete states for the implemented profile and deterministic replay.
 
-Remaining: Super Mario 64 passes SET_Z_IMAGE and real color/depth-buffer clears, then reaches the 200-million-attempt trace bound without a terminal CPU fault. RSP reciprocal/square-root/move now pass; the longer probe reports no unsupported RSP instruction and a real BREAK. RDP TMEM block/tile/palette transfers now pass; functional one-cycle RGBA32 shade/primitive/environment and affine/perspective textured/color-converted pixels with one-cycle blending/AA/alpha-coverage decisions pass original framebuffer/register oracles; Mario’s textured/depth-tested triangle profile remains blocked; video stays uniform. Native boot/playability, full CPU/CP0/devices, FPU physical timing, rare RSP operations and pipeline/interlock timing, complete RDP/audio, hidden coverage/depth bits, analog/accessories/presence detection, local multiplayer frontend routing and physical timing remain. Production two-player TCP rollback is verified for the implemented digital profile; four virtual PIF ports are supported.
+Remaining: Super Mario 64 now renders its logo and animated title head in a bounded private probe. Functional copy-cycle rectangles/triangles, bank-coupled TMEM/palette transfers, raw alpha decisions and hidden byte-write metadata have independent original RAM/register and pinned-reference evidence. A scripted Start/A probe produced no observed menu transition. Full retail boot/gameplay, complete CPU/CP0/devices, physical FPU/RSP timing, complete RDP/audio, one/two-cycle texture rectangles and LOD, random dithering/noise and CI8 alpha thresholds, analog/accessories/presence detection, local multiplayer frontend routing and physical timing remain. Production two-player TCP rollback is verified for the implemented digital profile; four virtual PIF ports are supported.
 <!-- completion:end -->
 
 `n64_plugin` builds `n64.so`/`n64.dll`/`n64.dylib` and implements emulator ABI v2.
@@ -2913,7 +2913,7 @@ rendering; **full retail boot, gameplay, controller-driven playability and
 complete graphics/audio accuracy remain unverified**. Commercial bytes, private
 captures and third-party implementations are not committed.
 
-Plugin **0.41.0**, ABI v2 and **VN64S028 / 9,527,576 bytes** are current. The fix
+At that increment, plugin **0.41.0**, ABI v2 and **VN64S028 / 9,527,576 bytes** were current. The fix
 adds no state fields. N64 remains **45% = 9/20 delivery milestones**, and the
 frontpage/core percentages stay synchronized. Random dithering/noise,
 LOD/mipmapping, two-cycle/interpixel feedback, complete peripherals and physical
@@ -2937,3 +2937,79 @@ along with both complete original guest corpora and controls, the pinned primary
 comparison, all four executed faults, UBSAN, production TCP netplay, the full
 build and the **114-ROM reproducibility check**. Completion/whitespace checks
 pass and current private core/probe/trace hashes match the report.
+
+
+## Copy-cycle transfers and Mario title head
+
+The next private Mario stop was E4 `e40b4324000782e8` in copy cycle mode.
+The core now executes E4/E5 texture rectangles and copy-cycle triangle packets
+through bank-coupled 64-bit TMEM transfers. It preserves raw palette lanes,
+neighbor masks/mirrors, odd-row bank swaps, copy coordinate shifts, perspective
+and copy LOD tile selection. Raster writes support 4/8/16-bit framebuffer sizes,
+inclusive rectangle bottoms, scissor/field selection, both triangle traversals,
+raw 16-bit alpha and 8-bit pair masks, hidden halfword bits and retained history.
+Inactive combiner, blender, RGB dither and depth fields do not affect copy data.
+Unsupported random CI8 alpha thresholds, 32-bit framebuffer crash behavior and
+out-of-range writes reject before mutation. This is functional evidence;
+physical DMA/crash timing and complete one/two-cycle LOD are pending.
+
+The original MIT [`rdp_copy_rectangles`](https://github.com/jshojan/veloce/tree/main/tests/roms-src/n64/rdp_copy_rectangles)
+cartridge passes **1,572,864 cases / 20,447,232 actual captured 64-bit words**.
+All 65,536 coupled seeds run across three framebuffer sizes, both rectangle
+coordinate orientations, alpha on/off and RDRAM/wrapped-DMEM command sources.
+The guest emits framebuffer, MI EBUS hidden-RAM, guard and DP/MI register words;
+the independent Python oracle grades the strict stream. Its **336-case** control
+passes; an executed wrong-capture cartridge fails every row; **13 field faults**
+and **seven malformed streams** are rejected. This selected joint domain does
+not cover the entire Cartesian coordinate/TMEM corpus.
+
+The normal component test passes **131,072 RGBA16 bank fetches** and
+**786,432 rectangle RAM/hidden comparisons**, including multiple bursts, flipped
+axes, alpha masks, atomic bounds rejection, palette lanes and empty CI8 history.
+**Ten compiled production faults** are rejected after actual execution. UBSAN
+and warning-as-error compilation pass. The optional [pinned comparison](https://github.com/jshojan/veloce/tree/main/tests/reference/n64-copy)
+against unchanged Angrylion RDP Plus at
+`9c8b9ed3e7d7f00dff8bc872ccdd3fba1a3673fc` has zero mismatches in
+**4,194,304 bank fetches** and **98,304 rectangle/triangle RAM, hidden-bit and
+retained-history comparisons**. The external renderer remains outside the repo.
+These counts describe software comparisons, not physical-console validation.
+
+The private **10,000 scheduling quanta / one billion CPU attempts** Mario probe
+now renders its **animated title head**, with no terminal CPU exception or
+unsupported RSP/DP stop. This extends the earlier logo observation;
+**gameplay and full retail playability remain unverified**. Private ROM bytes and
+captures are not committed. The diagnostic tools now accept the same sorted
+port-zero digital input script, and record its SHA256 alongside the core/probe/
+trace hashes. Quantum means frontend scheduling quantum; the CPU trace uses
+100,000 nominal attempts per quantum. This script is diagnostic input, not a
+controller-driven playability acceptance gate.
+
+Plugin **0.42.0**, ABI v2 and **VN64S028 / 9,527,576 bytes** are current.
+Copy uses existing serialized TMEM/DP/hidden state; no new state fields are added.
+N64 stays **45% = 9/20 delivery milestones**. Frontpage and all core percentages
+share the same fixed ledger. CI/CD remains disabled.
+
+```sh
+ctest --test-dir build -R '^n64_rdp_copy_(test|mutants|checkpoint_test)$' --output-on-failure
+python3 tests/roms-src/n64/rdp_copy_rectangles/run.py
+python3 tests/roms-src/build.py --original-only --check
+python3 tests/n64_retail_probe.py /path/to/private.z64 --frames 10000 --capture build/artifacts/retail/n64-copy.ppm --output build/artifacts/retail/n64-copy.json
+python3 tests/n64_retail_probe.py /path/to/private.z64 --frames 10000 --input-script tests/input/n64-title-start.txt --capture build/artifacts/retail/n64-copy-start.ppm --output build/artifacts/retail/n64-copy-start.json
+```
+
+Artifacts: `build/artifacts/owned/n64_rdp_copy_rectangles/`,
+`build/artifacts/component/n64_rdp_copy/` and the private retail paths above.
+
+Final verification: **67/67 selected N64 regression/component/checkpoint tests**
+pass in **164.40 seconds**, including production copy output/full-state replay.
+Production two-process TCP rollback also passes. The full build, original full
+copy corpus and all controls, ten executed faults, UBSAN and **115 original ROM
+archive reproductions** pass. Completion and whitespace checks pass.
+
+The final idle and scripted Start/A probes each execute **272,121,722 RSP
+instructions** and observe **500,082 audio sample pairs** in 10,000 quanta. Both
+have no terminal CPU/RSP/DP stop. Their final captured framebuffer and recorded
+CPU/DP/RSP trace are identical; **no menu transition or controller-driven gameplay
+was observed**. The audio count does not establish audible correctness. Current
+core/probe/trace and input-script hashes match the recorded reports. Captures are
+`build/artifacts/retail/n64-copy.png` and `n64-copy-start.png` (PPMs alongside).
