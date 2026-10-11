@@ -13,11 +13,11 @@ def cases(short=False,accumulate=None):
     mode=ACCUMULATE if accumulate is None else accumulate
     if mode:
         for pattern in range(4):
-            for group in range(2 if short else 8192):
+            for group in ((0,1,4096,8191) if short else range(8192)):
                 for fn in ACC:yield pattern,group,(group+pattern)%16,fn
     else:
-        for left in range(2 if short else 256):
-            for group in range(2 if short else 32):
+        for left in ((0,1,128,255) if short else range(256)):
+            for group in ((0,1,16,31) if short else range(32)):
                 for e in range(16):
                     for fn in BASIC:yield left,group,e,fn
 EDGES=(0,1,0x7fff,0x8000,0xffff,0x1fffff,0x200000,0x3fffff,0x400000,0x7fffffff,0x80000000,0xffffffff,0x7fffffffffff,0x800000000000,0xffff80000000,0xffff7fffffff,0xffffffffffff)
@@ -35,7 +35,7 @@ def build(short=False,wrong_capture=False,accumulate=None,suite=None):
     if mode:
         for reg,off in zip(range(7,12),range(32,112,16)):code.append(vector(False,reg,off))
         code.append(math(7,0,7,10,12));code.extend([math(15,0,7,10,12)]*3)
-        code.extend((math(15,0,8,11,12),math(13,0,9,11,12)))
+        code.extend((math(15,0,8,11,12),math(13,0,11,9,12)))
         for reg,e in zip(range(3,6),range(8,11)):code.append(math(29,e,0,0,reg))
         for reg,off in zip(range(3,6),range(640,688,16)):code.append(vector(True,reg,off))
     operation=len(code)*4;code.append(0)

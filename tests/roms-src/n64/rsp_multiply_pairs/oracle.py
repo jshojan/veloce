@@ -13,7 +13,7 @@ def compute(fn,left,right,raw,parity):
         upper=old//4194304
         total=old+(2097152 if upper<0 else -2097152 if upper>0 else 0) if raw//2097152%2==0 else old
     else:
-        product={4:left*right//65536,5:left*b,6:a*right,7:a*b*65536,8:2*a*b,9:2*a*b,12:left*right//65536,13:left*b,14:a*right,15:a*b*65536}[fn]
+        product={4:left*right//65536,5:a*right,6:left*b,7:a*b*65536,8:2*a*b,9:2*a*b,12:left*right//65536,13:a*right,14:left*b,15:a*b*65536}[fn]
         total=product+(old if fn>=8 else 0)
     raw=total%2**48;upper=signed(raw,48)//65536
     if fn in (3,11):out=signed_clamp(upper//2)&65520

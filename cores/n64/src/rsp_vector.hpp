@@ -105,14 +105,15 @@ private:
             case 2:case 10:value=old;if((fn==2 && old>=0) || (fn==10 && old<0))value+=b*((vs&1)?65536:1);break;
             case 3:value=a*b;if(value<0)value+=31;value*=65536;break;
             case 4:value=int64_t(uint64_t(left[i])*right[i]/65536);break;
-            case 5:value=int64_t(left[i])*b;break;
-            case 6:value=a*int64_t(right[i]);break;
+            // M uses signed VS × unsigned VT; N uses unsigned VS × signed VT.
+            case 5:value=a*int64_t(right[i]);break;
+            case 6:value=int64_t(left[i])*b;break;
             case 7:value=a*b*65536;break;
             case 8:case 9:value=old+a*b*2;break;
             case 11:value=old;if(!(accumulator[i]&0x200000)){if(old<0)value+=0x200000;else if(old>=0x400000)value-=0x200000;}break;
             case 12:value=old+int64_t(uint64_t(left[i])*right[i]/65536);break;
-            case 13:value=old+int64_t(left[i])*b;break;
-            case 14:value=old+a*int64_t(right[i]);break;
+            case 13:value=old+a*int64_t(right[i]);break;
+            case 14:value=old+int64_t(left[i])*b;break;
             case 15:value=old+a*b*65536;break;
             }
             accumulator[i]=uint64_t(value)&acc_mask;const int64_t wrapped=signed48(accumulator[i]);uint16_t result=0;
