@@ -3180,3 +3180,72 @@ are grounded in the pinned
 [rasterizer](https://github.com/ata4/angrylion-rdp-plus/blob/9c8b9ed3e7d7f00dff8bc872ccdd3fba1a3673fc/src/core/n64video/rdp/rasterizer.c)
 and [blender](https://github.com/ata4/angrylion-rdp-plus/blob/9c8b9ed3e7d7f00dff8bc872ccdd3fba1a3673fc/src/core/n64video/rdp/blender.c)
 software reference; physical pipeline timing remains unverified.
+
+## Primitive depth and S028 replay
+
+SetPrimDepth now retains its canonical 15-bit Z and raw 16-bit delta. The
+ignored high Z bit is masked, Z reaches the comparator as the command value
+multiplied by eight, and delta is used directly without triangle-gradient
+normalization. One-cycle primitive depth selection overrides triangle Z and
+derivatives; it also supplies the memory-alpha delta shifter when Z comparison
+is disabled. Interpolated depth remains available. Command and selection
+semantics are grounded in the pinned
+[rasterizer](https://github.com/ata4/angrylion-rdp-plus/blob/9c8b9ed3e7d7f00dff8bc872ccdd3fba1a3673fc/src/core/n64video/rdp/rasterizer.c)
+software reference; physical pipeline timing is not verified.
+
+The independent component gate passes **4,194,304 command captures**: each
+16-bit field, four selected partners, all four opcode aliases and DRAM/XBUS
+fetch. It independently checks **4,194,304 RGBA16/RGBA32 paired Z stores** with
+primitive depth overriding conflicting triangle coefficients. All **65,536 raw
+delta values** also pass both the shifter arithmetic and actual no-Z triangle
+path. Reset and reserved-state-bit rejection pass. All **seven compiled faults**
+are rejected after execution; compile failures are not counted as rejections.
+Warning-as-error and UBSAN pass. The individual fields are complete; their full
+joint command/render operand space is not exhausted.
+
+The original MIT cartridge
+[`rdp_primitive_depth`](https://github.com/jshojan/veloce/tree/main/tests/roms-src/n64/rdp_primitive_depth)
+passes **1,048,576 cases / 22,020,096 actual 64-bit RAM/register observations**.
+It varies each command field over all 65,536 bit patterns with selected partners,
+all four Z modes and RDRAM/wrapping-XBUS delivery. Conflicting triangle Z values
+verify primitive selection. Guest instructions read color/depth RAM and hidden
+metadata plus guards and DP/MI completion registers, using two lines per case.
+Independent host quarter-grid/compression/comparator arithmetic grades actual
+results. The 160-case control passes, its separately executed wrong-capture ROM
+fails every control row, and **21 field flips / seven stream controls** reject.
+Initial stored depth, color and alpha partners vary with the input; geometry and
+coverage are fixed. No commercial ROM, SDK or expected-result bytes are included.
+
+Plugin **0.39.0**, ABI v2, **VN64S028 / 9,527,576 bytes** are current. Eight bytes
+for canonical primitive depth are appended after the S027 prefix. Imports of
+S027 preserve existing RAM, hidden history, depth-image and other state bytes,
+with primitive depth initialized to zero; earlier imports remain supported.
+The state gate checks FullSync replay, all 33 reserved bits and neutral S027
+conversion. Production netplay checkpoint replay compares subsequent actual
+guest output and the complete state; invalid primitive state rejects atomically.
+All **113 original ROM archives** reproduce against the manifest.
+
+```sh
+ctest --test-dir build -R '^n64_rdp_primitive' --output-on-failure
+python3 tests/roms-src/build.py --original-only --check
+```
+
+Artifacts: `build/artifacts/owned/n64_rdp_primitive_depth/` and
+`build/artifacts/component/n64_rdp_primitive_depth/`. N64 stays **45% = 9/20
+delivery milestones**. Dithering, LOD/mipmapping, two-cycle/interpixel state,
+physical timing and full retail graphics remain unfinished. CI/CD remains
+disabled; the full Nintendo implementation goal remains active.
+
+The current private Super Mario 64 USA probe runs **2,000 quanta / 200 million
+CPU attempts** without a terminal CPU fault and still stops on the complete
+22-word `CF000FFA0FFAF006` triangle at `0x227160`, reason 1. Video stays uniform;
+retail boot and playability remain **unverified**. The current plugin and trace
+hashes match `build/artifacts/retail/n64-primitive-depth.json`. This feature
+expands the implemented one-cycle profiles; Mario's remaining graphics profile
+is still unsupported.
+
+Final verification passes all **63 selected N64 regression/component/checkpoint
+tests** and production TCP netplay, including the S028 capacity, FullSync,
+reserved-bit, S027 conversion and primitive guest checkpoint gates. The full
+build, independent component/guest controls, UBSAN and 113-ROM reproducibility
+gates also pass. The frontpage/core percentage verifier is synchronized.
