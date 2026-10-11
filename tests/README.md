@@ -217,3 +217,15 @@ Private `tests/n64_retail_vi.py` verifies SM64 courtyard input and optional
 VI movie artifacts without archiving private bytes. Full playability, physical
 timing and practical normal-speed play remain unverified. See the N64 core
 README and original cartridge README for exact coverage and reproduction.
+
+## N64 original integer traps
+
+`n64_integer_traps` grades an actual production plugin RAM/CP0 stream from an
+original cartridge: 15,728,640 cases / 188,743,680 words, all immediate/software
+code fields over the documented operand patterns. Guest handlers capture raw
+state and ERET; the Python oracle owns every verdict. The 15,360-case executed
+opposite-condition control, twelve field faults and seven damaged/order streams
+must fail. `n64_integer_trap_test` adds 37,810,176 native component observations
+including defined 32-bit operands, source aliases, branch annul and nested/BEV
+behavior. Full output is about 1.51 GB, SHA-checked with bounded memory. See
+`roms-src/n64/integer_traps/README.md`; LL/SC, full CPU and physical timing remain.
