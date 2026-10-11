@@ -135,3 +135,7 @@ instruction exceptions and complete CPU behavior remain pending.
 The shared decoder also implements ARMv6 scalar/dual-halfword saturation for
 3DS ARM11. DS/DSi CPU profiles reject these encodings; their ARMv4/v5 instruction
 support and platform completion percentages are unchanged.
+
+ARMv6 parallel arithmetic/SEL and GE writes in the shared decoder are enabled
+only for 3DS ARM11. DS/DSi reject these encodings and keep their existing ARMv4/
+v5 instruction profiles and delivery percentages.

@@ -11,7 +11,7 @@ These percentages count the 20 explicit delivery milestones in [the completion l
 
 Nintendo 3DS delivered milestones: Native digital controller/keypad registers consume frontend input, Actual production-plugin TCP peers pass original guest oracle and whole-state comparison, Repository-owned ROM source and reproducible archived image, Separate core plugin and ABI entry points, Actual guest register-file output independently graded on the host, with negative controls, Complete states for the implemented profile and deterministic replay.
 
-Remaining: ARM11 ARMv6 extension/accumulate and scalar/dual-halfword saturation now have original independently graded register images, flags/alias/profile controls and actual native checkpoint continuations. The new saturation image checks 12,582,912 snapshots / 88,080,384 register words. Remaining CPU/MMU, firmware/native formats, graphics/audio, analog/touch and wireless multiplayer remain.
+Remaining: ARM11 ARMv6 extension/accumulate, scalar/dual-halfword saturation and 36 parallel arithmetic forms plus SEL now have original independently graded register images, flags/alias/profile controls and native checkpoint continuations. The new parallel image checks 19,922,944 snapshots / 179,306,496 register words. Remaining CPU/MMU, firmware/native formats, graphics/audio, analog/touch and wireless multiplayer remain.
 <!-- completion:end -->
 
 `ctr_plugin` builds `3ds.so` (or the platform library equivalent), ABI v2,
@@ -132,7 +132,7 @@ Frontend controller bindings and hotplug support are shared, but physical
 Remaining CPU instructions, privileged/banked/exception state, firmware,
 MMU/caches/TCM, SMP coherency, physical timing, DMA, graphics/GPU/VRAM, DSP/audio,
 wireless, storage, services, native formats and New 3DS extensions remain
-pending. Wii U now has a separate partial integer plugin; Switch still lacks a core. No overall hardware
+pending. Wii U and Switch now have separate partial integer plugins. No overall hardware
 completion percentage is inferred from these finite test domains.
 
 Instruction definitions follow the ARM-published
@@ -200,3 +200,33 @@ The full capture has zero mismatches and fixed source/binary fingerprints.
 Completion renderer and whitespace checks pass. This increment changes neither
 the native state format nor the emulator ABI and does not add a fresh private
 Mario 64 capture.
+
+## ARM11 parallel arithmetic and GE selection (2026-10-11)
+
+3DS 0.5.0 adds 36 ARMv6 wrapping/saturating/halving byte/halfword arithmetic
+forms and SEL, plus CPSR_s/fs register/immediate writes for GE. Wrapping signed
+GE reflects the unwrapped result's sign; unsigned GE reflects carry/no borrow.
+Parallel saturation preserves Q; halving keeps the wide arithmetic bit before
+discarding bit zero. SEL consumes actual GE and leaves flags unchanged.
+The original dual-ARM11 image independently grades **19,922,944 snapshots /
+179,306,496 actual register words**: complete byte pairs at each constrained
+lane, full left halfwords at two right boundary words, and all 16 SEL masks.
+This is bounded coverage, not every independent lane or halfword operand pair.
+The component gate checks **32,198,238 observations**, including aliases,
+conditions, flags, reserved encodings, profile isolation and GE writes.
+Executed wrong-result/Q/GE/SEL controls reject all 2,432 short cases; wrong-source
+rejects 2,312. Nine field faults and seven malformed streams reject. Native
+checkpoint prefixes compare actual text and complete 135,791,096-byte states.
+Full CPU/media/system/MMU/exception behavior, timing, firmware/retail boot,
+graphics/audio and native devices remain pending. State format and ABI are
+unchanged; 3DS remains **30%**. See [original source and domains](../../tests/roms-src/3ds/parallel_registers/README.md).
+
+Verification for 0.5.0: full Release build passes; all **142 original archives**
+reproduce. All **22 selected gates** passed the first candidate; after the MSR
+source diagnostic correction, all **nine affected register/checkpoint/machine/
+network gates** pass on the final binary. The repeated full register capture
+has zero mismatches and stable source/binary hashes. The native checkpoint gate
+compares **5,657 actual register rows** across three continuation prefixes.
+The earlier decoder fails the arithmetic gate; the draft without the MSR guard
+fails the reserved-source rejection gate. Completion renderer and whitespace
+checks pass. CI/CD remains disabled.

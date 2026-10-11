@@ -518,3 +518,23 @@ compare actual continuation text and complete 135,791,096-byte states.
 Full CPU/media/system support, timing/MMU/exceptions, firmware/native retail,
 graphics/audio and analog/touch/wireless remain pending. No delivery milestone
 is newly complete; 3DS remains **30%**. See [source and finite domains](roms-src/3ds/saturation_registers/README.md).
+
+## ARM11 parallel arithmetic and GE selection (2026-10-11)
+
+3DS 0.5.0 adds 36 ARMv6 wrapping/saturating/halving byte/halfword arithmetic
+forms and SEL, plus CPSR_s/fs register/immediate writes for GE. Wrapping signed
+GE reflects the unwrapped result's sign; unsigned GE reflects carry/no borrow.
+Parallel saturation preserves Q; halving keeps the wide arithmetic bit before
+discarding bit zero. SEL consumes actual GE and leaves flags unchanged.
+The original dual-ARM11 image independently grades **19,922,944 snapshots /
+179,306,496 actual register words**: complete byte pairs at each constrained
+lane, full left halfwords at two right boundary words, and all 16 SEL masks.
+This is bounded coverage, not every independent lane or halfword operand pair.
+The component gate checks **32,198,238 observations**, including aliases,
+conditions, flags, reserved encodings, profile isolation and GE writes.
+Executed wrong-result/Q/GE/SEL controls reject all 2,432 short cases; wrong-source
+rejects 2,312. Nine field faults and seven malformed streams reject. Native
+checkpoint prefixes compare actual text and complete 135,791,096-byte states.
+Full CPU/media/system/MMU/exception behavior, timing, firmware/retail boot,
+graphics/audio and native devices remain pending. State format and ABI are
+unchanged; 3DS remains **30%**. See [original source and domains](roms-src/3ds/parallel_registers/README.md).

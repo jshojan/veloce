@@ -22,6 +22,17 @@
       "source_type": "original",
       "suite": "netplay_probe"
     },
+    "3ds/parallel_registers/parallel_registers.v3ds": {
+      "build_command": "python3 tests/roms-src/3ds/parallel_registers/build.py",
+      "console": "3ds",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "0917fb6a837ddc4d638693d90aae92b6404123e11c55a432b597889b4371a3fc",
+      "source_repo": "tests/roms-src/3ds/parallel_registers/build.py",
+      "source_sha": "eee0b700a746bc7512e4b36ddfb2cb8aaa68143607ed5635006c6bf92fc1d9da",
+      "source_type": "original",
+      "suite": "parallel_registers"
+    },
     "3ds/reversal_registers/reversal_registers.v3ds": {
       "build_command": "python3 tests/roms-src/3ds/reversal_registers/build.py",
       "console": "3ds",
