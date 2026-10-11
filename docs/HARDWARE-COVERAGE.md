@@ -2974,3 +2974,67 @@ regression/component/checkpoint gates pass after correcting the older MI guest
 helper to execute enabled-EBUS windows from SP DMEM. Its unchanged independent
 oracle still passes 393,216 register rows; executed/field/stream controls reject.
 The corrected archive reproduces alongside the other 108 owned ROMs.
+
+## Shared RDP hidden coverage and RGBA16 blending
+
+RDP fill rectangles and native fill-cycle triangles now update shared hidden
+RDRAM metadata. CI8 writes retain eight history lanes, follow the major-edge
+traversal direction and flush delayed upper-bit writes at command completion.
+RGBA16/32 fills replicate each halfword's data LSB into its hidden pair. Fill
+bounds/unsupported profiles preflight before RAM or metadata mutation.
+
+Functional one-cycle RGBA16 triangles now use the existing shade/texture,
+combiner and blender path. Memory RGB reads zero-fill the lower three bits of
+five-bit channels, as in the
+[pinned RDP framebuffer source](https://github.com/ata4/angrylion-rdp-plus/blob/9c8b9ed3e7d7f00dff8bc872ccdd3fba1a3673fc/src/core/n64video/rdp/fbuffer.c)
+and [channel macros](https://github.com/ata4/angrylion-rdp-plus/blob/9c8b9ed3e7d7f00dff8bc872ccdd3fba1a3673fc/src/core/n64video.c).
+This differs from the VI's display expansion. Memory coverage combines the
+ordinary word's low bit with two hidden bits. RGBA16 output retains quantized
+RGB and the coverage upper bit in RAM, and the lower coverage pair in hidden
+memory. RGBA32 output keeps coverage in its alpha byte, stores the green LSB
+pair and clears the second hidden pair. Color writes update retained history.
+
+The new original
+[RGBA16 hidden-coverage ROM](https://github.com/jshojan/veloce/tree/main/tests/roms-src/n64/rdp_hidden_rgba16)
+passes **655,360 cases / 8,519,680 actual RAM/register observations**. Four pixel
+pairs and four gathered hidden-metadata pairs are independently graded alongside
+guards and DP/MI completion registers. Both command sources, every selected
+RGB seed/alpha pair, four profiles and all 256 blender selector combinations
+are covered with finite source partners. The 1,616-case control passes; its
+separately executed mutant fails every row, and all thirteen field flips and
+seven stream controls reject. Background coverage, geometry and shade are fixed;
+full joint texture/geometry/depth and framebuffer-format domains remain pending.
+
+Component gates pass **262,144 complete RGBA16 read encodings**, **1,048,576
+paired framebuffer writes**, **196,608 rectangle fill metadata patterns** and
+**393,216 clipped/oriented triangle metadata captures**. A per-byte metadata
+oracle checks RAM, every hidden halfword and every retained lane, including a
+final unpaired CI8 byte. All **nine compiled production faults** are rejected
+after execution. Warning-as-error and UBSAN pass.
+
+The machine passes the hidden bitmap into supported RDP paths. **VN64S027**,
+**9,527,568 bytes**, ABI v2 and existing legacy imports remain current; plugin
+**0.36.0** is current. The production checkpoint replays subsequent actual guest
+output and whole state byte for byte. All **110 owned ROM archives** reproduce
+and match the manifest.
+
+```sh
+ctest --test-dir build -R '^n64_rdp_(framebuffer|hidden)' --output-on-failure
+python3 tests/roms-src/build.py --original-only --check
+```
+
+Artifacts: `build/artifacts/owned/n64_rdp_hidden_rgba16/` and
+`build/artifacts/component/n64_rdp_framebuffer/`. Depth compression/comparison/
+update, dithering, LOD/mipmapping, two-cycle feedback/blending, physical timing,
+full graphics and hardware-wide corpora remain incomplete. N64 stays **45% =
+9/20 delivery milestones**; CI/CD remains disabled and the full Nintendo goal
+remains active.
+
+The full build, all **56 selected N64 component/regression/checkpoint gates**,
+production TCP rollback and the new framebuffer production checkpoint pass.
+The private Mario probe reaches **200 million CPU attempts** without a terminal
+CPU fault; the complete **22/22-word CF000FFA0FFAF006 packet at 0x227160**,
+fetched CURRENT **0x227210**, reason 1 and uniform video remain. Native
+boot/playability are unverified. Current binary hashes match the ignored report
+`build/artifacts/retail/n64-hidden-framebuffer.json`. No commercial ROM bytes
+are committed.

@@ -5,29 +5,31 @@
 #include "rdp_convert.hpp"
 #include "rdp_texture_divider.hpp"
 #include "rdp_blender.hpp"
+#include "rdp_framebuffer.hpp"
 namespace n64 {
-// Functional one-cycle RGBA32: optional blending/AA/alpha-coverage decisions.
+// Functional one-cycle RGBA16/RGBA32: optional blending/AA/alpha-coverage decisions.
 // No key, dither, Z accesses or previous-pixel combiner feedback. Affine/perspective
 // texture sampling supports cycle-zero filtering/passthrough, color conversion and
 // optional TLUT. SetConvert also supplies K4/K5 combiner inputs.
-// Unsupported profiles reject before any framebuffer write. Hidden RDRAM
-// bits and physical pipeline/crash timing remain separate work.
+// Unsupported profiles reject before any framebuffer write. Physical pipeline/crash timing remains separate work.
 struct RdpTriangleShade {
-    static unsigned draw(const RdpPacket& packet,uint64_t image,uint64_t mode,uint64_t scissor,const RdpCombiner& combiner,std::vector<uint8_t>& ram,const RdpTexture* texture=nullptr,const RdpTmem* tmem=nullptr,const RdpConvert* conversion=nullptr,RdpBlender* blender=nullptr){
+    static unsigned draw(const RdpPacket& packet,uint64_t image,uint64_t mode,uint64_t scissor,const RdpCombiner& combiner,std::vector<uint8_t>& ram,const RdpTexture* texture=nullptr,const RdpTmem* tmem=nullptr,const RdpConvert* conversion=nullptr,RdpBlender* blender=nullptr,HiddenRdram* hidden=nullptr){
         RdpTriangle triangle;if(!RdpTriangle::decode(packet,triangle))return 1;
         const bool textured=triangle.texture && texture && tmem;
         const uint64_t sampling=textured?((63ull<<42)|(1ull<<51)):0;
         const uint64_t dither=(3ull<<38)|(3ull<<36);
         const uint64_t allowed=dither|0xffff0000ull|0x340ull|sampling|(blender?0x7089ull:0);
         if((mode&~allowed) || (mode&dither)!=dither || (!blender && ((mode>>30)&3)) || !combiner.independent_one_cycle(textured,conversion!=nullptr) || (textured && !(mode&(1ull<<43)) && !conversion))return 1;
-        if(((image>>53)&7)!=0 || ((image>>51)&3)!=3)return 1;
+        const unsigned size=unsigned(image>>51)&3,bytes=size==2?2:4;
+        if(((image>>53)&7)!=0 || (size!=3 && !(size==2 && hidden && blender)))return 1;
+        if(hidden && hidden->size()!=ram.size())return 5;
         const uint32_t origin=uint32_t(image)&0x3ffffff;
         if(origin&7)return 4;
         const unsigned width=(unsigned(image>>32)&1023)+1;
         const auto bounds=RdpTriangleSpan::bounds(triangle,scissor);
         if(!bounds.valid)return 0;
         // Preflight every complete row so functional bounds rejection is atomic.
-        for(unsigned y=bounds.first;y<=bounds.last;++y){const auto row=RdpTriangleSpan::row(triangle,bounds,y);if(row.valid && uint64_t(origin)+(uint64_t(y)*width+row.last+1)*4>ram.size())return 5;}
+        for(unsigned y=bounds.first;y<=bounds.last;++y){const auto row=RdpTriangleSpan::row(triangle,bounds,y);if(row.valid && uint64_t(origin)+(uint64_t(y)*width+row.last+1)*bytes>ram.size())return 5;}
         for(unsigned y=bounds.first;y<=bounds.last;++y){
             const auto row=RdpTriangleSpan::row(triangle,bounds,y);if(!row.valid)continue;
             RdpTriangleAttributes::Row attributes;
@@ -61,17 +63,15 @@ struct RdpTriangleShade {
                     }
                 }
                 auto color=combiner.evaluate(1,sources).clamped;
-                const size_t at=origin+(size_t(y)*width+x)*4;
-                if(blender){const uint32_t memory=(uint32_t(ram[at])<<24)|(uint32_t(ram[at+1])<<16)|(uint32_t(ram[at+2])<<8)|ram[at+3];
+                const size_t at=origin+(size_t(y)*width+x)*bytes;
+                if(blender){const uint32_t memory=bytes==2?RdpFramebuffer::read16(ram.data()+at,hidden->halfword(at)):(uint32_t(ram[at])<<24)|(uint32_t(ram[at+1])<<16)|(uint32_t(ram[at+2])<<8)|ram[at+3];
                     const auto result=blender->pixel(mode,color,pixel.rgba[3],memory,RdpCoverage::derivatives(mask).count,mask>>7,attributes.delta_z);
                     if(!result.write)continue;
-                    for(unsigned lane=0;lane<3;++lane)ram[at+lane]=uint8_t(result.rgb[lane]);
-                    ram[at+3]=uint8_t(result.coverage<<5);continue;
+                    RdpFramebuffer::write(at,bytes,result.rgb,result.coverage,ram,hidden);continue;
                 }
                 const unsigned memory=(mode&64)?ram[at+3]>>5:7;
                 const unsigned cvg=RdpCoverage::stored(unsigned(mode>>8)&3,false,RdpCoverage::derivatives(mask).count,memory);
-                for(unsigned lane=0;lane<3;++lane)ram[at+lane]=uint8_t(color[lane]);
-                ram[at+3]=uint8_t(cvg<<5);
+                RdpFramebuffer::write(at,bytes,{color[0],color[1],color[2]},cvg,ram,hidden);
             }
         }
         return 0;
