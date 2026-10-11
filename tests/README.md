@@ -485,3 +485,18 @@ Binary/source/ROM hashes stay fixed during capture. The executed wrong source
 rejects; twelve malformed profiles reject, legacy fields migrate, saved maps follow
 ports, and remapped sticks replay full movie states. `input_hotplug_test` covers
 restart, ambiguous/unique reconnect and player reset isolation.
+
+## ARM11 extension register files (2026-10-11)
+
+3DS 0.3.0 adds twelve ARM signed/unsigned scalar/dual-byte extension/accumulate
+forms and four Thumb scalar extensions. The original image independently grades
+13,631,488 seven-word snapshots / 95,420,416 register words on both ARM11s.
+Selected sixteen-bit value domains, rotations, two flag surrounds and accumulator
+seeds are exhaustive within the documented slice. Component coverage is
+10,081,152 observations; register aliases/conditions/NZCVQ/GE and pre-v6/profile/
+reserved/PC isolation are checked. Executed negative controls, seven field faults,
+seven malformed streams and original archive reproduction are required. Three
+native checkpoints in the first sweep compare two-frame continuation output and
+complete states. Full ARMv6/media/system behavior, timing/MMU/exceptions, firmware/
+retail boot and platform peripherals remain pending. 3DS stays 30%. See the
+[original source and domain](roms-src/3ds/extend_registers/README.md).

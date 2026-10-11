@@ -11,7 +11,7 @@ These percentages count the 20 explicit delivery milestones in [the completion l
 
 Nintendo 3DS delivered milestones: Native digital controller/keypad registers consume frontend input, Actual production-plugin TCP peers pass original guest oracle and whole-state comparison, Repository-owned ROM source and reproducible archived image, Separate core plugin and ABI entry points, Actual guest register-file output independently graded on the host, with negative controls, Complete states for the implemented profile and deterministic replay.
 
-Remaining: Remaining CPU/MMU, firmware/native formats, graphics/audio, analog/touch and wireless multiplayer remain.
+Remaining: ARM11 ARMv6 twelve ARM extend/accumulate forms and four Thumb extension forms now have an original 13,631,488-case image / 95,420,416 register words, separate flags/alias/profile checks and actual native checkpoint continuations. Remaining CPU/MMU, firmware/native formats, graphics/audio, analog/touch and wireless multiplayer remain.
 <!-- completion:end -->
 
 `ctr_plugin` builds `3ds.so` (or the platform library equivalent), ABI v2,
@@ -141,3 +141,36 @@ and [ARM11 MPCore TRM DDI0360F](https://documentation-service.arm.com/static/5e8
 Physical RAM and HID bit assignments follow
 [GBATEK's 3DS reference](https://github.com/mgba-emu/gbatek/blob/gh-pages/3ds.md).
 The loader, debug transport, reset values and scheduling are supplied conventions.
+
+## ARMv6 extension and accumulation (0.3.0)
+
+Both ARM11 contexts now implement all twelve ARM signed/unsigned byte/halfword/
+dual-byte extension forms with optional accumulation, and all four Thumb scalar
+extensions. ARM rotations 0/8/16/24, Rn=15 non-accumulating aliases, source/
+destination/base aliases, modulo scalar/independent halfword addition and NZCVQ/
+GE preservation are supported. ARM7/ARM9, reserved fields and unpredictable PC
+operands stop diagnostically. This does not supply physical exception behavior.
+
+The [original cartridge and independent oracle](../../tests/roms-src/3ds/extend_registers/README.md)
+grade **13,631,488 snapshots / 95,420,416 actual register words** from both ARM11
+contexts. Selected halfword or two independent byte domains are complete at each
+rotation, with two flag surrounds and boundary accumulator seeds. The short
+image has 1,664 cases; wrong result/flags reject all cases, and an executed wrong
+source produces 1,344 rejected snapshots. All seven fields and seven malformed
+streams are checked, with fixed binary/source/archive hashes.
+
+The component gate passes **10,081,152 observations** over source domains,
+register allocations/aliases, conditions, NZCVQ/GE, Thumb allocations and profile/
+reserved/PC diagnostics. The previous core fails the new behavior. A separate
+plugin gate compares actual text and complete 135,791,096-byte native states at
+three checkpoints in the first sweep, with two-frame ordinary/fast continuations.
+State format/ABI remain unchanged. Physical timing, MMU/SCTLR, full exceptions,
+remaining media/DSP/system instructions and complete platform behavior remain
+pending; 3DS stays **30%**.
+
+Verification for 0.3.0: Release build and all **16 selected gates pass**
+(191.61 s), including the full new register-file corpus, shared decoder/machine
+regressions and DS/DSi/3DS TCP rollback. The checkpoint gate compares **6,180
+actual continuation rows** and complete states at the documented prefixes.
+All **140 original ROM archives reproduce**; completion rendering and whitespace
+checks pass. This increment supplies no native firmware/retail boot evidence.

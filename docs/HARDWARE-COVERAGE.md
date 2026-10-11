@@ -3919,3 +3919,18 @@ covers **32,505,856 observations**, including **10,485,760 actual CACHE
 consumers** across every physical tag and every defined tag state. Physical
 reset/timing, undefined tag states and malformed legacy snapshot normalization
 are not proved. N64 remains **50%** of delivery milestones, not hardware accuracy.
+
+## 3DS ARMv6 extension/accumulate domains (2026-10-11)
+
+3DS 0.3.0 adds twelve ARM signed/unsigned scalar/dual-byte extension/accumulate
+forms and four Thumb scalar extensions. The original image independently grades
+13,631,488 seven-word snapshots / 95,420,416 register words on both ARM11s.
+Selected sixteen-bit value domains, rotations, two flag surrounds and accumulator
+seeds are exhaustive within the documented slice. Component coverage is
+10,081,152 observations; register aliases/conditions/NZCVQ/GE and pre-v6/profile/
+reserved/PC isolation are checked. Executed negative controls, seven field faults,
+seven malformed streams and original archive reproduction are required. Three
+native checkpoints in the first sweep compare two-frame continuation output and
+complete states. Full ARMv6/media/system behavior, timing/MMU/exceptions, firmware/
+retail boot and platform peripherals remain pending. 3DS stays 30%. See the
+[original source and domain](../tests/roms-src/3ds/extend_registers/README.md).

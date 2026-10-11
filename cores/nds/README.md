@@ -345,3 +345,11 @@ DSi has a separate [experimental plugin](../dsi/README.md) using this ARM
 interpreter with expanded RAM and memory-size controls. Its firmware/retail
 boot and remaining enhanced hardware are still pending. This DS plugin
 continues to reject DSi unit codes and profile images.
+
+## Shared ARMv6 decoder isolation
+
+The shared interpreter now implements ARMv6 extension/accumulate instructions
+for 3DS ARM11. DS/DSi ARM9 and ARM7 remain earlier CPU profiles and reject these
+forms diagnostically before data access; no ARMv6 feature is enabled here.
+The shared extension component gate checks profile isolation. Physical undefined
+instruction exceptions and complete CPU behavior remain pending.
