@@ -6,6 +6,10 @@
 static void require(bool ok,const char* text){if(!ok)throw std::runtime_error(text);}
 using Bank=std::array<std::array<uint8_t,16>,32>;
 using Acc=std::array<uint64_t,8>;
+#ifdef PRIMARY_RSP_MIXED
+extern "C" void primary_rsp_mixed(unsigned,unsigned,unsigned,unsigned,unsigned,uint8_t*,uint64_t*);
+static uint64_t primary_cases=0;
+#endif
 static constexpr int64_t modulus=281474976710656ll;
 static int64_t sx(unsigned v){return int64_t(v%32768)-int64_t(v/32768)*32768;}
 static int64_t signed_acc(uint64_t raw){return int64_t(raw%140737488355328ull)-int64_t(raw/140737488355328ull)*140737488355328ll;}
@@ -17,11 +21,14 @@ static uint16_t sat(int64_t v){return uint16_t(std::max<int64_t>(-32768,std::min
 // slices. No production helper, host floating point or implementation oracle is used.
 static void reference(Bank& b,Acc& acc,unsigned fn,unsigned e,unsigned vs,unsigned vt,unsigned vd){
  const Bank source=b;
+#ifdef PRIMARY_RSP_MIXED
+ auto primary_bank=b;auto primary_acc=acc;
+#endif
  constexpr unsigned select[16][8]={{0,1,2,3,4,5,6,7},{0,1,2,3,4,5,6,7},{0,0,2,2,4,4,6,6},{1,1,3,3,5,5,7,7},{0,0,0,0,4,4,4,4},{1,1,1,1,5,5,5,5},{2,2,2,2,6,6,6,6},{3,3,3,3,7,7,7,7},{0,0,0,0,0,0,0,0},{1,1,1,1,1,1,1,1},{2,2,2,2,2,2,2,2},{3,3,3,3,3,3,3,3},{4,4,4,4,4,4,4,4},{5,5,5,5,5,5,5,5},{6,6,6,6,6,6,6,6},{7,7,7,7,7,7,7,7}};
  for(unsigned i=0;i<8;++i){
   if(fn==29){put(b,vd,i,e==8?unsigned(acc[i]/4294967296ull):e==9?unsigned(acc[i]/65536%65536):e==10?unsigned(acc[i]%65536):0);continue;}
   const auto u=half(source,vs,i),v=half(source,vt,select[e][i]);const auto a=sx(u),c=sx(v),old=signed_acc(acc[i]);
-  const std::array<int64_t,16> delta={a*c*2+32768,a*c*2+32768,c*(vs%2?65536:1), (a*c+(a*c<0?31:0))*65536,int64_t(uint64_t(u)*v/65536),int64_t(u)*c,a*v,a*c*65536,a*c*2,a*c*2,c*(vs%2?65536:1),0,int64_t(uint64_t(u)*v/65536),int64_t(u)*c,a*v,a*c*65536};
+  const std::array<int64_t,16> delta={a*c*2+32768,a*c*2+32768,c*(vs%2?65536:1), (a*c+(a*c<0?31:0))*65536,int64_t(uint64_t(u)*v/65536),a*v,int64_t(u)*c,a*c*65536,a*c*2,a*c*2,c*(vs%2?65536:1),0,int64_t(uint64_t(u)*v/65536),a*v,int64_t(u)*c,a*c*65536};
   int64_t total=delta[fn];
   if(fn>=8 || fn==2)total+=old;
   if((fn==2 && old<0) || (fn==10 && old>=0))total=old;
@@ -35,10 +42,14 @@ static void reference(Bank& b,Acc& acc,unsigned fn,unsigned e,unsigned vs,unsign
   else result=sat(middle);
   put(b,vd,i,result);
  }
+#ifdef PRIMARY_RSP_MIXED
+ if(fn==5 || fn==6 || fn==13 || fn==14){primary_rsp_mixed(fn,e,vs,vt,vd,reinterpret_cast<uint8_t*>(&primary_bank),primary_acc.data());require(primary_bank==b && primary_acc==acc,"pinned primary mixed-product mismatch");++primary_cases;}
+#endif
 }
 struct Fixture{unsigned fn;std::array<uint16_t,8> left,right,result,high,mid,low;};
 // Numeric observations published by the hardware-test author, not copied
-// implementation code. Sources: nemu64-test/src/tests/rsp/op_vm*.rs.
+// implementation code. The author's assembler accepts (VD, VT, VS); the
+// published V0/V1 arrays below therefore become VT/VS, respectively. Sources: nemu64-test/src/tests/rsp/op_vm*.rs.
 static const Fixture fixtures[]={
  {0,{0x0,0x0,0x0,0xe000,0x8001,0x8000,0x7fff,0x8000},{0x0,0x1,0xffff,0xffff,0x8000,0x7fff,0x7fff,0x8000},{0x0,0x0,0x0,0x0,0x7fff,0x8001,0x7ffe,0x7fff},{0x0,0x0,0x0,0x0,0x0,0xffff,0x0,0x0},{0x0,0x0,0x0,0x0,0x7fff,0x8001,0x7ffe,0x8000},{0x8000,0x8000,0x8000,0xc000,0x8000,0x8000,0x8002,0x8000}}, // vmulf
  {1,{0x0,0x0,0x10,0xe000,0x8001,0x8000,0x7fff,0x8000},{0x0,0x1,0xffff,0xffff,0x8000,0x7fff,0x7fff,0x8000},{0x0,0x0,0x0,0x0,0x7fff,0x0,0x7ffe,0xffff},{0x0,0x0,0x0,0x0,0x0,0xffff,0x0,0x0},{0x0,0x0,0x0,0x0,0x7fff,0x8001,0x7ffe,0x8000},{0x8000,0x8000,0x7fe0,0xc000,0x8000,0x8000,0x8002,0x8000}}, // vmulu
@@ -58,7 +69,7 @@ static void opcode(n64::Machine& m,uint32_t ins){for(unsigned b=0;b<4;++b)m.sp[4
 int main(int argc,char** argv){try{
  require(argc==2,"original ROM required");std::ifstream file(argv[1],std::ios::binary);std::vector<uint8_t> rom{std::istreambuf_iterator<char>(file),{}};n64::Machine m;require(m.load(rom.data(),rom.size()),"ROM load");auto& vec=m.rsp.vectors;
  std::array<uint32_t,32> scalar{};std::array<uint8_t,8192> memory{};
- for(const auto& fixture:fixtures){vec.reset();for(unsigned i=0;i<8;++i){put(vec.registers,0,i,fixture.left[i]);put(vec.registers,1,i,fixture.right[i]);}
+ for(const auto& fixture:fixtures){vec.reset();for(unsigned i=0;i<8;++i){put(vec.registers,0,i,fixture.right[i]);put(vec.registers,1,i,fixture.left[i]);}
   if(fixture.fn>=8)require(vec.execute(0x4a010080,scalar,memory),"fixture accumulator seed");
   require(vec.execute(0x4a010080|fixture.fn,scalar,memory),"hardware fixture instruction");
   for(unsigned i=0;i<8;++i)if(half(vec.registers,2,i)!=fixture.result[i] || vec.accumulator[i]!=uint64_t(fixture.high[i])*4294967296ull+uint64_t(fixture.mid[i])*65536+fixture.low[i])throw std::runtime_error("hardware observation fn="+std::to_string(fixture.fn)+" lane="+std::to_string(i)+" result="+std::to_string(half(vec.registers,2,i))+" accumulator="+std::to_string(vec.accumulator[i]));
@@ -113,6 +124,9 @@ int main(int argc,char** argv){try{
  for(unsigned i=0;i<8;++i){auto bad=saved;bad[bad.size()-1053192+i*8]=1;require(m.restore(saved) && !m.restore(bad) && m.save(replay) && replay==saved,"invalid accumulator rejected atomically");}
  auto old=saved;old.resize(old.size()-1053192);old[6]='1';old[7]='6';const auto bank_state=vec.snapshot();require(m.restore(old) && vec.accumulator==Acc{} && vec.snapshot()==bank_state && m.dp_interface.flags==2 && m.rsp_phase==2,"S016 neutral accumulator conversion preserves previous fields");
  m.reset();opcode(m,0x4bdfded2);require(!m.rsp.step(m.sp_interface,m.dp_interface,m.sp,m.ram) && m.rsp.blocked && m.sp_interface.pc==0 && m.sp_interface.status==1 && !m.sp_interface.interrupt,"remaining VSUT blocks without BREAK/IRQ");
+#ifdef PRIMARY_RSP_MIXED
+ std::cout<<primary_cases<<" pinned primary mixed-product register/48-bit accumulator comparisons passed\n";
+#endif
  std::cout<<raw_cases<<" raw-halfword/function/selector cases; "<<aliases<<" register aliases; 524288 VSAR encodings; accumulator boundaries, published observations and S017 replay/rejection/legacy passed\n";
  return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}

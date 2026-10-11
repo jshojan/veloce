@@ -921,8 +921,9 @@ The RSP vector module now implements all sixteen multiply-family encodings:
 VMULF/U, VMULQ, VMUDL/M/N/H, VMACF/U/Q, VMADL/M/N/H and VRNDP/N.
 Eight raw 48-bit accumulator lanes wrap modulo 2^48. Destination selection uses
 signed or unsigned saturation, raw low/middle slices and quantized masks as
-required by each instruction. VMUDM/VMADM multiply unsigned VS by signed VT;
-VMUDN/VMADN multiply signed VS by unsigned VT. Source lanes are captured before
+required by each instruction. VMUDM/VMADM multiply signed VS by unsigned VT;
+VMUDN/VMADN multiply unsigned VS by signed VT. This operand order and the
+published fixture transcription were corrected in the mixed-product increment. Source lanes are captured before
 any destination writes, including aliases. All element selectors work, and
 VRNDP/N use the VS register index parity for the addend position. VMACQ preserves
 the low accumulator slice. These instructions preserve VCO/VCC/VCE.
@@ -3092,3 +3093,73 @@ production TCP netplay, the full owned guest/control stream, all fifteen
 compiled faults, UBSAN and the 114-ROM reproducibility check. The expanded
 dither test also checks rejected color history. Current private core, trace
 and probe hashes match the report. Frontpage/core percentages stay synchronized.
+
+## Corrected RSP mixed products and Mario logo
+
+VMUDM/VMADM now multiply **signed VS × unsigned VT**; VMUDN/VMADN multiply
+**unsigned VS × signed VT**. Their load/accumulate, 48-bit wrapping, destination
+saturation and alias behavior are retained. The former implementation and both
+arithmetic oracles reversed the signed operand. Published fixture arrays were
+also transcribed with the wrong operand order: the hardware-test author's
+[assembler takes `(VD, VT, VS)`](https://github.com/thelemmy/nemu64-test/blob/main/src/rsp/rsp_assembler.rs).
+The corrected fixture fails against the old implementation and passes the fix.
+
+The original multiply and accumulation ROMs are regraded with corrected
+unbounded-integer arithmetic: **917,504 / 294,912 cases** and
+**16,515,072 / 7,372,800 actual captured 64-bit words**, respectively. The
+accumulation cartridge's VMADM seed now multiplies signed one by its unsigned
+low halfword. Its archived image and the generator ledger are updated; the
+full domains remain the same. Reduced controls now cover both operand signs:
+**1,792 / 144 cases**. Wrong-capture cartridges, **18 / 25 field mutations** and
+seven malformed streams per suite must be rejected. No guest computes a verdict.
+
+The corrected component oracle checks **16,777,216 raw-halfword/function/selector
+cases**, **8,388,608 register aliases**, **524,288 VSAR encodings** and selected
+48-bit accumulator boundaries. All **four compiled signedness faults** are
+rejected after execution; compiler failures are not counted. UBSAN and the
+warning-as-error mutant build pass. The optional
+[pinned primary comparison](https://github.com/jshojan/veloce/tree/main/tests/reference/n64-rsp-mixed)
+checks **6,299,072 mixed-product cases**, all vector registers and all accumulator
+lanes against unchanged parallel-rsp at `9ab776a2ce28899769c4f911403234cac62fc799`,
+with zero mismatches. These are finite domains, not every 2^32 operand pair or
+physical-console timing evidence.
+
+The private **Super Mario 64 (USA)** probe now produces a **recognizable Super
+Mario 64 logo**, replacing the corrupted framebuffer. The **2,000 scheduling
+quanta / 200 million CPU attempts** trace has no terminal CPU exception or
+unsupported RSP/DP stop and executes **27,628,331 RSP instructions**. A local
+differential diagnostic compares vector registers, accumulator, flags and DMEM
+for **16,898,862 vector instructions** from the same input state against the
+pinned RSP implementation, with zero mismatches. Before the fix, its first mismatch was
+VMADN at SP PC `0x4b8`, word `4a81218e`; 4,014 RDP commands independently
+matched the pinned renderer's RAM output from the same supplied inputs, helping
+locate the corrupted upstream data. Those private diagnostics are observations,
+not committed retail acceptance gates. The captured logo establishes intro
+rendering; **full retail boot, gameplay, controller-driven playability and
+complete graphics/audio accuracy remain unverified**. Commercial bytes, private
+captures and third-party implementations are not committed.
+
+Plugin **0.41.0**, ABI v2 and **VN64S028 / 9,527,576 bytes** are current. The fix
+adds no state fields. N64 remains **45% = 9/20 delivery milestones**, and the
+frontpage/core percentages stay synchronized. Random dithering/noise,
+LOD/mipmapping, two-cycle/interpixel feedback, complete peripherals and physical
+timing remain unfinished. CI/CD stays disabled; the full Nintendo goal is active.
+
+```sh
+ctest --test-dir build -R '^n64_rsp_(multiply_test|multiply_pairs|accumulate_edges)$' --output-on-failure
+python3 tests/n64_rsp_mixed_mutants.py
+python3 tests/roms-src/build.py --original-only --check
+```
+
+Artifacts: `build/artifacts/owned/n64_rsp_multiply_pairs/`,
+`build/artifacts/owned/n64_rsp_accumulate_edges/`,
+`build/artifacts/component/n64_rsp_mixed/` and
+`build/artifacts/retail/n64-mixed-signed.json`. The private logo capture is
+`build/artifacts/retail/n64-mixed-signed.png` (PPM alongside it). Probe/core/trace
+SHA256 identities are recorded and checked.
+
+Final gates: **65 selected N64 regression/component/checkpoint tests pass**,
+along with both complete original guest corpora and controls, the pinned primary
+comparison, all four executed faults, UBSAN, production TCP netplay, the full
+build and the **114-ROM reproducibility check**. Completion/whitespace checks
+pass and current private core/probe/trace hashes match the report.

@@ -654,7 +654,7 @@
       "console": "n64",
       "license": "MIT",
       "rom_variant": "veloce",
-      "sha256": "039fe0e5adc13660c87f7e162d89cf9e4b298b18e8b09790d5931f2a9e20b85a",
+      "sha256": "599638689334c52a401ecc684485677690bfec1dc1d46c4fc3ecbe5e17d78881",
       "source_repo": "tests/roms-src/n64/rsp_accumulate_edges/build.py",
       "source_sha": "e3c8b1ee2960d1cc6cf430cc7770f90b7c1757c02110c011fdd59f3bfeae92cb",
       "source_type": "original",
@@ -722,7 +722,7 @@
       "rom_variant": "veloce",
       "sha256": "11c41827457d7480c9b81d703127eeb6b00a33ef3e7703452270e03d832cb112",
       "source_repo": "tests/roms-src/n64/rsp_multiply_pairs/build.py",
-      "source_sha": "5a31b719dabb7f9b55280575cee4e0c3178569ac7daefb5d7d881a3022c99e06",
+      "source_sha": "213c052c50d8f5a06db5c683e46177d9be87b2111ca7540d28c37488d085f3a8",
       "source_type": "original",
       "suite": "rsp_multiply_pairs"
     },
