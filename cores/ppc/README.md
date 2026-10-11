@@ -5,18 +5,18 @@
 
 | Platform | Delivery checklist completion | Delivered / total |
 |---|---:|---:|
-| GameCube | **25%** | 5/20 |
-| Wii | **25%** | 5/20 |
+| GameCube | **30%** | 6/20 |
+| Wii | **30%** | 6/20 |
 
 These percentages count the 20 explicit delivery milestones in [the completion ledger](../../docs/CORE-COMPLETION.md); partial or unverified milestones receive zero credit. Each milestone is worth 5 percentage points. **They are not percentages of native hardware accuracy or retail compatibility.** Bounded profile tests do not complete a whole CPU or hardware subsystem.
 
-GameCube delivered milestones: Native digital controller/keypad registers consume frontend input, Repository-owned ROM source and reproducible archived image, Separate core plugin and ABI entry points, Actual guest register-file output independently graded on the host, with negative controls, Complete states for the implemented profile and deterministic replay.
+GameCube delivered milestones: Native digital controller/keypad registers consume frontend input, Actual production-plugin TCP peers pass original guest oracle and whole-state comparison, Repository-owned ROM source and reproducible archived image, Separate core plugin and ABI entry points, Actual guest register-file output independently graded on the host, with negative controls, Complete states for the implemented profile and deterministic replay.
 
-Remaining: Remaining CPU, firmware/retail boot, polling/timing/analog/multiplayer, graphics/audio and netplay remain.
+Remaining: Remaining CPU, firmware/retail boot, polling/timing/analog/four-port multiplayer, graphics/audio remain. Production two-player TCP rollback now independently grades guest reads through settled native digital SI transactions; this does not complete native polling/timing, analog or wireless hardware.
 
-Wii delivered milestones: Native digital controller/keypad registers consume frontend input, Repository-owned ROM source and reproducible archived image, Separate core plugin and ABI entry points, Actual guest register-file output independently graded on the host, with negative controls, Complete states for the implemented profile and deterministic replay.
+Wii delivered milestones: Native digital controller/keypad registers consume frontend input, Actual production-plugin TCP peers pass original guest oracle and whole-state comparison, Repository-owned ROM source and reproducible archived image, Separate core plugin and ABI entry points, Actual guest register-file output independently graded on the host, with negative controls, Complete states for the implemented profile and deterministic replay.
 
-Remaining: Remaining CPU, MEM2/IOS/retail boot, GameCube polling, Wii Remote, graphics/audio and netplay remain.
+Remaining: Remaining CPU, MEM2/IOS/retail boot, GameCube polling, Wii Remote, graphics/audio remain. Production two-player TCP rollback now independently grades guest reads through settled native digital SI transactions; this does not complete native polling/timing, analog or wireless hardware.
 <!-- completion:end -->
 
 `gc_plugin` and `wii_plugin` are ABI v2 plugins sharing a supplied PowerPC
@@ -228,7 +228,7 @@ Most CPU instructions, exceptions/interrupts, privileged
 state, MMU/caches, floating point and paired-single operations remain absent.
 So do IPL/IOS and firmware startup, disc loading, Flipper/Hollywood graphics,
 DSP/audio, EXI, most SI behavior, Wii Bluetooth/Wiimote accessories, memory cards,
-network hardware and netplay. Port-one digital input drives the supplied SI direct-read profile; video is blank and audio is
+network hardware beyond production TCP rollback. Port-one digital input drives the supplied SI direct-read profile; video is blank and audio is
 empty. The 100,000-instruction scheduling quantum and 60 Hz frontend metadata
 are not measured physical instruction or video timing; the ABI cycle counter
 reports attempted instructions and CPU frequency is unspecified.
@@ -289,3 +289,34 @@ and mode-3 arrangement are cross-checked against
 [Dolphin's authored controller implementation](https://github.com/dolphin-emu/dolphin/blob/master/Source/Core/Core/HW/SI/SI_DeviceGCController.cpp).
 No upstream implementation was copied. The idle ID/status and unsupported-mode
 responses are supplied conventions; physical hardware validation remains pending.
+
+## GameCube/Wii production rollback (2026-10-11)
+
+The shared PowerPC core **0.11.0** exposes `INetplayCapable` for two independently
+owned digital GameCube controllers. Netplay feeds native settled SI mode-3
+transactions on ports 0/1 and leaves ports 2/3 unplugged. Fast save/load/hash
+allocate no memory; all **25,166,340 bytes** of CPU, counters, 24 MiB RAM and SI
+state are represented. `VPPC0002` layout is unchanged; legacy `VPPC0001` loads
+with neutral SI input. Invalid states and short buffers preserve their destinations.
+
+Original [GameCube](../../tests/roms-src/gc/netplay_probe/README.md) and [Wii](../../tests/roms-src/wii/netplay_probe/README.md) probes each publish eight actual
+guest RAM words. Two independent production TCP peers after different prior
+histories match these independent arithmetic/wire references and complete offline
+states across **100 confirmed frames**, with actual rollback. Each executed
+wrong-host/wrong-client capture corrupts three words and rejects. Eight field
+faults, four register stream faults, ROM mismatch and four malformed transport
+frames reject. Each adapter replays 64 input-bit cases and checks port ownership,
+full-state hash, invalid-state guards, legacy migration and reset/unload.
+
+Native analog, polling/wire timing, four-port multiplayer, origin/rumble, complete
+CPU/exceptions/MMU, firmware/retail boot, graphics/audio and Wii Remote/IOS remain
+unfinished. No audio is emitted or credited. Both platforms earn the production
+netplay milestone: **30% = 6/20 delivery milestones**. Artifacts remain under
+`build/artifacts/netplay-gc/` and `build/artifacts/netplay-wii/`; CI/CD is disabled.
+
+Final binaries pass all eight affected PowerPC gates (38.09 seconds), and all
+seven existing production TCP core regressions pass. All **150 original archives**
+reproduce byte-for-byte. Release builds, completion rendering and whitespace
+checks pass. The prior GameCube plugin fails the new adapter gate because it
+lacks the netplay interface. The controller layout exposes two player slots;
+the ordinary one-word frame method retains one connected controller.

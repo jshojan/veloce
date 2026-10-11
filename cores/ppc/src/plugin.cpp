@@ -1,4 +1,5 @@
 #include "machine.hpp"
+#include "emu/netplay_plugin.hpp"
 namespace {
 #ifdef PPC_PROFILE_WII
 constexpr bool broadway=true;
@@ -9,11 +10,11 @@ constexpr bool broadway=false;
 constexpr const char* name="GameCube";
 constexpr const char* extension=".vgc";
 #endif
-class Plugin final:public emu::IEmulatorPlugin {
+class Plugin final:public emu::IEmulatorPlugin, public emu::INetplayCapable {
 public:
     emu::EmulatorInfo get_info() override {
         static const char* extensions[]={extension,nullptr};
-        return {name,"0.10.0","Veloce","Experimental original PowerPC integer programs and settled GameCube controller transactions; retail boot and most peripherals pending.",extensions,60,0,640,480};
+        return {name,"0.11.0","Veloce","Experimental original PowerPC integer programs and settled GameCube controller transactions with production two-player rollback; retail boot and most peripherals pending.",extensions,60,0,640,480};
     }
     const emu::ControllerLayoutInfo* get_controller_layout() override {
         using emu::VirtualButton;
@@ -31,7 +32,7 @@ public:
             {VirtualButton::Z,"Z",.78f,.18f,.16f,.06f,false},
             {VirtualButton::Start,"Start",.45f,.42f,.10f,.06f,false}};
         static const emu::ControllerLayoutInfo layout={name,"GameCube digital controller (analog axes pending)",
-            emu::ControllerShape::Modern,2.0f,buttons,12,1};
+            emu::ControllerShape::Modern,2.0f,buttons,12,2};
         return &layout;
     }
     bool load_rom(const uint8_t* data,size_t size) override { return machine.load(data,size); }
@@ -39,7 +40,17 @@ public:
     bool is_rom_loaded() const override { return !machine.rom.empty(); }
     uint32_t get_rom_crc32() const override { return machine.crc; }
     void reset() override { machine.reset(); }
-    void run_frame(const emu::InputState& input) override { machine.serial.input(0,input.buttons,true);machine.frame(); }
+    void run_frame(const emu::InputState& input) override { machine.serial.input(0,input.buttons,true);machine.serial.input(1,0,false);machine.frame(); }
+    void run_frame_netplay(uint32_t host,uint32_t client) override {
+        if(!is_rom_loaded())return;
+        machine.serial.input(0,host,true);machine.serial.input(1,client,true);
+        machine.serial.input(2,0,false);machine.serial.input(3,0,false);machine.frame();
+    }
+    int get_max_players() const override {return 2;}
+    size_t get_max_state_size() const override {return ppc::Machine::state_size;}
+    size_t save_state_fast(uint8_t* out,size_t size) override {return machine.save_into(out,size);}
+    bool load_state_fast(const uint8_t* in,size_t size) override {return machine.restore(in,size);}
+    uint64_t get_state_hash() const override {return machine.state_hash();}
     uint64_t get_cycle_count() const override { return machine.cpu.steps; }
     uint64_t get_frame_count() const override { return machine.frames; }
     emu::FrameBuffer get_framebuffer() override { return {pixels.data(),640,480}; }

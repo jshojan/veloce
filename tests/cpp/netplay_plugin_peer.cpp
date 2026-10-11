@@ -17,8 +17,8 @@ static std::vector<uint8_t> read_bytes(const char* path) {
     require(file.good(), "fixture file missing");
     return {std::istreambuf_iterator<char>(file), {}};
 }
-static uint32_t input(int player, uint64_t frame,bool solo=false,bool n64=false,bool switch_profile=false) {
-    if(n64 || switch_profile){const uint32_t raw=uint32_t(frame*(player?2654435761u:2246822519u)+(player?0x2468ace1u:0x13579bdfu));if(switch_profile)return raw;return emu::n64_input::pack(raw,int((raw>>16)&255)-128,int(raw>>24)-128);}
+static uint32_t input(int player, uint64_t frame,bool solo=false,bool n64=false,bool switch_profile=false,bool ppc_profile=false) {
+    if(n64 || switch_profile || ppc_profile){const uint32_t raw=uint32_t(frame*(player?2654435761u:2246822519u)+(player?0x2468ace1u:0x13579bdfu));if(switch_profile || ppc_profile)return raw;return emu::n64_input::pack(raw,int((raw>>16)&255)-128,int(raw>>24)-128);}
     return static_cast<uint32_t>((frame * (player ? 13 : 7) + (player ? 1 : 3)) & (solo ? 4095:255));
 }
 struct Host final : emu::INetplayHost {
@@ -81,6 +81,7 @@ int main(int argc, char** argv) {
         Host host(fixture, rom, hash_bytes(read_bytes(argv[2])), role == "client" && std::string(argv[7]) == "1");
         const bool n64=std::string(host.get_platform_name())=="N64";
         const bool switch_profile=std::string(host.get_platform_name())=="Switch";
+        const bool ppc_profile=std::string(host.get_platform_name())=="GameCube" || std::string(host.get_platform_name())=="Wii";
         const bool solo=fixture.netplay().get_max_players()==1;
         LoadedNetplay loaded(argv[8], host);
         auto& plugin = *loaded.plugin;
@@ -92,7 +93,7 @@ int main(int argc, char** argv) {
         if (role == "baseline") {
             host.prepare_netplay();
             fixture.plugin->set_audio_callback(audio_gate);
-            for (uint64_t frame = 0; frame < 100; ++frame) fixture.netplay().run_frame_netplay(input(0, frame,solo,n64,switch_profile), solo ? 0:input(1, frame,false,n64,switch_profile));
+            for (uint64_t frame = 0; frame < 100; ++frame) fixture.netplay().run_frame_netplay(input(0, frame,solo,n64,switch_profile,ppc_profile), solo ? 0:input(1, frame,false,n64,switch_profile,ppc_profile));
         } else {
             // The GUI normally ran frames before opening its connection UI.
             // Different prior histories must be removed by preparation.
@@ -124,7 +125,7 @@ int main(int argc, char** argv) {
                 }
                 if (!host.paused && host.get_frame_count() < 100) {
                     auto frame = host.get_frame_count();
-                    plugin.execute_frame(input(role == "client", frame,solo,n64,switch_profile));
+                    plugin.execute_frame(input(role == "client", frame,solo,n64,switch_profile,ppc_profile));
                     require(host.get_frame_count() == frame || host.get_frame_count() == frame + 1,
                             "owned execution advanced twice in one frontend frame");
                 }
@@ -135,8 +136,8 @@ int main(int argc, char** argv) {
             rollbacks = plugin.get_stats().rollback_count;
             if(!solo){
                 require(rollbacks,"plugin replay not exercised");
-                if(!switch_profile)require(replay_chunks && live_chunks,"plugin replay/audio gate not exercised");
-                else require(!replay_chunks && !live_chunks,"Switch audio is not implemented");
+                if(!switch_profile && !ppc_profile)require(replay_chunks && live_chunks,"plugin replay/audio gate not exercised");
+                else require(!replay_chunks && !live_chunks,"profile audio is not implemented");
             }
             else {
                 require(plugin.get_active_player_count()==1 && plugin.get_player_count()==2,"single-controller session counts wrong");
@@ -151,7 +152,7 @@ int main(int argc, char** argv) {
         std::ofstream registers(std::string(argv[4]) + ".result");
         registers << "#VELOCE NETWORK 1 core=" << host.get_platform_name() << " frames=100 role=" << role << "\n"
                   << "INFO rollbacks=" << rollbacks << " replay_audio_chunks=" << replay_chunks << "\n";
-        if(!solo && !n64 && !switch_profile) registers<<"REG p0_sum="<<unsigned(fixture.plugin->read_memory(0x12))<<" p1_sum="<<unsigned(fixture.plugin->read_memory(0x13))<<"\n";
+        if(!solo && !n64 && !switch_profile && !ppc_profile) registers<<"REG p0_sum="<<unsigned(fixture.plugin->read_memory(0x12))<<" p1_sum="<<unsigned(fixture.plugin->read_memory(0x13))<<"\n";
         if(n64) {
             for(unsigned address=0x2000;address<0x2000+100*24;address+=4){
                 uint32_t value=0;for(unsigned n=0;n<4;++n)value=value*256+fixture.plugin->read_memory(address+n);
@@ -161,6 +162,12 @@ int main(int argc, char** argv) {
         if(solo) {
             for(unsigned address=0x1000;address<((std::string(host.get_platform_name())=="3DS" || std::string(host.get_platform_name())=="Wii U")?0x1030u:0x1020u);address+=4) {
                 uint32_t value=0; for(unsigned n=0;n<4;++n) { const auto byte=fixture.plugin->read_memory(address+n);if(std::string(host.get_platform_name())=="Wii U")value=value*256+byte;else value|=uint32_t(byte)<<(n*8); }
+                registers<<"REG address="<<address<<" value="<<value<<"\n";
+            }
+        }
+        if(ppc_profile){
+            for(unsigned address=0x1000;address<0x1020;address+=4){
+                uint32_t value=0;for(unsigned n=0;n<4;++n)value=value*256+fixture.plugin->read_memory(address+n);
                 registers<<"REG address="<<address<<" value="<<value<<"\n";
             }
         }

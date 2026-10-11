@@ -190,3 +190,12 @@ checks 100 confirmed frames, eight independently graded guest RAM words, execute
 wrong-input controls and exact complete-state equality across offline/host/client.
 Native Joy-Con/HID, HOS services, graphics and audio remain pending; this is an
 original process profile, with no retail compatibility claim.
+
+## GameCube and Wii profiles
+
+PowerPC core 0.11.0 connects two native settled digital SI controllers to the
+production rollback interface. The original [GameCube](../../tests/roms-src/gc/netplay_probe/README.md)
+and [Wii](../../tests/roms-src/wii/netplay_probe/README.md) probes independently
+grade eight actual guest RAM words and exact 24 MiB RAM/CPU/SI states across
+100 confirmed network frames. Analog, polling/wire timing, Wii Remotes/IOS,
+firmware/retail boot and graphics/audio remain unfinished.

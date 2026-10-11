@@ -4044,3 +4044,34 @@ All **32 Switch gates and six existing production TCP netplay regressions** pass
 (38 total, 119.00 seconds); all **148 original archives** reproduce. Release
 build, completion rendering and whitespace checks pass. The prior Switch plugin
 fails the new adapter test because it lacks the netplay interface.
+
+## GameCube/Wii production rollback (2026-10-11)
+
+The shared PowerPC core **0.11.0** exposes `INetplayCapable` for two independently
+owned digital GameCube controllers. Netplay feeds native settled SI mode-3
+transactions on ports 0/1 and leaves ports 2/3 unplugged. Fast save/load/hash
+allocate no memory; all **25,166,340 bytes** of CPU, counters, 24 MiB RAM and SI
+state are represented. `VPPC0002` layout is unchanged; legacy `VPPC0001` loads
+with neutral SI input. Invalid states and short buffers preserve their destinations.
+
+Original [GameCube](tests/roms-src/gc/netplay_probe/README.md) and [Wii](tests/roms-src/wii/netplay_probe/README.md) probes each publish eight actual
+guest RAM words. Two independent production TCP peers after different prior
+histories match these independent arithmetic/wire references and complete offline
+states across **100 confirmed frames**, with actual rollback. Each executed
+wrong-host/wrong-client capture corrupts three words and rejects. Eight field
+faults, four register stream faults, ROM mismatch and four malformed transport
+frames reject. Each adapter replays 64 input-bit cases and checks port ownership,
+full-state hash, invalid-state guards, legacy migration and reset/unload.
+
+Native analog, polling/wire timing, four-port multiplayer, origin/rumble, complete
+CPU/exceptions/MMU, firmware/retail boot, graphics/audio and Wii Remote/IOS remain
+unfinished. No audio is emitted or credited. Both platforms earn the production
+netplay milestone: **30% = 6/20 delivery milestones**. Artifacts remain under
+`build/artifacts/netplay-gc/` and `build/artifacts/netplay-wii/`; CI/CD is disabled.
+
+Final binaries pass all eight affected PowerPC gates (38.09 seconds), and all
+seven existing production TCP core regressions pass. All **150 original archives**
+reproduce byte-for-byte. Release builds, completion rendering and whitespace
+checks pass. The prior GameCube plugin fails the new adapter gate because it
+lacks the netplay interface. The controller layout exposes two player slots;
+the ordinary one-word frame method retains one connected controller.
