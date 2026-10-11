@@ -161,3 +161,21 @@ remains a private local file. `--check-existing` verifies existing observations
 against their input/executable fingerprints and repeats the paired raw traces.
 The current native movie gate verifies 121 fields and six seeks; these results
 support courtyard controls and deterministic replay, not whole-title playability.
+
+## Castle lobby continuation
+
+The [private castle-entry grader](../n64_retail_castle_entry.py) resumes the
+64,000-quantum standing checkpoint created above. It drives Mario to Lakitu's
+dialogue with an absolute signed-stick schedule, changes to VI fields, advances
+the text with spaced A presses, pulls the castle door and verifies the lobby
+terrain/camera change through guest RAM. Neutral A and neutral stick controls
+run from the same checkpoints. All commercial ROM data, states and frame
+captures remain in ignored local artifacts.
+
+```sh
+python3 tests/n64_retail_castle_entry.py /path/to/private/sm64-us.z64 \
+  --checkpoint build/artifacts/retail/analog/ready.state
+```
+
+This verifies castle lobby entry for the pinned US image. It does not grade
+main-level progression or complete game compatibility.

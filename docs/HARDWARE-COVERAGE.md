@@ -4246,3 +4246,15 @@ Native cartridge RAM-size detection, physical width/lane wiring, wait states
 and complete persistent-media scope remain unverified, so no saves milestone
 is earned. Remaining CPU/NVC, graphics/audio, timing, native retail boot and
 netplay are unfinished. CI/CD stays disabled.
+
+### N64 private castle lobby continuation (2026-10-11)
+
+The [local private SM64 US regression](../tests/n64_retail_castle_entry.py)
+replays signed-stick input from the existing standing courtyard checkpoint.
+It grades Lakitu's `ACT_READING_NPC_DIALOG`, the rendered VI-field dialogue,
+A-button dismissal against a neutral control, the castle door-pull action
+against neutral stick input, and a lobby warp with changed guest terrain and
+camera pointers. The final private capture shows Mario inside the castle;
+states, frames and the commercial ROM stay ignored locally. The route has no
+terminal CPU/RSP/DP stop. Main-level progression and full-title playability
+remain unverified, so N64 remains **50% (10/20)** of the fixed delivery list.
