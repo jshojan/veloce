@@ -1,0 +1,2 @@
+# From the bridge checkpoint at quantum 70000: X=+80, Y=0.
+70000 0050c000

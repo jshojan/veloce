@@ -13,7 +13,7 @@ These percentages count the 20 explicit delivery milestones in [the completion l
 
 Nintendo 64 delivered milestones: Guest sound produces audio samples, Native digital controller/keypad registers consume frontend input, Guest graphics produce rendered video, Parse a native cartridge/executable format (boot scored separately), Actual production-plugin TCP peers pass original guest oracle and whole-state comparison, Repository-owned ROM source and reproducible archived image, Separate core plugin and ABI entry points, Actual guest register-file output independently graded on the host, with negative controls, Complete states for the implemented profile and deterministic replay.
 
-Remaining: Cached SI/PIF reads refresh digital and signed-byte analog input. The original 65,536-coordinate corpus grades 1,048,576 actual words; frontend selected-stick mapping, neutral dead zone and canonical input recording are verified. Functional one-cycle E4/E5 rectangles share the existing triangle pixel pipeline; A six-billion-attempt Start/A probe reaches Mario, the lives/star HUD and Lakitu tutorial in the courtyard without a terminal CPU exception or RSP/DP stop. Analog movement, menu/level interactions and gameplay remain unverified. Complete CPU/CP0/devices, physical FPU/RSP timing, complete RDP/audio, two-cycle pixels and texture LOD, random dithering/noise and CI8 alpha thresholds, physical analog calibration/accessories/presence detection, CIC/EEPROM/Joybus and physical SI timing, local multiplayer frontend routing and physical timing remain. Production two-player TCP rollback and four virtual digital/analog PIF ports are verified for the implemented profile.
+Remaining: Cached SI/PIF reads refresh digital and signed-byte analog input. The original 65,536-coordinate corpus grades 1,048,576 actual words; frontend selected-stick mapping, neutral dead zone and canonical input recording are verified. Functional one-cycle E4/E5 rectangles share the existing triangle pixel pipeline; A six-billion-attempt Start/A probe reaches Mario, the lives/star HUD and Lakitu tutorial in the courtyard without a terminal CPU exception or RSP/DP stop. A shared private checkpoint now verifies courtyard analog walking, jumping and punching through RAM and neutral controls; 180 production frontend movie frames and six seek boundaries match full states. Castle entry, menu/level progression and full-title playability remain unverified. Complete CPU/CP0/devices, physical FPU/RSP timing, complete RDP/audio, two-cycle pixels and texture LOD, random dithering/noise and CI8 alpha thresholds, physical analog calibration/accessories/presence detection, CIC/EEPROM/Joybus and physical SI timing, local multiplayer frontend routing and physical timing remain. Production two-player TCP rollback and four virtual digital/analog PIF ports are verified for the implemented profile.
 <!-- completion:end -->
 
 `n64_plugin` builds `n64.so`/`n64.dll`/`n64.dylib` and implements emulator ABI v2.
@@ -3260,3 +3260,81 @@ result.
 ```sh
 ctest --test-dir build -R '^(input_plugin_test|input_hotplug_test|n64_controller_analog_reads|n64_pif_.*|n64_netplay_plugin_test)$' --output-on-failure
 ```
+
+
+## Private courtyard controls and movie checkpoints
+
+On **2026-10-11**, the private Super Mario 64 (USA) image was tested with
+N64 **0.45.0**. Its 60,000-quantum intro capture matches the earlier digital
+capture exactly. A native checkpoint then continues 4,000 quanta through the
+Lakitu dialogue, ending at quantum 64,000 with Mario standing in the courtyard.
+All control experiments below restore that **same** checkpoint. They use actual
+cache-aware guest RAM watches and timed captures, with independently executed
+neutral controls of the same duration.
+
+| Experiment | Additional quanta | Actual XYZ | Action |
+|---|---:|---|---|
+| Shared checkpoint | 0 | -1328, 260, 4354 | Standing `0C400201` |
+| Neutral walking control | 1000 | -1328, 260, 4354 | Standing `0C400201` |
+| Stick Y=+80 | 1000 | -1328, 260, 3713.6298828125 | Walking `04000440` |
+| Neutral jump control | 150 | -1328, 260, 4354 | Standing `0C400201` |
+| A, neutral stick | 150 | -1328, 430, 4354 | Jump `03000880` |
+| Neutral punch control | 100 | -1328, 260, 4354 | Standing `0C400201` |
+| B, neutral stick | 100 | -1328, 260, 4332 | Punch `00800380` |
+
+Thus the measured walking displacement is **640.3701171875 units**, and the
+ascending jump rises **170 units**. Every continuation finishes its requested
+native trace interval with **no terminal CPU exception, unsupported RSP operation
+or DP stop**. A longer continuation walks to the castle bridge; entrance and
+main-level progression remain unverified. These are controlled courtyard
+results. Complete-title compatibility, native firmware boot, EEPROM/peripheral
+behavior, physical timing and practical normal-speed gameplay remain pending.
+The current core API still uses bounded 100,000-attempt scheduling quanta;
+completion at native VI frame boundaries remains unfinished. **N64 stays 45%.**
+
+The original file grader
+[`n64_retail_controls.py`](../../tests/n64_retail_controls.py) checks image,
+checkpoint, input/core fingerprints, completed trace intervals, ordered RAM
+watches and the movement/action conditions above. It emits raw words and typed
+positions in private `controls-evidence.json`. The actual neutral continuations
+are also substituted for their corresponding action runs: the grader rejects
+walking, jumping and punching by the expected semantic failure, with valid state
+fingerprints and matched durations retained. Full playability is never awarded
+by this diagnostic. The pinned primary
+[Mario field definitions](https://github.com/SM64-TAS-ABC/STROOP/blob/6771197ad0f50718d3d4a13387e01d1e6d9c0d1a/STROOP/Structs/Configurations/MarioConfig.cs)
+and [action names](https://github.com/SM64-TAS-ABC/STROOP/blob/6771197ad0f50718d3d4a13387e01d1e6d9c0d1a/STROOP/Config/MarioActions.xml)
+ground the watch addresses; no external implementation code is included.
+
+The **production Application**, Default Input and Default TAS also pass a
+**180-quantum analog movie** from this checkpoint. Ordinary execution, recording
+and playback have identical complete **9,527,616-byte S029 states**. Six seek
+boundaries (0, 59, 60, 61, 120 and 180) match their ordinary states and clear
+queued audio. The movie moves Mario to Z=4287.537109375 with the walking action;
+an executed neutral-input edit keeps him at Z=4354 with the standing action.
+The matching state files and fingerprints remain private under
+`build/artifacts/retail/analog/tas/`. A separate reproducible original SI-cartridge
+movie gate grades actual RAM after the positive and neutral movies and exercises
+the same frontend path without a commercial ROM.
+
+The new checkpoint helper's original-ROM gate also proves **100+200 resumed
+calls equal 300 uninterrupted calls** in both complete state and framebuffer.
+Absolute capture labels, wrong-ROM/truncated/out-of-bound state use, ordered
+physical RAM and CPU-cache inspection, and unchanged input state files are
+checked. The native trace resumes the same checkpoint and reports its initial
+quantum/instructions separately from executed attempts.
+
+```sh
+cmake --build build --target retail_core_probe n64_boot_trace n64_state_inspect tas_frontend_test
+ctest --test-dir build -R '^(retail_checkpoint_test|n64_tas_checkpoint_test|tas_frontend_test)$' --output-on-failure
+python3 tests/n64_retail_controls.py /path/to/private/sm64.z64 \
+  --artifacts build/artifacts/retail/analog \
+  --movie-artifacts build/artifacts/retail/analog/tas
+```
+
+See [checkpoint/input commands](../../tests/input/N64-RETAIL.md) for recreating
+the private observations. ROMs, native states, movies containing private RAM,
+framebuffers and reports are excluded from Git. To preview the saved courtyard
+in the GUI, open the private ROM, choose Movie editor, open the generated
+`build/artifacts/retail/analog/tas/checkpoint-movie.tas`, and play from its start.
+After the movie pauses at EOF, resume with the selected gamepad's left stick or
+T/F/G/H; arrows remain the digital D-pad.

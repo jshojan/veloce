@@ -8,7 +8,8 @@
 #include <string>
 #include <vector>
 // Original diagnostic format: decimal scheduling quantum, hexadecimal virtual
-// port-zero digital mask. A transition remains active until the next transition.
+// port-zero core input word (legacy digital or tagged N64 signed stick).
+// A transition remains active until the next transition, including on resume.
 class RetailInputSchedule {
     struct Event {unsigned quantum;uint32_t mask;};
     std::vector<Event> events;

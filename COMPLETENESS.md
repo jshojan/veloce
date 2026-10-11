@@ -3608,3 +3608,33 @@ controller origin/reset/accessories/presence, physical timing and full local
 multiplayer assignment remain pending. The previous private Mario courtyard
 probe used digital input; analog Mario playability is not yet verified.
 **N64 stays 45%** of the fixed milestone ledger; CI/CD remains disabled.
+
+
+## N64 private courtyard inputs and native movie continuation (2026-10-11)
+
+The private SM64 US checkpoint now verifies bounded analog walking, ascending
+A jumps and B punches through cache-aware RAM fields and matched neutral controls.
+A 1,000-quantum Y=+80 run moves Z from 4354 to 3713.6298828125; a 150-quantum A
+run raises Y from 260 to 430; a 100-quantum B run reports punch action `00800380`.
+Neutral runs retain the standing action and original position. All requested
+continuation traces complete without a terminal CPU, RSP or DP stop. The original
+file grader rejects the actual neutral continuations substituted for each action
+with matched checkpoint/duration and valid state fingerprints.
+
+Production Application/Default Input/Default TAS execute 180 analog movie quanta:
+ordinary, recording and playback full S029 states match; six seek boundaries match
+and clear queued audio. An executed neutral movie changes actual guest action and
+position. The new original-cartridge movie gate independently checks SI RAM after
+positive and neutral movies. A separate original checkpoint gate matches 100+200
+resumed calls against 300 uninterrupted calls, including complete state,
+framebuffer, absolute labels, inspector file preservation and bad-state/range
+rejections. ROM archive count remains **128**; no ROM generator changed.
+
+Private data stays in ignored `build/artifacts/retail/analog/`. Source, commands,
+primary watch bindings and precise limits are documented in the
+[N64 README](cores/n64/README.md#private-courtyard-controls-and-movie-checkpoints)
+and [retail input guide](tests/input/N64-RETAIL.md). Castle entry/main-level
+progression, full-title playability, native firmware boot, physical peripherals
+and timing remain unfinished. Native VI frame scheduling and practical
+normal-speed gameplay are pending. **N64 remains 45%; all fixed milestone scores
+are unchanged. CI/CD remains disabled.**

@@ -1,0 +1,2 @@
+# A with neutral axes; action/position observed in RAM, never auto-graded here.
+64000 c001
