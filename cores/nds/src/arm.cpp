@@ -124,6 +124,27 @@ void Arm::step() {
         }
         s.r[rd]=result;s.r[15]=pc+4;return;
     }
+    // ARMv6 dual signed halfword products, optionally exchanged/subtracted.
+    if((ins&0x0fb00010u)==0x07000010u) {
+        const unsigned high_or_rd=(ins>>16)&15,low_or_ra=(ins>>12)&15,rs=(ins>>8)&15,rm=ins&15;
+        const bool long_form=ins&(1u<<22);
+        if(!v6 || (ins&128) || high_or_rd==15 || rs==15 || rm==15 ||
+           (long_form && (low_or_ra==15 || high_or_rd==low_or_ra))){s.unsupported=true;return;}
+        const uint32_t left=s.r[rm],right=rotate(s.r[rs],(ins&32)?16:0);
+        const auto half=[](uint32_t value)->int64_t{value&=65535;return value&32768?int64_t(value)-65536:value;};
+        const int64_t bottom=half(left)*half(right),top=half(left>>16)*half(right>>16);
+        const int64_t delta=bottom+((ins&64)?-top:top);
+        if(long_form){
+            const uint64_t result=((uint64_t(s.r[high_or_rd])<<32)|s.r[low_or_ra])+uint64_t(delta);
+            s.r[low_or_ra]=uint32_t(result);s.r[high_or_rd]=uint32_t(result>>32);
+        } else {
+            const uint32_t seed=low_or_ra==15?0:s.r[low_or_ra];
+            const int64_t result=delta+(seed&0x80000000u?int64_t(seed)-0x100000000ll:seed);
+            s.r[high_or_rd]=uint32_t(result);
+            if(result<-2147483648ll || result>2147483647ll)s.cpsr|=0x08000000u;
+        }
+        s.r[15]=pc+4;return;
+    }
     if((ins&0x0ff00010u)==0x07500010u) {
         const unsigned rd=(ins>>16)&15,ra=(ins>>12)&15,rs=(ins>>8)&15,rm=ins&15,op=(ins>>6)&3;
         if(!v6 || (op!=0 && op!=3) || rd==15 || rs==15 || rm==15 || (op==3 && ra==15)){s.unsupported=true;return;}

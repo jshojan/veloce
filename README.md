@@ -25,15 +25,26 @@ Super Mario 64 (USA) was tested locally on 2026-10-11. The six-billion-attempt i
 
 Twenty-eight doubleword integer/LWU families now enforce User/Supervisor mode restrictions: **5,768,792 original guest cases / 69,225,504 RAM/CP0 words**, with executed NOP rejection and native checkpoint/rollback. Nine wide integer memory families now verify Kernel32 address formation: **4,718,592 original guest cases / 56,623,104 RAM/CP0 words**, with extended-address/alignment controls and native rollback. CP0 BadVAddr/PRId/CacheErr write protection now has an original **12,582,912-case cartridge / 150,994,944 actual RAM/register words**, with hardware exception seeding, executed wrong-read rejection and native rollback. Config fixed/writable fields and actual K0 cache/bypass reads now have an original **16,777,216-case cartridge / 201,326,592 actual RAM/register words**, with EP/BE defaults held and clock-field preservation controls. Status writable/reserved/TS write rules now have an original **4,194,304-case cartridge / 50,331,648 actual RAM/register words**, with safe EXL-held readbacks and unconstrained component controls. TagLo/TagHi/PErr field writes now have an original **12,582,912-case cartridge / 150,994,944 actual RAM/register words**, plus every physical tag in defined functional CACHE consumer controls. This remains partial CPU coverage; N64 stays 50%. Per-player analog sources, inversion, dead zone and range now have **4,035 ordinary frontend cases / 24,210 actual guest RAM words**, saved-profile migration and remapped four-port native movies. Physical controller calibration/peripherals, two-cycle graphics/LOD, enabled expansion-coprocessor behavior, precise atomic/cache interference and full CPU/hardware/audio/timing remain unfinished. See [checkpoint control and movie evidence](cores/n64/README.md#private-courtyard-controls-and-movie-checkpoints).
 
-3DS ARM11 now implements twelve ARMv6 signed/unsigned extend-and-add forms and four Thumb extensions. Its original image grades **13,631,488 snapshots / 95,420,416 actual register words** on both ARM11 contexts, with independent arithmetic, executed negative controls and native checkpoint replay. This remains partial CPU support; 3DS stays **30%**. Native firmware/retail boot, MMU, graphics/audio and analog/touch/wireless peripherals remain pending.
+### 3DS ARM11 instruction coverage
 
-3DS ARM11 scalar and dual-halfword SSAT/USAT saturation now has an original **12,582,912-case image / 88,080,384 actual register words**, independent clamping arithmetic, sticky overflow checks, executed negative controls and complete native checkpoint replay. This remains bounded CPU coverage; 3DS stays **30%**.
+The 3DS plugin implements the following ARMv6 instruction subsets. Each linked
+original ROM emits actual register words, has independent host grading and
+executed negative controls. Checkpoint gates compare native state continuations.
+These are finite documented domains; **3DS remains 30%** of the delivery checklist.
 
-3DS ARM11 now implements 36 ARMv6 parallel byte/halfword arithmetic forms, GE flag writes and SEL. The original image grades **19,922,944 snapshots / 179,306,496 actual register words**, including a following SEL that consumes real arithmetic flags. Independent grading, executed negative controls and native checkpoint replay cover the documented finite domains. The whole CPU milestone remains unfinished; 3DS stays **30%**.
+| Implemented subset / original source | Register snapshots | Actual words |
+|---|---:|---:|
+| [ARM/Thumb REV, REV16, REVSH](tests/roms-src/3ds/reversal_registers/README.md) | 25,165,824 | 176,160,768 |
+| [Signed/unsigned extension and accumulation](tests/roms-src/3ds/extend_registers/README.md) | 13,631,488 | 95,420,416 |
+| [Scalar and dual-halfword SSAT/USAT](tests/roms-src/3ds/saturation_registers/README.md) | 12,582,912 | 88,080,384 |
+| [36 parallel arithmetic forms, GE and SEL](tests/roms-src/3ds/parallel_registers/README.md) | 19,922,944 | 179,306,496 |
+| [Halfword packing and unsigned byte differences](tests/roms-src/3ds/pack_difference_registers/README.md) | 18,874,368 | 150,994,944 |
+| [UMAAL and signed high-word multiply/rounding](tests/roms-src/3ds/wide_media_multiply_registers/README.md) | 7,340,032 | 73,400,320 |
+| [Dual-halfword multiply, exchange and accumulation](tests/roms-src/3ds/dual_media_multiply_registers/README.md) | 12,582,912 | 125,829,120 |
 
-3DS ARM11 halfword packing and unsigned byte absolute-difference sums now have an original **18,874,368-case image / 150,994,944 actual register words**, including every encoded packing shift and accumulator wrap controls. Independent file grading, executed negative controls and native checkpoint replay cover finite selected domains. This remains partial CPU support; 3DS stays **30%**.
-
-3DS ARM11 unsigned UMAAL and signed high-word multiply/add/subtract, including rounded forms, now have an original **7,340,032-case image / 73,400,320 actual register words**. Independent arithmetic and executed UMLAL/rounding controls check the distinct seed and rounding rules; native checkpoint replay covers actual continuations. Full CPU and console behavior remain unfinished; 3DS stays **30%**.
+Full CPU/system/MMU/exception/privilege behavior, physical timing, native firmware/
+retail boot, graphics/audio and analog/touch/wireless devices remain unfinished.
+See the [3DS core README](cores/3ds/README.md) for the implemented profile and limits.
 <!-- completion:end -->
 
 A cross-platform, plugin-based emulator framework built for speedrunners and TAS creators.

@@ -1658,3 +1658,16 @@ set_tests_properties(ctr_wide_media_multiply_registers PROPERTIES LABELS "accura
 add_test(NAME ctr_wide_media_multiply_checkpoint_test COMMAND ctr_extend_checkpoint_test $<TARGET_FILE:ctr_plugin>
     ${CMAKE_SOURCE_DIR}/tests/roms-src/3ds/wide_media_multiply_registers/wide_media_multiply_registers.v3ds)
 set_tests_properties(ctr_wide_media_multiply_checkpoint_test PROPERTIES LABELS "accuracy;owned;integration" TIMEOUT 180)
+
+add_executable(arm_dual_media_multiply_test cpp/arm_dual_media_multiply_test.cpp ${CMAKE_SOURCE_DIR}/cores/nds/src/arm.cpp)
+target_include_directories(arm_dual_media_multiply_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/nds/src)
+add_test(NAME arm_dual_media_multiply_test COMMAND arm_dual_media_multiply_test)
+set_tests_properties(arm_dual_media_multiply_test PROPERTIES LABELS "unit;accuracy;owned" TIMEOUT 600)
+
+add_test(NAME ctr_dual_media_multiply_registers COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/3ds/dual_media_multiply_registers/run.py --emulator $<TARGET_FILE:veloce>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/3ds_dual_media_multiply)
+set_tests_properties(ctr_dual_media_multiply_registers PROPERTIES LABELS "accuracy;owned" TIMEOUT 1800)
+add_test(NAME ctr_dual_media_multiply_checkpoint_test COMMAND ctr_extend_checkpoint_test $<TARGET_FILE:ctr_plugin>
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/3ds/dual_media_multiply_registers/dual_media_multiply_registers.v3ds)
+set_tests_properties(ctr_dual_media_multiply_checkpoint_test PROPERTIES LABELS "accuracy;owned;integration" TIMEOUT 180)

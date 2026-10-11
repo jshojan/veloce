@@ -147,3 +147,7 @@ CPU profiles and delivery percentages are unchanged.
 ARMv6 UMAAL and signed high-word multiply/rounding in the shared decoder are
 enabled only for 3DS ARM11. DS/DSi reject these encodings; their ARMv4/v5 CPU
 profiles, generic multiply support and delivery percentages are unchanged.
+
+ARMv6 dual-halfword multiply/exchange and 32/64-bit accumulation in the shared
+interpreter are enabled only for 3DS ARM11. The component gate checks that DS/
+DSi ARMv4/v5 profiles reject these encodings without mutating registers or flags.
