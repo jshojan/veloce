@@ -147,6 +147,15 @@ bool Aarch64::step(){
         }
         put(rd,result);
     }
+    else if((w&0x3fe00410)==0x3a400000){
+        // CCMP/CCMN: evaluate the old flags before writing arithmetic/fallback NZCV.
+        if(condition((w>>12)&15)){
+            const bool subtract=w&(1u<<30);
+            const auto right=(w&2048)?uint64_t(rm):reg(rm);
+            add(reg(rn),subtract?~right:right,unsigned(subtract),width,true);
+        }
+        else state.nzcv=w&15;
+    }
     else if((w&0x3fe00800)==0x1a800000){
         // Conditional select: both sources use XZR, never SP; NZCV is preserved.
         uint64_t result=reg(rn);
