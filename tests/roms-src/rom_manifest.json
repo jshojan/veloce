@@ -22054,6 +22054,17 @@
       "source_type": "original",
       "suite": "ipl3_handoff"
     },
+    "n64/linked_memory/linked_memory.z64": {
+      "build_command": "python3 tests/roms-src/n64/linked_memory/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "ae41adcce0ed1182491e899ebfd0e310fc6005c9830e33239a57d0f89e2abe13",
+      "source_repo": "tests/roms-src/n64/linked_memory/build.py",
+      "source_sha": "7c94c9d901c23a617e041c1aa179ce23886415e710ebec3991b897dd9e60f68e",
+      "source_type": "original",
+      "suite": "linked_memory"
+    },
     "n64/merge_memory/merge_memory.z64": {
       "build_command": "python3 tests/roms-src/n64/merge_memory/build.py",
       "console": "n64",

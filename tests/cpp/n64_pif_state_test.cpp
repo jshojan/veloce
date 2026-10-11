@@ -10,7 +10,7 @@ int main(int argc,char** argv){check(argc==2);std::ifstream f(argv[1],std::ios::
  write(m,0xa4800000,0x20000);write(m,0xa430000c,8);m.pif.fill(0xaa);m.pif[0]=255;m.pif[1]=1;m.pif[2]=4;m.pif[3]=1;m.pif[8]=254;
  m.input_buttons=64;write(m,0xbfc007ff,1,1);check(read(m,0xbfc007c4,4)==0xaaaaaaaa && m.joybus.snapshot()==n64::PifJoybus::State{1,64,64,64,64});
  write(m,0xa4800004,0);check(read(m,0xa0020000,8)==0xff01040110000000ull && read(m,0xa4800018)==4096 && read(m,0xa4300008)==2);
- std::vector<uint8_t> saved,after,replay;check(m.save(saved) && saved.size()==9527616 && saved[6]=='3' && saved[7]=='0');
+ std::vector<uint8_t> saved,after,replay;check(m.save(saved) && saved.size()==9527616 && saved[6]=='3' && saved[7]=='1');
  m.input_buttons=emu::n64_input::pack(1,-128,127);write(m,0xa4800004,0);check(read(m,0xa0020000,8)==0xff0104018000807full && m.save(after));
  check(m.restore(saved));m.input_buttons=emu::n64_input::pack(1,-128,127);write(m,0xa4800004,0);check(m.save(replay) && replay==after);
  // A flag-zero RAM write preserves the latched offsets and does not sample input.

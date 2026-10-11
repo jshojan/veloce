@@ -47,7 +47,7 @@ int main(int argc,char** argv){try{
  check(m.write(addr(0x04800000),4,0x1000) && m.write(addr(0x04800004),4,0));check(m.hidden.halfword(0x1000)==3 && m.hidden.halfword(0x1002)==3 && m.hidden.halfword(0x1004)==0);
  check(m.write(addr(0x04600000),4,0x1000) && m.write(addr(0x04600004),4,0x10001000) && m.write(addr(0x0460000c),4,7));for(unsigned n=0;n<8;n+=2)check(m.hidden.halfword(0x1000+n)==(rom[0x1001+n]%2)*3);
  m.mi_mode=256;check(m.hidden.rdp_halfword(0x1000,2,true) && m.hidden.rdp_byte(0x1000,0,true));
- std::vector<uint8_t> saved,after,replay;check(m.save(saved) && saved.size()==n64::Machine::current_state_size && saved[6]=='3' && saved[7]=='0');
+ std::vector<uint8_t> saved,after,replay;check(m.save(saved) && saved.size()==n64::Machine::current_state_size && saved[6]=='3' && saved[7]=='1');
  check(m.write(addr(0x1000),8,0x50000000aull) && m.read(addr(0x1000),8,got) && got==0x50000000aull);m.hidden.finish_rdp_bytes();check(m.save(after));
  check(m.restore(saved) && m.write(addr(0x1000),8,0x50000000aull));m.hidden.finish_rdp_bytes();check(m.save(replay) && replay==after);
  for(unsigned fault=0;fault<4;++fault){auto bad=after;const size_t at=bad.size()-64;

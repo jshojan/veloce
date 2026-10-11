@@ -12,6 +12,7 @@ public:
     };
     std::array<Line<32>,512> instruction{};
     std::array<Line<16>,512> data{};
+    bool data_hit(uint64_t va,uint32_t p) const {const auto& line=data[(va>>4)&511];return (line.flags&1) && line.page==(p>>12);}
     void reset() {instruction={};data={};}
     static bool physical(uint64_t address,uint32_t& result) {
         const auto low=uint32_t(address);

@@ -8,7 +8,7 @@ static void put(std::vector<uint8_t>& ram,unsigned at,uint64_t word){for(unsigne
 int main(int argc,char** argv){try{
  check(argc==2);std::ifstream f(argv[1],std::ios::binary);std::vector<uint8_t> rom{std::istreambuf_iterator<char>(f),{}};n64::Machine machine;check(machine.load(rom.data(),rom.size()));auto& dp=machine.dp_interface;
  dp.primitive_depth.command(0x4567abcd);dp.depth_image=0x100000;check(machine.hidden.rdp_halfword(0x1000,2,true));
- std::vector<uint8_t> saved,after,replay;check(machine.save(saved) && saved.size()==9527616 && saved.size()==n64::Machine::current_state_size && saved[6]=='3' && saved[7]=='0');
+ std::vector<uint8_t> saved,after,replay;check(machine.save(saved) && saved.size()==9527616 && saved.size()==n64::Machine::current_state_size && saved[6]=='3' && saved[7]=='1');
  put(machine.ram,0x100,0xeea5c33cfedc9876);put(machine.ram,0x108,0xe900000000000000);dp.flags=2;check(dp.write(0,0x100) && dp.write(1,0x110) && machine.save(saved));
  dp.flags=0;unsigned clocks=0;while(!machine.dp_interrupt && clocks<10){machine.clock();++clocks;}
  check(machine.dp_interrupt && dp.primitive_depth.snapshot()==0x7edc9876 && machine.save(after));

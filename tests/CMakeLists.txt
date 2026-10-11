@@ -1483,3 +1483,16 @@ add_test(NAME n64_integer_traps COMMAND ${Python3_EXECUTABLE}
     --capture $<TARGET_FILE:n64_integer_trap_capture> --core $<TARGET_FILE:n64_plugin>
     --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_integer_traps)
 set_tests_properties(n64_integer_traps PROPERTIES LABELS "accuracy;owned" TIMEOUT 1800)
+
+add_executable(n64_linked_memory_test cpp/n64_linked_memory_test.cpp ${CMAKE_SOURCE_DIR}/cores/n64/src/vr4300.cpp)
+target_include_directories(n64_linked_memory_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src ${CMAKE_SOURCE_DIR}/include)
+add_test(NAME n64_linked_memory_test COMMAND n64_linked_memory_test)
+set_tests_properties(n64_linked_memory_test PROPERTIES LABELS "accuracy;owned;unit" TIMEOUT 180)
+add_executable(n64_linked_memory_capture cpp/n64_linked_memory_capture.cpp)
+target_include_directories(n64_linked_memory_capture PRIVATE ${CMAKE_SOURCE_DIR}/include ${SDL2_INCLUDE_DIRS})
+target_link_libraries(n64_linked_memory_capture PRIVATE ${SDL2_LIBRARIES})
+add_dependencies(n64_linked_memory_capture n64_plugin)
+add_test(NAME n64_linked_memory COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/linked_memory/run.py
+    --capture $<TARGET_FILE:n64_linked_memory_capture> --core $<TARGET_FILE:n64_plugin>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_linked_memory)
+set_tests_properties(n64_linked_memory PROPERTIES LABELS "accuracy;owned" TIMEOUT 1800)
