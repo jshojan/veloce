@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Launch independent core peers over loopback TCP and compare complete states."""
 import argparse
+import hashlib
 import importlib.util
 import re
 import json
@@ -58,6 +59,23 @@ def grade_wiiu_registers(path):
     expected=[f"REG address={4096+n*4} value={value}" for n,value in enumerate(wiiu_expected())]
     require(lines[2:]==expected,"Wii U guest register oracle mismatch")
 
+def switch_expected():
+    quantum=100000;total=100*quantum;period=14
+    host=[(frame*2246822519+324508639)%4294967296 for frame in range(100)]
+    client=[(frame*2654435761+610839777)%4294967296 for frame in range(100)]
+    count=lambda store:(total-1-store)//period+1
+    accumulated=lambda values,load,store:sum(values[(load+period*k)//quantum] for k in range(count(store)))%4294967296
+    last=lambda values,load,store:values[(load+period*(count(store)-1))//quantum]
+    return (accumulated(host,8,12),accumulated(client,9,13),last(host,8,14),last(client,9,15),
+            count(17),last(host,8,19)^last(client,9,19),0,2309737967)
+
+def grade_switch_registers(path):
+    content=path.read_text();lines=content.splitlines()
+    require(content.endswith("\n") and len(lines)==10 and re.fullmatch(r"#VELOCE NETWORK 1 core=Switch frames=100 role=(baseline|host|client)",lines[0]) and
+            re.fullmatch(r"INFO rollbacks=\d+ replay_audio_chunks=\d+",lines[1]),"invalid Switch register stream")
+    expected=[f"REG address={4096+n*4} value={value}" for n,value in enumerate(switch_expected())]
+    require(lines[2:]==expected,"Switch guest register oracle mismatch")
+
 def n64_expected():
     # Independent SI wire assignment and signed-byte axes for both peers.
     virtual=(0,1,20,6,8,9,10,11,4,5,21,22,23,24)
@@ -90,6 +108,18 @@ def main():
     parser.add_argument("--console",default="nes")
     args = parser.parse_args()
     args.artifacts.mkdir(parents=True, exist_ok=True)
+    provenance = {}
+    if args.console == "switch":
+        root = Path(__file__).resolve().parent.parent
+        paths = [args.peer, args.core, args.rom, Path(__file__),
+                 args.rom.parent / "build.py", args.rom.parent / "recipe.json"]
+        if args.netplay_plugin:
+            paths.append(args.netplay_plugin)
+        paths += [root / name for name in (
+            "cores/switch/src/plugin.cpp", "cores/switch/src/machine.cpp",
+            "cores/switch/src/machine.hpp", "cores/switch/src/aarch64.cpp",
+            "cores/switch/src/aarch64.hpp", "tests/cpp/netplay_plugin_peer.cpp")]
+        provenance = {str(p.resolve()): hashlib.sha256(p.read_bytes()).hexdigest() for p in paths}
     env = os.environ.copy()
     for key in ("DEBUG", "TRACE", "TRACE_FILE", "INPUT", "VELOCE_TEST_OUT"):
         env.pop(key, None)
@@ -139,6 +169,34 @@ def main():
                 try:grade_registers(path)
                 except RuntimeError:pass
                 else:raise RuntimeError("invalid original register stream escaped")
+        if args.console=="switch":
+            grade_switch_registers(args.artifacts / "baseline.result")
+            spec=importlib.util.spec_from_file_location("switch_probe_builder",args.rom.parent / "build.py")
+            builder=importlib.util.module_from_spec(spec);spec.loader.exec_module(builder)
+            require(builder.build()==args.rom.read_bytes(),"Switch probe archive differs")
+            expected=[f"REG address={4096+n*4} value={value}" for n,value in enumerate(switch_expected())]
+            for name,option in (("wrong-host","wrong_host"),("wrong-client","wrong_client")):
+                mutant=Path(temporary)/(name+args.rom.suffix);mutant.write_bytes(builder.build(**{option:True}))
+                control=subprocess.run(command("baseline",args.artifacts / name,port_file,rom_path=mutant),env=env,capture_output=True,text=True,timeout=30)
+                require(control.returncode==0,control.stdout+control.stderr);(args.artifacts / (name+".log")).write_text(control.stdout+control.stderr)
+                try:grade_switch_registers(args.artifacts / (name+".result"))
+                except RuntimeError as error:
+                    require(str(error)=="Switch guest register oracle mismatch","control failed for unrelated reason")
+                    actual=(args.artifacts / (name+".result")).read_text().splitlines()[2:]
+                    require(len(actual)==8 and sum(a!=b for a,b in zip(actual,expected))==3,"Switch wrong-input control domain changed")
+                else:raise RuntimeError("executed Switch wrong-input control escaped")
+            original=(args.artifacts / "baseline.result").read_text();records=original.splitlines()
+            for field in range(8):
+                altered=records.copy();line=altered[field+2];value=int(line.split(" value=")[1]);altered[field+2]=line.split(" value=")[0]+f" value={value^1}"
+                path=args.artifacts / f"field-{field}.result";path.write_text("\n".join(altered)+"\n")
+                try:grade_switch_registers(path)
+                except RuntimeError:pass
+                else:raise RuntimeError("Switch register field escaped")
+            for name,content in (("truncated",original.rsplit("\n",2)[0]+"\n"),("wrong-header",original.replace("frames=100","frames=99")),("trailing",original+"extra\n"),("unterminated",original.rstrip("\n"))):
+                path=args.artifacts / f"stream-{name}.result";path.write_text(content)
+                try:grade_switch_registers(path)
+                except RuntimeError:pass
+                else:raise RuntimeError("invalid Switch register stream escaped")
         if args.console=="n64":
             grade_n64_registers(args.artifacts / "baseline.result")
             spec=importlib.util.spec_from_file_location("n64_probe_builder",args.rom.parent / "build.py")
@@ -266,6 +324,8 @@ def main():
             for name in ("baseline","network-host","network-client"):grade_registers(args.artifacts / (name+".result"))
         if args.console=="n64":
             for name in ("baseline","network-host","network-client"):grade_n64_registers(args.artifacts / (name+".result"))
+        if args.console=="switch":
+            for name in ("baseline","network-host","network-client"):grade_switch_registers(args.artifacts / (name+".result"))
         report = {"status": "pass", "console": args.console, "frames": 100,
                   "independent_processes": 2, "transport": "IPv4 TCP loopback",
                   "full_states_equal": True, "rom_mismatch_rejected": True,
@@ -283,6 +343,11 @@ def main():
                           frontend_contract="fresh core after different prior histories; poll while paused; host owns keypad; viewer predicts/replays; disconnect on core replacement")
         if args.console=="n64":report.update(controller_mode="two independently owned digital/analog pads; ports 2/3 neutral",guest_register_words=600,guest_registers_match_independent_oracle=True,executed_wrong_capture_rejected=True,wrong_capture_mismatched_words=100,field_mutations_rejected=6,invalid_register_streams_rejected=4,native_analog_emulation=True)
         if args.console=="wiiu":report.update(state_storage="canonical nonzero RAM pages; history slots grow to actual serialized size",native_gamepad_emulation=False)
+        if args.console=="switch":report.update(controller_mode="two independently owned synthetic 32-bit input words; native HID pending",guest_register_words=8,guest_registers_match_independent_oracle=True,executed_wrong_inputs_rejected=True,wrong_host_mismatched_words=3,wrong_client_mismatched_words=3,field_mutations_rejected=8,invalid_register_streams_rejected=4,native_hid_emulation=False,audio_emulation=False)
+        if provenance:
+            require(all(hashlib.sha256(Path(p).read_bytes()).hexdigest() == digest
+                        for p, digest in provenance.items()), "network capture inputs changed during execution")
+            report["input_sha256"] = provenance
         (args.artifacts / "network.json").write_text(json.dumps(report, indent=2) + "\n")
         print(f"Network rollback: two independent TCP peers match complete {args.console} baseline; ROM mismatch rejected")
 

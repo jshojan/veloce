@@ -4073,3 +4073,31 @@ behavior or precise architectural exceptions. Literal/prefetch/atomic/SIMD memor
 families, full CPU/platform behavior, timing, firmware/HOS/retail boot,
 graphics/audio, controllers and netplay remain pending. Switch stays **25%**;
 CI/CD is disabled. See [original source and domains](../tests/roms-src/switch/single_transfer_registers/README.md).
+
+## Switch production netplay (2026-10-11)
+
+Switch **0.10.0** implements `INetplayCapable` with two independently owned
+synthetic 32-bit input words and allocation-free fast serialization, restoration
+and FNV-1a hashing over the entire canonical state. `VNXS0002` is **4,194,664
+bytes**; legacy `VNXS0001` states load with both new inputs neutral. Invalid
+states and short save buffers preserve their destinations. Ordinary local frames
+supply the host word and neutral joining word. These are test-profile inputs;
+**native Joy-Con/HID and HOS input services remain unfinished**.
+
+The [original NSO probe](../tests/roms-src/switch/netplay_probe/README.md) publishes eight actual guest RAM words.
+Two production TCP processes after different prior histories match all eight
+independently derived results and complete offline baseline states over **100
+confirmed frames**, including actual rollback. Executed wrong-host and
+wrong-client inputs each mismatch three words and reject; eight field faults,
+four malformed register streams, ROM mismatch and four malformed transport
+frames reject. The adapter replays 64 individually selected input bits. The
+input-port component passes 786,432 observations across 65,536 correlated pairs.
+Audio is unimplemented and the test requires zero audio chunks. Graphics,
+firmware/retail boot, complete CPU/MMU/hardware/timing and native devices remain
+pending. Switch earns the production netplay delivery milestone: **30% = 6/20**.
+CI/CD remains disabled. Artifacts: `build/artifacts/netplay-switch/`.
+
+All **32 Switch gates and six existing production TCP netplay regressions** pass
+(38 total, 119.00 seconds); all **148 original archives** reproduce. Release
+build, completion rendering and whitespace checks pass. The prior Switch plugin
+fails the new adapter test because it lacks the netplay interface.

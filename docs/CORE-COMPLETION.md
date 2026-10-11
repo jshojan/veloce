@@ -17,7 +17,7 @@
 | GameCube | **25%** | 5/20 |
 | Wii | **25%** | 5/20 |
 | Wii U | **25%** | 5/20 |
-| Nintendo Switch | **25%** | 5/20 |
+| Nintendo Switch | **30%** | 6/20 |
 
 Equal-weight delivery milestones: 100 * delivered / 20. Partial or unverified milestones count zero. These are delivery checklist percentages, not hardware accuracy, exhaustive domain coverage or retail compatibility.
 

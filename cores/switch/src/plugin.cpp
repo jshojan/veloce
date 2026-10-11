@@ -1,17 +1,19 @@
 #include "machine.hpp"
+#include "emu/netplay_plugin.hpp"
 namespace nx {
-class Plugin final : public emu::IEmulatorPlugin {
+class Plugin final : public emu::IEmulatorPlugin, public emu::INetplayCapable {
 public:
     emu::EmulatorInfo get_info() override {
         static const char* extensions[]={".nso",nullptr};
-        return {"Switch","0.9.0","Veloce","Experimental uncompressed NSO0/AArch64 integer guest core with multiply/divide, conditional select, variable shifts, bit operations, bitfields/extract, logical immediates conditional compares and integer paired/single loads/stores with signed loads and extended register offsets; firmware, full CPU, graphics/audio, native devices, controllers, timing and retail compatibility pending.",extensions,60.0,0,320,240};
+        return {"Switch","0.10.0","Veloce","Experimental uncompressed NSO0/AArch64 integer guest core with production two-input rollback support, multiply/divide, conditional select, variable shifts, bit operations, bitfields/extract, logical immediates conditional compares and integer paired/single loads/stores with signed loads and extended register offsets; firmware, full CPU, graphics/audio, native devices, controllers, timing and retail compatibility pending.",extensions,60.0,0,320,240};
     }
     bool load_rom(const uint8_t* data,size_t size) override{return machine.load(data,size);}
     void unload_rom() override{machine.rom.clear();machine.crc=0;machine.identity=0;machine.reset();}
     bool is_rom_loaded() const override{return !machine.rom.empty();}
     uint32_t get_rom_crc32() const override{return machine.crc;}
     void reset() override{machine.reset();}
-    void run_frame(const emu::InputState&) override{if(!is_rom_loaded())return;for(unsigned n=0;n<100000 && !machine.done && !machine.cpu.state.fault;++n)machine.cpu.step();++machine.frames;}
+    void run_frame(const emu::InputState& input) override{run_frame_netplay(input.buttons,0);}
+    void run_frame_netplay(uint32_t host,uint32_t client) override{if(!is_rom_loaded())return;machine.inputs={host,client};for(unsigned n=0;n<100000 && !machine.done && !machine.cpu.state.fault;++n)machine.cpu.step();++machine.frames;}
     uint64_t get_cycle_count() const override{return machine.cpu.state.steps;}
     uint64_t get_frame_count() const override{return machine.frames;}
     emu::FrameBuffer get_framebuffer() override{return {nullptr,0,0};}
@@ -21,6 +23,11 @@ public:
     void write_memory(uint16_t address,uint8_t value) override{machine.write(address,1,value);}
     bool save_state(std::vector<uint8_t>& data) override{return machine.save(data);}
     bool load_state(const std::vector<uint8_t>& data) override{return machine.restore(data);}
+    int get_max_players() const override{return 2;}
+    size_t get_max_state_size() const override{return Machine::state_size;}
+    size_t save_state_fast(uint8_t* out,size_t capacity) override{return machine.save_into(out,capacity);}
+    bool load_state_fast(const uint8_t* in,size_t size) override{return machine.restore(in,size);}
+    uint64_t get_state_hash() const override{return machine.state_hash();}
     bool set_test_sink(emu::ITestSink* sink) override{machine.sink=sink;return true;}
     const char* test_channels() const override{return "vnxdebug";}
 private:

@@ -5,13 +5,13 @@
 
 | Platform | Delivery checklist completion | Delivered / total |
 |---|---:|---:|
-| Nintendo Switch | **25%** | 5/20 |
+| Nintendo Switch | **30%** | 6/20 |
 
 These percentages count the 20 explicit delivery milestones in [the completion ledger](../../docs/CORE-COMPLETION.md); partial or unverified milestones receive zero credit. Each milestone is worth 5 percentage points. **They are not percentages of native hardware accuracy or retail compatibility.** Bounded profile tests do not complete a whole CPU or hardware subsystem.
 
-Nintendo Switch delivered milestones: Parse a native cartridge/executable format (boot scored separately), Repository-owned ROM source and reproducible archived image, Separate core plugin and ABI entry points, Actual guest register-file output independently graded on the host, with negative controls, Complete states for the implemented profile and deterministic replay.
+Nintendo Switch delivered milestones: Parse a native cartridge/executable format (boot scored separately), Actual production-plugin TCP peers pass original guest oracle and whole-state comparison, Repository-owned ROM source and reproducible archived image, Separate core plugin and ABI entry points, Actual guest register-file output independently graded on the host, with negative controls, Complete states for the implemented profile and deterministic replay.
 
-Remaining: Integer paired and single transfers now have original independently graded NSO images, executed controls and complete native-state replay. The new signed/unscaled/writeback/register-offset image checks 7,188,480 snapshots / 57,507,840 register words. Full AArch64 CPU/extensions/exceptions, native RAM/MMU/processes, compressed/hash-checked NSO and other formats, firmware/HOS/retail boot, graphics/audio, native controllers/devices, saves/netplay, physical timing and complete original hardware corpus remain. Current execution is an original uncompressed NSO0 integer process profile; retail playability is unverified.
+Remaining: Integer paired and single transfers now have original independently graded NSO images, executed controls and complete native-state replay. The new signed/unscaled/writeback/register-offset image checks 7,188,480 snapshots / 57,507,840 register words. Full AArch64 CPU/extensions/exceptions, native RAM/MMU/processes, compressed/hash-checked NSO and other formats, firmware/HOS/retail boot, graphics/audio, native controllers/devices, native saves, physical timing and complete original hardware corpus remain. Current execution is an original uncompressed NSO0 integer process profile; retail playability is unverified. Production TCP rollback now matches complete states and independently graded guest RAM for two synthetic input words; native Joy-Con/HID and HOS input services remain unfinished.
 <!-- completion:end -->
 
 `switch_plugin` builds `switch.so` / `switch.dll` / `switch.dylib`, discovered by
@@ -41,7 +41,7 @@ image/state. This profile uses a **4 MiB process map**, fixed base zero and
 64 KiB test stack; full Switch RAM/MMU/process ownership is pending.
 **Compression and segment-hash flags are explicitly rejected**. Relocations,
 multiple modules, NRO/NSP/XCI loading, executable hash validation, IPC/services,
-firmware, GPU/audio, controllers, saves and netplay remain pending.
+firmware, GPU/audio, native controllers and saves remain pending.
 
 Instruction semantics are grounded in the [Arm A64 instruction documentation](https://developer.arm.com/documentation/100069/0608/A64-General-Instructions/ADDS--shifted-register-).
 The native container layout is checked against the [hactool NSO0 header](https://github.com/SciresM/hactool/blob/master/nso.h).
@@ -76,8 +76,8 @@ This is finite result verification; physical-console validation remains pending.
 
 ## State and production integration
 
-`VNXS0001` stores **4,194,648 bytes**: full process RAM, 31 X registers, SP, PC,
-NZCV, step/frame counts, completion and terminal diagnostics, pinned to the
+`VNXS0002` stores **4,194,664 bytes**: full process RAM, 31 X registers, SP, PC,
+NZCV, step/frame counts, completion, terminal diagnostics and two input words, pinned to the
 loaded image identity. Rejected states preserve the active state; immutable
 text/RO must match the image. Pending guest execution replays byte-for-byte.
 The production ABI gate also compares actual emitted register streams, complete
@@ -390,3 +390,31 @@ including prior original instruction corpora and production replay. The new
 7,188,480-row capture has zero mismatches and unchanged source/binary provenance.
 All **147 original archives** reproduce; completion rendering and whitespace
 checks pass. CI/CD remains disabled.
+
+## Switch production netplay (2026-10-11)
+
+Switch **0.10.0** implements `INetplayCapable` with two independently owned
+synthetic 32-bit input words and allocation-free fast serialization, restoration
+and FNV-1a hashing over the entire canonical state. `VNXS0002` is **4,194,664
+bytes**; legacy `VNXS0001` states load with both new inputs neutral. Invalid
+states and short save buffers preserve their destinations. Ordinary local frames
+supply the host word and neutral joining word. These are test-profile inputs;
+**native Joy-Con/HID and HOS input services remain unfinished**.
+
+The [original NSO probe](../../tests/roms-src/switch/netplay_probe/README.md) publishes eight actual guest RAM words.
+Two production TCP processes after different prior histories match all eight
+independently derived results and complete offline baseline states over **100
+confirmed frames**, including actual rollback. Executed wrong-host and
+wrong-client inputs each mismatch three words and reject; eight field faults,
+four malformed register streams, ROM mismatch and four malformed transport
+frames reject. The adapter replays 64 individually selected input bits. The
+input-port component passes 786,432 observations across 65,536 correlated pairs.
+Audio is unimplemented and the test requires zero audio chunks. Graphics,
+firmware/retail boot, complete CPU/MMU/hardware/timing and native devices remain
+pending. Switch earns the production netplay delivery milestone: **30% = 6/20**.
+CI/CD remains disabled. Artifacts: `build/artifacts/netplay-switch/`.
+
+All **32 Switch gates and six existing production TCP netplay regressions** pass
+(38 total, 119.00 seconds); all **148 original archives** reproduce. Release
+build, completion rendering and whitespace checks pass. The prior Switch plugin
+fails the new adapter test because it lacks the netplay interface.

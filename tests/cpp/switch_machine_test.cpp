@@ -103,7 +103,7 @@ int main(int argc,char** argv){try{
  for(unsigned n=0;n<1000;++n)require(machine.cpu.step(),"original replay");
  require(machine.save(replay) && replay==after,"complete original execution replay");
  for(size_t at:{size_t(32),size_t(312),size_t(320),size_t(328),size_t(336)}){auto bad=after;bad[at]=1;require(!machine.restore(bad) && machine.save(replay) && replay==after,"invalid state fields reject atomically");}
- for(size_t at:{size_t(344),size_t(344+0x10000)}){auto bad=after;bad[at]^=1;require(!machine.restore(bad) && machine.save(replay) && replay==after,"immutable segment restore rejection");}
+ for(size_t at:{size_t(360),size_t(360+0x10000)}){auto bad=after;bad[at]^=1;require(!machine.restore(bad) && machine.save(replay) && replay==after,"immutable segment restore rejection");}
  auto bad=after;bad.pop_back();require(!machine.restore(bad) && machine.save(replay) && replay==after,"invalid state extent");
  machine.reset();require(machine.cpu.state.pc==0 && machine.cpu.state.sp==nx::Machine::ram_size && !machine.done && !machine.cpu.state.fault && !machine.frames,"reset architecture");
  std::cout<<cases<<" integer cases; conditions, SP/XZR, native loader/map, diagnostics and complete replay/atomic state guards PASS\n";return 0;
