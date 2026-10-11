@@ -94,6 +94,10 @@ public:
         else set(address,(halfword(address)&1)|(remembered(address)&2));
         return true;
     }
+    // Eight-bit raster commands clear the high retained bit in lanes zero and four.
+    void reset_byte_raster_history() {history_&=uint16_t(~514u);}
+    // Command-local delayed writes are discarded where the native copy path does not flush.
+    void discard_rdp_bytes() {delayed_=-1;}
     void finish_rdp_bytes() {
         if(delayed_>=0){const auto address=size_t(delayed_);set(address,(halfword(address)&1)|(remembered(address)&2));}
         delayed_=-1;

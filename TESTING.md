@@ -1,6 +1,6 @@
 # Veloce Testing and Accuracy Framework
 
-Current N64 evidence: [RSP scalar execution and current Mario evidence](#rsp-scalar-execution). Earlier increment reports are historical.
+Current N64 evidence: [Copy-cycle original RAM/register grading and Mario title-head probe](cores/n64/README.md#copy-cycle-transfers-and-mario-title-head). Earlier increment reports are historical.
 
 This is the entry point for everything about how Veloce's emulator cores are
 tested and how the project derives a defensible "this core is N% accurate"

@@ -1117,3 +1117,19 @@ set_tests_properties(n64_rdp_ordered_dither PROPERTIES LABELS "accuracy;owned" T
 add_test(NAME n64_rdp_dither_checkpoint_test COMMAND n64_rdp_packet_plugin_test
     $<TARGET_FILE:n64_plugin> ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/rdp_ordered_dither/rdp_ordered_dither.z64 hidden)
 set_tests_properties(n64_rdp_dither_checkpoint_test PROPERTIES LABELS "integration;netplay;accuracy;owned" TIMEOUT 60)
+
+add_executable(n64_rdp_copy_test cpp/n64_rdp_copy_test.cpp)
+target_include_directories(n64_rdp_copy_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src)
+add_test(NAME n64_rdp_copy_test COMMAND n64_rdp_copy_test)
+set_tests_properties(n64_rdp_copy_test PROPERTIES LABELS "unit;accuracy" TIMEOUT 90)
+add_test(NAME n64_rdp_copy_mutants COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/n64_rdp_copy_mutants.py --compiler ${CMAKE_CXX_COMPILER}
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/component/n64_rdp_copy)
+set_tests_properties(n64_rdp_copy_mutants PROPERTIES LABELS "unit;accuracy" TIMEOUT 240)
+add_test(NAME n64_rdp_copy_rectangles COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/rdp_copy_rectangles/run.py --emulator $<TARGET_FILE:veloce>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_rdp_copy_rectangles)
+set_tests_properties(n64_rdp_copy_rectangles PROPERTIES LABELS "accuracy;owned" TIMEOUT 1400)
+add_test(NAME n64_rdp_copy_checkpoint_test COMMAND n64_rdp_packet_plugin_test
+    $<TARGET_FILE:n64_plugin> ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/rdp_copy_rectangles/rdp_copy_rectangles.z64 hidden)
+set_tests_properties(n64_rdp_copy_checkpoint_test PROPERTIES LABELS "integration;netplay;accuracy;owned" TIMEOUT 60)

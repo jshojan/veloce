@@ -1,0 +1,19 @@
+# Port-zero digital transitions: decimal scheduling quantum / hexadecimal mask.
+# Start = 40, A = 1 in the shared virtual-button ABI. Private diagnostic only.
+0 0
+2000 40
+2100 0
+3000 40
+3100 0
+4000 40
+4100 0
+5000 1
+5100 0
+6000 1
+6100 0
+7000 1
+7100 0
+8000 1
+8100 0
+9000 1
+9100 0

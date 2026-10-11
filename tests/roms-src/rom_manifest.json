@@ -473,6 +473,17 @@
       "source_type": "original",
       "suite": "rdp_combiner_commands"
     },
+    "n64/rdp_copy_rectangles/rdp_copy_rectangles.z64": {
+      "build_command": "python3 tests/roms-src/n64/rdp_copy_rectangles/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "7d49eea9e9a9734b057629d5e018ace3c2419a6cdb27368836751b88576654a4",
+      "source_repo": "tests/roms-src/n64/rdp_copy_rectangles/build.py",
+      "source_sha": "d6f41fc372f99ef61a3f4a766f0ce1171965acb5278826e979c84e38cff1fd8a",
+      "source_type": "original",
+      "suite": "rdp_copy_rectangles"
+    },
     "n64/rdp_fill_pipeline/rdp_fill_pipeline.z64": {
       "build_command": "python3 tests/roms-src/n64/rdp_fill_pipeline/build.py",
       "console": "n64",
