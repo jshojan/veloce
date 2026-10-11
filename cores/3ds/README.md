@@ -11,7 +11,7 @@ These percentages count the 20 explicit delivery milestones in [the completion l
 
 Nintendo 3DS delivered milestones: Native digital controller/keypad registers consume frontend input, Actual production-plugin TCP peers pass original guest oracle and whole-state comparison, Repository-owned ROM source and reproducible archived image, Separate core plugin and ABI entry points, Actual guest register-file output independently graded on the host, with negative controls, Complete states for the implemented profile and deterministic replay.
 
-Remaining: ARM11 ARMv6 extension/accumulate, scalar/dual-halfword saturation and 36 parallel arithmetic forms plus SEL now have original independently graded register images, flags/alias/profile controls and native checkpoint continuations. The new parallel image checks 19,922,944 snapshots / 179,306,496 register words. Remaining CPU/MMU, firmware/native formats, graphics/audio, analog/touch and wireless multiplayer remain.
+Remaining: ARM11 ARMv6 packing/absolute differences, parallel arithmetic/SEL, extension/accumulate and saturation now have original independently graded register images, flags/alias/profile controls and native checkpoint continuations. The new packing/difference image checks 18,874,368 snapshots / 150,994,944 register words. Remaining CPU/MMU, firmware/native formats, graphics/audio, analog/touch and wireless multiplayer remain.
 <!-- completion:end -->
 
 `ctr_plugin` builds `3ds.so` (or the platform library equivalent), ABI v2,
@@ -230,3 +230,29 @@ compares **5,657 actual register rows** across three continuation prefixes.
 The earlier decoder fails the arithmetic gate; the draft without the MSR guard
 fails the reserved-source rejection gate. Completion renderer and whitespace
 checks pass. CI/CD remains disabled.
+
+## ARM11 packing and absolute differences (2026-10-11)
+
+3DS 0.6.0 adds ARMv6 PKHBT/PKHTB and USAD8/USADA8. Packing supports all encoded
+LSL/ASR counts, including encoded ASR #32. Difference sums use unsigned bytes
+and wrap accumulator addition modulo 2^32; accumulator field 15 selects USAD8.
+All forms preserve NZCVQ/GE and read sources before aliased destination writes.
+The original dual-ARM11 image independently grades **18,874,368 snapshots /
+150,994,944 actual register words**: complemented halfword packing inputs at
+all shifts and selected byte pairs at each lane with guard bytes. These are
+finite constrained domains. The component gate checks **45,984,747 observations**,
+including all possible difference sums 0–1020 at a complete selected near-wrap
+seed interval, all flags/conditions, aliases and CPU-profile/PC diagnostics.
+Executed wrong-result/Q controls reject all 2,304 short cases; omitted accumulator,
+swapped packing and wrong source reject 128/2,048/1,984 cases. Eight field faults
+and seven malformed streams reject. Native checkpoint prefixes compare actual
+text and complete 135,791,096-byte states. Full CPU/media/system/MMU/exception
+behavior, timing, firmware/retail boot, graphics/audio and native devices remain
+pending. ABI/state format are unchanged; 3DS remains **30%**. See
+[original source and domains](../../tests/roms-src/3ds/pack_difference_registers/README.md).
+
+Verification for 0.6.0: full Release build and all **19 selected gates pass**;
+all **143 original archives** reproduce. The full guest capture has zero
+mismatches and stable source/binary hashes. Three native checkpoint prefixes
+compare **6,117 actual register rows** and complete states. Completion renderer
+and whitespace checks pass. CI/CD remains disabled.

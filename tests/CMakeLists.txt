@@ -1632,3 +1632,16 @@ set_tests_properties(ctr_parallel_registers PROPERTIES LABELS "accuracy;owned" T
 add_test(NAME ctr_parallel_checkpoint_test COMMAND ctr_extend_checkpoint_test $<TARGET_FILE:ctr_plugin>
     ${CMAKE_SOURCE_DIR}/tests/roms-src/3ds/parallel_registers/parallel_registers.v3ds)
 set_tests_properties(ctr_parallel_checkpoint_test PROPERTIES LABELS "accuracy;owned;integration" TIMEOUT 180)
+
+add_executable(arm_pack_difference_test cpp/arm_pack_difference_test.cpp ${CMAKE_SOURCE_DIR}/cores/nds/src/arm.cpp)
+target_include_directories(arm_pack_difference_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/nds/src)
+add_test(NAME arm_pack_difference_test COMMAND arm_pack_difference_test)
+set_tests_properties(arm_pack_difference_test PROPERTIES LABELS "unit;accuracy;owned" TIMEOUT 600)
+
+add_test(NAME ctr_pack_difference_registers COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/3ds/pack_difference_registers/run.py --emulator $<TARGET_FILE:veloce>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/3ds_pack_difference)
+set_tests_properties(ctr_pack_difference_registers PROPERTIES LABELS "accuracy;owned" TIMEOUT 1800)
+add_test(NAME ctr_pack_difference_checkpoint_test COMMAND ctr_extend_checkpoint_test $<TARGET_FILE:ctr_plugin>
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/3ds/pack_difference_registers/pack_difference_registers.v3ds)
+set_tests_properties(ctr_pack_difference_checkpoint_test PROPERTIES LABELS "accuracy;owned;integration" TIMEOUT 180)

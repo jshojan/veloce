@@ -3972,3 +3972,23 @@ checkpoint prefixes compare actual text and complete 135,791,096-byte states.
 Full CPU/media/system/MMU/exception behavior, timing, firmware/retail boot,
 graphics/audio and native devices remain pending. State format and ABI are
 unchanged; 3DS remains **30%**. See [original source and domains](../tests/roms-src/3ds/parallel_registers/README.md).
+
+## ARM11 packing and absolute differences (2026-10-11)
+
+3DS 0.6.0 adds ARMv6 PKHBT/PKHTB and USAD8/USADA8. Packing supports all encoded
+LSL/ASR counts, including encoded ASR #32. Difference sums use unsigned bytes
+and wrap accumulator addition modulo 2^32; accumulator field 15 selects USAD8.
+All forms preserve NZCVQ/GE and read sources before aliased destination writes.
+The original dual-ARM11 image independently grades **18,874,368 snapshots /
+150,994,944 actual register words**: complemented halfword packing inputs at
+all shifts and selected byte pairs at each lane with guard bytes. These are
+finite constrained domains. The component gate checks **45,984,747 observations**,
+including all possible difference sums 0–1020 at a complete selected near-wrap
+seed interval, all flags/conditions, aliases and CPU-profile/PC diagnostics.
+Executed wrong-result/Q controls reject all 2,304 short cases; omitted accumulator,
+swapped packing and wrong source reject 128/2,048/1,984 cases. Eight field faults
+and seven malformed streams reject. Native checkpoint prefixes compare actual
+text and complete 135,791,096-byte states. Full CPU/media/system/MMU/exception
+behavior, timing, firmware/retail boot, graphics/audio and native devices remain
+pending. ABI/state format are unchanged; 3DS remains **30%**. See
+[original source and domains](../tests/roms-src/3ds/pack_difference_registers/README.md).

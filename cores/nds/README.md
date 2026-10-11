@@ -361,3 +361,7 @@ support and platform completion percentages are unchanged.
 ARMv6 parallel arithmetic/SEL and GE writes in the shared decoder are enabled
 only for 3DS ARM11. DS/DSi reject these encodings and keep their existing ARMv4/
 v5 instruction profiles and delivery percentages.
+
+ARMv6 halfword packing and unsigned byte-difference sums in the shared decoder
+are enabled only for 3DS ARM11. DS/DSi reject these encodings; their ARMv4/v5
+CPU profiles and delivery percentages are unchanged.
