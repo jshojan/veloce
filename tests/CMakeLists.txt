@@ -1399,3 +1399,12 @@ add_test(NAME nds_swap_registers COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/roms-src/nds/swap_registers/run.py --emulator $<TARGET_FILE:veloce>
     --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/nds_swap)
 set_tests_properties(nds_swap_registers PROPERTIES LABELS "accuracy;owned" TIMEOUT 1800)
+
+add_executable(arm_blx_decode_test cpp/arm_blx_decode_test.cpp ${CMAKE_SOURCE_DIR}/cores/nds/src/arm.cpp)
+target_include_directories(arm_blx_decode_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/nds/src)
+add_test(NAME arm_blx_decode_test COMMAND arm_blx_decode_test)
+set_tests_properties(arm_blx_decode_test PROPERTIES LABELS "unit;accuracy" TIMEOUT 120)
+add_test(NAME nds_arm_blx_registers COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/nds/arm_blx_registers/run.py --emulator $<TARGET_FILE:veloce>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/nds_arm_blx)
+set_tests_properties(nds_arm_blx_registers PROPERTIES LABELS "accuracy;owned" TIMEOUT 1800)
