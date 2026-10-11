@@ -18,7 +18,7 @@ public:
     bool save(std::vector<uint8_t>& data) const;
     bool restore(const std::vector<uint8_t>& data);
     std::array<uint8_t,65536> ram{};
-    std::vector<uint8_t> rom;
+    std::vector<uint8_t> rom, cartridge_ram;
     V810 cpu;
     Controller controller;
     emu::ITestSink* sink=nullptr;

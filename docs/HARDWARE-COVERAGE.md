@@ -4204,3 +4204,45 @@ CPU fails the new register-alias contract. VB remains **25% = 5/20**: no whole-C
 milestone is earned by this subset. Remaining CPU/NVC, caches, timing, VIP/VSU,
 automatic controller polling, native retail boot, saves and netplay remain
 unfinished. CI/CD stays disabled; captures remain ignored locally.
+
+## Configured Virtual Boy cartridge SRAM (2026-10-11)
+
+Virtual Boy **0.4.0** adds optional SRAM in the native cartridge region for
+explicitly configured original cartridges. Seven power-of-two capacities from
+1 KiB through 64 KiB are supported, with board/module mirrors, little-endian
+storage, reset retention, battery import/export and complete SRAM states.
+See the [original cartridge RAM corpus](../tests/roms-src/vb/cartridge_ram/README.md) for the descriptor, full finite
+domain and remaining physical/native-cartridge scope.
+
+The actual shared-plugin guest matches **8,388,608 eight-word snapshots /
+67,108,864 words**, zero mismatches, through every byte/value of the 8 KiB module
+and four selected mirrors. Neighbor guards and preserved status are graded
+independently. All exported battery bytes match the actual guest's final writes.
+Executed wrong-read and missing-store controls fail 960/1,023 short rows and
+960/2,046 words; eight field faults and seven malformed streams reject.
+Capture sources/binaries/ROM/assembler/grader hashes remain unchanged.
+
+The component checks **136,839,168 bus observations**, across every byte/value
+of all seven capacities/four mirrors and repeated-half patterns on both wide
+widths at selected wrap/end addresses. It checks reset retention, state replay,
+legacy neutral initialization and invalid image/state/boundary atomicity.
+The production frontend writes/restores exact `.sav` bytes through unload,
+reset, reload and fresh plugin-manager sessions. Shutdown flushes data; invalid
+battery lengths/files reject before mutation. Tests use isolated save paths.
+
+RAM-bearing state format **VVBS0004** appends an eight-byte capacity and all
+SRAM bytes after the prior CPU/WRAM/pad prefix: **66,216 + capacity bytes**.
+No-RAM ROMs keep **VVBS0003 = 66,208 bytes**. Legacy VVBS0002/VVBS0003 states
+initialize neutral SRAM. Active native complete-state and output replay match;
+older readers cannot load VVBS0004.
+
+All seven affected gates pass: full cartridge capture in **43.82 seconds**,
+six component/controller/frontend/state regressions in **23.72 seconds**.
+The old no-RAM Nintendo guest controls and all six native instruction-family
+checkpoint continuations also pass. All **153 original archives** reproduce;
+Release builds, completion rendering and whitespace checks pass. The prior core
+fails the declared cartridge-capacity contract. VB remains **25% = 5/20**.
+Native cartridge RAM-size detection, physical width/lane wiring, wait states
+and complete persistent-media scope remain unverified, so no saves milestone
+is earned. Remaining CPU/NVC, graphics/audio, timing, native retail boot and
+netplay are unfinished. CI/CD stays disabled.

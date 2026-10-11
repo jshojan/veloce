@@ -179,7 +179,7 @@
         "register_oracle",
         "states"
       ],
-      "remaining": "The standard pad software-clock path now consumes frontend input through native SCR/SDLR/SDHR, with all 16,384 button combinations independently graded. Remaining CPU/NVC, hardware controller polling/interrupts/timing, VIP/VSU, native boot, persistent media and netplay remain."
+      "remaining": "The standard pad software-clock path now consumes frontend input through native SCR/SDLR/SDHR, with all 16,384 button combinations independently graded. Remaining CPU/NVC, hardware controller polling/interrupts/timing, VIP/VSU, native boot, complete persistent media and netplay remain. Explicit original cartridges now have configured mirrored SRAM, independently graded byte/guard observations, complete states and production frontend battery-file persistence; native capacity detection, physical module wiring and timing remain unverified."
     },
     {
       "id": "nds",

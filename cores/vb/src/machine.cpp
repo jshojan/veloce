@@ -6,14 +6,19 @@ namespace vb {
 bool Machine::load(const uint8_t* data,size_t size) {
     if(!data || size<1024 || size>16*1024*1024 || (size&(size-1)) ||
        std::memcmp(data+size-0x200,"VVBHB001",8)) return false;
-    std::vector<uint8_t> image(data,data+size);
+    size_t capacity=0;
+    if(!std::memcmp(data+size-0x1f8,"VVBCRAM1",8)) {
+        for(unsigned n=0;n<4;++n)capacity=(capacity<<8)|data[size-0x1f0+n];
+        if(capacity<1024 || capacity>65536 || (capacity&(capacity-1)))return false;
+    }
+    std::vector<uint8_t> image(data,data+size), persistent(capacity,0);
     uint32_t hash=0xffffffff; uint64_t id=14695981039346656037ull;
     for(auto byte:image) {
         hash^=byte;
         for(unsigned b=0;b<8;++b) hash=(hash>>1)^((hash&1) ? 0xedb88320u:0);
         id^=byte; id*=1099511628211ull;
     }
-    rom=std::move(image); crc=~hash; identity=id; reset(); return true;
+    rom=std::move(image); cartridge_ram=std::move(persistent); crc=~hash; identity=id; reset(); return true;
 }
 void Machine::reset() { ram.fill(0); cpu.reset(); controller.reset(); frames=0; done=false; }
 bool Machine::read(uint32_t address,unsigned bytes,uint32_t& value) {
@@ -22,6 +27,10 @@ bool Machine::read(uint32_t address,unsigned bytes,uint32_t& value) {
     if(p>=0x02000000 && p<0x03000000)return controller.read(p&63,value);
     if(p>=0x05000000 && uint64_t(p)+bytes<=0x06000000) {
         value=0; for(unsigned n=0;n<bytes;++n) value|=uint32_t(ram[(p+n)&0xffff])<<(8*n);
+        return true;
+    }
+    if(!cartridge_ram.empty() && p>=0x06000000 && uint64_t(p)+bytes<=0x07000000) {
+        value=0;for(unsigned n=0;n<bytes;++n)value|=uint32_t(cartridge_ram[(p+n)&(cartridge_ram.size()-1)])<<(8*n);
         return true;
     }
     if(!rom.empty() && p>=0x07000000 && uint64_t(p)+bytes<=0x08000000) {
@@ -43,6 +52,10 @@ bool Machine::write(uint32_t address,unsigned bytes,uint32_t value) {
         return true;
     }
     if(p==0x04000004 && bytes==4) { done=true; if(sink) sink->finish(-1); return true; }
+    if(!cartridge_ram.empty() && p>=0x06000000 && uint64_t(p)+bytes<=0x07000000) {
+        for(unsigned n=0;n<bytes;++n)cartridge_ram[(p+n)&(cartridge_ram.size()-1)]=uint8_t(value>>(8*n));
+        return true;
+    }
     if(p<0x05000000 || uint64_t(p)+bytes>0x06000000) return false;
     for(unsigned n=0;n<bytes;++n) ram[(p+n)&0xffff]=uint8_t(value>>(8*n));
     return true;
@@ -58,7 +71,7 @@ static void append(std::vector<uint8_t>& data,uint64_t value) {
 }
 bool Machine::save(std::vector<uint8_t>& data) const {
     if(rom.empty()) return false;
-    data.assign({'V','V','B','S','0','0','0','3'});
+    data.assign({'V','V','B','S','0','0','0',uint8_t(cartridge_ram.empty()?'3':'4')});
     for(auto value:{identity,uint64_t(crc),frames,uint64_t(done)}) append(data,value);
     for(auto value:cpu.state.gpr) append(data,value);
     for(auto value:cpu.state.sr) append(data,value);
@@ -67,13 +80,18 @@ bool Machine::save(std::vector<uint8_t>& data) const {
     for(auto value:{uint64_t(bit.active),uint64_t(bit.source_valid),uint64_t(bit.destination_valid),uint64_t(bit.operation),
                    uint64_t(bit.source_word),uint64_t(bit.destination_word)}) append(data,value);
     data.insert(data.end(),ram.begin(),ram.end());
-    const auto pad=controller.save();data.insert(data.end(),pad.begin(),pad.end());return true;
+    const auto pad=controller.save();data.insert(data.end(),pad.begin(),pad.end());
+    if(!cartridge_ram.empty()){append(data,cartridge_ram.size());data.insert(data.end(),cartridge_ram.begin(),cartridge_ram.end());}
+    return true;
 }
 bool Machine::restore(const std::vector<uint8_t>& data) {
     constexpr size_t prefix=8+(4+32+32+4+6)*8;
     if(rom.empty() || data.size()<8)return false;
     const bool legacy=!std::memcmp(data.data(),"VVBS0002",8);
-    if((!legacy && std::memcmp(data.data(),"VVBS0003",8)) || data.size()!=prefix+ram.size()+(legacy?0:Controller::state_size))return false;
+    const bool persistent=!std::memcmp(data.data(),"VVBS0004",8);
+    if((!legacy && !persistent && std::memcmp(data.data(),"VVBS0003",8)) ||
+       data.size()!=prefix+ram.size()+(legacy?0:Controller::state_size)+(persistent?8+cartridge_ram.size():0) ||
+       (persistent && cartridge_ram.empty()))return false;
     size_t pos=8;
     auto take=[&]() { uint64_t value=0; for(unsigned n=0;n<8;++n) value=(value<<8)|data[pos++]; return value; };
     if(take()!=identity || take()!=crc) return false;
@@ -94,6 +112,13 @@ bool Machine::restore(const std::vector<uint8_t>& data) {
     c.halted=halted; c.unsupported=unsupported;
     Controller pad;
     if(!legacy && !pad.restore(data.data()+pos+ram.size(),Controller::state_size))return false;
+    std::vector<uint8_t> restored_ram(cartridge_ram.size(),0);
+    if(persistent){
+        const size_t saved_pos=pos;pos+=ram.size()+Controller::state_size;
+        if(take()!=cartridge_ram.size())return false;
+        std::copy_n(data.begin()+pos,restored_ram.size(),restored_ram.begin());pos=saved_pos;
+    }
+    cartridge_ram=std::move(restored_ram);
     controller=pad;cpu.state=c; frames=saved_frames; done=saved_done;
     std::copy_n(data.begin()+pos,ram.size(),ram.begin()); return true;
 }

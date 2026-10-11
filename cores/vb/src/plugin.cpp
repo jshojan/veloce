@@ -6,7 +6,7 @@ class Plugin : public emu::IEmulatorPlugin {
 public:
     emu::EmulatorInfo get_info() override {
         static const char* extensions[] = {".vb", nullptr};
-        return {"VB", "0.3.0", "Veloce", "Experimental V810 integer homebrew core; Nintendo integer extensions and software-clocked dual D-pad input; video, audio, hardware polling/timing and retail compatibility pending.",
+        return {"VB", "0.4.0", "Veloce", "Experimental V810 integer homebrew core; original cartridge SRAM persistence, Nintendo integer extensions and software-clocked dual D-pad input; video, audio, hardware polling/timing and retail compatibility pending.",
                 extensions, 50.0, 20000000, 384, 224};
     }
     const emu::ControllerLayoutInfo* get_controller_layout() override {
@@ -22,7 +22,7 @@ public:
         static const emu::ControllerLayoutInfo layout={"VB","Virtual Boy dual digital D-pads",emu::ControllerShape::Modern,2.0f,buttons,14,1};return &layout;
     }
     bool load_rom(const uint8_t* data, size_t size) override { return machine.load(data, size); }
-    void unload_rom() override { machine.rom.clear(); machine.crc = 0; machine.identity = 0; machine.reset(); }
+    void unload_rom() override { machine.rom.clear(); machine.cartridge_ram.clear(); machine.crc = 0; machine.identity = 0; machine.reset(); }
     bool is_rom_loaded() const override { return !machine.rom.empty(); }
     uint32_t get_rom_crc32() const override { return machine.crc; }
     void reset() override { machine.reset(); }
@@ -42,6 +42,12 @@ public:
     void write_memory(uint16_t address, uint8_t value) override { machine.ram[address] = value; }
     bool save_state(std::vector<uint8_t>& data) override { return machine.save(data); }
     bool load_state(const std::vector<uint8_t>& data) override { return machine.restore(data); }
+    bool has_battery_save() const override { return is_rom_loaded() && !machine.cartridge_ram.empty(); }
+    std::vector<uint8_t> get_battery_save_data() const override { return machine.cartridge_ram; }
+    bool set_battery_save_data(const std::vector<uint8_t>& data) override {
+        if(!has_battery_save() || data.size()!=machine.cartridge_ram.size())return false;
+        machine.cartridge_ram=data;return true;
+    }
     bool set_test_sink(emu::ITestSink* sink) override { machine.sink = sink; return true; }
     const char* test_channels() const override { return "v810debug"; }
 private:
