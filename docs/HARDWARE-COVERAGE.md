@@ -1,6 +1,6 @@
 # Nintendo implementation and hardware test coverage
 
-Current N64 evidence: [TMEM texel/palette reads and current Mario status](#tmem-texel-and-palette-reads). Earlier increment reports are historical.
+Current N64 evidence: [texture filtering arithmetic and current Mario status](#texture-filter-and-conversion-arithmetic). Earlier increment reports are historical.
 
 The goal includes Nintendo core plugins, repository-owned ROMs covering the
 hardware, machine-readable register observations, netplay, seamless controllers,
@@ -2468,6 +2468,53 @@ YUV conversion, perspective/LOD, texture-driven combiner routing and complete
 blending/depth/hidden-memory behavior remain unfinished; software oracles do
 not establish physical timing. Current production core/trace hashes still
 match the private Mario report at
+`build/artifacts/retail/n64-one-cycle-shade.json`. Mario remains graphics-blocked
+with uniform video and unverified boot/playability. Plugin **0.30.0**, ABI v2
+and **VN64S024** remain current. N64 stays **45% = 9/20 delivery milestones**.
+CI/CD remains disabled; the full Nintendo implementation goal remains active.
+
+
+## Texture filter and conversion arithmetic
+
+Prepared four-corner texels now support the RDP's triangular filtering,
+mid-texel four-corner average, signed nine-bit previous-texel feedback and
+four-coefficient color conversion. Chroma fractions account for YUV S parity;
+chroma and luma choose their triangles separately. Results retain nine bits
+for the combiner. This arithmetic follows the
+[RDP author's texture pipeline model](https://github.com/ata4/angrylion-rdp-plus/blob/master/src/core/n64video/rdp/tex.c).
+
+An independent weighted-corner oracle passes **67,174,400 RGB lattice cases**,
+**2,097,152 chroma lattice cases**, **1,310,720 previous-texel cases** and
+**2,359,296 conversion cases**. RGB probes cover every pair of two eight-bit
+pattern seeds at all 32-by-32 fractional positions; these correlated corner
+patterns do not exhaust arbitrary four-corner colors. Chroma probes cover
+selected signed patterns, S parity and mid-texel modes. Feedback probes cover
+all encoded nine-bit R/G pairs at five selected fractional positions.
+Conversion probes cover all nine-bit coefficient/chroma pairs under selected
+branch modes, plus all K1/K2 pairs under selected previous-texel inputs.
+Explicit center goldens distinguish four-corner averaging from triangular
+filtering. Warning-as-error compilation and UBSAN pass.
+
+The registered arithmetic gate and repeatable production-fault runner pass.
+The runner requires its unmodified baseline to pass and all nine deliberately
+faulty production-header variants to fail the independent oracle; compilation
+failures never count as rejection. Faults exercise triangle selection,
+rounding, chroma parity, center averaging, feedback sign/center correction,
+result width, coefficient oddness and mixed chroma/luma selection. Artifacts:
+`build/artifacts/component/n64_texture_filter/`. From the repository root:
+
+```sh
+cmake --build build --target n64_rdp_texture_filter_test
+ctest --test-dir build -R '^n64_rdp_texture_filter_' --output-on-failure
+```
+
+This helper has component evidence and no guest filter-output corpus yet.
+It accepts prepared corners and explicit options; coupled TMEM/TLUT fetch,
+mode/convert command state, persistent previous texels and pixel rendering
+are not connected. Point sampling, perspective/LOD, texture-driven combiner
+routing and full blending/depth/hidden-memory behavior remain unfinished.
+Software oracles do not establish physical timing. Current production
+core/trace hashes still match the private Mario report at
 `build/artifacts/retail/n64-one-cycle-shade.json`. Mario remains graphics-blocked
 with uniform video and unverified boot/playability. Plugin **0.30.0**, ABI v2
 and **VN64S024** remain current. N64 stays **45% = 9/20 delivery milestones**.
