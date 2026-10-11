@@ -674,8 +674,12 @@ See the [timing evidence](cores/nes/README.md#frame-irq-timing-branch-reconcilia
 Nine SNES CPU stack boundary defects are repaired. A new original ROM grades
 5,632 cases from actual register/RAM files, including every emulation stack
 pointer value, with an executed negative control and exact repeat captures.
-Decimal SBC remains the one measured CPU catalog failure. SNES stays 40%.
-See the [current stack evidence](cores/snes/README.md#cpu-stack-boundaries-2026-10-11).
+The decimal SBC repair now brings the measured CPU catalog to **1,610/1,610**.
+An original ROM grades **8,193 actual accumulator/flag pairs**, rejects an
+executed mutant and repeats exactly. SNES stays **40%**; full hardware accuracy
+remains unfinished.
+See the [stack evidence](cores/snes/README.md#cpu-stack-boundaries-2026-10-11)
+and [decimal subtraction evidence](cores/snes/README.md#decimal-sbc-2026-10-11).
 
 ## Project Structure
 

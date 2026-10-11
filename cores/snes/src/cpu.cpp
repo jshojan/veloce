@@ -519,16 +519,17 @@ void CPU::op_sbc16(uint16_t value) {
     uint32_t binary_result = a - value - (get_flag(FLAG_C) ? 0 : 1);
 
     if (get_flag(FLAG_D)) {
-        // BCD mode for 16-bit
-        int32_t temp = (a & 0x000F) - (value & 0x000F) - (get_flag(FLAG_C) ? 0 : 1);
-        if (temp < 0) temp -= 0x0006;
-        temp += (a & 0x00F0) - (value & 0x00F0);
-        if (temp < 0) temp -= 0x0060;
-        temp += (a & 0x0F00) - (value & 0x0F00);
-        if (temp < 0) temp -= 0x0600;
-        temp += (a & 0xF000) - (value & 0xF000);
-        if (temp < 0) temp -= 0x6000;
-        result = temp;
+        // Each digit propagates one binary borrow. Mask the corrected digit
+        // before the next stage: invalid BCD digits can subtract more than 16
+        // after correction, but must not introduce a second borrow.
+        int borrow = get_flag(FLAG_C) ? 0 : 1;
+        result = 0;
+        for (unsigned shift = 0; shift < 16; shift += 4) {
+            int digit = ((a >> shift) & 0xF) - ((value >> shift) & 0xF) - borrow;
+            borrow = digit < 0;
+            if (borrow) digit -= 6;
+            result |= (static_cast<uint32_t>(digit) & 0xF) << shift;
+        }
         set_flag(FLAG_C, (static_cast<int32_t>(a) - value - (get_flag(FLAG_C) ? 0 : 1)) >= 0);
     } else {
         result = binary_result;

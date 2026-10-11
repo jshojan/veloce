@@ -25625,6 +25625,17 @@
       },
       "toolchain_image_id": "sha256:71c159dd80048214ea2f03bcb75b41e0a5c073b55f66a4333ed6bdbef7a3b26f"
     },
+    "snes/decimal_sbc/decimal_sbc.sfc": {
+      "build_command": "python3 tests/roms-src/snes/decimal_sbc/build.py",
+      "console": "snes",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "797e0105828723b79e76b7d6990a75b82dee6fdb4a677354fef18a5ac9508bb5",
+      "source_repo": "tests/roms-src/snes/decimal_sbc/build.py",
+      "source_sha": "ed35c7292325d240587664b15c9c6e1e8ba07149fd55ef4fcc6be0103750890c",
+      "source_type": "original",
+      "suite": "decimal_sbc"
+    },
     "snes/gilyon_cputest/cputest-full.sfc": {
       "console": "snes",
       "golden_gate": null,

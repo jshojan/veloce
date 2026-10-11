@@ -11,7 +11,7 @@ These percentages count the 20 explicit delivery milestones in [the completion l
 
 SNES delivered milestones: Guest sound produces audio samples, Native digital controller/keypad registers consume frontend input, Guest graphics produce rendered video, Parse a native cartridge/executable format (boot scored separately), Repository-owned ROM source and reproducible archived image, Separate core plugin and ABI entry points, Actual guest register-file output independently graded on the host, with negative controls, Complete states for the implemented profile and deterministic replay.
 
-Remaining: Decimal SBC, full CPU/timing and graphics/audio accuracy, expansion chips, corpus grading and physical validation remain unfinished.
+Remaining: Full CPU/timing and graphics/audio accuracy, expansion chips, corpus grading and physical validation remain unfinished.
 <!-- completion:end -->
 
 Super Nintendo Entertainment System emulator for Veloce.
@@ -746,3 +746,33 @@ SNES stays **40% = 8/20 delivery milestones**. Complete CPU, hardware timing,
 full native stack/operand domains, physical validation, expansion chips and
 modern core/frontend features remain unfinished. Earlier catalog numbers in
 this README are historical; this section records the current stack repair.
+
+## Decimal SBC (2026-10-11)
+
+The remaining catalog defect (061a, native 16-bit decimal subtraction with
+invalid BCD digits) is repaired. Decimal correction now passes one borrow to
+the next nibble and masks each corrected digit; the old cumulative subtraction
+could introduce an extra borrow. Binary SBC, 8-bit SBC, CPU timing calls and
+serialized state layout retain their existing implementation.
+
+The [original decimal ROM](../../tests/roms-src/snes/decimal_sbc/README.md)
+grades **8,193 A/P pairs** (16,386 register observations). All nibble positions,
+digit pairs and carries are covered under four backgrounds, plus the pinned
+regression. The old plugin yields 433 accumulator mismatches; the corrected
+plugin yields none. A complement-addition oracle also cross-checks the 2,400
+valid-BCD cases using integer-decimal arithmetic. The remaining 5,793 cases
+include invalid digits: beyond the pinned regression, physical hardware
+comparison remains pending. The full 16-bit operand-pair domain is not exhausted.
+
+The executed capture mutant produces exactly one mismatch. Missing/reordered/
+truncated captures are rejected, and positive captures repeat byte for byte.
+Fresh gilyon CPU captures now pass **1,610/1,610** and repeat exactly; the SPC700
+catalog remains **1,368/1,368**. These are catalog results, not exhaustive CPU or
+hardware accuracy. Earlier catalog counts in this README are historical.
+
+The full build and **11 targeted owned/shared gates** pass, and **120 archived
+original ROMs** reproduce from their recorded source/image hashes.
+
+SNES remains **40% = 8/20 delivery milestones**. Complete hardware timing,
+CPU addressing/flag domains, physical validation, graphics/audio, expansion
+chips and modern core/frontend features remain unfinished.
