@@ -3860,3 +3860,18 @@ extended mappings and ordinary word/FP error controls. This does not establish
 all operands/bases/TLB layouts, reverse endian operation, physical timing or
 complete CPU/hardware. No ABI/S031 change; N64 remains 50%. See
 [source, file evidence and limits](../tests/roms-src/n64/kernel32_addresses/README.md).
+
+## N64 CP0 read-only software writes (2026-10-11)
+
+N64 0.54.0 preserves BadVAddr, PRId and CacheErr on MTC0/DMTC0; actual address
+faults still update BadVAddr. Privilege/CU0/width priority is retained. The
+original cartridge uses a real unaligned fault, handler and ERET to seed
+BadVAddr, then grades 12,582,912 cases / 150,994,944 real RAM/register words:
+two widths, three targets, four complete sixteen-bit source positions, four
+surrounding patterns and direct/taken-delay contexts. Actual wrong CP0 reads,
+field and malformed-file controls reject; twelve native/fast rollback records
+and complete states match. The component gate covers 22,020,097 source/mode/
+metadata/preservation observations. Full Status/Config/reserved CP0 behavior,
+reset revision, physical hazards/timing and whole hardware remain pending.
+No ABI/S031 change; N64 stays 50%. See
+[source, register files and limits](../tests/roms-src/n64/cp0_readonly/README.md).

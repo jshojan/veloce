@@ -3796,3 +3796,17 @@ Twelve native/fast rollback records and complete states match. The component
 gate checks 4,730,235 address/mode/metadata/bus observations. Complete CPU/CP0/
 COP1/hardware, other address corner cases and physical timing remain pending;
 N64 remains 50%. Details: [original cartridge](tests/roms-src/n64/kernel32_addresses/README.md).
+
+## N64 CP0 read-only write corpus (2026-10-11)
+
+N64 0.54.0 corrects software writes to BadVAddr/PRId/CacheErr. An original
+12,582,912-case cartridge exports 150,994,944 actual RAM/register words: MTC0/
+DMTC0, three targets, all four sixteen-bit source positions at four surrounding
+patterns and direct/taken-delay contexts. BadVAddr is initialized by a real
+address fault and ERET. Independent grading verifies full/word target reads,
+all three register values, source preservation and Status. Actual wrong reads
+in all 3,072 short cases, twelve field faults and six malformed streams reject;
+twelve native/fast rollback records and complete states match. The component
+gate covers 22,020,097 source/mode/preservation observations. Full CPU/CP0/
+hardware and physical timing remain unfinished; N64 stays 50%. See
+[original cartridge evidence](tests/roms-src/n64/cp0_readonly/README.md).

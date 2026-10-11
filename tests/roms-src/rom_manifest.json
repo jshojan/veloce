@@ -21900,6 +21900,17 @@
       "source_type": "original",
       "suite": "cop2_unusable"
     },
+    "n64/cp0_readonly/cp0_readonly.z64": {
+      "build_command": "python3 tests/roms-src/n64/cp0_readonly/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "39486dffa2fede9fd5a1fb2702dc19f1ae9e40218f10cdafe401dce9d1107582",
+      "source_repo": "tests/roms-src/n64/cp0_readonly/build.py",
+      "source_sha": "896e44068ebc3e5534a037ace43c2fd6bea2d8317bfbcc0814866aa9ab21d96e",
+      "source_type": "original",
+      "suite": "cp0_readonly"
+    },
     "n64/doubleword_privilege/doubleword_privilege.z64": {
       "build_command": "python3 tests/roms-src/n64/doubleword_privilege/build.py",
       "console": "n64",

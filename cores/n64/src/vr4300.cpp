@@ -376,7 +376,8 @@ void VR4300::step() {
             if((rs==0 || rs==1) && !(ins&0x7ff))put(rt,rs==0?sign32(uint32_t(s.cp0[rd])):s.cp0[rd]);
             else if((rs==4 || rs==5) && !(ins&0x7ff)) {
                 const uint64_t value=rs==4?sign32(uint32_t(b)):b;
-                if(rd==0)s.cp0[0]=value&0x8000003f;
+                if(rd==8 || rd==15 || rd==27) { /* BadVAddr, PRId and CacheErr are read-only. */ }
+                else if(rd==0)s.cp0[0]=value&0x8000003f;
                 else if(rd==1)s.cp0[1]=(s.cp0[1]&31)|(value&32);
                 else if(rd==2 || rd==3)s.cp0[rd]=value&Tlb::lo_mask;
                 else if(rd==4)s.cp0[4]=(s.cp0[4]&0x7ffff0)|(value&~uint64_t(0x7fffff));
