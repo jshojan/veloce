@@ -1,6 +1,6 @@
 # Experimental Nintendo 64 core plugin
 
-Current N64 evidence: [complete command packets and the current Mario probe](#rdp-complete-command-packets). Earlier increment reports are historical.
+Current N64 evidence: [fill-cycle triangle spans and the current Mario probe](#rdp-fill-cycle-triangle-spans). Earlier increment reports are historical.
 
 <!-- completion:start -->
 ## Completion percentage
@@ -1723,3 +1723,58 @@ component UBSAN, completion rendering and whitespace checks pass. N64 remains
 analog/accessories/local frontend routing, physical timing and the exhaustive
 native/physical corpus still pending. CI/CD remains disabled; the full Nintendo
 implementation goal remains active.
+
+## RDP fill-cycle triangle spans
+
+Plugin **0.29.0**, emulator ABI v2, now executes fill-cycle triangle packets.
+The decoder separates all eight edge/shade/texture/depth layouts. Edge walking
+uses signed 28-bit X and 30-bit slopes, quantized quarter-scanline increments,
+mid-edge replacement, sticky fractional clipping and field selection. Bit 55
+set places the major edge on the left in the verified raster path. Fill-cycle
+writes use the fill word; shade/texture/Z payloads remain attributes rather than
+commands. One/two-cycle triangles remain explicitly blocked.
+
+The [original framebuffer cartridge](../../tests/roms-src/n64/rdp_triangle_fill/README.md) passes **795,648 cases /
+10,343,424 actual 64-bit words**. Its color domain covers all 65,536 halfword
+patterns combined with their complements, three pixel sizes, both sources and
+both directions. The separate 9,216-row matrix covers eight geometry/scissor
+profiles, all 32 triangle opcode bytes, three field selections, both sources
+and three pixel sizes. Actual framebuffer words, guards, CURRENT, STATUS and
+MI pending are independently graded. The executed mutant fails all **9,288**
+short cases; thirteen field and seven stream controls reject. This does not
+exhaust all 32-bit fill words or arbitrary native geometry combinations.
+Artifacts: `build/artifacts/owned/n64_rdp_triangle_fill/`.
+
+Component gates verify **24,576 coefficient basis packets**, **2,097,152
+halfword routing packets**, **1,572,864 signed-Y packets**, **4,096 header
+combinations** and **640 atomic rejections**. The modular incremental edge
+oracle matches **7,062,117 quarter-edge captures**. Ninety-six packet/field
+fill dispatches plus mirrored golden spans verify actual RAM, bounds/kill
+rejection and payload versus real FullSync. Final component UBSAN passes with
+clean compilation. The earlier DP failure gate now explicitly submits an
+unsupported one-cycle triangle; legal empty fill triangles can complete.
+
+**15 affected N64 verification gates pass**, including the original rectangle,
+fill-pipeline and packet cartridges, production packet-state replay, controller
+ports, state and two-process TCP netplay. The four integration gates pass in
+**103.14 seconds**; seven component gates pass in **3.11 seconds** and three
+state/controller gates in **0.39 seconds**. All **103 original archives**
+reproduce. State remains **VN64S024 / 8,478,944 bytes**; these raster calculations
+add no serialized machine fields. Four digital ports and TCP capabilities
+remain present; native analog/accessories and timing remain pending.
+
+The private Mario probe was repeated for **2,000 scheduling quanta /
+200,000,000 CPU attempts**. No terminal CPU fault is observed, video is uniform,
+and the same one-cycle packet **CF000FFA0FFAF006** remains blocked: **22/22**
+words, start **0x227160**, fetched CURRENT **0x227210**, reason 1. Report:
+`build/artifacts/retail/n64-triangle-fill.json`. Core SHA-256:
+**67f08620c2e60314900b3b3ece19c65765343413f322f1c002f866d4e561b47b**;
+trace SHA-256: **339076695f22f7a0255e8352f5c670dc9e029dcd9a935767e54603b0075155f8**.
+No commercial bytes are archived.
+
+N64 remains **45% = 9/20 delivery milestones**. Shading, texture sampling,
+coverage/blending/depth, hidden RDRAM bits, native FIFO/raster timing, crash
+partial writes, complete CPU/devices/RSP/audio, native boot/retail play and the
+complete native/physical corpus remain unfinished. Unsafe profiles/bounds
+reject before writes under the functional convention. CI/CD remains disabled;
+the full Nintendo implementation goal remains active.
