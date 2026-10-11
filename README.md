@@ -168,9 +168,12 @@ All plugin interfaces are defined in include/emu/:
 
 ### Frontend plugin wiring
 
-The frame loop currently uses the built-in input and audio managers. The
-separate `IInputPlugin` and `IAudioPlugin` implementations can load, but are not
-driven by that loop. Netplay and game plugins are driven by the frontend;
+The frame loop drives the selected `IAudioPlugin` for both streaming and
+frame-end audio. The host resamples processed stereo floats to the SDL device;
+volume/mute, source-rate changes, plugin replacement and rollback suppression
+have executed checks. See [audio integration evidence](plugins/audio_default/README.md#frontend-integration).
+Input currently uses the built-in manager; separate `IInputPlugin` routing
+remains unfinished. Netplay and game plugins are driven by the frontend;
 netplay support depends on the active core's implemented interface and profile.
 Physical controller and audio-device validation remains pending.
 

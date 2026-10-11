@@ -5,6 +5,7 @@
 #include "renderer.hpp"
 #include "input_manager.hpp"
 #include "audio_manager.hpp"
+#include "audio_pipeline.hpp"
 #include "plugin_manager.hpp"
 #include "savestate_manager.hpp"
 #include "paths_config.hpp"
@@ -234,6 +235,20 @@ bool Application::initialize(int argc, char* argv[]) {
     // Load plugin configuration from config directory
     std::filesystem::path plugin_config_path = m_paths_config->get_config_directory() / "plugins.json";
     m_plugin_manager->load_config(plugin_config_path.string());
+
+    if (m_audio_manager) {
+        m_audio_pipeline = std::make_unique<AudioPipeline>(
+            [this](const float* samples, size_t count, int rate) {
+                m_audio_manager->push_samples_resampled(samples, count, rate);
+            },
+            [this] { m_audio_manager->pause(); },
+            [this] { m_audio_manager->resume(); });
+        m_plugin_manager->set_audio_host(m_audio_pipeline.get());
+        const auto selected = m_plugin_manager->get_selected_plugin_name(PluginType::Audio);
+        if (!m_plugin_manager->set_active_plugin(PluginType::Audio, selected)) {
+            std::cerr << "Audio plugin unavailable; using device passthrough\n";
+        }
+    }
 
     if (!m_headless_mode) {
         // Initialize GUI
@@ -525,6 +540,7 @@ void Application::shutdown() {
         m_plugin_manager->shutdown();
         m_plugin_manager.reset();
     }
+    m_audio_pipeline.reset();
     if (m_audio_manager) {
         m_audio_manager->shutdown();
         m_audio_manager.reset();
@@ -697,6 +713,8 @@ void Application::run_emulation_frame() {
     if (session && session->owns_frame_execution() &&
         session->get_connection_state() == NetplayConnectionState::Connecting) return;
 
+    m_audio_pipeline->begin_frame();
+
     // Cached connection status is updated by session callbacks.
     bool netplay_active = m_netplay_active_cached;
 
@@ -748,27 +766,17 @@ void Application::run_emulation_frame() {
     // Update game plugins (for timer updates and auto-split detection)
     m_plugin_manager->update_game_plugins();
 
-    // Audio handling: streaming vs legacy path
-    // Streaming audio (has_audio_callback) pushes samples during emulation for lowest latency
-    // Legacy path batches until frame end (higher latency but compatible with all plugins)
-    if (!plugin->has_audio_callback()) {
-        // Legacy audio path: get samples at frame end
-        auto* netplay = m_plugin_manager->get_netplay_plugin();
-        bool skip_audio = netplay_active && netplay && netplay->is_rolling_back();
-        if (!skip_audio) {
-            AudioBuffer audio = plugin->get_audio();
-            if (audio.samples && audio.sample_count > 0) {
-                // Resample if source rate differs from output rate
-                m_audio_manager->push_samples_resampled(audio.samples, audio.sample_count * 2,
-                                                         audio.sample_rate);
-                plugin->clear_audio_buffer();
-            }
-        } else {
-            // Discard audio during rollback
-            plugin->clear_audio_buffer();
-        }
+    // Cores which do not actually stream still receive a frame-end audio path.
+    // Merely storing the callback in the base ABI does not prove delivery.
+    auto* netplay = m_plugin_manager->get_netplay_plugin();
+    const bool skip_audio = netplay_active && netplay && netplay->is_rolling_back();
+    AudioBuffer audio = plugin->get_audio();
+    if (audio.samples && audio.sample_count > 0) {
+        m_audio_pipeline->batch(m_plugin_manager->get_audio_plugin(), audio.samples,
+                               static_cast<size_t>(audio.sample_count) * 2,
+                               audio.sample_rate, skip_audio);
     }
-    // Streaming path: samples already pushed during run_frame() via callback
+    plugin->clear_audio_buffer();
 
     // Update texture with framebuffer
     FrameBuffer fb = plugin->get_framebuffer();
@@ -845,19 +853,12 @@ bool Application::load_rom(const std::string& path, bool preserve_selected_core)
     if (!m_headless_mode) {
         auto* active_plugin = m_plugin_manager->get_active_plugin();
         if (active_plugin) {
-            // Capture audio manager and netplay plugin pointer for the callback
-            AudioManager* audio_mgr = m_audio_manager.get();
-            PluginManager* plugin_mgr = m_plugin_manager.get();
-
             active_plugin->set_audio_callback(
-                [audio_mgr, plugin_mgr](const float* samples, size_t count, int rate) {
-                    // Skip audio during netplay rollback to avoid artifacts
-                    auto* netplay = plugin_mgr->get_netplay_plugin();
-                    if (netplay && netplay->is_rolling_back()) {
-                        return;
-                    }
-                    // Push samples with resampling (count is stereo pairs)
-                    audio_mgr->push_samples_resampled(samples, count * 2, rate);
+                [this](const float* samples, size_t count, int rate) {
+                    auto* netplay = m_plugin_manager->get_netplay_plugin();
+                    const bool suppressed = netplay && netplay->is_rolling_back();
+                    m_audio_pipeline->stream(m_plugin_manager->get_audio_plugin(),
+                                             samples, count * 2, rate, suppressed);
                 });
         }
     }

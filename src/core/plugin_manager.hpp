@@ -263,6 +263,9 @@ public:
     void set_paths_config(PathsConfiguration* paths_config) { m_paths_config = paths_config; }
 
     // Set netplay host (for initializing netplay plugins when they're activated)
+    // Install before audio activation; host outlives active audio instances.
+    void set_audio_host(IAudioHost* host) { m_audio_host = host; }
+
     void set_netplay_host(INetplayHost* host) { m_netplay_host = host; }
 
     // Battery-backed save file support
@@ -336,6 +339,7 @@ private:
     PathsConfiguration* m_paths_config = nullptr;
 
     // Netplay host (for initializing netplay plugins)
+    IAudioHost* m_audio_host = nullptr;
     INetplayHost* m_netplay_host = nullptr;
 
     // Guard against double-shutdown

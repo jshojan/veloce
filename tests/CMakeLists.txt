@@ -1272,3 +1272,34 @@ add_test(NAME snes_decimal_sbc COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/roms-src/snes/decimal_sbc/run.py --emulator $<TARGET_FILE:veloce>
     --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/snes_decimal_sbc)
 set_tests_properties(snes_decimal_sbc PROPERTIES LABELS "accuracy;owned" TIMEOUT 400)
+
+add_executable(audio_pipeline_test cpp/audio_pipeline_test.cpp)
+target_include_directories(audio_pipeline_test PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(audio_pipeline_test PRIVATE audio_default)
+add_test(NAME audio_pipeline_test COMMAND audio_pipeline_test)
+set_tests_properties(audio_pipeline_test PROPERTIES LABELS "integration;fast")
+
+add_library(audio_frontend_fixture SHARED cpp/audio_frontend_fixture.cpp)
+add_library(audio_core_fixture SHARED cpp/audio_core_fixture.cpp)
+foreach(fixture audio_frontend_fixture audio_core_fixture)
+    target_include_directories(${fixture} PRIVATE ${CMAKE_SOURCE_DIR}/include)
+    set_target_properties(${fixture} PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/fixtures/audio)
+endforeach()
+find_program(VELOCE_XVFB_RUN xvfb-run)
+if(VELOCE_XVFB_RUN)
+    add_test(NAME audio_frontend_test COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/audio_frontend_test.py
+        --emulator $<TARGET_FILE:veloce> --audio $<TARGET_FILE:audio_frontend_fixture>
+        --core $<TARGET_FILE:audio_core_fixture> --artifacts ${CMAKE_BINARY_DIR}/artifacts/audio_frontend
+        --xvfb ${VELOCE_XVFB_RUN})
+    set_tests_properties(audio_frontend_test PROPERTIES LABELS "integration" TIMEOUT 100)
+endif()
+
+add_executable(audio_lifecycle_test cpp/audio_lifecycle_test.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/plugin_manager.cpp ${CMAKE_SOURCE_DIR}/src/core/plugin_registry.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/plugin_config.cpp ${CMAKE_SOURCE_DIR}/src/core/paths_config.cpp)
+target_include_directories(audio_lifecycle_test PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(audio_lifecycle_test PRIVATE nlohmann_json::nlohmann_json ${CMAKE_DL_LIBS})
+add_dependencies(audio_lifecycle_test audio_frontend_fixture)
+add_test(NAME audio_lifecycle_test COMMAND audio_lifecycle_test $<TARGET_FILE:audio_frontend_fixture>
+    ${CMAKE_BINARY_DIR}/artifacts/audio_lifecycle)
+set_tests_properties(audio_lifecycle_test PROPERTIES LABELS "integration;fast" TIMEOUT 30)

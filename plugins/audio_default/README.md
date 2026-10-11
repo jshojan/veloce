@@ -45,3 +45,56 @@ Built automatically as part of Veloce. See main README for build instructions.
 | src/default_audio_plugin.cpp | Plugin implementation |
 | CMakeLists.txt | Build configuration |
 
+
+
+## Frontend integration
+
+The GUI frontend initializes the selected audio plugin from `config/plugins.json`
+(default: Default Audio) with a live `IAudioHost`. Both streaming core samples
+and the frame-end fallback pass through the plugin. The host then resamples
+processed samples to the SDL device rate. Headless hardware-test runs continue
+to avoid audio-device initialization.
+
+`process()` receives **individual interleaved stereo floats**, not stereo-pair
+counts. Query `host->get_format()` during every process call: it describes the
+current source rate, two channels and 32-bit floats. Submit output synchronously
+at that same rate; asynchronous submission or format conversion inside a plugin
+is outside the current contract. Before the first process call the host reports
+44100 Hz. These contract clarifications do not change ABI v1's vtable.
+
+The selected plugin is resolved on each sample submission, so switching plugins
+does not leave a callback pointing at a destroyed instance. A replacement is
+initialized before the working plugin is shut down; a rejected initialization
+keeps the working instance. Shutdown precedes destruction, with the host/device
+still alive. Activation without an installed host is rejected. If the configured
+plugin is unavailable at startup, the GUI reports device passthrough.
+
+The bridge discards replay audio during rollback. Actual streamed samples
+suppress the frame-end fallback, preventing duplicate audio. A core which only
+stores the callback and never streams still has its batch audio delivered.
+The device's master volume remains independent of plugin processing volume.
+
+Executed evidence (Linux, SDL dummy audio / Xvfb):
+
+- Production GUI plus dynamically loaded core/audio fixtures deliver exactly
+  three buffers in each streaming/batch mode, with exact sample values and
+  changing rates **32040 / 48000 / 44100 Hz**, and clean lifecycle/exit.
+- The real Default Audio plugin produces exact half-volume and muted samples;
+  streaming/batch duplication, rollback suppression, passthrough, bad inputs
+  and host pause/resume are checked against actual output callbacks.
+- Real plugin-manager replacement rejects a failing initializer, preserves and
+  exercises the previous instance, then proves successful replacement and
+  single shutdown/destruction. No-host and unknown-plugin activation fail.
+
+```bash
+cmake -S . -B build
+cmake --build build
+ctest --test-dir build -R '^(audio_pipeline_test|audio_lifecycle_test|audio_frontend_test)$' --output-on-failure
+```
+
+`audio_frontend_test` is available when `xvfb-run` is installed. Artifacts remain
+under `build/artifacts/audio_frontend/` and `build/artifacts/audio_lifecycle/`.
+The fixtures verify frontend routing; they are not guest hardware accuracy ROMs.
+Physical speakers/devices, asynchronous audio plugins, recording/effects, and
+alternate input/TAS plugin routing remain unverified or unfinished. Core delivery
+percentages retain their existing milestone scores.

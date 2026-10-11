@@ -12,6 +12,7 @@ class WindowManager;
 class Renderer;
 class InputManager;
 class AudioManager;
+class AudioPipeline;
 class PluginManager;
 class GuiManager;
 class SavestateManager;
@@ -145,6 +146,7 @@ private:
     std::unique_ptr<Renderer> m_renderer;
     std::unique_ptr<InputManager> m_input_manager;
     std::unique_ptr<AudioManager> m_audio_manager;
+    std::unique_ptr<AudioPipeline> m_audio_pipeline;
     std::unique_ptr<PluginManager> m_plugin_manager;
     std::unique_ptr<GuiManager> m_gui_manager;
     std::unique_ptr<SavestateManager> m_savestate_manager;
