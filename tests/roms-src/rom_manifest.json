@@ -22483,6 +22483,17 @@
       "source_type": "original",
       "suite": "vi_registers"
     },
+    "nds/clz_registers/clz_registers.nds": {
+      "build_command": "python3 tests/roms-src/nds/clz_registers/build.py",
+      "console": "nds",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "e55fb9b5d07fe45e0bd385f4e0384fb56a5336805ba8005d1db34709d473783d",
+      "source_repo": "tests/roms-src/nds/clz_registers/build.py",
+      "source_sha": "34fea8c90ab12ceaacdd9112679720c2865e1376b08825312bbeb1eb02a2d190",
+      "source_type": "original",
+      "suite": "clz_registers"
+    },
     "nds/integer_registers/integer_registers.nds": {
       "build_command": "python3 tests/roms-src/nds/integer_registers/build.py",
       "console": "nds",

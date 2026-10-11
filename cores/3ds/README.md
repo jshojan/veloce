@@ -23,7 +23,7 @@ software and firmware do not boot. Full platform completion is unmeasured.**
 
 - The [DS integer interpreter](../nds/README.md), with ARMv6 ARM/Thumb REV,
   REV16 and REVSH enabled only for ARM11. Unsupported instructions diagnose
-  and stop that context. The shared decoder also supports QADD/QSUB/QDADD/QDSUB
+  and stop that context. The shared decoder also supports CLZ and QADD/QSUB/QDADD/QDSUB
   on ARM9/ARM11;
   their original register corpus is graded on DS ARM9. Full DSP ISA and
   platform-specific timing remain unverified.
