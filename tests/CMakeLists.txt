@@ -909,6 +909,15 @@ add_test(NAME n64_rdp_texel_fetch_mutants COMMAND ${Python3_EXECUTABLE}
     --artifacts ${CMAKE_BINARY_DIR}/artifacts/component/n64_texel_fetch)
 set_tests_properties(n64_rdp_texel_fetch_mutants PROPERTIES LABELS "unit;accuracy" TIMEOUT 180)
 
+add_executable(n64_rdp_texel_quad_test cpp/n64_rdp_texel_quad_test.cpp)
+target_include_directories(n64_rdp_texel_quad_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src)
+add_test(NAME n64_rdp_texel_quad_test COMMAND n64_rdp_texel_quad_test)
+set_tests_properties(n64_rdp_texel_quad_test PROPERTIES LABELS "unit;accuracy" TIMEOUT 180)
+add_test(NAME n64_rdp_texel_quad_mutants COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/n64_texel_quad_mutants.py --compiler ${CMAKE_CXX_COMPILER}
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/component/n64_texel_quad)
+set_tests_properties(n64_rdp_texel_quad_mutants PROPERTIES LABELS "unit;accuracy" TIMEOUT 180)
+
 add_executable(n64_rdp_texture_filter_test cpp/n64_rdp_texture_filter_test.cpp)
 target_include_directories(n64_rdp_texture_filter_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src)
 add_test(NAME n64_rdp_texture_filter_test COMMAND n64_rdp_texture_filter_test)
