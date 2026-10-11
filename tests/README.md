@@ -425,3 +425,27 @@ regression gates pass. Private SM64 native VI movement/action/neutral controls
 pass; all 136 original archives reproduce. Full Release build, completion
 renderer and whitespace checks pass. N64 remains 50%; complete CPU/hardware
 and full-title retail playability remain unfinished.
+
+## N64 Config fields and actual K0 cache/bypass reads
+
+```sh
+ctest --test-dir build -R '^(n64_config_fields|n64_config_fields_test|n64_cache_coherence|n64_cache_test)$' --output-on-failure
+```
+
+The original Config cartridge grades 16,777,216 cases / 201,326,592 actual
+RAM/register words with EP=0/BE=1 held. An independent oracle checks both CP0
+write widths, selected source domains, CU/K0 settings, direct/taken-delay
+contexts and actual cached/bypass reads around an uncached memory mutation.
+Executed wrong reads reject in all 4,096 short cases; twelve field and six stream
+controls reject. Twelve ordinary/fast rollback records and complete states match.
+The component gate checks 7,356,417 field/source/privilege observations. The older
+cache-coherence ROM preserves big endian mode when enabling caching. See
+[source, file paths and limits](roms-src/n64/config_fields/README.md).
+
+On 0.55.0 all 20 selected gates pass: 18 CPU/machine/cache/controller/frontend/
+TAS/TCP gates and two fresh PI/original IPL handoff gates. The corrected cache
+archive still grades 2,097,152 cases / 12,582,912 guest values and rejects its
+executed wrong-writeback control. Private SM64 native VI movement/action/neutral
+checks pass; all 137 original archives reproduce. Full Release build, completion
+renderer and whitespace checks pass. N64 remains 50%; full hardware and
+full-title retail playability remain unfinished.

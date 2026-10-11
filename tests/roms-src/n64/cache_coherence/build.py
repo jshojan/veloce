@@ -71,7 +71,7 @@ def build(short=False,wrong_writeback=False):
     p=Program();p.data[:4]=bytes.fromhex("80371240");p.data[8:12]=bytes.fromhex("a0000400")
     p.data[0x20:0x34]=b"VELOCE CACHE ROM    ";p.data[0x34:0x3c]=b"V64HB001"
     cases=64 if short else 2097152
-    p.i(15,0,30,0xbff0);p.i(9,0,8,3);p.word(0x40888000) # Config.K0 cached, code stays KSEG1
+    p.i(15,0,30,0xbff0);p.i(13,0,8,0x8003);p.word(0x40888000) # Preserve Config.BE=1/EP=0 and set K0 cached, code stays KSEG1
     p.i(9,0,16,0);p.i(15,0,17,cases>>16);p.i(13,17,17,cases&65535)
     p.puts("header");p.mark("sample")
     p.r(2,rt=16,rd=18,sa=4 if short else 12);p.i(12,18,18,3 if short else 511)

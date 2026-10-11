@@ -21839,11 +21839,22 @@
       "console": "n64",
       "license": "MIT",
       "rom_variant": "veloce",
-      "sha256": "a749eca47c6880fed287fead82f4eb185c70e644da0e74159ca8cc31453b10a7",
+      "sha256": "1dfa7facc29dc2a51f6e5ff01d25890e2d38cee408f084268615551d32f2a290",
       "source_repo": "tests/roms-src/n64/cache_coherence/build.py",
-      "source_sha": "847ffa038f73c2c28404105acce033e3609acb319631978c061e0d4c621da150",
+      "source_sha": "2d8d4236df9216fe14936e4aea807a637996cef601f4a08b26180c7cbfb35f02",
       "source_type": "original",
       "suite": "cache_coherence"
+    },
+    "n64/config_fields/config_fields.z64": {
+      "build_command": "python3 tests/roms-src/n64/config_fields/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "35dca39fcc4887cdf878dce7a6ecbd6c0edb7df86be382dc8c5df9ab5efa3075",
+      "source_repo": "tests/roms-src/n64/config_fields/build.py",
+      "source_sha": "e441c312f35db84136a9a45052d650bb4e97488ebee95c568a82e11ed17d340a",
+      "source_type": "original",
+      "suite": "config_fields"
     },
     "n64/controller_analog_reads/controller_analog_reads.z64": {
       "build_command": "python3 tests/roms-src/n64/controller_analog_reads/build.py",
