@@ -178,7 +178,7 @@ register words. Its executed wrong-capture, 13 field and seven malformed-stream
 controls are mandatory. Component, executed production-fault and S028 replay
 gates run through `ctest -R '^n64_rdp_copy_(test|mutants|checkpoint_test)$'`.
 An optional [pinned renderer comparison](reference/n64-copy/README.md) stays
-outside the repo. All 115 original archives reproduce without network or SDK.
+outside the repo. All 116 original archives reproduce without network or SDK.
 
 `n64_retail_probe.py --input-script tests/input/n64-title-start.txt --capture
 build/artifacts/retail/n64-copy-start.ppm` accepts a private ROM positional path
@@ -191,3 +191,15 @@ SHA256. The trace uses 100,000 nominal CPU attempts per quantum. This is a bound
 digital diagnostic, with no analog, physical timing or playability verdict.
 Capture metadata is recorded only when the current probe writes a capture.
 Private bytes/captures stay in ignored build artifacts.
+
+## N64 cached controller reads and S029
+
+The [original cached-read cartridge](roms-src/n64/controller_cached_reads/README.md)
+formats once and observes both reads across every digital combination/complement:
+16,384 cases / 262,144 actual SI/RAM/MI words, strict 7/9-word chunks, executed
+wrong-capture and 16 field / seven stream controls. The component checks all four
+active ports and packet/control behavior; production checkpoint replay changes
+host/client input. `ctest -R '^n64_pif_'` exercises these gates and ten executed
+production faults. S029 appends forty retained-layout bytes, for 9,527,616 total;
+older states import with channels disabled until the guest formats a new packet.
+See the core README for the next private Mario one-cycle E4 stop and limits.

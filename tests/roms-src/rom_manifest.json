@@ -231,6 +231,17 @@
       "source_type": "original",
       "suite": "cache_coherence"
     },
+    "n64/controller_cached_reads/controller_cached_reads.z64": {
+      "build_command": "python3 tests/roms-src/n64/controller_cached_reads/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "abe33c75fdfb70660edd2ccc799aa670470064c2f283cc3e265f9c78ef5a01e4",
+      "source_repo": "tests/roms-src/n64/controller_cached_reads/build.py",
+      "source_sha": "b0add0f461d2e40e03a66b91ac6d9a1735e9c54df00ea4dcb13918feb9a6b46b",
+      "source_type": "original",
+      "suite": "controller_cached_reads"
+    },
     "n64/controller_netplay/controller_netplay.z64": {
       "build_command": "python3 tests/roms-src/n64/controller_netplay/build.py",
       "console": "n64",

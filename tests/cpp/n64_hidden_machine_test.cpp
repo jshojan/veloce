@@ -47,18 +47,18 @@ int main(int argc,char** argv){try{
  check(m.write(addr(0x04800000),4,0x1000) && m.write(addr(0x04800004),4,0));check(m.hidden.halfword(0x1000)==3 && m.hidden.halfword(0x1002)==3 && m.hidden.halfword(0x1004)==0);
  check(m.write(addr(0x04600000),4,0x1000) && m.write(addr(0x04600004),4,0x10001000) && m.write(addr(0x0460000c),4,7));for(unsigned n=0;n<8;n+=2)check(m.hidden.halfword(0x1000+n)==(rom[0x1001+n]%2)*3);
  m.mi_mode=256;check(m.hidden.rdp_halfword(0x1000,2,true) && m.hidden.rdp_byte(0x1000,0,true));
- std::vector<uint8_t> saved,after,replay;check(m.save(saved) && saved.size()==n64::Machine::current_state_size && saved[7]=='8');
+ std::vector<uint8_t> saved,after,replay;check(m.save(saved) && saved.size()==n64::Machine::current_state_size && saved[7]=='9');
  check(m.write(addr(0x1000),8,0x50000000aull) && m.read(addr(0x1000),8,got) && got==0x50000000aull);m.hidden.finish_rdp_bytes();check(m.save(after));
  check(m.restore(saved) && m.write(addr(0x1000),8,0x50000000aull));m.hidden.finish_rdp_bytes();check(m.save(replay) && replay==after);
- for(unsigned fault=0;fault<4;++fault){auto bad=after;const size_t at=bad.size()-24;
+ for(unsigned fault=0;fault<4;++fault){auto bad=after;const size_t at=bad.size()-64;
   if(fault==0)bad[at]=1;
-  if(fault==1)bad[bad.size()-9]=0;
-  if(fault==2){for(unsigned n=0;n<8;++n)bad[at+8+n]=0;bad[bad.size()-9]=2;}
+  if(fault==1)bad[bad.size()-49]=0;
+  if(fault==2){for(unsigned n=0;n<8;++n)bad[at+8+n]=0;bad[bad.size()-49]=2;}
   if(fault==3)bad.pop_back();
   check(!m.restore(bad) && m.save(replay) && replay==after);
  }
- auto old=after;old.resize(old.size()-n64::Machine::hidden_state_size-n64::Machine::primitive_depth_state_size);old[7]='6';check(m.restore(old) && m.save(replay) && std::equal(old.begin()+8,old.end(),replay.begin()+8));
+ auto old=after;old.resize(old.size()-n64::Machine::hidden_state_size-n64::Machine::primitive_depth_state_size-n64::Machine::joybus_state_size);old[7]='6';check(m.restore(old) && m.save(replay) && std::equal(old.begin()+8,old.end(),replay.begin()+8));
  for(unsigned n=0;n<8;n+=2)check(m.hidden.halfword(0x1000+n)==(m.ram[0x1001+n]%2)*3);
  check(m.hidden.snapshot().history==0 && m.hidden.snapshot().delayed==-1);
- std::cout<<stores<<" CPU/masked store captures; EBUS/cache distinction, PI/SI/SP DMA, S028 atomic replay/rejection and S026 import PASS\n";return 0;
+ std::cout<<stores<<" CPU/masked store captures; EBUS/cache distinction, PI/SI/SP DMA, S029 atomic replay/rejection and S026 import PASS\n";return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}

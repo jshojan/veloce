@@ -31,5 +31,5 @@ ctest --test-dir build -R '^n64_rdp_copy_(test|mutants|checkpoint_test)$' --outp
 ```
 
 Artifacts: `build/artifacts/owned/n64_rdp_copy_rectangles/`. The checkpoint gate
-restores production S028 state and compares actual guest output/full state after
+restores production S029 state and compares actual guest output/full state after
 replay. No external software reference is needed by this guest suite.

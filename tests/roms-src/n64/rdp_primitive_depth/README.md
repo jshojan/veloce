@@ -27,6 +27,6 @@ ctest --test-dir build -R '^n64_rdp_primitive_checkpoint_test$' --output-on-fail
 python3 tests/roms-src/build.py --original-only --check
 ```
 
-Artifacts: `build/artifacts/owned/n64_rdp_primitive_depth/`. S028 production
+Artifacts: `build/artifacts/owned/n64_rdp_primitive_depth/`. S029 production
 checkpoint replay checks actual subsequent output and complete state; S027
 imports preserve their prefix and initialize primitive depth to zero.

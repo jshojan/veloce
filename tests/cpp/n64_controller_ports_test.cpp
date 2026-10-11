@@ -9,7 +9,7 @@ int main(int argc,char** argv){try{
  n64::Machine m;require(m.load(rom.data(),rom.size()),"ROM load");
  // All ports query the ordinary native controller ID/status packet.
  m.pif.fill(0);for(unsigned port=0;port<4;++port){const unsigned at=port*6;m.pif[at]=1;m.pif[at+1]=3;m.pif[at+2]=0;}
- m.pif[24]=0xfe;m.pif[63]=1;m.process_pif();
+ m.pif[24]=0xfe;m.pif[63]=1;m.process_pif();require(m.write(0xffffffffa4800004ull,4,0),"SI poll");
  for(unsigned port=0;port<4;++port){const unsigned at=port*6;require(m.pif[at+1]==3 && m.pif[at+3]==5 && m.pif[at+4]==0,"native controller query routing");}
  // Every 14-button combination, independently scattered into frontend bits,
  // on each active port. Other ports remain neutral and must not alias it.
@@ -21,15 +21,15 @@ int main(int argc,char** argv){try{
   for(unsigned bit=0;bit<14;++bit)if(raw&(1u<<bit)){frontend+=1u<<virtual_bits[bit];want=uint16_t(want+(1u<<native_bits[bit]));}
   m.input_buttons=active==0?frontend:0;m.other_input_buttons.fill(0);if(active)m.other_input_buttons[active-1]=frontend;
   m.pif.fill(0);for(unsigned port=0;port<4;++port){const unsigned at=port*7;m.pif[at]=1;m.pif[at+1]=4;m.pif[at+2]=1;}
-  m.pif[28]=0xfe;m.pif[63]=1;m.process_pif();
+  m.pif[28]=0xfe;m.pif[63]=1;m.process_pif();require(m.write(0xffffffffa4800004ull,4,0),"SI poll");
   for(unsigned port=0;port<4;++port){const unsigned at=port*7;const unsigned got=unsigned(m.pif[at+3])*256+m.pif[at+4];require(m.pif[at+1]==4 && got==(port==active?want:0) && !m.pif[at+5] && !m.pif[at+6],"digital read port isolation");}
   require(!(m.pif[63]&1),"PIF control settles");++cases;
  }
  m.input_buttons=0x12345678;m.other_input_buttons={0x87654321,0x01234567,0xfedcba98};m.dp_interface.tmem.bytes.fill(0x5c);
  std::vector<uint8_t> state,after;require(m.save(state) && state.size()==n64::Machine::current_state_size,"exact current state extent");
  m.input_buttons=0;m.other_input_buttons.fill(0);require(m.restore(state) && m.save(after) && after==state,"all controller inputs replay");
- for(unsigned port=0;port<3;++port){auto bad=state;bad[bad.size()-1048856+port*8]=1;require(!m.restore(bad) && m.save(after) && after==state,"reserved controller state rejects atomically");}
- auto old=state;old.resize(old.size()-1048856);old[7]='2';require(m.restore(old) && m.input_buttons==0x12345678 && m.other_input_buttons==std::array<uint32_t,3>{} && m.dp_interface.tmem.bytes[4095]==0x5c,"S022 neutral additional controllers preserves prefix");
+ for(unsigned port=0;port<3;++port){auto bad=state;bad[bad.size()-1048896+port*8]=1;require(!m.restore(bad) && m.save(after) && after==state,"reserved controller state rejects atomically");}
+ auto old=state;old.resize(old.size()-1048896);old[7]='2';require(m.restore(old) && m.input_buttons==0x12345678 && m.other_input_buttons==std::array<uint32_t,3>{} && m.dp_interface.tmem.bytes[4095]==0x5c,"S022 neutral additional controllers preserves prefix");
  require(m.save(after) && std::equal(old.begin()+8,old.end(),after.begin()+8),"S022 preceding fields unchanged");
  for(bool extra:{false,true}){auto bad=state;if(extra)bad.push_back(0);else bad.pop_back();require(m.restore(state) && !m.restore(bad) && m.save(after) && after==state,"invalid controller state length atomicity");}
  m.reset();require(!m.input_buttons && m.other_input_buttons==std::array<uint32_t,3>{},"reset neutral inputs");

@@ -87,7 +87,7 @@ int main(){
         const auto expected=oracle_pixel(uniform,0,mask);check(p.rgba==expected.rgba);++gradients;
     }
     for(unsigned encoded=0;encoded<0x400000;++encoded)for(unsigned mask:{1u,2u,255u}){
-        uniform.initial[7]=encoded<<10;uniform.derivative_x[7]=1048575;uniform.derivative_y[7]=-1048576;
+        uniform.initial[7]=encoded<<10;uniform.derivative_x[7]=1048575;uniform.derivative_y[7]=-1048616;
         n64::RdpTriangleAttributes::Pixel p;check(n64::RdpTriangleAttributes::pixel(uniform,0,uint8_t(mask),p));
         check(p.z==oracle_pixel(uniform,0,mask).z);++depths;
     }

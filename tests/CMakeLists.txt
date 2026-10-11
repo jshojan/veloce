@@ -1133,3 +1133,25 @@ set_tests_properties(n64_rdp_copy_rectangles PROPERTIES LABELS "accuracy;owned" 
 add_test(NAME n64_rdp_copy_checkpoint_test COMMAND n64_rdp_packet_plugin_test
     $<TARGET_FILE:n64_plugin> ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/rdp_copy_rectangles/rdp_copy_rectangles.z64 hidden)
 set_tests_properties(n64_rdp_copy_checkpoint_test PROPERTIES LABELS "integration;netplay;accuracy;owned" TIMEOUT 60)
+
+add_executable(n64_pif_joybus_test cpp/n64_pif_joybus_test.cpp)
+target_include_directories(n64_pif_joybus_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src ${CMAKE_SOURCE_DIR}/include)
+add_test(NAME n64_pif_joybus_test COMMAND n64_pif_joybus_test)
+set_tests_properties(n64_pif_joybus_test PROPERTIES LABELS "unit;accuracy" TIMEOUT 90)
+add_test(NAME n64_controller_cached_reads COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/controller_cached_reads/run.py --emulator $<TARGET_FILE:veloce>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_controller_cached_reads)
+set_tests_properties(n64_controller_cached_reads PROPERTIES LABELS "accuracy;owned" TIMEOUT 300)
+add_executable(n64_pif_state_test cpp/n64_pif_state_test.cpp
+    ${CMAKE_SOURCE_DIR}/cores/n64/src/machine.cpp ${CMAKE_SOURCE_DIR}/cores/n64/src/vr4300.cpp)
+target_include_directories(n64_pif_state_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src ${CMAKE_SOURCE_DIR}/include)
+add_test(NAME n64_pif_state_test COMMAND n64_pif_state_test
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/controller_cached_reads/controller_cached_reads.z64)
+set_tests_properties(n64_pif_state_test PROPERTIES LABELS "unit;accuracy;owned" TIMEOUT 60)
+add_test(NAME n64_pif_checkpoint_test COMMAND n64_rdp_packet_plugin_test
+    $<TARGET_FILE:n64_plugin> ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/controller_cached_reads/controller_cached_reads.z64 joybus)
+set_tests_properties(n64_pif_checkpoint_test PROPERTIES LABELS "integration;netplay;accuracy;owned" TIMEOUT 60)
+add_test(NAME n64_pif_joybus_mutants COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/n64_pif_joybus_mutants.py --compiler ${CMAKE_CXX_COMPILER}
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/component/n64_pif_joybus)
+set_tests_properties(n64_pif_joybus_mutants PROPERTIES LABELS "unit;accuracy" TIMEOUT 240)

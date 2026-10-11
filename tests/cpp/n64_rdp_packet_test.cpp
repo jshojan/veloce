@@ -40,16 +40,16 @@ int main(int argc,char** argv){try{
  std::ifstream f(argv[1],std::ios::binary);std::vector<uint8_t> rom((std::istreambuf_iterator<char>(f)),{});n64::Machine m;require(m.load(rom.data(),rom.size()),"fixture load");
  auto& dp=m.dp_interface;word(m.ram,0x100,0xcf000ffa0ffaf006ULL);for(unsigned i=1;i<22;++i)word(m.ram,0x100+i*8,0x2900000000000000ULL|i);
  dp.write(0,0x100);dp.write(1,0x158);for(unsigned i=0;i<11;++i)dp.tick(m.ram,m.sp,m.dp_interrupt);require(dp.packet.count==11 && !dp.blocked,"halfway Mario-shaped packet");
- std::vector<uint8_t> saved,after,replay;require(m.save(saved) && saved.size()==n64::Machine::current_state_size && saved[7]=='8',"S028 size/version");
+ std::vector<uint8_t> saved,after,replay;require(m.save(saved) && saved.size()==n64::Machine::current_state_size && saved[7]=='9',"S029 size/version");
  dp.write(1,0x1b0);for(unsigned i=0;i<11;++i)dp.tick(m.ram,m.sp,m.dp_interrupt);require(m.save(after) && dp.blocked && dp.current==0x1b0 && !m.dp_interrupt,"complete retained triangle");
  require(m.restore(saved),"partial machine restore");dp.write(1,0x1b0);for(unsigned i=0;i<11;++i)dp.tick(m.ram,m.sp,m.dp_interrupt);require(m.save(replay) && replay==after,"exact partial FIFO replay");
- for(unsigned field:{0u,1u,2u,14u,24u}){auto bad=saved;const uint64_t invalid=field==0?1:field==1?23:field==2?21:1;const size_t at=bad.size()-1048832+field*8;for(unsigned i=0;i<8;++i)bad[at+i]=uint8_t(invalid>>(56-i*8));require(m.restore(saved) && !m.restore(bad) && m.save(replay) && replay==saved,"invalid FIFO state rejects atomically");}
- auto old=saved;old.resize(old.size()-1048832);old[7]='3';require(m.restore(old) && !dp.packet.count && m.save(replay) && std::equal(old.begin()+8,old.end(),replay.begin()+8),"S023 neutral FIFO conversion preserves previous bytes");
+ for(unsigned field:{0u,1u,2u,14u,24u}){auto bad=saved;const uint64_t invalid=field==0?1:field==1?23:field==2?21:1;const size_t at=bad.size()-1048872+field*8;for(unsigned i=0;i<8;++i)bad[at+i]=uint8_t(invalid>>(56-i*8));require(m.restore(saved) && !m.restore(bad) && m.save(replay) && replay==saved,"invalid FIFO state rejects atomically");}
+ auto old=saved;old.resize(old.size()-1048872);old[7]='3';require(m.restore(old) && !dp.packet.count && m.save(replay) && std::equal(old.begin()+8,old.end(),replay.begin()+8),"S023 neutral FIFO conversion preserves previous bytes");
  dp.reset();word(m.ram,0x100,0x0f00000000000000ULL);dp.write(0,0x100);dp.write(1,0x108);dp.tick(m.ram,m.sp,m.dp_interrupt);const auto pending=dp.packet.snapshot();dp.write(1,0x900008);dp.current=0x900000;dp.tick(m.ram,m.sp,m.dp_interrupt);require(dp.blocked && dp.blocked_reason==2 && dp.current==0x900000 && dp.packet.snapshot()==pending,"bad fetch preserves previously buffered words");
  dp.reset();m.dp_interrupt=false;word(m.ram,0x100,0x0800000000000000ULL);
  dp.write(0,0x100);dp.write(1,0x108);dp.tick(m.ram,m.sp,m.dp_interrupt);
  for(unsigned i=0;i<3;++i){const auto value=0x2900000000000000ULL|i;for(unsigned n=0;n<8;++n)m.sp[0x500+i*8+n]=uint8_t(value>>(56-n*8));}
  dp.flags=1;dp.write(0,0x500);dp.write(1,0x518);for(unsigned i=0;i<3;++i)dp.tick(m.ram,m.sp,m.dp_interrupt);
  require(dp.packet.start==0x100 && dp.packet.count==4 && dp.current==0x518 && dp.blocked && !m.dp_interrupt && dp.packet.words[1]==0x2900000000000000ULL,"partial packet survives queued noncontiguous START and source switch");
- std::cout<<payloads<<" coefficient words, "<<headers<<" header/partial states, "<<streams<<" DRAM/XBUS streams / "<<words<<" word-boundary captures; payload FullSync isolation, freeze/flush, S028 replay/rejection/S023 conversion PASS\n";return 0;
+ std::cout<<payloads<<" coefficient words, "<<headers<<" header/partial states, "<<streams<<" DRAM/XBUS streams / "<<words<<" word-boundary captures; payload FullSync isolation, freeze/flush, S029 replay/rejection/S023 conversion PASS\n";return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}
