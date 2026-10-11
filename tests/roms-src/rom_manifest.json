@@ -22076,6 +22076,17 @@
       "source_type": "original",
       "suite": "ipl3_handoff"
     },
+    "n64/kernel32_addresses/kernel32_addresses.z64": {
+      "build_command": "python3 tests/roms-src/n64/kernel32_addresses/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "81bab65db786f444f8d09b13019e17ae1b54eb3f3bb6c6fd970e98b518cf92eb",
+      "source_repo": "tests/roms-src/n64/kernel32_addresses/build.py",
+      "source_sha": "7bce981378338c010e2eadb43d46fb62f09a8650bd00b9a9a22a3ebf58986e75",
+      "source_type": "original",
+      "suite": "kernel32_addresses"
+    },
     "n64/linked_memory/linked_memory.z64": {
       "build_command": "python3 tests/roms-src/n64/linked_memory/build.py",
       "console": "n64",

@@ -185,8 +185,14 @@ void VR4300::step() {
         else {uint64_t value=0;if(!read(address,bytes,value,false,pc,delay,address))return;
             if(bytes==8)s.fpr[rt]=value;else fp_put_word(rt,uint32_t(value));}
     };
+    // These wide integer memory forms explicitly ignore VA63:32 in Kernel32.
+    // Keep the full address in extended modes and for ordinary word/FP accesses.
+    const unsigned mode=(s.cp0[12]&6)?0:unsigned(s.cp0[12]>>3)&3;
+    const bool wide_address=op==26 || op==27 || op==39 || op==44 || op==45 || op==55 || op==63;
+    const uint64_t integer_address=wide_address && !mode && !(s.cp0[12]&128)
+        ? sign32(uint32_t(a+imm)) : a+imm;
     auto load = [&](unsigned bytes, bool signed_value) {
-        const uint64_t address = a + imm;
+        const uint64_t address = integer_address;
         uint64_t value = 0;
         if(!read(address,bytes,value,false,pc,delay,address))return;
         if (signed_value) {
@@ -197,11 +203,11 @@ void VR4300::step() {
         put(rt, value);
     };
     auto store = [&](unsigned bytes) {
-        const uint64_t address = a + imm;
+        const uint64_t address = integer_address;
         write(address,bytes,b,uint8_t((1u<<bytes)-1),pc,delay,address);
     };
     auto merge_load = [&](unsigned bytes, bool left) {
-        const uint64_t address = a + imm, aligned = address & ~uint64_t(bytes - 1);
+        const uint64_t address = integer_address, aligned = address & ~uint64_t(bytes - 1);
         const unsigned lane = address & (bytes - 1);
         uint64_t value = 0;
         if(!read(aligned,bytes,value,false,pc,delay,address))return;
@@ -219,7 +225,7 @@ void VR4300::step() {
         put(rt, bytes == 4 ? sign32(uint32_t(result)) : result);
     };
     auto merge_store = [&](unsigned bytes, bool left) {
-        const uint64_t address = a + imm, aligned = address & ~uint64_t(bytes - 1);
+        const uint64_t address = integer_address, aligned = address & ~uint64_t(bytes - 1);
         const unsigned lane = address & (bytes - 1);
         const unsigned all_lanes = (1u << bytes) - 1;
         const uint8_t mask = left ? uint8_t((all_lanes << lane) & all_lanes)
@@ -229,7 +235,6 @@ void VR4300::step() {
     };
     // Doubleword integer instructions and LWU require 64-bit User/Supervisor mode;
     // Kernel32 remains legal. Decode this before arithmetic or data access.
-    const unsigned mode=(s.cp0[12]&6)?0:unsigned(s.cp0[12]>>3)&3;
     const bool wide_integer=op==0 ?
         (fn==20 || fn==22 || fn==23 || (fn>=28 && fn<=31) ||
          (fn>=44 && fn<=47) || fn==56 || fn==58 || fn==59 || fn==60 || fn==62 || fn==63) :
