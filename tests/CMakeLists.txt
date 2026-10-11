@@ -1195,5 +1195,5 @@ add_executable(nes_test_channel_plugin_test cpp/nes_test_channel_plugin_test.cpp
 target_include_directories(nes_test_channel_plugin_test PRIVATE ${CMAKE_SOURCE_DIR}/include ${SDL2_INCLUDE_DIRS})
 target_link_libraries(nes_test_channel_plugin_test PRIVATE ${SDL2_LIBRARIES})
 add_dependencies(nes_test_channel_plugin_test nes_plugin)
-add_test(NAME nes_test_channel_plugin_test COMMAND nes_test_channel_plugin_test $<TARGET_FILE:nes_plugin>)
+add_test(NAME nes_test_channel_plugin_test COMMAND nes_test_channel_plugin_test $<TARGET_FILE:nes_plugin> ${CMAKE_BINARY_DIR}/artifacts/owned/nes_result_channel)
 set_tests_properties(nes_test_channel_plugin_test PROPERTIES LABELS "integration;accuracy;owned" TIMEOUT 30)

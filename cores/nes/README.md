@@ -412,3 +412,6 @@ patches and provenance are supplemental to the repository-owned original corpus.
 NES remains **50% (10/20 delivery milestones)**. All README percentages remain
 synchronized, N64 remains 45%, and CI/CD remains disabled. GB/GBA/SNES/docs
 branches and the explicitly incomplete NES APU branch still need reconciliation.
+
+Actual fixture RAM bytes and sink output are written to
+`build/artifacts/owned/nes_result_channel/*.capture` for file inspection.
