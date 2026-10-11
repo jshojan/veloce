@@ -3485,3 +3485,19 @@ The full build, 524,288 original ADC/SBC cases, channel/shared gates and three
 rollback/TCP/plugin tests pass. All **118 original archives** reproduce.
 Physical power-on phase, PAL/Dendy and complete APU domains remain unverified;
 NES stays **50% = 10/20 delivery milestones**. See [scope and source](tests/roms-src/nes/frame_irq/README.md).
+
+## SNES CPU stack boundaries (2026-10-11)
+
+Nine measured special-stack defects are repaired while preserving legacy wrap
+behavior, timing calls and serialized field layout. A new original LoROM grades
+5,632 cases: 45,408 actual RAM bytes and 16,896 S/D/DBR values match independent
+host expectations. Both E modes, all 256 emulation stack pointers, nine special
+instructions and PHA/PLA controls are covered. Native full-address and operand
+word domains remain pending. Captures repeat exactly; an executed EOR mutant
+fails and missing/reordered/truncated streams are measurement errors.
+
+Fresh gilyon S-CPU evidence improves **1,600/1,610 to 1,609/1,610 = FAIL**; the
+remaining decimal SBC expectation is unchanged. SPC700 remains **1,368/1,368**.
+The full build, ten targeted gates and 119 original archive rebuilds pass.
+SNES stays **40% = 8/20 delivery milestones**; no whole-CPU accuracy percentage
+is established. See [source and scope](tests/roms-src/snes/stack_boundaries/README.md).

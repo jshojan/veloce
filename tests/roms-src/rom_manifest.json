@@ -25767,6 +25767,17 @@
       },
       "toolchain_image_id": "sha256:71c159dd80048214ea2f03bcb75b41e0a5c073b55f66a4333ed6bdbef7a3b26f"
     },
+    "snes/stack_boundaries/stack_boundaries.sfc": {
+      "build_command": "python3 tests/roms-src/snes/stack_boundaries/build.py",
+      "console": "snes",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "c8e52aec3b0f76a646ed84e93f966ae4afcbb37ea5dbacc35341f131b71fd06c",
+      "source_repo": "tests/roms-src/snes/stack_boundaries/build.py",
+      "source_sha": "f523607231697f03820894938f5a61d840e1c7f0a2466d87af70809a0aa44385",
+      "source_type": "original",
+      "suite": "stack_boundaries"
+    },
     "snes/veloce_smoke/veloce_smoke.sfc": {
       "console": "snes",
       "golden_gate": null,

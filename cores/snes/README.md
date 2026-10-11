@@ -11,7 +11,7 @@ These percentages count the 20 explicit delivery milestones in [the completion l
 
 SNES delivered milestones: Guest sound produces audio samples, Native digital controller/keypad registers consume frontend input, Guest graphics produce rendered video, Parse a native cartridge/executable format (boot scored separately), Repository-owned ROM source and reproducible archived image, Separate core plugin and ABI entry points, Actual guest register-file output independently graded on the host, with negative controls, Complete states for the implemented profile and deterministic replay.
 
-Remaining: Settled/timed math is graded; visual/audio catalog verdicts, expansion chips and full timing remain incomplete or unverified.
+Remaining: Decimal SBC, full CPU/timing and graphics/audio accuracy, expansion chips, corpus grading and physical validation remain unfinished.
 <!-- completion:end -->
 
 Super Nintendo Entertainment System emulator for Veloce.
@@ -722,3 +722,27 @@ Delivery stays **40% = 8/20 milestones**. Complete CPU/devices, expansion chips,
 physical validation, full corpus grading and SNES netplay remain unfinished.
 Raw catalog captures and reports are under
 `build/artifacts/owned/snes_channel_integration/`. Commercial bytes are excluded.
+
+## CPU stack boundaries (2026-10-11)
+
+The nine measured special-stack defects are repaired. Native stack byte accesses
+can cross page one during an instruction in emulation mode; SH=1 is restored
+when the instruction completes. Legacy operations keep their wrapping behavior.
+CPU timing calls and serialized field layout are preserved.
+
+The [original stack ROM](../../tests/roms-src/snes/stack_boundaries/README.md)
+passes **5,632 cases** with **45,408 actual RAM-byte observations** and **16,896
+S/D/DBR values**. Every permitted emulation S value is tested, with the same
+page in native mode, all nine special instructions and legacy PHA/PLA controls.
+The oracle imports no emulator code. Captures repeat exactly; an executed EOR
+mutant fails, and missing/reordered/truncated streams are rejected.
+
+Fresh deterministic gilyon S-CPU captures improve **1,600/1,610 to 1,609/1,610**.
+The remaining decimal SBC case still fails honestly; no expectation was changed.
+The SPC700 catalog remains **1,368/1,368**. The full build and ten targeted
+owned math/stack/channel/shared gates pass; **119 archived originals** reproduce.
+
+SNES stays **40% = 8/20 delivery milestones**. Complete CPU, hardware timing,
+full native stack/operand domains, physical validation, expansion chips and
+modern core/frontend features remain unfinished. Earlier catalog numbers in
+this README are historical; this section records the current stack repair.

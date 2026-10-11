@@ -661,7 +661,7 @@ See the [GBA integration evidence](cores/gba/README.md#result-channel-branch-int
 
 The SNES result-channel branch is integrated: 68,864 settled math pairs and
 504,832 timed captures pass independent grading. Fresh opcode ROMs report
-1,600/1,610 S-CPU checks (FAIL) and 1,368/1,368 SPC700 checks (PASS), with exact
+1,609/1,610 S-CPU checks (FAIL) and 1,368/1,368 SPC700 checks (PASS), with exact
 repeat captures. Delivery stays 40%; full hardware timing remains unverified.
 See the [SNES integration evidence](cores/snes/README.md#result-channel-branch-integration-2026-10-11).
 
@@ -670,6 +670,12 @@ APU ROMs now pass (previously five); a new original cartridge independently
 grades 160 actual status reads around NTSC frame IRQ boundaries and rejects
 an executed mutant. NES stays 50%; complete APU timing remains unfinished.
 See the [timing evidence](cores/nes/README.md#frame-irq-timing-branch-reconciliation-2026-10-11).
+
+Nine SNES CPU stack boundary defects are repaired. A new original ROM grades
+5,632 cases from actual register/RAM files, including every emulation stack
+pointer value, with an executed negative control and exact repeat captures.
+Decimal SBC remains the one measured CPU catalog failure. SNES stays 40%.
+See the [current stack evidence](cores/snes/README.md#cpu-stack-boundaries-2026-10-11).
 
 ## Project Structure
 
