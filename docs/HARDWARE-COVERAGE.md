@@ -1,6 +1,6 @@
 # Nintendo implementation and hardware test coverage
 
-Current N64 evidence: [coupled texture sampling and current Mario status](#coupled-tmem-and-tlut-sampling). Earlier increment reports are historical.
+Current N64 evidence: [affine textured pixels and current Mario status](#affine-textured-triangle-pixels). Earlier increment reports are historical.
 
 The goal includes Nintendo core plugins, repository-owned ROMs covering the
 hardware, machine-readable register observations, netplay, seamless controllers,
@@ -2575,3 +2575,69 @@ Mario remains graphics-blocked with uniform video and unverified boot/playabilit
 Plugin **0.30.0**, ABI v2 and **VN64S024** remain current. N64 stays
 **45% = 9/20 delivery milestones**. CI/CD remains disabled; the full Nintendo
 implementation goal remains active.
+
+
+## Affine textured triangle pixels
+
+The functional one-cycle RGBA32 renderer now samples TMEM and feeds the
+current TEXEL0 into cycle one of the combiner. Signed affine S/T from native
+triangle interpolants pass through tile shift/clamp/mask processing. Point
+sampling, triangular filtering, mid-texel averaging and coupled/nearest TLUT
+sampling use the previously verified fetch/filter modules. TLUT supports
+RGBA5551 and IA16. YUV filtering retains unconverted signed chroma; conversion
+command state is not implemented in this path. The native cycle-zero texture
+and cycle-one combiner ordering follows the
+[RDP author's pipeline model](https://github.com/ata4/angrylion-rdp-plus/blob/master/src/core/n64video/rdp/rasterizer.c).
+
+The new repository-owned
+[texture triangle ROM](https://github.com/jshojan/veloce/tree/main/tests/roms-src/n64/rdp_triangle_texture)
+passes **786,432 cases / 10,223,616 actual 64-bit framebuffer/guard/register
+observations**, with zero mismatches. It loads real source bytes through DP
+texture-image/tile/load/bounds commands and emits observed RAM, CURRENT,
+STATUS and MI pending. Its host oracle independently decodes logical source
+pixels, computes weighted-corner filters and walks a quarter-row point grid.
+
+The source domain covers every 16-bit word and complemented partner under
+selected RGBA16/RGBA32/IA16 point probes and both command sources. The sampling
+domain covers all 32-by-32 fractional pairs, every format/size encoding and
+alias, point/triangular/average modes, both triangle directions and
+RDRAM/wrapping XBUS using one selected texture pattern. It does not exhaust
+arbitrary RGBA32 colors, independent corners, gradient/tile/geometry
+combinations, physical timing or retail graphics. This guest corpus has no
+TLUT pixel cases yet; four independent component framebuffer goldens cover
+coupled/nearest palette rendering with both palette interpretations.
+
+The short guest control passes; a separately executed wrong-capture ROM is
+rejected in every row. All thirteen field corruptions and seven stream
+integrity/domain/trailer controls are rejected. Four texture combiner
+framebuffer goldens cover passthrough and texture/primitive RGB/alpha factors;
+35 unsupported-profile rejections preserve RAM. UBSAN and warning-as-error
+compilation pass. All 22 related machine/DP/RDP/state component gates pass in
+**20.32 seconds**. Production-plugin texture/TMEM and existing partial-command
+checkpoint gates pass in **0.31 seconds**, requiring exact subsequent actual
+guest output and complete-state replay through the netplay ABI, exact state
+capacity and atomic invalid-state rejection. All **105 repository-owned
+archived ROMs** reproduce from their sources and match the manifest.
+
+Artifacts: `build/artifacts/owned/n64_rdp_triangle_texture/`. From the repository
+root:
+
+```sh
+python3 tests/roms-src/build.py n64/rdp_triangle_texture --original-only
+ctest --test-dir build -R '^n64_rdp_(triangle_texture|texture_plugin_replay_test)' --output-on-failure
+```
+
+The private Mario probe was repeated with current plugin/trace binaries:
+**200 million CPU attempts**, no terminal CPU fault, the same complete
+**22/22-word CF000FFA0FFAF006 packet at 0x227160** and fetched CURRENT
+**0x227210**. The textured/depth-tested profile still blocks with reason 1;
+video remains uniform and native boot/playability remain unverified. Report:
+`build/artifacts/retail/n64-textured-affine.json` (ignored, no commercial bytes).
+Plugin **0.31.0**, ABI v2 and **VN64S024 / 8,478,944 bytes** are current.
+
+Supported textured pixels require the cycle-zero filter/passthrough flag;
+conversion/persistent previous texels, TEXEL1/LOD/key/noise routes, perspective,
+full AA/blending/depth/hidden-memory behavior, complete devices/audio and
+physical timing remain unfinished. State completeness is limited to the implemented profile; the full Nintendo
+implementation goal remains active. N64 stays **45% = 9/20 delivery milestones**;
+CI/CD remains disabled.

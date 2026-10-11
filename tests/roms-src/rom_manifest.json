@@ -517,6 +517,17 @@
       "source_type": "original",
       "suite": "rdp_triangle_shade"
     },
+    "n64/rdp_triangle_texture/rdp_triangle_texture.z64": {
+      "build_command": "python3 tests/roms-src/n64/rdp_triangle_texture/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "45852ce6e79f6d91df81825d0d73f01cf7b2343da9bea5651a3bfb1e101ee15b",
+      "source_repo": "tests/roms-src/n64/rdp_triangle_texture/build.py",
+      "source_sha": "f8dc5f7091a2ba104b2bf67ab755093e19f76e6c19eb6a921dcd5d23d1439e99",
+      "source_type": "original",
+      "suite": "rdp_triangle_texture"
+    },
     "n64/rdram_devices/rdram_devices.z64": {
       "build_command": "python3 tests/roms-src/n64/rdram_devices/build.py",
       "console": "n64",
