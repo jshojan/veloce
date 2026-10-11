@@ -25,6 +25,13 @@ Full platform completion is unknown.
 - All sixteen ARM data-processing operations: AND/EOR/SUB/RSB/ADD/ADC/SBC/RSC,
   TST/TEQ/CMP/CMN, ORR/MOV/BIC/MVN. Register/immediate operands, NZCV flags,
   carry/borrow, signed overflow, flag-preserving forms and source aliases.
+- ARM9 LDRD/STRD: consecutive even/odd register pairs, immediate/register
+  offsets, pre/post/offset addressing, add/subtract, write-back and valid
+  aliases, with flags preserved. The [original register/RAM corpus](../../tests/roms-src/nds/doubleword_registers/README.md)
+  grades 16,646,144 nine-word snapshots. The supplied little-endian U=0
+  profile requires eight-byte alignment; physical aborts and configurable
+  alignment/endianness are pending. A failed second store retains the first
+  store's effect without committing write-back; no physical atomicity is claimed.
 - All sixteen ARM9 ARMv5TE signed DSP multiply forms: SMULxy/SMLAxy/SMLALxy,
   SMULWy/SMLAWy, signed selected halves, negative product scaling, modulo
   accumulation and sticky Q on short accumulate overflow, with NZCV preserved.
@@ -311,7 +318,7 @@ in the ROM manifest. Component evidence is separate from the original-ROM domain
 
 ARM block transfers,
 Other ARM9 architecture extensions,
-ARM doubleword transfers, privileged modes,
+Privileged modes,
 banked registers, SPSR, exceptions/interrupts, CP15/MPU/cache/TCM, firmware and
 BIOS, gamecard/secure-area/save protocols, IPC, DMA, timers, KEYCNT/keypad IRQ and touchscreen,
 SPI/RTC, Wi-Fi, graphics/VRAM/palette/OAM, 3D, sound and physical timing remain.

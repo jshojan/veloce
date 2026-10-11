@@ -24,7 +24,8 @@ software and firmware do not boot. Overall platform completion is unknown.**
 ## Implemented profile
 
 - Existing [ARM9/ARM7 integer subset](../nds/README.md), including all sixteen
-  ARMv5TE signed DSP multiply forms,
+  ARMv5TE signed DSP multiply forms and LDRD/STRD in the supplied U=0
+  alignment profile,
   ARM9 BLX immediate, SWP/SWPB, CLZ and QADD/QSUB/QDADD/QDSUB
   from the shared decoder (original corpus graded on DS),
   separate CPU state,
