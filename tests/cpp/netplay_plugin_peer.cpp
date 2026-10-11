@@ -1,4 +1,5 @@
 #include "nes_plugin_fixture.hpp"
+#include "emu/n64_input.hpp"
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -17,7 +18,7 @@ static std::vector<uint8_t> read_bytes(const char* path) {
     return {std::istreambuf_iterator<char>(file), {}};
 }
 static uint32_t input(int player, uint64_t frame,bool solo=false,bool n64=false) {
-    if(n64)return uint32_t(frame*(player?2654435761u:2246822519u)+(player?0x2468ace1u:0x13579bdfu));
+    if(n64){const uint32_t raw=uint32_t(frame*(player?2654435761u:2246822519u)+(player?0x2468ace1u:0x13579bdfu));return emu::n64_input::pack(raw,int((raw>>16)&255)-128,int(raw>>24)-128);}
     return static_cast<uint32_t>((frame * (player ? 13 : 7) + (player ? 1 : 3)) & (solo ? 4095:255));
 }
 struct Host final : emu::INetplayHost {

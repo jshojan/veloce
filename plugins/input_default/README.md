@@ -170,6 +170,24 @@ ctest --test-dir build -R '^(input_plugin_test|input_frontend_test|input_lifecyc
 The GUI test requires `xvfb-run`; artifacts remain in
 `build/artifacts/input_frontend/` and `build/artifacts/input_lifecycle/`.
 These are frontend routing tests, not exhaustive guest hardware ROMs. Physical
-controllers, analog core inputs, full local multiplayer configuration, plugin
+controllers, analog calibration/remapping, full local multiplayer configuration, plugin
 binding persistence and TAS-editor routing remain unfinished or unverified.
 Core completion percentages retain their existing milestone scores.
+
+
+## N64 signed stick input
+
+The frontend supplies optional `IControllerInputEncodingHost` alongside the
+unchanged input ABI v1 host. Default Input calls it after digital mapping/turbo
+and before recording; overrides/playback remain canonical words. N64 uses
+[`n64_input.hpp`](../../include/emu/n64_input.hpp) to preserve fourteen buttons
+and signed X/Y bytes in the same word carried by movies and netplay. Other
+platforms retain digital masks. Third-party hosts without the capability keep
+digital output; third-party plugins must explicitly use the capability to add
+frontend stick input.
+
+Choose the port-zero gamepad in Controller settings: its left stick uses a
+15% axial dead zone, rescales to +/-80, and reverses SDL Y. Keyboard selection
+uses T/F/G/H for up/left/down/right; arrow bindings remain D-pad input.
+Physical calibration, analog remapping and full local multiplayer device
+configuration remain pending. See [N64 evidence](../../cores/n64/README.md#signed-stick-input-and-cached-si-observations).

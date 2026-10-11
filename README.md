@@ -21,7 +21,7 @@
 
 These percentages count the 20 explicit delivery milestones in [the completion ledger](docs/CORE-COMPLETION.md); partial or unverified milestones receive zero credit. Each milestone is worth 5 percentage points. **They are not percentages of native hardware accuracy or retail compatibility.** Bounded profile tests do not complete a whole CPU or hardware subsystem.
 
-Super Mario 64 (USA) was tested locally on 2026-10-11. A **six-billion-attempt** scripted Start/A probe reaches **Mario, the lives/star HUD and Lakitu tutorial in the castle courtyard**, beyond the opening camera sequence. It reports no terminal CPU exception, unsupported RSP operation or DP stop. Timed captures verify the scene sequence; the final capture is labeled quantum 60,000. **Analog movement, menu/level interactions, full retail boot and playability remain unverified.** N64 stays 45% of the fixed delivery checklist. The original one-cycle rectangle corpus still independently grades 1,048,576 cases and 13,631,488 RAM/register words. Analog/peripherals, two-cycle graphics/LOD and full hardware/audio/timing remain unfinished. See the [current private probe evidence](cores/n64/README.md#extended-mario-intro-and-timed-retail-captures).
+Super Mario 64 (USA) was tested locally on 2026-10-11. A **six-billion-attempt** scripted Start/A probe reaches **Mario, the lives/star HUD and Lakitu tutorial in the castle courtyard**, beyond the opening camera sequence. It reports no terminal CPU exception, unsupported RSP operation or DP stop. Timed captures verify the scene sequence; the final capture is labeled quantum 60,000. **Analog movement, menu/level interactions, full retail boot and playability remain unverified.** N64 stays 45% of the fixed delivery checklist. The original one-cycle rectangle corpus still independently grades 1,048,576 cases and 13,631,488 RAM/register words. The signed-stick input path now has an original 65,536-case / 1,048,576-word corpus, selected-pad mapping, and recording/rollback support; see [analog input](cores/n64/README.md#signed-stick-input-and-cached-si-observations). Physical calibration/peripherals, two-cycle graphics/LOD and full hardware/audio/timing remain unfinished. See the [current private probe evidence](cores/n64/README.md#extended-mario-intro-and-timed-retail-captures).
 <!-- completion:end -->
 
 A cross-platform, plugin-based emulator framework built for speedrunners and TAS creators.
@@ -61,7 +61,7 @@ See [Build Instructions](#building) for platform-specific details.
 | Game Boy / Color | [cores/gb](cores/gb/README.md) | In Progress | DMG and CGB, MBC1/3/5; serial register test channel |
 | Game Boy Advance | [cores/gba](cores/gba/README.md) | In Progress | ARM7TDMI, all video modes |
 | Super Nintendo | [cores/snes](cores/snes/README.md) | In Progress | 65C816, Mode 7, SPC700 |
-| Nintendo 64 | [cores/n64](cores/n64/README.md) | Experimental | MIPS/RSP/RDP profiles with complete packets, fill-cycle triangles and functional one-cycle RGBA32 shade/primitive/environment pixels, AI PCM/VI framebuffer, four digital ports and two-player TCP rollback; native boot/playability, complete textured/depth-tested rendering, analog and timing pending |
+| Nintendo 64 | [cores/n64](cores/n64/README.md) | Experimental | MIPS/RSP/RDP profiles with complete packets, fill-cycle triangles and functional one-cycle RGBA32 shade/primitive/environment pixels, AI PCM/VI framebuffer, four digital/analog ports and two-player TCP rollback; native boot/playability, complete textured/depth-tested rendering, physical analog calibration and timing pending |
 | Virtual Boy | [cores/vb](cores/vb/README.md) | Experimental | V810 integer homebrew, multiply/divide, exception and arithmetic bit-string corpora; no retail games, video, audio or controller hardware |
 | Nintendo DS | [cores/nds](cores/nds/README.md) | Experimental | Dual-CPU ARM/Thumb integer, memory, long-call and stack/block homebrew with digital keypad input with shared/private RAM; no firmware/retail boot, graphics, audio or peripheral hardware |
 | Nintendo DSi | [cores/dsi](cores/dsi/README.md) | Experimental | Distinct plugin; dual-CPU integer homebrew, 16 MiB RAM/aliases and RAM-limit controls, digital keypad and TCP host/viewer replay; firmware/retail boot and most DSi peripherals pending |
@@ -249,9 +249,10 @@ the full RAM map. History buffers and frontend snapshots now query current
 serialized size and grow as needed. Native GamePad/VPAD/KPAD and wireless
 multiplayer remain pending. Reports are in `build/artifacts/netplay-wiiu/`.
 N64 now passes two-player production TCP rollback: host/client inputs reach separate
-digital PIF ports, while ports 2/3 remain neutral. Both peers match 600 original
-guest words and complete 8,478,744-byte states. Four virtual ports are supported
-by the core API; analog sticks, accessories and a four-peer network remain
+digital/analog PIF ports, while ports 2/3 remain neutral. Both peers match 600 original
+guest words and complete 9,527,616-byte S029 states. Four virtual ports are supported
+by the core API; signed stick input, selected-pad mapping and input recording are
+verified. Physical analog calibration, accessories and a four-peer network remain
 pending. Reports: `build/artifacts/netplay-n64/`; [implementation and scope](cores/n64/README.md#four-digital-ports-and-production-netplay).
 Relay/session codes, chat, additional spectators, input
 delay scheduling, reconnects, desync recovery, Windows and real two-machine
@@ -539,6 +540,7 @@ subset, not whole-core completion.
 | [N64 IPL3 handoff](tests/roms-src/n64/ipl3_handoff/README.md) | 12/12 original startup captures; native retail boot remains unverified; longer Mario trace passes actual buffer clears; RSP reaches a real BREAK with no unsupported instruction at the longer bound; RDP TMEM block/tile/palette transfers now pass; shaded/textured/depth-tested triangles remain blocked | `build/artifacts/owned/n64_ipl3_handoff/` |
 | [N64 interrupt gates](tests/roms-src/n64/interrupts/README.md) | 65,536/65,536 cases matched; 524,288 guest values for software/SI/timer, MI/CPU masks and IE/EXL/ERL; pipeline and physical timer timing pending | `build/artifacts/owned/n64_interrupts/` |
 | [N64 four-port / netplay guest](tests/roms-src/n64/controller_netplay/README.md) | 16,384 rows / 98,304 words matched across four digital ports; 100-quanta production TCP peers match 600 guest words and complete states; analog/accessories pending | `build/artifacts/owned/n64_controller_netplay/`, `build/artifacts/netplay-n64/` |
+| [N64 signed stick input](tests/roms-src/n64/controller_analog_reads/README.md) | 65,536 cached X/Y cases / 1,048,576 captured RAM/register words matched; four-port component axes and two-peer TCP rollback verified; physical calibration/accessories pending | `build/artifacts/owned/n64_controller_analog_reads/` |
 | [N64 digital controller](tests/roms-src/n64/controller_serial/README.md) | 16,384/16,384 combinations matched; 131,072 guest values for digital input, identity, neutral second pad and settled SI/MI registers; analog and physical timing pending | `build/artifacts/owned/n64_controller/` |
 | [N64 merge memory](tests/roms-src/n64/merge_memory/README.md) | 3,158,016/3,158,016 observations matched; eight instructions, every byte lane, all repeated-byte pairs and full-width boundaries; full multi-byte domains/timing unverified | `build/artifacts/owned/n64_merge_memory/` |
 | [N64 RDP command packets](tests/roms-src/n64/rdp_packets/README.md) | 200,704 cases / 1,404,928 actual words; all triangle/rectangle packet sizes, partial END splits, opcode aliases, RDRAM/XBUS; partial-state replay; rendering remains pending | `build/artifacts/owned/n64_rdp_packets/` |

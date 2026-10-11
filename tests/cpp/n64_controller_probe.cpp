@@ -21,7 +21,7 @@ int main(int argc,char** argv){try{
  const unsigned bits[]={0,1,20,6,8,9,10,11,4,5,21,22,23,24};uint32_t valid=0;for(auto bit:bits)valid|=1u<<bit;
  const unsigned multiplier[]={1,3,5,7},offset[]={0,1,7,11};
  for(unsigned raw=0;raw<count;++raw){std::vector<uint32_t> inputs(4);
-  for(unsigned port=0;port<4;++port){const unsigned value=(raw*multiplier[port]+offset[port])%16384;for(unsigned bit=0;bit<14;++bit)if(value&(1u<<bit))inputs[port]|=1u<<bits[bit];if(raw&1)inputs[port]|=~valid;}
+  for(unsigned port=0;port<4;++port){const unsigned value=(raw*multiplier[port]+offset[port])%16384;for(unsigned bit=0;bit<14;++bit)if(value&(1u<<bit))inputs[port]|=1u<<bits[bit];if(raw&1)inputs[port]|=~(valid|0xc000u);}
   core.netplay().run_frame_netplay_n(inputs);
   require(core.plugin->get_frame_count()==raw+1,"quantum count");require(sink.done==(raw+1==count),"guest termination bound");
  }

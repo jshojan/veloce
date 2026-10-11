@@ -129,6 +129,8 @@ public:
             if (enabled && !m_turbo_active) buttons &= ~emu::button_to_mask(button);
         }
 
+        if (auto* encoder = dynamic_cast<emu::IControllerInputEncodingHost*>(m_host))
+            buttons = encoder->encode_controller_input(controller, buttons);
         return record(controller, buttons);
     }
 

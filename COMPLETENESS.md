@@ -3580,3 +3580,31 @@ Core hardware behavior and original corpus coverage are unchanged. Analog
 movement, menu/level interactions, complete retail boot and playability remain
 unverified, so N64 stays 45% delivery completion. See the
 [current evidence and limits](cores/n64/README.md#extended-mario-intro-and-timed-retail-captures).
+
+
+## N64 signed stick wire input (2026-10-11)
+
+The original [cached analog cartridge](tests/roms-src/n64/controller_analog_reads/README.md)
+now exhausts the 65,536 signed X/Y byte pairs, with a changed complementary input
+between cached SI reads: **65,536 cases / 1,048,576 actual 64-bit words** matched.
+Digital masks vary with the case; this does not exhaust masks times coordinates.
+Four-port component tests cover **524,288 cached analog observations** and retain
+all digital/packet grammar gates. S029 full-state/actual guest output replay,
+selected SDL virtual-controller endpoints/dead zone/capture suppression, canonical
+recording/playback/turbo, and production two-peer TCP rollback all pass. The TCP
+gate grades 600 words independently and matches complete 9,527,616-byte states.
+Thirteen executed production Joybus faults are rejected, including neutral-X,
+axis swap and wrong-port Y. The guest controls reject sixteen field faults, seven
+malformed streams and an executed wrong-capture cartridge. All **128** original
+ROM archives rebuild against the manifest.
+
+The canonical N64 v1 input word reserves bits 14/15 as a tag; valid legacy
+fourteen-button masks retain neutral axes. Frontend selected-pad left-stick input
+uses a 15% axial dead zone and +/-80 range; T/F/G/H supply keyboard movement,
+with arrows still mapped to the D-pad. Analog editor fields are available in the
+movie window. This is a deterministic input policy and wire-byte profile, not
+physical calibration/optical counter accuracy. Dedicated analog remapping,
+controller origin/reset/accessories/presence, physical timing and full local
+multiplayer assignment remain pending. The previous private Mario courtyard
+probe used digital input; analog Mario playability is not yet verified.
+**N64 stays 45%** of the fixed milestone ledger; CI/CD remains disabled.

@@ -13,7 +13,7 @@ These percentages count the 20 explicit delivery milestones in [the completion l
 
 Nintendo 64 delivered milestones: Guest sound produces audio samples, Native digital controller/keypad registers consume frontend input, Guest graphics produce rendered video, Parse a native cartridge/executable format (boot scored separately), Actual production-plugin TCP peers pass original guest oracle and whole-state comparison, Repository-owned ROM source and reproducible archived image, Separate core plugin and ABI entry points, Actual guest register-file output independently graded on the host, with negative controls, Complete states for the implemented profile and deterministic replay.
 
-Remaining: Cached SI/PIF reads refresh digital input. Functional one-cycle E4/E5 rectangles share the existing triangle pixel pipeline; A six-billion-attempt Start/A probe reaches Mario, the lives/star HUD and Lakitu tutorial in the courtyard without a terminal CPU exception or RSP/DP stop. Analog movement, menu/level interactions and gameplay remain unverified. Complete CPU/CP0/devices, physical FPU/RSP timing, complete RDP/audio, two-cycle pixels and texture LOD, random dithering/noise and CI8 alpha thresholds, analog/accessories/presence detection, CIC/EEPROM/Joybus and physical SI timing, local multiplayer frontend routing and physical timing remain. Production two-player TCP rollback and four virtual digital PIF ports are verified for the implemented profile.
+Remaining: Cached SI/PIF reads refresh digital and signed-byte analog input. The original 65,536-coordinate corpus grades 1,048,576 actual words; frontend selected-stick mapping, neutral dead zone and canonical input recording are verified. Functional one-cycle E4/E5 rectangles share the existing triangle pixel pipeline; A six-billion-attempt Start/A probe reaches Mario, the lives/star HUD and Lakitu tutorial in the courtyard without a terminal CPU exception or RSP/DP stop. Analog movement, menu/level interactions and gameplay remain unverified. Complete CPU/CP0/devices, physical FPU/RSP timing, complete RDP/audio, two-cycle pixels and texture LOD, random dithering/noise and CI8 alpha thresholds, physical analog calibration/accessories/presence detection, CIC/EEPROM/Joybus and physical SI timing, local multiplayer frontend routing and physical timing remain. Production two-player TCP rollback and four virtual digital/analog PIF ports are verified for the implemented profile.
 <!-- completion:end -->
 
 `n64_plugin` builds `n64.so`/`n64.dll`/`n64.dylib` and implements emulator ABI v2.
@@ -59,18 +59,18 @@ Implementation is original C++ and grounded in the
 instruction descriptions and exception EPC/BD behavior. No SDK, Nintendo IPL,
 PIF ROM, copyrighted boot logo, or commercial ROM is included.
 
-## Digital controller subset
+## Controller subset
 
-One standard controller supports all 14 digital buttons, identify/reset commands
+Standard controllers support all 14 digital buttons, identify/reset commands
 (`00`/`FF`, identifier `05 00`, accessory absent `02`), and read command `01`.
-Ports 1–4 now respond as virtual digital pads; the cartridge channel reports no response. Accessories are unsupported.
-The analog bytes are zero. Aligned 64-byte SI DMA transfers between RDRAM and
+Ports 1–4 now respond as virtual digital/analog pads; the cartridge channel reports no response. Accessories are unsupported.
+Controller reads return signed X/Y bytes from the tagged input word; untagged valid digital masks retain a neutral stick. Aligned 64-byte SI DMA transfers between RDRAM and
 PIF RAM complete immediately. SI status bit 12 and MI pending bit 1 indicate
 completion; writing SI status clears both. MI mask clear/set commands and mask
 reads drive CPU IP2; interrupt delivery is implemented as described below. Direct
 PIF RAM accesses are available. Invalid DMA bounds/alignment fail without mutation.
 Busy/error timing, overlapping DMA, PIF boot/other commands, accessory protocols,
-analog input, connection detection and physical hardware validation remain unverified.
+physical analog calibration, connection detection and physical hardware validation remain unverified.
 
 Register definitions follow the archived
 [Nintendo RCP header](https://ultra64.ca/files/documentation/online-manuals/man/header/rcp.htm);
@@ -3203,4 +3203,60 @@ python3 tests/n64_retail_probe.py /path/to/private/sm64.z64 --frames 60000 \
   --input-script tests/input/n64-gameplay-extended.txt \
   --capture build/artifacts/retail/n64-gameplay-extended.ppm \
   --output build/artifacts/retail/n64-gameplay-extended.json
+```
+
+
+## Signed stick input and cached SI observations
+
+N64 plugin **0.45.0** accepts the canonical word defined in
+[`n64_input.hpp`](../../include/emu/n64_input.hpp): compact buttons in bits 0..13,
+`11` tag in bits 14..15, signed X byte in bits 16..23 and signed Y byte in bits
+24..31. For example, `0x7F80C001` is A, X=-128, Y=127. Untagged valid legacy
+N64 digital masks retain neutral axes. UI masks containing both bits 14/15 are
+reserved and cannot be passed as legacy N64 button input. Other cores retain
+their existing digital format. Use matching core versions for network peers.
+
+Default Input applies digital overrides/bindings/turbo first, then calls the
+optional `IControllerInputEncodingHost` capability before recording. Playback
+and injected overrides are already canonical words and are not encoded again.
+The optional capability preserves input ABI v1 and emulator ABI v2 vtables.
+The frontend without an input plugin uses the same encoder. Movies, rollback
+messages and four-port core input carry the complete 32-bit word unchanged.
+S029 retains its existing 9,527,616-byte state layout; all four stored input words
+include axes, and cached SI state/full guest output replay matches after restore.
+
+For port zero, choose the gamepad in Controller settings to use its left stick.
+The GUI-selected device also selects the analog source; other port sticks use
+connected pad indices matching their port. The policy uses a 15% axial dead zone,
+rescales to +/-80, and flips SDL Y so positive Y means up. This is an explicit
+frontend policy, not a claim about physical N64 calibration or gate shape.
+Keyboard selection uses **T up, F left, G down, H right** at +/-80; arrows remain
+the digital D-pad. Mapping capture blocks both buttons and axes. The movie
+editor offers signed X/Y controls per port as well as the raw input word.
+Dedicated analog remapping/calibration and seamless four-player device assignment
+remain pending; secondary-port digital bindings still require configuration.
+
+The original [analog cartridge](../../tests/roms-src/n64/controller_analog_reads/README.md)
+grades **65,536 coordinate cases / 1,048,576 actual 64-bit words**. Every X/Y
+byte pair is followed by its complement without reformatting PIF commands;
+packet guards, neutral ports and SI/MI IRQ acknowledgement are captured too.
+This is a finite wire-input profile, not all masks times all axes or physical
+Joybus timing. Component tests cover **524,288 four-port cached analog reads**
+and all 16,384 digital masks; a real S029 checkpoint replays changing axes and
+native guest output. Neutral-X, axis-swap and Y-port-alias production faults
+are rejected alongside ten existing faults. Input plugin tests cover recording,
+playback and turbo without changing axes; SDL virtual pads cover selection,
+direction, endpoints and capture suppression.
+
+The existing production TCP gate now sends independent signed axes for both
+peers and grades all **600 guest words** against an independent oracle, including
+rollback/replay and complete peer/baseline states. The profile does not award the
+native-controller or retail milestones: accessories, controller origin/reset,
+physical calibration/timing, detached-pad behavior and Mario movement/menu/level
+interaction remain unverified. **N64 remains 45%.** The private six-billion-attempt
+Mario intro capture above used digital input and is not a new analog playability
+result.
+
+```sh
+ctest --test-dir build -R '^(input_plugin_test|input_hotplug_test|n64_controller_analog_reads|n64_pif_.*|n64_netplay_plugin_test)$' --output-on-failure
 ```

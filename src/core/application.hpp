@@ -27,7 +27,7 @@ class TestFileSink;
 
 // Main application class - orchestrates all subsystems
 // Also implements INetplayHost to provide callbacks to the netplay plugin
-class Application : public INetplayHost, public IInputHost, public IMappedInputHost {
+class Application : public INetplayHost, public IInputHost, public IMappedInputHost, public IControllerInputEncodingHost {
 public:
     Application();
     ~Application();
@@ -101,6 +101,7 @@ public:
     int get_connected_controller_count() const override;
     ControllerInfo get_controller_info(int index) const override;
     uint32_t get_mapped_input(int controller) const override;
+    uint32_t encode_controller_input(int controller, uint32_t buttons) const override;
     bool get_mapped_binding(int controller, VirtualButton button, InputBinding& binding) const override;
 
     // =========================================================================

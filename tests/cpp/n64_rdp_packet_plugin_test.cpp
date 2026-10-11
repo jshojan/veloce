@@ -1,4 +1,5 @@
 #include "nes_plugin_fixture.hpp"
+#include "emu/n64_input.hpp"
 #include <fstream>
 #include <iterator>
 #include <iostream>
@@ -29,9 +30,9 @@ int main(int argc,char** argv){try{
   const bool checkpoint=joybus_mode?be(saved,saved.size()-40)<64:primitive_mode?be(saved,saved.size()-48)!=0:hidden_mode?std::any_of(saved.begin()+saved.size()-1048640+0x700000/8,saved.begin()+saved.size()-1048640+0x700000/8+4,[](uint8_t v){return v!=0;}):blender_mode?(be(saved,saved.size()-1048664) && be(saved,saved.size()-1048656) && be(saved,saved.size()-1048648)):perspective_mode?((be(saved,saved.size()-1053800)&(1ull<<51)) && std::any_of(saved.end()-1052992,saved.end()-1048896,[](uint8_t v){return v!=0;})):conversion_mode?be(saved,saved.size()-1048672)!=0:texture_mode?std::any_of(saved.end()-1052992,saved.end()-1048896,[](uint8_t v){return v!=0;}):count && count<needed;
   if(checkpoint){partial=true;++warm;break;}}
  require(partial && saved[7]=='9' && saved.size()==9527616 && net.get_max_state_size()==saved.size(),"real guest S029 checkpoint and exact query");
- sink.bytes.clear();for(unsigned i=0;i<3;++i)net.run_frame_netplay(joybus_mode?(i%2?1:64):0,joybus_mode?(i%2?64:1):0);const auto output=sink.bytes;const auto after=emulator_test::snapshot(net);
+ sink.bytes.clear();for(unsigned i=0;i<3;++i)net.run_frame_netplay(joybus_mode?emu::n64_input::pack(i%2?1:64,i%2?-128:127,i%2?80:-80):0,joybus_mode?emu::n64_input::pack(i%2?64:1,i%2?5:-37,i%2?-99:62):0);const auto output=sink.bytes;const auto after=emulator_test::snapshot(net);
  require(!output.empty() && core.plugin->get_frame_count()==warm+3,"real packed stream after partial checkpoint");
- require(net.load_state_fast(saved.data(),saved.size()),"fast partial restore");sink.bytes.clear();for(unsigned i=0;i<3;++i)net.run_frame_netplay(joybus_mode?(i%2?1:64):0,joybus_mode?(i%2?64:1):0);
+ require(net.load_state_fast(saved.data(),saved.size()),"fast partial restore");sink.bytes.clear();for(unsigned i=0;i<3;++i)net.run_frame_netplay(joybus_mode?emu::n64_input::pack(i%2?1:64,i%2?-128:127,i%2?80:-80):0,joybus_mode?emu::n64_input::pack(i%2?64:1,i%2?5:-37,i%2?-99:62):0);
  require(output==sink.bytes && after==emulator_test::snapshot(net),"production actual register output/full-state partial FIFO replay");
  auto bad=after;bad[bad.size()-1048872]=1;require(!net.load_state_fast(bad.data(),bad.size()) && after==emulator_test::snapshot(net),"invalid parser state fast restore atomicity");
  if(joybus_mode){bad=after;bad[bad.size()-40]=1;require(!net.load_state_fast(bad.data(),bad.size()) && after==emulator_test::snapshot(net),"invalid Joybus layout fast restore atomicity");}

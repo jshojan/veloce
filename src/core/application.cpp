@@ -1195,14 +1195,14 @@ void Application::sample_input() {
     auto* input = m_plugin_manager->get_input_plugin();
     if (input) input->begin_frame();
     for (int controller = 0; controller < get_controller_count() && controller < 4; ++controller) {
-        m_input_samples[controller] = input ? input->get_input_state(controller) : get_mapped_input(controller);
+        m_input_samples[controller] = input ? input->get_input_state(controller) : encode_controller_input(controller,get_mapped_input(controller));
     }
 }
 
 uint32_t Application::get_local_input(int controller) const {
     if (!m_input_manager || m_input_manager->is_input_capture_mode() || controller < 0 || controller >= 4) return 0;
     if (m_injected_inputs[controller]) return *m_injected_inputs[controller];
-    return m_input_sample_valid ? m_input_samples[controller] : get_mapped_input(controller);
+    return m_input_sample_valid ? m_input_samples[controller] : encode_controller_input(controller,get_mapped_input(controller));
 }
 uint64_t Application::get_frame_number() const { return get_frame_count(); }
 int Application::get_controller_count() const {
@@ -1237,6 +1237,9 @@ bool Application::get_mapped_binding(int controller, VirtualButton button, Input
     return true;
 }
 uint32_t Application::get_mapped_input(int controller) const { return m_input_manager && controller == 0 ? m_input_manager->get_button_state() : 0; }
+uint32_t Application::encode_controller_input(int controller, uint32_t buttons) const {
+    return m_input_manager ? m_input_manager->encode_controller_input(controller,buttons) : buttons;
+}
 
 const char* Application::get_config_directory() const {
     if (m_paths_config) {

@@ -10,6 +10,20 @@ int main(){uint64_t reads=0,lengths=0,controls=0;
  for(unsigned port=0;port<4;++port)for(unsigned raw=0;raw<16384;++raw){std::array<uint32_t,4> input{};input[port]=frontend(raw);
   for(unsigned phase=0;phase<2;++phase){if(phase)input[port]=frontend(raw^16383);pif.poll(ram,input);for(unsigned target=0;target<4;++target){const unsigned at=target*8,value=target==port?wire(raw^(phase?16383:0)):0;check(ram[at]==255 && ram[at+1]==1 && ram[at+2]==4 && ram[at+3]==1 && ram[at+4]==value/256 && ram[at+5]==value%256 && !ram[at+6] && !ram[at+7]);}check(ram[32]==254 && ram[63]==0);++reads;}
  }
+ // Full signed-byte pair domain on every port, followed by changed cached input.
+ uint64_t analog=0;
+ for(unsigned port=0;port<4;++port)for(unsigned pair=0;pair<65536;++pair){
+  std::array<uint32_t,4> input{};const unsigned raw=pair&16383;
+  for(unsigned phase=0;phase<2;++phase){const unsigned value=pair^(phase?65535:0),buttons=raw^(phase?16383:0);
+   input[port]=0xc000u|buttons|((value&255)<<16)|((value>>8)<<24);pif.poll(ram,input);
+   for(unsigned target=0;target<4;++target){const unsigned at=target*8,wanted=target==port?wire(buttons):0;
+    check(ram[at+4]==wanted/256 && ram[at+5]==wanted%256 && ram[at+6]==(target==port?(value&255):0) && ram[at+7]==(target==port?(value>>8):0));}
+   ++analog;
+  }
+ }
+ for(unsigned raw=0;raw<16384;++raw){const auto b=frontend(raw);const auto word=emu::n64_input::pack(b,-128,127);
+  check(emu::n64_input::buttons(word)==b && emu::n64_input::axis(word,0)==-128 && emu::n64_input::axis(word,1)==127);
+ }
  // All control bytes: only the format flag rebuilds the retained layout.
  for(unsigned flags=0;flags<256;++flags){n64::PifJoybus test;auto packet=formatted;packet[63]=1;test.format(packet);const auto layout=test.snapshot();packet.fill(0xaa);packet[0]=254;packet[63]=uint8_t(flags);const auto original=packet;test.format(packet);check(test.snapshot()==(flags&1?n64::PifJoybus::State{64,64,64,64,64}:layout));auto want=original;if(flags&1)want[63]&=254;check(packet==want);++controls;}
  // Full command byte/receive-length domains, including malformed and cartridge channel.
@@ -23,5 +37,5 @@ int main(){uint64_t reads=0,lengths=0,controls=0;
  // Reformat changes offsets, and disabled/reset channels do not retain prior packets.
  ram.fill(0xaa);ram[0]=253;ram[1]=0;ram[2]=255;ram[3]=1;ram[4]=4;ram[5]=1;ram[10]=254;ram[63]=1;pif.format(ram);check(pif.snapshot()==n64::PifJoybus::State{65,64,3,64,64});pif.poll(ram,{0,0,64,0});check(ram[6]==16 && ram[7]==0 && !ram[8] && !ram[9]);
  const auto state=pif.snapshot();for(const auto bad:{n64::PifJoybus::State{62,64,64,64,64},n64::PifJoybus::State{0,0,64,64,64},n64::PifJoybus::State{3,2,64,64,64},n64::PifJoybus::State{66,64,64,64,64}}){check(!pif.restore(bad) && pif.snapshot()==state);}pif.reset();check(pif.snapshot()==n64::PifJoybus::State{64,64,64,64,64});
- std::cout<<reads<<" cached digital reads; "<<lengths<<" command/length/channel captures; "<<controls<<" control flags; formatting, skip/reset and atomic state rejection PASS\n";
+ std::cout<<analog<<" cached analog reads; "<<reads<<" cached digital reads; "<<lengths<<" command/length/channel captures; "<<controls<<" control flags; formatting, skip/reset and atomic state rejection PASS\n";
 }

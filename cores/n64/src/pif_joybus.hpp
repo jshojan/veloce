@@ -1,11 +1,13 @@
 #pragma once
 #include "emu/input_types.hpp"
+#include "emu/n64_input.hpp"
 #include <array>
 #include <cstdint>
 namespace n64 {
 // Packet formatting latches five channel offsets. SI reads communicate through
 // that layout with current input; clearing the format bit does not disable it.
-// This functional profile has four digital controllers, no analog/paks/EEPROM.
+// This functional profile has four controllers with signed-byte analog input,
+// no paks/EEPROM and no physical optical-counter calibration.
 class PifJoybus {
 public:
     using Ram=std::array<uint8_t,64>;
@@ -36,7 +38,9 @@ public:
             if(port==4 || (command!=0 && command!=255 && command!=1)){ram[at+1]|=128;continue;}
             if(tx!=1 || rx!=(command==1?4u:3u)){ram[at+1]|=64;continue;}
             if(command!=1){ram[reply]=5;ram[reply+1]=0;ram[reply+2]=2;continue;}
-            const unsigned buttons=wire(input[port]);ram[reply]=uint8_t(buttons>>8);ram[reply+1]=uint8_t(buttons);ram[reply+2]=ram[reply+3]=0;
+            const unsigned buttons=wire(input[port]);ram[reply]=uint8_t(buttons>>8);ram[reply+1]=uint8_t(buttons);
+            ram[reply+2]=uint8_t(emu::n64_input::axis(input[port],0));
+            ram[reply+3]=uint8_t(emu::n64_input::axis(input[port],1));
         }
     }
     State snapshot() const {return channels;}
@@ -48,6 +52,7 @@ public:
 private:
     State channels{};
     static unsigned wire(uint32_t buttons){
+        buttons=emu::n64_input::buttons(buttons);
         using emu::VirtualButton;
         constexpr std::array<VirtualButton,14> controls={VirtualButton::A,VirtualButton::B,VirtualButton::Z,VirtualButton::Start,VirtualButton::Up,VirtualButton::Down,VirtualButton::Left,VirtualButton::Right,VirtualButton::L,VirtualButton::R,VirtualButton::CUp,VirtualButton::CDown,VirtualButton::CLeft,VirtualButton::CRight};
         constexpr std::array<unsigned,14> masks={32768,16384,8192,4096,2048,1024,512,256,32,16,8,4,2,1};

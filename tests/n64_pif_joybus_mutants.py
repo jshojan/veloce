@@ -4,6 +4,9 @@ import argparse,hashlib,json,subprocess
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 FAULTS={
+ 'x-neutral':('uint8_t(emu::n64_input::axis(input[port],0))','uint8_t(0)'),
+ 'axes-swapped':('uint8_t(emu::n64_input::axis(input[port],0))','uint8_t(emu::n64_input::axis(input[port],1))'),
+ 'y-port-alias':('uint8_t(emu::n64_input::axis(input[port],1))','uint8_t(emu::n64_input::axis(input[0],1))'),
  'stale-read':('if(raw&192)continue;','if(!(ram[63]&1))return; if(raw&192)continue;'),
  'port-alias':('wire(input[port])','wire(input[0])'),
  'format-disabled':('if(!(ram[63]&1))return;','if(true)return;'),
@@ -32,5 +35,5 @@ def main():
   if name in ('baseline','si-baseline'):assert result.returncode==0 and result.stdout.endswith('PASS\n'),name
   else:assert result.returncode==1 and result.stderr==('PIF state observation mismatch\n' if si else 'Joybus observation mismatch\n'),name
   results.append(dict(name=name,returncode=result.returncode,status='pass' if name in ('baseline','si-baseline') else 'rejected'))
- report=dict(status='pass',production_source_sha256=hashlib.sha256(b''.join(files.values())).hexdigest(),test_sha256=hashlib.sha256(b''.join((ROOT/'tests/cpp'/name).read_bytes() for name in ('n64_pif_joybus_test.cpp','n64_pif_state_test.cpp'))).hexdigest(),results=results);(args.artifacts/'report.json').write_text(json.dumps(report,indent=2)+'\n');print('N64 PIF Joybus: baseline passes; ten executed production faults rejected')
+ report=dict(status='pass',production_source_sha256=hashlib.sha256(b''.join(files.values())).hexdigest(),test_sha256=hashlib.sha256(b''.join((ROOT/'tests/cpp'/name).read_bytes() for name in ('n64_pif_joybus_test.cpp','n64_pif_state_test.cpp'))).hexdigest(),results=results);(args.artifacts/'report.json').write_text(json.dumps(report,indent=2)+'\n');print('N64 PIF Joybus: baseline passes; thirteen executed production faults rejected')
 if __name__=='__main__':main()

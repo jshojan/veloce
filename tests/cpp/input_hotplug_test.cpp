@@ -1,5 +1,6 @@
 #include "core/input_manager.hpp"
 #include "emu/input_plugin.hpp"
+#include "emu/n64_input.hpp"
 #include <SDL.h>
 #include <filesystem>
 #include <iostream>
@@ -24,7 +25,7 @@ static int attach() {
     return index;
 }
 
-struct MappedHost final : emu::IInputHost, emu::IMappedInputHost {
+struct MappedHost final : emu::IInputHost, emu::IMappedInputHost, emu::IControllerInputEncodingHost {
     emu::InputManager& input;
     explicit MappedHost(emu::InputManager& i):input(i) {}
     uint64_t get_frame_number() const override{return 0;}
@@ -36,6 +37,7 @@ struct MappedHost final : emu::IInputHost, emu::IMappedInputHost {
     int get_connected_controller_count() const override{return input.get_connected_controller_count();}
     emu::ControllerInfo get_controller_info(int) const override{return {-1,"",false,0,0,0};}
     uint32_t get_mapped_input(int c) const override{return c==0?input.get_button_state():0;}
+    uint32_t encode_controller_input(int c,uint32_t b) const override{return input.encode_controller_input(c,b);}
     bool get_mapped_binding(int c,emu::VirtualButton button,emu::InputBinding& binding) const override{
         auto* b=input.get_binding(button);if(c || !b)return false;binding=*b;
         if(binding.type!=emu::InputSourceType::Keyboard && binding.device_id>=0){
@@ -61,7 +63,7 @@ static void pump(emu::InputManager& input) {
         if(b){emu::InputBinding expected{};host.get_mapped_binding(0,button,expected);auto actual=plugin->get_binding(0,button);require(actual==expected && actual.axis_threshold==expected.axis_threshold && actual.axis_positive==expected.axis_positive,"plugin binding differs from saved profile");}
     }
     plugin->shutdown();destroy_input_plugin(plugin);
-    require(state==input.get_button_state(), "default plugin lost mapped hot-plug/profile input");
+    require(state==input.encode_controller_input(0,input.get_button_state()), "default plugin lost mapped hot-plug/profile input");
 }
 #endif
 
@@ -161,6 +163,19 @@ int main() {
         require(input.get_binding(emu::VirtualButton::Z)->code==SDL_SCANCODE_C &&
                 input.get_binding(emu::VirtualButton::CUp)->code==SDL_SCANCODE_I &&
                 !input.get_binding(emu::VirtualButton::Select), "N64 keyboard defaults wrong");
+        input.set_active_controller(0);
+        require(SDL_JoystickSetVirtualAxis(joystick,0,-32768)==0 &&
+                SDL_JoystickSetVirtualAxis(joystick,1,32767)==0,SDL_GetError());
+        pump(input);
+        auto analog=input.encode_controller_input(0,1);
+        require(analog==0xb0b0c001,"N64 selected pad axis direction/endpoint wrong");
+        input.set_input_capture_mode(true);
+        require(input.encode_controller_input(0,1)==0,"N64 analog leaked during mapping capture");
+        input.set_input_capture_mode(false);
+        require(SDL_JoystickSetVirtualAxis(joystick,0,4000)==0 &&
+                SDL_JoystickSetVirtualAxis(joystick,1,-4000)==0,SDL_GetError());
+        pump(input);require(input.encode_controller_input(0,1)==0xc001,"N64 dead zone not neutral");
+        input.set_active_controller(-1);require(input.encode_controller_input(0,1)==0xc001,"keyboard selection retained pad analog");
         input.set_binding(emu::VirtualButton::CRight,
             {emu::InputSourceType::GamepadButton, input.get_controller_instance_id(0), SDL_CONTROLLER_BUTTON_Y, 0, false});
         require(input.save_platform_config("N64"), "N64 binding save failed");

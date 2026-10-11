@@ -59,7 +59,7 @@ def grade_wiiu_registers(path):
     require(lines[2:]==expected,"Wii U guest register oracle mismatch")
 
 def n64_expected():
-    # Independent SI wire assignment; both two-player masks exercise 32 bits.
+    # Independent SI wire assignment and signed-byte axes for both peers.
     virtual=(0,1,20,6,8,9,10,11,4,5,21,22,23,24)
     native=(15,14,13,12,11,10,9,8,5,4,3,2,1,0)
     values=[]
@@ -68,7 +68,7 @@ def n64_expected():
         for multiplier,offset in ((2246822519,0x13579bdf),(2654435761,0x2468ace1)):
             mask=(frame*multiplier+offset)&0xffffffff
             wire=sum(1<<b for a,b in zip(virtual,native) if mask&(1<<a))
-            row.append(wire<<16)
+            row.append((wire<<16)|((((mask>>16)&255)^128)<<8)|((mask>>24)^128))
         values.extend(row+[0,0,4096,0])
     return values
 
@@ -281,7 +281,7 @@ def main():
                           guest_registers_match_independent_oracle=True,wireless_link_emulation=False,
                           executed_wrong_input_rejected=True,wrong_input_mismatched_words=6,field_mutations_rejected=12,invalid_register_streams_rejected=4,
                           frontend_contract="fresh core after different prior histories; poll while paused; host owns keypad; viewer predicts/replays; disconnect on core replacement")
-        if args.console=="n64":report.update(controller_mode="two independently owned digital pads; ports 2/3 neutral",guest_register_words=600,guest_registers_match_independent_oracle=True,executed_wrong_capture_rejected=True,wrong_capture_mismatched_words=100,field_mutations_rejected=6,invalid_register_streams_rejected=4,native_analog_emulation=False)
+        if args.console=="n64":report.update(controller_mode="two independently owned digital/analog pads; ports 2/3 neutral",guest_register_words=600,guest_registers_match_independent_oracle=True,executed_wrong_capture_rejected=True,wrong_capture_mismatched_words=100,field_mutations_rejected=6,invalid_register_streams_rejected=4,native_analog_emulation=True)
         if args.console=="wiiu":report.update(state_storage="canonical nonzero RAM pages; history slots grow to actual serialized size",native_gamepad_emulation=False)
         (args.artifacts / "network.json").write_text(json.dumps(report, indent=2) + "\n")
         print(f"Network rollback: two independent TCP peers match complete {args.console} baseline; ROM mismatch rejected")

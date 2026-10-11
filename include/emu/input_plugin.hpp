@@ -72,6 +72,15 @@ public:
     virtual bool get_mapped_binding(int controller, VirtualButton button, InputBinding& binding) const { return false; }
 };
 
+// Optional host capability. Called after digital mapping and turbo, before
+// recording. Playback and overrides already contain canonical input words.
+// Separate vtable preserves input plugin ABI v1.
+class IControllerInputEncodingHost {
+public:
+    virtual ~IControllerInputEncodingHost() = default;
+    virtual uint32_t encode_controller_input(int controller, uint32_t buttons) const = 0;
+};
+
 // Input plugin interface
 class IInputPlugin {
 public:
@@ -95,7 +104,8 @@ public:
     virtual void begin_frame() = 0;
 
     // Get input state for a specific controller
-    // Returns the button bitmask for the current frame
+    // Returns the canonical core input word for the current frame.
+    // Digital platforms use VirtualButton masks; N64 can use n64_input.hpp.
     virtual uint32_t get_input_state(int controller) = 0;
 
     // Get/set input bindings

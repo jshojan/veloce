@@ -64,7 +64,7 @@ struct ControllerConfig {
 
 // Input state snapshot
 struct InputSnapshot {
-    uint32_t buttons;           // Bitmask of pressed buttons
+    uint32_t buttons;           // Canonical core input word (digital mask or N64 tagged stick)
     int64_t frame_number;       // Frame when this input was recorded
 };
 

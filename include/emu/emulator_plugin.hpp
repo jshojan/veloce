@@ -44,9 +44,10 @@ struct AudioBuffer {
 };
 
 // Input state for controllers
-// Button bitmask uses VirtualButton ordering from input_types.hpp
+// Digital masks use VirtualButton ordering from input_types.hpp.
+// N64 also accepts the tagged signed-stick encoding in n64_input.hpp.
 struct InputState {
-    uint32_t buttons;   // Bitmask of pressed buttons
+    uint32_t buttons;   // Canonical core input word
 };
 
 // ============================================================

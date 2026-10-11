@@ -12,7 +12,7 @@ word, SI_STATUS and MI_INTR, then both registers after acknowledgment. The 16
 words are emitted as strict **7-word and 9-word chunks**, fitting the test sink's
 255-byte line limit. The host supplies 32,768 real input transitions. Other ports
 are neutral in this guest corpus; all four active digital ports are independently
-covered by the component test. Analog, detached ports/accessories/EEPROM, CIC and
+covered by the component test. This corpus is digital; the separate [analog corpus](../controller_analog_reads/README.md) covers signed X/Y bytes. Detached ports/accessories/EEPROM, CIC and
 physical SI/Joybus timing remain incomplete.
 
 The **16-case** control passes. A separately executed wrong-capture cartridge

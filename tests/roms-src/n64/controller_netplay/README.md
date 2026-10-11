@@ -39,3 +39,9 @@ Scope: four virtual digital pads and zero stick coordinates. Analog sticks,
 controller connection detection/accessories, PIF ROM/CIC execution and physical
 SI timing remain unfinished. Scheduling quanta are not measured VI game frames.
 No physical-console run is claimed.
+
+N64 input word v1 reserves bits 14/15 together as the analog codec tag. The
+legacy ignored-bit variation excludes these two reserved bits; every valid
+fourteen-button mask still has a neutral stick. The separate analog corpus
+covers all signed coordinate pairs. Production TCP now grades signed axes
+alongside digital buttons; see the current N64 core README.
