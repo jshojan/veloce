@@ -1021,3 +1021,15 @@ add_test(NAME n64_hidden_rdram_mutants COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/n64_hidden_rdram_mutants.py --compiler ${CMAKE_CXX_COMPILER}
     --artifacts ${CMAKE_BINARY_DIR}/artifacts/component/n64_hidden_rdram)
 set_tests_properties(n64_hidden_rdram_mutants PROPERTIES LABELS "unit;accuracy" TIMEOUT 180)
+add_executable(n64_hidden_machine_test cpp/n64_hidden_machine_test.cpp
+    ${CMAKE_SOURCE_DIR}/cores/n64/src/machine.cpp ${CMAKE_SOURCE_DIR}/cores/n64/src/vr4300.cpp)
+target_include_directories(n64_hidden_machine_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src ${CMAKE_SOURCE_DIR}/include)
+add_test(NAME n64_hidden_machine_test COMMAND n64_hidden_machine_test ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/hidden_rdram/hidden_rdram.z64)
+set_tests_properties(n64_hidden_machine_test PROPERTIES LABELS "unit;accuracy;owned" TIMEOUT 180)
+add_test(NAME n64_hidden_rdram_guest COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/hidden_rdram/run.py --emulator $<TARGET_FILE:veloce>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_hidden_rdram)
+set_tests_properties(n64_hidden_rdram_guest PROPERTIES LABELS "accuracy;owned" TIMEOUT 700)
+add_test(NAME n64_hidden_checkpoint_test COMMAND n64_rdp_packet_plugin_test
+    $<TARGET_FILE:n64_plugin> ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/hidden_rdram/hidden_rdram.z64 hidden)
+set_tests_properties(n64_hidden_checkpoint_test PROPERTIES LABELS "integration;netplay;accuracy;owned" TIMEOUT 60)

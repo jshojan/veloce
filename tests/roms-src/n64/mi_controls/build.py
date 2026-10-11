@@ -75,14 +75,15 @@ def build(short=False,wrong_mode=False):
     p.i(15,0,30,0xbff0);p.i(15,0,24,0xa430);p.i(15,0,25,0xa460);p.i(15,0,26,0xa480)
     p.i(15,0,8,0x70);p.i(43,25,8,0);p.i(15,0,9,0x1000);p.i(43,25,9,4);p.i(9,0,9,1);p.i(43,25,9,12)
     p.i(9,8,8,8);p.i(43,26,8,0);p.i(43,26,0,4) # actual PI and SI pending levels
+    p.address(8,"mode_helper");p.i(15,0,29,0xa400);p.i(13,29,29,0x800);p.r(0x25,29,0,9);p.i(9,0,10,9)
+    p.mark("copy_helper");p.i(39,8,11,0);p.i(43,9,11,0);p.i(9,8,8,4);p.i(9,9,9,4);p.i(9,10,10,-1);p.branch(5,10,0,"copy_helper")
     p.address(16,"cases");p.i(15,0,17,cases>>16);p.i(13,17,17,cases&65535)
     p.puts("header");p.mark("sample")
     p.i(39,16,18,0);p.i(39,16,19,4);p.i(39,16,20,8)
     p.branch(5,18,0,"mask_case")
-    p.i(9,0,8,0xfff);p.i(43,24,8,12);p.i(43,24,19,0)
-    p.i(39,24,21,0);p.i(39,24,22,12)
+    p.i(9,0,8,0xfff);p.i(43,24,8,12)
     if wrong_mode:p.i(14,20,20,1)
-    p.i(43,24,20,0);p.i(39,24,23,0);p.branch(4,0,0,"output")
+    p.r(9,rs=29,rd=31);p.word(0);p.branch(4,0,0,"output")
     p.mark("mask_case");p.i(9,0,8,0x1280);p.i(43,24,8,0);p.i(43,24,19,12)
     p.i(39,24,21,0);p.i(39,24,22,12);p.i(43,24,20,12);p.i(39,24,23,0)
     p.mark("output");p.i(39,24,27,12);p.puts("row")
@@ -116,6 +117,12 @@ def build(short=False,wrong_mode=False):
     p.branch(1, 6, 1, "hex_loop")  # BGEZ
     p.r(8, rs=31); p.word(0)
 
+    p.mark("mode_helper")
+    # MI EBUS changes uncached RDRAM reads. Execute every enabled-mode window
+    # from SP DMEM, capture both transitions, then clear EBUS before returning.
+    p.i(43,24,19,0);p.i(39,24,21,0);p.i(39,24,22,12)
+    p.i(43,24,20,0);p.i(39,24,23,0)
+    p.i(9,0,8,0x200);p.i(43,24,8,0);p.r(8,rs=31);p.word(0)
     while p.pc&3:p.data.append(0)
     p.mark("cases")
     for flags in range(8):

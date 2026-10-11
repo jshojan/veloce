@@ -363,6 +363,17 @@
       "source_type": "original",
       "suite": "fpu_integer_conversions"
     },
+    "n64/hidden_rdram/hidden_rdram.z64": {
+      "build_command": "python3 tests/roms-src/n64/hidden_rdram/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "8f535949b59e0be34136c0f0e2ed9d59d77975301137c614d2daa468d8fbcab9",
+      "source_repo": "tests/roms-src/n64/hidden_rdram/build.py",
+      "source_sha": "66c160ebee6903b762aa90cfc77b5f6ebd1c72238491b31bc7519302b4d8fe93",
+      "source_type": "original",
+      "suite": "hidden_rdram"
+    },
     "n64/integer_registers/integer_registers.z64": {
       "build_command": "python3 tests/roms-src/n64/integer_registers/build.py",
       "console": "n64",
@@ -412,9 +423,9 @@
       "console": "n64",
       "license": "MIT",
       "rom_variant": "veloce",
-      "sha256": "8c6170a2112c49366e02a6e5270df4d1b17707ab06ed207834816f15826c9bae",
+      "sha256": "1141458dad07811dca77db02a1dbf613b18c4385ab0478a2de83fe08194c5178",
       "source_repo": "tests/roms-src/n64/mi_controls/build.py",
-      "source_sha": "8d3585de9200e17fe227a99e5bd0a9aa4937f45a5413ecb4595a2f437714575e",
+      "source_sha": "31cb38b1fbb48058829607852ca10bb49e6f790965e8b0609dc775c1a09a0449",
       "source_type": "original",
       "suite": "mi_controls"
     },

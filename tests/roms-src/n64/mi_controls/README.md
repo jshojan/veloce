@@ -44,3 +44,9 @@ The component additionally checks all 16,777,216 prior-mode/command transitions
 and mask combinations, DP acknowledgment with other sources preserved, actual
 CPU interrupt/ACK/ERET, invalid access/state atomicity, exact replay, old-state
 conversion, reset and loaded-plugin execution.
+
+The mode-transition helper now executes from uncached SP DMEM while MI EBUS
+mode is enabled. Both observed MI transitions are captured before clearing
+EBUS and returning to RDRAM code. This preserves all existing oracle fields
+and domains while making instruction fetch valid under the implemented EBUS
+semantics. No expected output is embedded in the ROM.
