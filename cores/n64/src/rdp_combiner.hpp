@@ -3,8 +3,8 @@
 #include <cstdint>
 namespace n64 {
 // SGI RDP Command Summary, tables 19, 21 and 22. Command state and
-// fixed-point combiner arithmetic; source routing and draw evaluation remain
-// separate work. No textured/triangle rasterizer is implied by this kernel.
+// fixed-point arithmetic and explicit source routing. Sources are supplied by
+// the pixel pipeline; this kernel does not fetch textures or store pixels.
 struct RdpCombiner {
     // Operands are encoded nine-bit values. A/B/D use the RDP special
     // extension (only 0x180..0x1ff are negative); C uses ordinary signed nine
@@ -26,6 +26,36 @@ struct RdpCombiner {
     struct Cycle {
         unsigned rgb_a,rgb_b,rgb_c,rgb_d,alpha_a,alpha_b,alpha_c,alpha_d;
     };
+    using Color=std::array<unsigned,4>;
+    struct Sources {
+        Color combined{},texel0{},texel1{},shade{},key_center{},key_scale{};
+        unsigned noise=0,k4=0,k5=0,lod=0;
+    };
+    struct Result {std::array<uint32_t,3> rgb_fixed{};Color combined{},clamped{};};
+    Result evaluate(unsigned n,const Sources& s) const {
+        const auto mux=cycle(n);Result result;
+        for(unsigned lane=0;lane<3;++lane){
+            const unsigned a=rgb_source(0,mux.rgb_a,lane,s),b=rgb_source(1,mux.rgb_b,lane,s);
+            const unsigned c=rgb_source(2,mux.rgb_c,lane,s),d=rgb_source(3,mux.rgb_d,lane,s);
+            result.rgb_fixed[lane]=rgb_equation(a,b,c,d);
+            result.combined[lane]=result.rgb_fixed[lane]>>8;
+            result.clamped[lane]=clamp(result.combined[lane]);
+        }
+        result.combined[3]=alpha_equation(alpha_source(mux.alpha_a,false,s),alpha_source(mux.alpha_b,false,s),alpha_source(mux.alpha_c,true,s),alpha_source(mux.alpha_d,false,s));
+        result.clamped[3]=clamp(result.combined[3]);return result;
+    }
+    // Supported one-cycle inputs without a retained previous-pixel result,
+    // texture fetch, LOD computation, key/conversion state or noise generation.
+    // Zero multiplier selectors make A/B electrically irrelevant.
+    bool independent_one_cycle() const {
+        const auto m=cycle(1);
+        const auto rgb=[](unsigned v){return v==3 || v==4 || v==5 || v>=8;};
+        const auto add=[](unsigned v){return v>=3;};
+        const auto alpha=[](unsigned v){return v>=3;};
+        const bool factor=m.rgb_c==3 || m.rgb_c==4 || m.rgb_c==5 || m.rgb_c==10 || m.rgb_c==11 || m.rgb_c==12 || m.rgb_c==14 || m.rgb_c>=16;
+        return factor && (m.rgb_c>=16 || ((rgb(m.rgb_a) || m.rgb_a==6) && rgb(m.rgb_b))) && add(m.rgb_d)
+            && alpha(m.alpha_c) && (m.alpha_c==7 || (alpha(m.alpha_a) && alpha(m.alpha_b))) && alpha(m.alpha_d);
+    }
     Cycle cycle(unsigned n) const {
         if(n==0)return {field(52,15),field(28,15),field(47,31),field(15,7),field(44,7),field(12,7),field(41,7),field(9,7)};
         return {field(37,15),field(24,15),field(32,31),field(6,7),field(21,7),field(3,7),field(18,7),field(0,7)};
@@ -48,6 +78,22 @@ struct RdpCombiner {
         combine=s[0];primitive=s[1];environment=uint32_t(s[2]);return true;
     }
 private:
+    static unsigned channel(uint32_t packed,unsigned lane){return (packed>>(24-8*lane))&255;}
+    unsigned color_source(unsigned code,unsigned lane,const Sources& s) const {
+        switch(code){case 0:return s.combined[lane];case 1:return s.texel0[lane];case 2:return s.texel1[lane];case 3:return channel(primitive_color(),lane);case 4:return s.shade[lane];case 5:return channel(environment,lane);default:return 0;}
+    }
+    unsigned rgb_source(unsigned slot,unsigned code,unsigned lane,const Sources& s) const {
+        if(code<=5)return color_source(code,lane,s);
+        if(slot==0)return code==6?256:code==7?s.noise:0;
+        if(slot==1)return code==6?s.key_center[lane]:code==7?s.k4:0;
+        if(slot==2){switch(code){case 6:return s.key_scale[lane];case 7:return s.combined[3];case 8:return s.texel0[3];case 9:return s.texel1[3];case 10:return channel(primitive_color(),3);case 11:return s.shade[3];case 12:return channel(environment,3);case 13:return s.lod;case 14:return lod_fraction();case 15:return s.k5;default:return 0;}}
+        return code==6?256:0;
+    }
+    unsigned alpha_source(unsigned code,bool multiplier,const Sources& s) const {
+        if(multiplier && code==0)return s.lod;
+        if(code<=5)return color_source(code,3,s);
+        return code==6?(multiplier?lod_fraction():256):0;
+    }
     static int32_t extend(unsigned value){value&=511;return int32_t(value)-(value>=384?512:0);}
     unsigned field(unsigned shift,unsigned mask) const{return unsigned(combine>>shift)&mask;}
 };
