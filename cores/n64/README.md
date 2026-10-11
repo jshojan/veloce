@@ -1,6 +1,6 @@
 # Experimental Nintendo 64 core plugin
 
-Current N64 evidence: [texture coordinate processing and current Mario status](#texture-tile-coordinate-processing). Earlier increment reports are historical.
+Current N64 evidence: [TMEM texel/palette reads and current Mario status](#tmem-texel-and-palette-reads). Earlier increment reports are historical.
 
 <!-- completion:start -->
 ## Completion percentage
@@ -1961,3 +1961,50 @@ graphics-blocked with uniform video and unverified boot/playability. Native
 hardware/retail completion remains unproven. Plugin **0.30.0**, ABI v2 and
 **VN64S024** remain current. N64 stays **45% = 9/20 delivery milestones**;
 CI/CD remains disabled and the full Nintendo implementation goal remains active.
+
+## TMEM texel and palette reads
+
+A functional texel reader now decodes canonical big-endian TMEM bytes with
+odd-row interleaving, address wrapping and split RGBA32 banks. RGBA, CI, IA,
+I and YUV format/size encodings include the native model's alias behavior.
+YUV results retain signed U/V and unconverted Y/A; they are not presented as
+converted RGB. TLUT index decoding and explicit palette-bank reads support
+RGBA5551 and IA16 entries. Bank selection/remapping in the full sampling
+pipeline remains separate. The layout follows the
+[RDP author's TMEM reader model](https://github.com/ata4/angrylion-rdp-plus/blob/master/src/core/n64video/rdp/tmem.c).
+
+Independent byte-address/permutation and fixed-code expansion oracles pass
+**3,145,728 address captures**, **8,388,608 packed-format captures** and
+**1,050,624 palette decodes**. Address tests include signed coordinate patterns
+across every format/size code and every tile base/line pair under selected
+RGBA32 probes. Packed tests cover all 65,536 halfword patterns with complemented
+upper-bank data at four selected S/T positions; they do not exhaust arbitrary
+32-bit colors or all YUV triples. Palette tests cover all 16-bit entries at
+two indices/all four lanes/both interpretations, plus every index/lane under
+one selected TMEM pattern. A further **12,288 actual load/fetch captures**
+verify RGBA16/RGBA32 data through the existing TMEM loader, two rows, three
+wrap-sensitive bases and 256 byte patterns.
+
+Final UBSAN and warning-as-error compilation pass. The two registered reader/
+fault gates pass in **5.71 seconds**; three related tile/TMEM/coordinate gates
+pass in **5.78 seconds**. The repeatable fault runner requires the unmodified
+baseline to pass and all eight deliberately faulty production-header variants
+to fail the independent oracle. Compilation failures never count as rejection.
+Artifact header SHA matches the current implementation. Artifacts:
+`build/artifacts/component/n64_texel_fetch/`. From the repository root:
+
+```sh
+cmake --build build --target n64_rdp_texel_fetch_test
+ctest --test-dir build -R '^n64_rdp_texel_fetch_' --output-on-failure
+```
+
+This helper has component evidence and no guest texel-output corpus yet. It
+is not connected to the pixel renderer. Coupled multi-texel sampling, filtering,
+YUV conversion, perspective/LOD, texture-driven combiner routing and complete
+blending/depth/hidden-memory behavior remain unfinished; software oracles do
+not establish physical timing. Current production core/trace hashes still
+match the private Mario report at
+`build/artifacts/retail/n64-one-cycle-shade.json`. Mario remains graphics-blocked
+with uniform video and unverified boot/playability. Plugin **0.30.0**, ABI v2
+and **VN64S024** remain current. N64 stays **45% = 9/20 delivery milestones**.
+CI/CD remains disabled; the full Nintendo implementation goal remains active.

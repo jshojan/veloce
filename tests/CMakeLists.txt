@@ -900,6 +900,15 @@ add_test(NAME n64_rdp_texture_coordinate_mutants COMMAND ${Python3_EXECUTABLE}
     --artifacts ${CMAKE_BINARY_DIR}/artifacts/component/n64_texture_coordinates)
 set_tests_properties(n64_rdp_texture_coordinate_mutants PROPERTIES LABELS "unit;accuracy" TIMEOUT 180)
 
+add_executable(n64_rdp_texel_fetch_test cpp/n64_rdp_texel_fetch_test.cpp)
+target_include_directories(n64_rdp_texel_fetch_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src)
+add_test(NAME n64_rdp_texel_fetch_test COMMAND n64_rdp_texel_fetch_test)
+set_tests_properties(n64_rdp_texel_fetch_test PROPERTIES LABELS "unit;accuracy" TIMEOUT 180)
+add_test(NAME n64_rdp_texel_fetch_mutants COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/n64_texel_fetch_mutants.py --compiler ${CMAKE_CXX_COMPILER}
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/component/n64_texel_fetch)
+set_tests_properties(n64_rdp_texel_fetch_mutants PROPERTIES LABELS "unit;accuracy" TIMEOUT 180)
+
 add_test(NAME n64_rdp_triangle_attribute_mutants COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/n64_triangle_attribute_mutants.py --compiler ${CMAKE_CXX_COMPILER}
     --artifacts ${CMAKE_BINARY_DIR}/artifacts/component/n64_triangle_attributes)
