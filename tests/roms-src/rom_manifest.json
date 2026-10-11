@@ -22560,6 +22560,17 @@
       "source_type": "original",
       "suite": "netplay_probe"
     },
+    "nds/saturating_registers/saturating_registers.nds": {
+      "build_command": "python3 tests/roms-src/nds/saturating_registers/build.py",
+      "console": "nds",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "c19d14fdc338e85b8e0455df15ed907a89932706232518353089e6a30b129f9b",
+      "source_repo": "tests/roms-src/nds/saturating_registers/build.py",
+      "source_sha": "f2cff3cf00a4265faf84a14b98012c4a4277bd4abcaac4a92120aeefa6a7c89b",
+      "source_type": "original",
+      "suite": "saturating_registers"
+    },
     "nds/thumb_registers/thumb_registers.nds": {
       "build_command": "python3 tests/roms-src/nds/thumb_registers/build.py",
       "console": "nds",

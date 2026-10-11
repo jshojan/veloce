@@ -23,7 +23,10 @@ software and firmware do not boot. Full platform completion is unmeasured.**
 
 - The [DS integer interpreter](../nds/README.md), with ARMv6 ARM/Thumb REV,
   REV16 and REVSH enabled only for ARM11. Unsupported instructions diagnose
-  and stop that context. ARM9 and existing DS/DSi retain their earlier ISA scope.
+  and stop that context. The shared decoder also supports QADD/QSUB/QDADD/QDSUB
+  on ARM9/ARM11;
+  their original register corpus is graded on DS ARM9. Full DSP ISA and
+  platform-specific timing remain unverified.
 - Shared 128 MiB FCRAM at `20000000–27ffffff`, shared 512 KiB AXI RAM at
   `1ff80000–1fffffff`, and 1 MiB ARM9 private RAM at `08000000–080fffff`.
   Bus byte/halfword/word access is little endian; unmapped reads/writes reject,
