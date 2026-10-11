@@ -16,6 +16,8 @@ FAULTS = {
     "fill16-hidden": ("rdp_fill.hpp", "(value&1)*3", "(value&1)*1"),
     "fill32-second-hidden": ("rdp_fill.hpp", "(color&1)*3", "((color>>16)&1)*3"),
     "triangle-history-direction": ("rdp_triangle_fill.hpp", "hidden,triangle.flip)", "hidden,!triangle.flip)"),
+    "rejected-coverage-history": ("rdp_framebuffer.hpp", "coverage&3)", "coverage&1)"),
+    "rejected-green-history": ("rdp_framebuffer.hpp", "hidden->rejected_word(at,(rgb[1]&1)*3,0)", "hidden->rejected_word(at,(rgb[0]&1)*3,0)"),
     "triangle-delayed-flush": ("rdp_triangle_fill.hpp", "hidden->finish_rdp_bytes()", "(void)hidden"),
 }
 
@@ -56,7 +58,7 @@ def main():
         reports.append(dict(name=name,returncode=result.returncode,status="pass" if name=="baseline" else "rejected"))
     report = dict(status="pass",production_header_sha256={name:hashlib.sha256(content.encode()).hexdigest() for name,content in sources.items()},results=reports)
     (args.artifacts / "report.json").write_text(json.dumps(report, indent=2) + "\n")
-    print("N64 RDP framebuffer: baseline passes; all nine production faults rejected")
+    print("N64 RDP framebuffer: baseline passes; all eleven production faults rejected")
 
 
 if __name__ == "__main__":

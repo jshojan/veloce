@@ -73,6 +73,16 @@ public:
         if(!valid(address,4) || first>3 || second>3)return false;
         set(address,first);set(address+2,second);remember(address,first);remember(address+2,second);return true;
     }
+    // Rejected RGBA pixels still replace retained color-write history, without
+    // replacing RAM or its hidden bits. Subsequent CI8 writes consume it.
+    bool rejected_halfword(size_t address,unsigned value) {
+        if(!valid(address,2) || value>3)return false;
+        remember(address,value);return true;
+    }
+    bool rejected_word(size_t address,unsigned first,unsigned second) {
+        if(!valid(address,4) || first>3 || second>3)return false;
+        remember(address,first);remember(address+2,second);return true;
+    }
     bool rdp_byte(size_t address,uint8_t value,bool flip) {
         if(!valid(address,1))return false;
         if(flip && delayed_>=0 && size_t(delayed_)<address)finish_rdp_bytes();

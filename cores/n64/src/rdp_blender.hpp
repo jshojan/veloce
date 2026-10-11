@@ -27,8 +27,7 @@ struct RdpBlender {
         const bool overflow=(memory_coverage+count)&8;
         out.enabled=(mode&16384) || (!(overflow) && (mode&8));
         out.coverage=RdpCoverage::stored(unsigned(mode>>8)&3,out.enabled,count,memory_coverage);
-        if((mode&1) && color[3]<(blend&255))return out;
-        if((mode&8)?!count:!cvbit)return out;
+        const bool accepted=(!(mode&1) || color[3]>=(blend&255)) && ((mode&8)?count!=0:cvbit!=0);
         const unsigned p=unsigned(mode>>30)&3,a_source=unsigned(mode>>26)&3;
         const unsigned m=unsigned(mode>>22)&3,b_source=unsigned(mode>>18)&3;
         const std::array<Color,4> colors={color,unpack((memory_rgb<<8)|(memory_coverage<<5)),unpack(blend),unpack(fog)};
@@ -43,7 +42,7 @@ struct RdpBlender {
             if((mode&128) && !overflow)out.rgb[lane]=colors[m][lane];
             else out.rgb[lane]=bypass?colors[p][lane]:equation(colors[p][lane],colors[m][lane],a,b,mode&16384);
         }
-        out.write=true;return out;
+        out.write=accepted;return out;
     }
 private:
     static Color unpack(uint32_t word){return {word>>24,(word>>16)&255,(word>>8)&255,word&255};}

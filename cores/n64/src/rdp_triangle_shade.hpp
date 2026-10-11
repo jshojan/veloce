@@ -66,7 +66,7 @@ struct RdpTriangleShade {
                 const size_t at=origin+(size_t(y)*width+x)*bytes;
                 if(blender){const uint32_t memory=bytes==2?RdpFramebuffer::read16(ram.data()+at,hidden->halfword(at)):(uint32_t(ram[at])<<24)|(uint32_t(ram[at+1])<<16)|(uint32_t(ram[at+2])<<8)|ram[at+3];
                     const auto result=blender->pixel(mode,color,pixel.rgba[3],memory,RdpCoverage::derivatives(mask).count,mask>>7,attributes.delta_z);
-                    if(!result.write)continue;
+                    if(!result.write){RdpFramebuffer::rejected(at,bytes,result.rgb,result.coverage,hidden);continue;}
                     RdpFramebuffer::write(at,bytes,result.rgb,result.coverage,ram,hidden);continue;
                 }
                 const unsigned memory=(mode&64)?ram[at+3]>>5:7;

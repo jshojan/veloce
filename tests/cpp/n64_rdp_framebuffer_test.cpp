@@ -1,5 +1,6 @@
 #include "rdp_framebuffer.hpp"
 #include "rdp_triangle_fill.hpp"
+#include "rdp_blender.hpp"
 #include <iostream>
 #include <cstdlib>
 static void verify(bool ok,unsigned line){if(!ok){std::cerr<<"framebuffer mismatch at line "<<line<<'\n';std::exit(1);}}
@@ -34,6 +35,18 @@ int main(){uint64_t reads=0,writes=0,fills=0;
  check(n64::RdpFill::draw(0,(1ull<<51)|64,mode,scissor,0,ram,&hidden)==0 && hidden.halfword(64)==2 && ram[65]==1 && hidden.snapshot().delayed==-1);
  const auto before=ram;const auto metadata=hidden.snapshot();
  check(n64::RdpFill::draw(rectangle,(3ull<<51)|120,mode,scissor,0,ram,&hidden)==5 && ram==before && hidden.snapshot()==metadata);
+ uint64_t rejected=0;
+ for(unsigned seed=0;seed<256;++seed)for(unsigned cvg=0;cvg<8;++cvg)for(unsigned bytes:{2u,4u}){
+  hidden.reset();n64::RdpBlender blender;blender.blend=128;
+  const uint32_t memory=0x12003500u|(seed<<16);
+  const auto result=blender.pixel((1ull<<22)|16384|512|64|1,{seed,seed^255,seed,0},0,memory,cvg,0,1);
+  check(!result.write && result.coverage==7);
+  const auto original=ram;const auto bits=hidden.snapshot().bits;
+  n64::RdpFramebuffer::rejected(64,bytes,result.rgb,result.coverage,&hidden);
+  check(ram==original && hidden.snapshot().bits==bits);
+  const unsigned expected=bytes==2?3:((memory>>16)&1)*3;
+  check(n64::RdpFill::draw(0,(1ull<<51)|64,mode,scissor,0,ram,&hidden)==0 && hidden.halfword(64)==(expected&2));++rejected;
+ }
  uint64_t triangles=0;
  for(unsigned raw=0;raw<65536;++raw)for(bool flip:{false,true})for(unsigned size:{1u,2u,3u}){
   std::vector<uint8_t> pixels(512),expected=pixels;n64::HiddenRdram h(512);
@@ -59,5 +72,5 @@ int main(){uint64_t reads=0,writes=0,fills=0;
   for(unsigned a=0;a<512;a+=2)check(h.halfword(a)==bits[a]*2+bits[a+1]);
   const auto state=h.snapshot();for(unsigned n=0;n<8;++n)check(((state.history>>(2*n))&3)==history[n]);check(state.delayed==-1);++triangles;
  }
- std::cout<<reads<<" complete RGBA16 read encodings; "<<writes<<" paired framebuffer writes; "<<fills<<" fill metadata patterns; "<<triangles<<" oriented triangle metadata captures; delayed history and atomic bounds PASS\n";
+ std::cout<<reads<<" complete RGBA16 read encodings; "<<writes<<" paired framebuffer writes; "<<fills<<" fill metadata patterns; "<<triangles<<" oriented triangle metadata captures; "<<rejected<<" rejected pixel/CI8 history captures; delayed history and atomic bounds PASS\n";
 }
