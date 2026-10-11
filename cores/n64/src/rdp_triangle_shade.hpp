@@ -6,6 +6,7 @@
 #include "rdp_texture_divider.hpp"
 #include "rdp_blender.hpp"
 #include "rdp_framebuffer.hpp"
+#include "rdp_primitive_depth.hpp"
 namespace n64 {
 // Functional one-cycle RGBA16/RGBA32: optional blending/AA/alpha-coverage decisions.
 // Interpolated Z comparison/update; no key, dither or previous-pixel feedback. Affine/perspective
@@ -13,14 +14,15 @@ namespace n64 {
 // optional TLUT. SetConvert also supplies K4/K5 combiner inputs.
 // Unsupported profiles reject before any framebuffer write. Physical pipeline/crash timing remains separate work.
 struct RdpTriangleShade {
-    static unsigned draw(const RdpPacket& packet,uint64_t image,uint64_t mode,uint64_t scissor,const RdpCombiner& combiner,std::vector<uint8_t>& ram,const RdpTexture* texture=nullptr,const RdpTmem* tmem=nullptr,const RdpConvert* conversion=nullptr,RdpBlender* blender=nullptr,HiddenRdram* hidden=nullptr,uint32_t depth_image=0){
+    static unsigned draw(const RdpPacket& packet,uint64_t image,uint64_t mode,uint64_t scissor,const RdpCombiner& combiner,std::vector<uint8_t>& ram,const RdpTexture* texture=nullptr,const RdpTmem* tmem=nullptr,const RdpConvert* conversion=nullptr,RdpBlender* blender=nullptr,HiddenRdram* hidden=nullptr,uint32_t depth_image=0,const RdpPrimitiveDepth* primitive=nullptr){
         RdpTriangle triangle;if(!RdpTriangle::decode(packet,triangle))return 1;
         const bool textured=triangle.texture && texture && tmem;
         const uint64_t sampling=textured?((63ull<<42)|(1ull<<51)):0;
         const uint64_t dither=(3ull<<38)|(3ull<<36);
-        const bool depth_mode=mode&48;
+        const bool depth_mode=mode&48,primitive_mode=mode&4;
+        if(primitive_mode && !primitive)return 1;
         if(depth_mode && (!blender || !hidden))return 1;
-        const uint64_t allowed=dither|0xffff0000ull|0x340ull|sampling|(blender?0x7cb9ull:0);
+        const uint64_t allowed=dither|0xffff0000ull|0x340ull|sampling|(blender?0x7cbdull:0);
         if((mode&~allowed) || (mode&dither)!=dither || (!blender && ((mode>>30)&3)) || !combiner.independent_one_cycle(textured,conversion!=nullptr) || (textured && !(mode&(1ull<<43)) && !conversion))return 1;
         const unsigned size=unsigned(image>>51)&3,bytes=size==2?2:4;
         if(((image>>53)&7)!=0 || (size!=3 && !(size==2 && hidden && blender)))return 1;
@@ -70,12 +72,14 @@ struct RdpTriangleShade {
                 const size_t at=origin+(size_t(y)*width+x)*bytes;
                 if(blender){const uint32_t memory=bytes==2?RdpFramebuffer::read16(ram.data()+at,hidden->halfword(at)):(uint32_t(ram[at])<<24)|(uint32_t(ram[at+1])<<16)|(uint32_t(ram[at+2])<<8)|ram[at+3];
                     const size_t za=depth_image+(size_t(y)*width+x)*2;
+                    const unsigned z=primitive_mode?primitive->z():pixel.z;
+                    const unsigned delta=primitive_mode?primitive->delta():attributes.delta_z;
                     RdpBlender::DepthInput depth;
-                    if(depth_mode){depth.z=pixel.z;if(mode&16){depth.word=uint16_t((unsigned(ram[za])<<8)|ram[za+1]);depth.hidden=hidden->halfword(za);}}
-                    const auto result=blender->pixel(mode,color,pixel.rgba[3],memory,RdpCoverage::derivatives(mask).count,mask>>7,attributes.delta_z,depth_mode?&depth:nullptr);
+                    if(depth_mode){depth.z=z;if(mode&16){depth.word=uint16_t((unsigned(ram[za])<<8)|ram[za+1]);depth.hidden=hidden->halfword(za);}}
+                    const auto result=blender->pixel(mode,color,pixel.rgba[3],memory,RdpCoverage::derivatives(mask).count,mask>>7,delta,depth_mode?&depth:nullptr);
                     if(!result.write){RdpFramebuffer::rejected(at,bytes,result.rgb,result.coverage,hidden);continue;}
                     RdpFramebuffer::write(at,bytes,result.rgb,result.coverage,ram,hidden);
-                    if(mode&32)RdpDepth::store(za,pixel.z,RdpDepth::delta_encoding(uint16_t(attributes.delta_z)),ram,*hidden);
+                    if(mode&32)RdpDepth::store(za,z,RdpDepth::delta_encoding(uint16_t(delta)),ram,*hidden);
                     continue;
                 }
                 const unsigned memory=(mode&64)?ram[at+3]>>5:7;

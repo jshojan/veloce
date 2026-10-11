@@ -5,7 +5,7 @@
 #include "hidden_rdram.hpp"
 namespace n64 {
 // Native depth encoding/decisions for the functional one-cycle triangle path.
-// Primitive depth and interpixel shifter state remain separate work.
+// Interpixel shifter state remains separate work.
 // Physical accesses/timing are owned by the caller.
 struct RdpDepth {
     static uint16_t compress(unsigned z) {

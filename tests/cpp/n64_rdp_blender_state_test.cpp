@@ -29,10 +29,10 @@ int main(int argc,char** argv){try{
   check(n64::RdpTriangleShade::draw(packet,image,mode|64|bits,scissor,combiner,selected,nullptr,nullptr,nullptr,&b)==0 && plain==selected && a.snapshot()==b.snapshot());}
  check(argc==2);std::ifstream f(argv[1],std::ios::binary);std::vector<uint8_t> rom{std::istreambuf_iterator<char>(f),{}};n64::Machine machine;check(machine.load(rom.data(),rom.size()));auto& dp=machine.dp_interface;
  dp.blender.memory_rgb=0x73519f;put(machine.ram,0x100,0xf8c33ca589abcdef);put(machine.ram,0x108,0xf900000012345678);put(machine.ram,0x110,0xe900000000000000);dp.flags=2;dp.write(0,0x100);dp.write(1,0x118);
- std::vector<uint8_t> saved,after,replay;check(machine.save(saved) && saved.size()==9527568 && saved[7]=='7');dp.flags=0;unsigned clocks=0;while(!machine.dp_interrupt && clocks<10){machine.clock();++clocks;}check(machine.dp_interrupt && dp.blender.snapshot()==n64::RdpBlender::State{0x89abcdef,0x12345678,0x73519f} && machine.save(after));
+ std::vector<uint8_t> saved,after,replay;check(machine.save(saved) && saved.size()==9527576 && saved[7]=='8');dp.flags=0;unsigned clocks=0;while(!machine.dp_interrupt && clocks<10){machine.clock();++clocks;}check(machine.dp_interrupt && dp.blender.snapshot()==n64::RdpBlender::State{0x89abcdef,0x12345678,0x73519f} && machine.save(after));
  check(machine.restore(saved));dp.flags=0;for(unsigned i=0;i<clocks;++i)machine.clock();check(machine.save(replay) && replay==after);
- for(unsigned field=0;field<3;++field)for(unsigned bit=field==2?24:32;bit<64;++bit){auto bad=after;bad[bad.size()-1048616+field*8+7-bit/8]|=uint8_t(1u<<(bit%8));check(!machine.restore(bad) && machine.save(replay) && replay==after);}
- auto old=after;old.resize(old.size()-1048616);old[7]='5';check(machine.restore(old) && dp.blender.snapshot()==n64::RdpBlender::State{} && machine.save(replay) && std::equal(old.begin()+8,old.end(),replay.begin()+8));
+ for(unsigned field=0;field<3;++field)for(unsigned bit=field==2?24:32;bit<64;++bit){auto bad=after;bad[bad.size()-1048624+field*8+7-bit/8]|=uint8_t(1u<<(bit%8));check(!machine.restore(bad) && machine.save(replay) && replay==after);}
+ auto old=after;old.resize(old.size()-1048624);old[7]='5';check(machine.restore(old) && dp.blender.snapshot()==n64::RdpBlender::State{} && machine.save(replay) && std::equal(old.begin()+8,old.end(),replay.begin()+8));
  machine.reset();check(dp.blender.snapshot()==n64::RdpBlender::State{});
- std::cout<<commands<<" fog/blend field/alias/DRAM-XBUS captures; retained-memory framebuffer, atomic profile rejection, S027 FullSync replay/rejection/S025 import PASS\n";return 0;
+ std::cout<<commands<<" fog/blend field/alias/DRAM-XBUS captures; retained-memory framebuffer, atomic profile rejection, S028 FullSync replay/rejection/S025 import PASS\n";return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}

@@ -108,7 +108,7 @@ int main(int argc,char** argv) {
  prepare(m,0x24000000);s.fpr.fill(0x123456789abcdef0ull);s.fpr[31]=~uint64_t(0);s.gpr[2]=0xdeadbeef;
  require(m.write(pc,4,move(4,2,31)),"pending move");std::vector<uint8_t> saved,after,replay;require(m.save(saved),"FPR save");m.cpu.step();m.save(after);
  require(m.restore(saved),"FPR restore");m.cpu.step();m.save(replay);require(after==replay,"FPR exact continuation");
- auto old=saved;old.resize(old.size()-1054432);old[6]='1';old[7]='2';require(m.restore(old) && std::all_of(s.fpr.begin(),s.fpr.end(),[](uint64_t v){return v==0;}),"S012 neutral FPR conversion");
+ auto old=saved;old.resize(old.size()-1054440);old[6]='1';old[7]='2';require(m.restore(old) && std::all_of(s.fpr.begin(),s.fpr.end(),[](uint64_t v){return v==0;}),"S012 neutral FPR conversion");
  require(m.restore(saved),"FPR reset fixture");m.reset();require(std::all_of(s.fpr.begin(),s.fpr.end(),[](uint64_t v){return v==0;}),"FPR reset");
  std::cout<<cases<<" word-register/payload cases; 3145728 doubleword payload cases, 262144 immediate cases, CU1/privilege/alignment/TLB/bus faults and FPR state replay passed\n";return 0;
  }catch(const std::exception& e) {std::cerr<<e.what()<<'\n';return 1;}

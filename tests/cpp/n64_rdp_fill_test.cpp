@@ -58,7 +58,7 @@ int main(int argc,char** argv){try{
  std::fill(m.ram.begin()+0x6ffff8,m.ram.begin()+0x700090,0x5a);d.write(0,0x100);d.write(1,0x138);d.tick(m.ram,m.sp,m.dp_interrupt);d.flags=2;
  std::vector<uint8_t> saved,after,replay;require(m.save(saved),"S019 save");d.flags=0;for(unsigned i=0;i<9;++i)m.clock();require(m.save(after),"executed save");require(m.restore(saved),"frozen restore");d.flags=0;for(unsigned i=0;i<9;++i)m.clock();require(m.save(replay) && after==replay && m.dp_interrupt && d.depth_image==0x700048,"pending depth clear exact replay/IRQ");
  for(unsigned at=0x6ffff8;at<0x700090;++at){uint8_t want=0x5a;if(at>=0x700048 && at<0x700068)want=(at&1)?0xfc:0xff;require(m.ram[at]==want,"depth clear pixels and untouched color/guards");}
- for(unsigned bit=26;bit<64;++bit){auto bad=saved;bad[bad.size()-1053089-bit/8]|=uint8_t(1u<<(bit%8));require(m.restore(saved) && !m.restore(bad) && m.save(replay) && replay==saved,"invalid depth state atomic rejection");}
- auto old=saved;old.resize(old.size()-1053096);old[6]='1';old[7]='8';require(m.restore(old) && !d.depth_image && m.save(replay) && std::equal(old.begin()+8,old.end(),replay.begin()+8),"S018 neutral depth conversion preserves previous state");
+ for(unsigned bit=26;bit<64;++bit){auto bad=saved;bad[bad.size()-1053097-bit/8]|=uint8_t(1u<<(bit%8));require(m.restore(saved) && !m.restore(bad) && m.save(replay) && replay==saved,"invalid depth state atomic rejection");}
+ auto old=saved;old.resize(old.size()-1053104);old[6]='1';old[7]='8';require(m.restore(old) && !d.depth_image && m.save(replay) && std::equal(old.begin()+8,old.end(),replay.begin()+8),"S018 neutral depth conversion preserves previous state");
  std::cout<<geometry<<" fractional/scissor/field/stride cases; "<<modes<<" mode cases; 196608 raw fills, all 1024 widths, "<<addresses<<" depth addresses; bounds/guards/IRQ/S019 replay/legacy/atomic rejection passed\n";return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}

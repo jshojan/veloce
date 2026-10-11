@@ -296,7 +296,7 @@ static void append(std::vector<uint8_t>& data, uint64_t value) {
 }
 bool Machine::save(std::vector<uint8_t>& data) const {
     if (rom.empty()) return false;
-    data.assign({'V','N','6','4','S','0','2','7'});
+    data.assign({'V','N','6','4','S','0','2','8'});
     data.reserve(current_state_size);
     append(data, identity); append(data, crc); append(data, frames); append(data, done);
     const auto& s = cpu.state;
@@ -338,6 +338,7 @@ bool Machine::save(std::vector<uint8_t>& data) const {
     for(auto value:dp_interface.blender.snapshot())append(data,value);
     const auto h=hidden.snapshot();data.insert(data.end(),h.bits.begin(),h.bits.end());
     append(data,h.history);append(data,uint64_t(h.delayed));
+    append(data,dp_interface.primitive_depth.snapshot());
     return true;
 }
 bool Machine::restore(const std::vector<uint8_t>& data) {
@@ -368,8 +369,9 @@ bool Machine::restore(const std::vector<uint8_t>& data) {
     const bool conversion_previous=!std::memcmp(data.data(),"VN64S024",8);
     const bool blender_previous=!std::memcmp(data.data(),"VN64S025",8);
     const bool hidden_previous=!std::memcmp(data.data(),"VN64S026",8);
-    const bool current=!std::memcmp(data.data(),"VN64S027",8);
-    if((!legacy && !previous && !ri_previous && !mi_previous && !devices_previous && !caches_previous && !sp_previous && !audio_previous && !fpu_previous && !tlb_previous && !video_previous && !scalar_previous && !dp_previous && !vector_previous && !accumulator_previous && !combiner_previous && !depth_previous && !divider_previous && !texture_previous && !tmem_previous && !controllers_previous && !packet_previous && !conversion_previous && !blender_previous && !hidden_previous && !current) || data.size()!=prefix+ram_size+sp.size()+(legacy?0:previous?120:ri_previous?176:mi_previous?192:devices_previous?480:caches_previous?41440:sp_previous?41512:audio_previous?74440:fpu_previous?74448:tlb_previous?75472:video_previous?75632:scalar_previous?75888:dp_previous?75888+rsp_state_size:vector_previous?75888+rsp_state_size+dp_state_size:accumulator_previous?75888+rsp_state_size+dp_state_size+vector_state_size:combiner_previous?75888+rsp_state_size+dp_state_size+vector_state_size+accumulator_state_size:depth_previous?75888+rsp_state_size+dp_state_size+vector_state_size+accumulator_state_size+combiner_state_size:75888+rsp_state_size+dp_state_size+vector_state_size+accumulator_state_size+combiner_state_size+depth_image_state_size+(divider_previous?0:divider_state_size+(texture_previous?0:texture_state_size+(tmem_previous?0:tmem_state_size+((packet_previous || conversion_previous || blender_previous || hidden_previous || current)?controller_state_size:0)+((conversion_previous || blender_previous || hidden_previous || current)?packet_state_size:0)+((blender_previous || hidden_previous || current)?conversion_state_size:0)+((hidden_previous || current)?blender_state_size:0)+(current?hidden_state_size:0))))) ||
+    const bool primitive_previous=!std::memcmp(data.data(),"VN64S027",8);
+    const bool current=!std::memcmp(data.data(),"VN64S028",8);
+    if((!legacy && !previous && !ri_previous && !mi_previous && !devices_previous && !caches_previous && !sp_previous && !audio_previous && !fpu_previous && !tlb_previous && !video_previous && !scalar_previous && !dp_previous && !vector_previous && !accumulator_previous && !combiner_previous && !depth_previous && !divider_previous && !texture_previous && !tmem_previous && !controllers_previous && !packet_previous && !conversion_previous && !blender_previous && !hidden_previous && !(primitive_previous || current)) || data.size()!=prefix+ram_size+sp.size()+(legacy?0:previous?120:ri_previous?176:mi_previous?192:devices_previous?480:caches_previous?41440:sp_previous?41512:audio_previous?74440:fpu_previous?74448:tlb_previous?75472:video_previous?75632:scalar_previous?75888:dp_previous?75888+rsp_state_size:vector_previous?75888+rsp_state_size+dp_state_size:accumulator_previous?75888+rsp_state_size+dp_state_size+vector_state_size:combiner_previous?75888+rsp_state_size+dp_state_size+vector_state_size+accumulator_state_size:depth_previous?75888+rsp_state_size+dp_state_size+vector_state_size+accumulator_state_size+combiner_state_size:75888+rsp_state_size+dp_state_size+vector_state_size+accumulator_state_size+combiner_state_size+depth_image_state_size+(divider_previous?0:divider_state_size+(texture_previous?0:texture_state_size+(tmem_previous?0:tmem_state_size+((packet_previous || conversion_previous || blender_previous || hidden_previous || (primitive_previous || current))?controller_state_size:0)+((conversion_previous || blender_previous || hidden_previous || (primitive_previous || current))?packet_state_size:0)+((blender_previous || hidden_previous || (primitive_previous || current))?conversion_state_size:0)+((hidden_previous || (primitive_previous || current))?blender_state_size:0)+((primitive_previous || current)?hidden_state_size:0)))))+(current?primitive_depth_state_size:0) ||
         (legacy && boot_mode!=BootMode::Homebrew)) return false;
     size_t position = 8;
     auto take = [&]() { auto v = be(data.data() + position, 8); position += 8; return v; };
@@ -465,25 +467,26 @@ bool Machine::restore(const std::vector<uint8_t>& data) {
     if(!legacy && !previous && !ri_previous && !mi_previous && !devices_previous && !caches_previous && !sp_previous && !audio_previous && !fpu_previous && !tlb_previous && !video_previous && !scalar_previous && !dp_previous && !vector_previous && !accumulator_previous && !combiner_previous){
         RdpCombiner::State c{};for(auto& value:c)value=take();if(!saved_dp_interface.combiner.restore(c))return false;
     }
-    if(divider_previous || texture_previous || tmem_previous || (controllers_previous || packet_previous || conversion_previous || blender_previous || hidden_previous || current)){
+    if(divider_previous || texture_previous || tmem_previous || (controllers_previous || packet_previous || conversion_previous || blender_previous || hidden_previous || (primitive_previous || current))){
         const uint64_t z=take();if(z>0x3ffffff)return false;saved_dp_interface.depth_image=uint32_t(z);
     }
-    if((texture_previous || tmem_previous || (controllers_previous || packet_previous || conversion_previous || blender_previous || hidden_previous || current)) && !saved_rsp.vectors.divider.restore(take()))return false;
-    if(tmem_previous || (controllers_previous || packet_previous || conversion_previous || blender_previous || hidden_previous || current)){RdpTexture::State t{};for(auto& value:t)value=take();if(!saved_dp_interface.texture.restore(t))return false;}
-    if((controllers_previous || packet_previous || conversion_previous || blender_previous || hidden_previous || current)){std::copy_n(data.begin()+position,tmem_state_size,saved_dp_interface.tmem.bytes.begin());position+=tmem_state_size;}
+    if((texture_previous || tmem_previous || (controllers_previous || packet_previous || conversion_previous || blender_previous || hidden_previous || (primitive_previous || current))) && !saved_rsp.vectors.divider.restore(take()))return false;
+    if(tmem_previous || (controllers_previous || packet_previous || conversion_previous || blender_previous || hidden_previous || (primitive_previous || current))){RdpTexture::State t{};for(auto& value:t)value=take();if(!saved_dp_interface.texture.restore(t))return false;}
+    if((controllers_previous || packet_previous || conversion_previous || blender_previous || hidden_previous || (primitive_previous || current))){std::copy_n(data.begin()+position,tmem_state_size,saved_dp_interface.tmem.bytes.begin());position+=tmem_state_size;}
     std::array<uint32_t,3> saved_other_input{};
-    if(packet_previous || conversion_previous || blender_previous || hidden_previous || current)for(auto& buttons:saved_other_input){const auto value=take();if(value>0xffffffffu)return false;buttons=uint32_t(value);}
-    if(conversion_previous || blender_previous || hidden_previous || current){RdpPacket::State state{};for(auto& value:state)value=take();if(!saved_dp_interface.packet.restore(state))return false;}
-    if((blender_previous || hidden_previous || current) && !saved_dp_interface.conversion.restore(take()))return false;
-    if(hidden_previous || current){RdpBlender::State state{};for(auto& value:state)value=take();if(!saved_dp_interface.blender.restore(state))return false;}
+    if(packet_previous || conversion_previous || blender_previous || hidden_previous || (primitive_previous || current))for(auto& buttons:saved_other_input){const auto value=take();if(value>0xffffffffu)return false;buttons=uint32_t(value);}
+    if(conversion_previous || blender_previous || hidden_previous || (primitive_previous || current)){RdpPacket::State state{};for(auto& value:state)value=take();if(!saved_dp_interface.packet.restore(state))return false;}
+    if((blender_previous || hidden_previous || (primitive_previous || current)) && !saved_dp_interface.conversion.restore(take()))return false;
+    if(hidden_previous || (primitive_previous || current)){RdpBlender::State state{};for(auto& value:state)value=take();if(!saved_dp_interface.blender.restore(state))return false;}
     HiddenRdram saved_hidden(ram_size);
-    if(current) {
+    if((primitive_previous || current)) {
         HiddenRdram::State h;h.bits.assign(data.begin()+position,data.begin()+position+ram_size/8);position+=ram_size/8;
         h.history=take();const uint64_t delayed=take();
         if(delayed!=~uint64_t(0) && delayed>=ram_size)return false;
         h.delayed=delayed==~uint64_t(0)?-1:int64_t(delayed);
         if(!saved_hidden.restore(h))return false;
     } else saved_hidden.ordinary_burst(0,data.data()+memory_position+64,ram_size);
+    if(current && !saved_dp_interface.primitive_depth.restore(take()))return false;
     position=memory_position;
     // Validate first; rejected states leave the active machine untouched.
     hidden=std::move(saved_hidden);

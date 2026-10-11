@@ -11,6 +11,7 @@
 #include "rdp_packet.hpp"
 #include "rdp_triangle_fill.hpp"
 #include "rdp_triangle_shade.hpp"
+#include "rdp_primitive_depth.hpp"
 namespace n64 {
 // Shared CPU/RSP DP interface and bounded, functional RDP fill engine.
 // Command issue/counters are nominal clocks, not DMA FIFO or rasterizer timing.
@@ -24,6 +25,7 @@ public:
     RdpTexture texture;
     RdpConvert conversion;
     RdpBlender blender;
+    RdpPrimitiveDepth primitive_depth;
     RdpTmem tmem;
     RdpPacket packet;
     uint32_t depth_image=0;
@@ -70,13 +72,14 @@ public:
         switch(op){
         case 8:case 9:case 10:case 11:case 12:case 13:case 14:case 15:
             if(((other_mode>>52)&3)==3){reason=RdpTriangleFill::draw(packet,color_image,other_mode,scissor,fill_color,ram,hidden);supported=!reason;}
-            else if(((other_mode>>52)&3)==0){reason=RdpTriangleShade::draw(packet,color_image,other_mode,scissor,combiner,ram,&texture,&tmem,&conversion,&blender,hidden,depth_image);supported=!reason;}
+            else if(((other_mode>>52)&3)==0){reason=RdpTriangleShade::draw(packet,color_image,other_mode,scissor,combiner,ram,&texture,&tmem,&conversion,&blender,hidden,depth_image,&primitive_depth);supported=!reason;}
             else supported=false;
             break;
         case 0:case 38:case 39:case 40:break; // NOP and settled load/pipe/tile barriers.
         case 41:pipeline=false;interrupt=true;break; // Actual FullSync command, never a range-end IRQ.
         case 44:conversion.command(word);break;
         case 45:scissor=word&0x00ffffffffffffffull;break;
+        case 46:primitive_depth.command(word);break;
         case 47:other_mode=word&0x00ffffffffffffffull;break;
         case 56:case 57:blender.command(op,word);break;
         case 55:fill_color=uint32_t(word);break;
