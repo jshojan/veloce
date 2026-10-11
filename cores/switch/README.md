@@ -27,7 +27,7 @@ forms, ADC/ADCS/SBC/SBCS, AND/ORR/EOR/ANDS and inverted operands, LSL/LSR/ASR/RO
 operand shifts, MOVN/MOVZ/MOVK, ADR/ADRP, B/BL/B.cond, CBZ/CBNZ, BR/BLR/RET,
 unsigned-offset byte/halfword/word/doubleword LDR/STR, NOP and MRS/MSR NZCV,
 MADD/MSUB, signed/unsigned long and high multiply, SDIV/UDIV, CSEL/CSINC/CSINV/CSNEG, variable LSL/LSR/ASR/ROR,
-RBIT, REV16/REV32/REV64, CLZ/CLS, SBFM/BFM/UBFM, EXTR and logical immediates.
+RBIT, REV16/REV32/REV64, CLZ/CLS, SBFM/BFM/UBFM, EXTR, logical immediates, and CCMP/CCMN register/immediate forms.
 W-register results clear the upper half. SP and XZR uses follow the instruction
 family. Unsupported/reserved encodings, fetch/alignment and memory faults stop
 with a diagnostic; architectural exception entry and system registers remain
@@ -298,3 +298,45 @@ compatibility, GPU/audio/controllers, persistent saves/netplay, native timing
 and the complete original/physical corpus remain pending. These finite operand
 domains do not establish full hardware accuracy. CI/CD remains disabled and
 the full Nintendo implementation goal remains active.
+
+
+## AArch64 conditional comparison
+
+Plugin **0.7.0**, emulator ABI v2, adds W/X CCMP and CCMN with register or
+five-bit immediate operands. It evaluates the old condition flags, then writes
+arithmetic NZCV on a true condition or the encoded fallback on false. Incoming
+carry is not an arithmetic operand; AL/NV are always true. All GPRs/SP remain
+unchanged, register sources use XZR, and reserved S/bit-4/bit-10 encodings
+reject before architectural writes. `VNXS0001`, ABI, process map and scheduling
+remain unchanged.
+
+The [original guest](../../tests/roms-src/switch/ccmp_registers/README.md) passes **786,432 rows / 3,932,160 actual words /
+12,582,912 individual flag observations**. Each row packs sixteen actual MRS
+NZCV nibbles, one for every fallback value, using real UBFM/ORR instructions.
+Guest STR captures left/right operands, incoming flags, packed results and
+context; no expected values are in the image. Every condition and incoming
+NZCV value, sixteen boundary/mixed-bit sources, all register operand pairs and
+all 32 five-bit immediates are checked in both widths. The separate oracle
+uses boolean conditions and unbounded signed/unsigned arithmetic. The executed
+mutant fails all **12,288** short rows; five field, sixteen packed-lane and
+seven malformed-stream controls reject. Production ABI replay matches actual
+packed output and complete states. Artifacts: `build/artifacts/owned/switch_ccmp/`.
+
+The separate truth-mask and bit-serial full-adder component passes **14,155,776
+snapshots**: 4,194,304 register, 8,388,608 immediate and 1,572,864 alias/XZR
+cases. Every incoming/fallback NZCV value and condition is covered, including
+source aliases and every register number. The previous core fails this new
+component and stops the guest before any row. All **2,112 compare base words**
+match the [pinned LLVM opcode/width fields](../../tests/reference/switch-ccmp/README.md). These finite operand
+domains do not establish physical execution, full-width pair enumeration or
+native hardware timing.
+
+All **twenty-one Switch gates pass** in **76.99 seconds** after a warning-free
+full build, including all eighteen existing regressions. Component UBSAN passes
+with clean compilation. All **101 original archives** reproduce; report
+identities, completion renderer, changed local links and whitespace pass.
+Switch stays **25% = 5/20 delivery milestones**: full CPU/extensions/exceptions,
+native memory/MMU/devices, firmware/HOS/native boot/retail compatibility,
+GPU/audio/controllers, persistent saves/netplay, physical timing and complete
+native/physical corpus remain pending. CI/CD remains disabled. The full
+Nintendo implementation goal remains active.

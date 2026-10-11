@@ -888,6 +888,17 @@
       "source_type": "original",
       "suite": "bitops_registers"
     },
+    "switch/ccmp_registers/ccmp_registers.nso": {
+      "build_command": "python3 tests/roms-src/switch/ccmp_registers/build.py",
+      "console": "switch",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "416e15657a5e82ca11d6907784141f8b0db9df8eb8d108f7ca5a24ccf037c762",
+      "source_repo": "tests/roms-src/switch/ccmp_registers/build.py",
+      "source_sha": "ea63ebe710d30ce77fb63087dc985ced43ac81299944e9cc11b00a7e336c481f",
+      "source_type": "original",
+      "suite": "ccmp_registers"
+    },
     "switch/logical_imm_registers/logical_imm_registers.nso": {
       "build_command": "python3 tests/roms-src/switch/logical_imm_registers/build.py",
       "console": "switch",

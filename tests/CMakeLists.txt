@@ -841,3 +841,16 @@ set_tests_properties(switch_logical_imm_registers PROPERTIES LABELS "accuracy;ow
 add_test(NAME switch_logical_imm_plugin_state_test COMMAND switch_plugin_state_test $<TARGET_FILE:switch_plugin>
     ${CMAKE_SOURCE_DIR}/tests/roms-src/switch/logical_imm_registers/logical_imm_registers.nso)
 set_tests_properties(switch_logical_imm_plugin_state_test PROPERTIES LABELS "integration;accuracy;owned" TIMEOUT 90)
+
+add_executable(switch_ccmp_test cpp/switch_ccmp_test.cpp ${CMAKE_SOURCE_DIR}/cores/switch/src/aarch64.cpp)
+target_include_directories(switch_ccmp_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/switch/src)
+target_compile_features(switch_ccmp_test PRIVATE cxx_std_17)
+add_test(NAME switch_ccmp_test COMMAND switch_ccmp_test)
+set_tests_properties(switch_ccmp_test PROPERTIES LABELS "unit;accuracy;owned" TIMEOUT 180)
+add_test(NAME switch_ccmp_registers COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/switch/ccmp_registers/run.py --emulator $<TARGET_FILE:veloce>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/switch_ccmp)
+set_tests_properties(switch_ccmp_registers PROPERTIES LABELS "accuracy;owned" TIMEOUT 240)
+add_test(NAME switch_ccmp_plugin_state_test COMMAND switch_plugin_state_test $<TARGET_FILE:switch_plugin>
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/switch/ccmp_registers/ccmp_registers.nso)
+set_tests_properties(switch_ccmp_plugin_state_test PROPERTIES LABELS "integration;accuracy;owned" TIMEOUT 90)
