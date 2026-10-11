@@ -2,6 +2,7 @@
 
 #include "emu/input_types.hpp"
 #include "emu/controller_layout.hpp"
+#include <array>
 #include <unordered_map>
 #include <map>
 #include <vector>
@@ -36,7 +37,7 @@ public:
     void update();
 
     // Get current input state for emulation
-    uint32_t get_button_state() const { return m_button_state; }
+    uint32_t get_button_state(int port = 0) const;
 
     // Check if a specific button is pressed
     bool is_button_pressed(VirtualButton button) const;
@@ -64,6 +65,9 @@ public:
     // Active controller selection (-1 for keyboard, 0+ for gamepad index)
     void set_active_controller(int controller_index);
     int get_active_controller() const { return m_active_controller; }
+    // Secondary ports own a connection; -1 disconnects the port.
+    void set_controller_for_port(int port, int controller_index);
+    int get_controller_for_port(int port) const;
 
     // Input binding configuration
     void set_binding(VirtualButton button, const InputBinding& binding);
@@ -105,6 +109,9 @@ private:
     void close_controller(int instance_id);
     void update_button_state();
     void restore_controller_bindings(const std::string& connected_guid = {});
+    void restore_port_assignments(const std::string& connected_guid = {});
+    bool is_secondary_controller(int instance_id) const;
+    uint32_t default_gamepad_buttons(int index) const;
     std::string get_config_path(const std::string& platform) const;
 
     // Current button state bitmask
@@ -142,6 +149,9 @@ private:
         std::string serial;
     };
     std::unordered_map<VirtualButton, ControllerIdentity> m_binding_identities;
+    std::array<int, 4> m_port_instances{{-1,-1,-1,-1}};
+    std::array<ControllerIdentity, 4> m_port_identities{};
+    std::array<uint32_t, 4> m_port_buttons{};
 
     // Per-platform bindings cache
     std::map<std::string, std::unordered_map<VirtualButton, InputBinding>> m_platform_bindings;

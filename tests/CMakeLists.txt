@@ -1386,6 +1386,13 @@ if(VELOCE_XVFB_RUN)
         --rom ${CMAKE_SOURCE_DIR}/tests/roms-src/nes/netplay_probe/netplay_probe.nes
         --artifacts ${CMAKE_BINARY_DIR}/artifacts/tas_frontend --xvfb ${VELOCE_XVFB_RUN})
     set_tests_properties(tas_frontend_test PROPERTIES LABELS "integration" TIMEOUT 100)
+    add_test(NAME n64_local_ports_test COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/local_ports_test.py
+        --test $<TARGET_FILE:tas_frontend_test> --core $<TARGET_FILE:n64_plugin>
+        --input $<TARGET_FILE:input_default> --audio $<TARGET_FILE:audio_default> --tas $<TARGET_FILE:tas_default>
+        --rom ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/controller_netplay/controller_netplay.z64
+        --artifacts ${CMAKE_BINARY_DIR}/artifacts/n64_local_ports --xvfb ${VELOCE_XVFB_RUN})
+    set_tests_properties(n64_local_ports_test PROPERTIES LABELS "integration;owned;controllers" TIMEOUT 120)
+
     add_test(NAME n64_tas_checkpoint_test COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/retail_tas_checkpoint_test.py
         --test $<TARGET_FILE:tas_frontend_test> --core $<TARGET_FILE:n64_plugin>
         --input $<TARGET_FILE:input_default> --audio $<TARGET_FILE:audio_default> --tas $<TARGET_FILE:tas_default>

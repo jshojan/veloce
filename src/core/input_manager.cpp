@@ -47,6 +47,9 @@ void InputManager::shutdown() {
     }
     m_controllers.clear();
     m_active_controller = -1;
+    m_port_instances.fill(-1);
+    m_port_identities = {};
+    m_port_buttons.fill(0);
     m_button_state = m_prev_button_state = 0;
     m_keyboard_state = nullptr;
     m_keyboard_state_count = 0;
@@ -91,6 +94,7 @@ void InputManager::update() {
 
 void InputManager::update_button_state() {
     m_button_state = 0;
+    m_port_buttons.fill(0);
 
     // Don't update game input state during input capture mode
     // This prevents the game from receiving inputs while mapping controls
@@ -109,7 +113,8 @@ void InputManager::update_button_state() {
         }
         else if (binding.type == InputSourceType::GamepadButton) {
             for (const auto& controller : m_controllers) {
-                if (binding.device_id == -1 || binding.device_id == controller.instance_id) {
+                if (!is_secondary_controller(controller.instance_id) &&
+                    (binding.device_id == -1 || binding.device_id == controller.instance_id)) {
                     if (SDL_GameControllerGetButton(controller.controller,
                             static_cast<SDL_GameControllerButton>(binding.code))) {
                         pressed = true;
@@ -120,7 +125,8 @@ void InputManager::update_button_state() {
         }
         else if (binding.type == InputSourceType::GamepadAxis) {
             for (const auto& controller : m_controllers) {
-                if (binding.device_id == -1 || binding.device_id == controller.instance_id) {
+                if (!is_secondary_controller(controller.instance_id) &&
+                    (binding.device_id == -1 || binding.device_id == controller.instance_id)) {
                     int16_t value = SDL_GameControllerGetAxis(controller.controller,
                             static_cast<SDL_GameControllerAxis>(binding.code));
                     float normalized = std::clamp(value / 32767.0f, -1.0f, 1.0f);
@@ -156,33 +162,50 @@ void InputManager::update_button_state() {
         }
     }
 
-    for (const auto& controller : m_controllers) {
-        if (has_gamepad_binding) break;
-        if (SDL_GameControllerGetButton(controller.controller, SDL_CONTROLLER_BUTTON_DPAD_UP))
-            m_button_state |= button_to_mask(VirtualButton::Up);
-        if (SDL_GameControllerGetButton(controller.controller, SDL_CONTROLLER_BUTTON_DPAD_DOWN))
-            m_button_state |= button_to_mask(VirtualButton::Down);
-        if (SDL_GameControllerGetButton(controller.controller, SDL_CONTROLLER_BUTTON_DPAD_LEFT))
-            m_button_state |= button_to_mask(VirtualButton::Left);
-        if (SDL_GameControllerGetButton(controller.controller, SDL_CONTROLLER_BUTTON_DPAD_RIGHT))
-            m_button_state |= button_to_mask(VirtualButton::Right);
-        if (SDL_GameControllerGetButton(controller.controller, SDL_CONTROLLER_BUTTON_A))
-            m_button_state |= button_to_mask(VirtualButton::A);
-        if (SDL_GameControllerGetButton(controller.controller, SDL_CONTROLLER_BUTTON_B))
-            m_button_state |= button_to_mask(VirtualButton::B);
-        if (SDL_GameControllerGetButton(controller.controller, SDL_CONTROLLER_BUTTON_X))
-            m_button_state |= button_to_mask(VirtualButton::X);
-        if (SDL_GameControllerGetButton(controller.controller, SDL_CONTROLLER_BUTTON_Y))
-            m_button_state |= button_to_mask(VirtualButton::Y);
-        if (SDL_GameControllerGetButton(controller.controller, SDL_CONTROLLER_BUTTON_START))
-            m_button_state |= button_to_mask(VirtualButton::Start);
-        if (SDL_GameControllerGetButton(controller.controller, SDL_CONTROLLER_BUTTON_BACK))
-            m_button_state |= button_to_mask(VirtualButton::Select);
-        if (SDL_GameControllerGetButton(controller.controller, SDL_CONTROLLER_BUTTON_LEFTSHOULDER))
-            m_button_state |= button_to_mask(VirtualButton::L);
-        if (SDL_GameControllerGetButton(controller.controller, SDL_CONTROLLER_BUTTON_RIGHTSHOULDER))
-            m_button_state |= button_to_mask(VirtualButton::R);
+    if (!has_gamepad_binding) {
+        for (int i=0;i<get_connected_controller_count();++i) {
+            if (!is_secondary_controller(m_controllers[i].instance_id) &&
+                (m_active_controller<0 || i==m_active_controller))
+                m_button_state |= default_gamepad_buttons(i);
+        }
     }
+    m_port_buttons[0] = m_button_state;
+    for (int port=1;port<4;++port)
+        m_port_buttons[port] = default_gamepad_buttons(get_controller_for_port(port));
+}
+
+uint32_t InputManager::get_button_state(int port) const {
+    return port>=0 && port<4 && !m_input_capture_mode ? m_port_buttons[port] : 0;
+}
+
+bool InputManager::is_secondary_controller(int instance) const {
+    return std::find(m_port_instances.begin()+1,m_port_instances.end(),instance)!=m_port_instances.end();
+}
+
+uint32_t InputManager::default_gamepad_buttons(int index) const {
+    if (index<0 || index>=get_connected_controller_count()) return 0;
+    uint32_t buttons=0;
+    const std::pair<SDL_GameControllerButton,VirtualButton> mapping[] = {
+        {SDL_CONTROLLER_BUTTON_DPAD_UP,VirtualButton::Up},
+        {SDL_CONTROLLER_BUTTON_DPAD_DOWN,VirtualButton::Down},
+        {SDL_CONTROLLER_BUTTON_DPAD_LEFT,VirtualButton::Left},
+        {SDL_CONTROLLER_BUTTON_DPAD_RIGHT,VirtualButton::Right},
+        {SDL_CONTROLLER_BUTTON_A,VirtualButton::A},{SDL_CONTROLLER_BUTTON_B,VirtualButton::B},
+        {SDL_CONTROLLER_BUTTON_X,VirtualButton::X},{SDL_CONTROLLER_BUTTON_Y,VirtualButton::Y},
+        {SDL_CONTROLLER_BUTTON_START,VirtualButton::Start},{SDL_CONTROLLER_BUTTON_BACK,VirtualButton::Select},
+        {SDL_CONTROLLER_BUTTON_LEFTSHOULDER,VirtualButton::L},
+        {SDL_CONTROLLER_BUTTON_RIGHTSHOULDER,VirtualButton::R}};
+    for (const auto& [physical,logical]:mapping)
+        if (is_gamepad_button_pressed(index,physical)) buttons |= button_to_mask(logical);
+    if (m_current_platform=="N64") {
+        if (get_gamepad_axis(index,SDL_CONTROLLER_AXIS_TRIGGERLEFT)>.5f) buttons |= button_to_mask(VirtualButton::Z);
+        const auto x=get_gamepad_axis(index,SDL_CONTROLLER_AXIS_RIGHTX),y=get_gamepad_axis(index,SDL_CONTROLLER_AXIS_RIGHTY);
+        if (x<-.5f) buttons |= button_to_mask(VirtualButton::CLeft);
+        if (x>.5f) buttons |= button_to_mask(VirtualButton::CRight);
+        if (y<-.5f) buttons |= button_to_mask(VirtualButton::CUp);
+        if (y>.5f) buttons |= button_to_mask(VirtualButton::CDown);
+    }
+    return buttons;
 }
 
 bool InputManager::is_button_pressed(VirtualButton button) const {
@@ -236,6 +259,7 @@ void InputManager::open_controller(int device_index) {
 #endif
         m_controllers.push_back(info);
         restore_controller_bindings(info.guid);
+        restore_port_assignments(info.guid);
 
         std::cout << "Controller connected: " << info.name << " (GUID: " << guid_str << ")" << std::endl;
     }
@@ -252,6 +276,8 @@ void InputManager::close_controller(int instance_id) {
             else if (m_active_controller > removed) --m_active_controller;
             // Release held input immediately rather than waiting for a frame.
             m_button_state = 0;
+            m_port_buttons.fill(0);
+            for (auto& instance:m_port_instances) if (instance==instance_id) instance=-1;
             break;
         }
     }
@@ -326,8 +352,55 @@ void InputManager::clear_binding(VirtualButton button) {
 }
 
 void InputManager::set_active_controller(int controller_index) {
-    m_active_controller = controller_index >= 0 &&
-        controller_index < static_cast<int>(m_controllers.size()) ? controller_index : -1;
+    set_controller_for_port(0,controller_index);
+}
+
+int InputManager::get_controller_for_port(int port) const {
+    if (port<0 || port>=4) return -1;
+    if (port==0) return m_active_controller;
+    for (int i=0;i<get_connected_controller_count();++i)
+        if (m_controllers[i].instance_id==m_port_instances[port]) return i;
+    return -1;
+}
+
+void InputManager::set_controller_for_port(int port,int index) {
+    if (port<0 || port>=4) return;
+    const bool connected=index>=0 && index<get_connected_controller_count();
+    const int instance=connected ? m_controllers[index].instance_id : -1;
+    if (connected) {
+        for (int other=0;other<4;++other) if (other!=port && m_port_instances[other]==instance) {
+            m_port_instances[other]=-1;
+            m_port_identities[other]={};
+            if (other==0) m_active_controller=-1;
+        }
+    }
+    m_port_instances[port]=instance;
+    m_port_identities[port]=connected ? ControllerIdentity{m_controllers[index].guid,m_controllers[index].serial} : ControllerIdentity{};
+    if (port==0) m_active_controller=connected ? index : -1;
+    m_button_state=0;
+    m_port_buttons.fill(0);
+}
+
+void InputManager::restore_port_assignments(const std::string& connected_guid) {
+    for (int port=0;port<4;++port) {
+        const auto& identity=m_port_identities[port];
+        if (identity.guid.empty() || (!connected_guid.empty() && identity.guid!=connected_guid)) continue;
+        if (m_port_instances[port]>=0 && std::any_of(m_controllers.begin(),m_controllers.end(),[&](const auto& pad){return pad.instance_id==m_port_instances[port];})) continue;
+        // Shared models without serials cannot identify which saved port owns a pad.
+        if (identity.serial.empty() && std::count_if(m_port_identities.begin(),m_port_identities.end(),[&](const auto& other){return other.guid==identity.guid && other.serial.empty();})>1) continue;
+        int match=-1;
+        for (int i=0;i<get_connected_controller_count();++i) {
+            const auto& pad=m_controllers[i];
+            if (pad.guid!=identity.guid || (!identity.serial.empty() && pad.serial!=identity.serial)) continue;
+            if (match!=-1) { match=-2;break; }
+            match=i;
+        }
+        if (match<0) continue;
+        const int instance=m_controllers[match].instance_id;
+        if (std::find(m_port_instances.begin(),m_port_instances.end(),instance)!=m_port_instances.end()) continue;
+        m_port_instances[port]=instance;
+        if (port==0) m_active_controller=match;
+    }
 }
 
 std::vector<std::pair<int, std::string>> InputManager::get_available_controllers() const {
@@ -371,7 +444,7 @@ float InputManager::get_gamepad_axis(int controller_index, int axis) const {
 uint32_t InputManager::encode_controller_input(int controller, uint32_t buttons) const {
     if (m_current_platform != "N64") return buttons;
     if (m_input_capture_mode || controller<0 || controller>=4) return 0;
-    const int device = controller==0 ? m_active_controller : controller;
+    const int device = get_controller_for_port(controller);
     int x=0,y=0;
     if (device>=0) {
         x=n64_input::quantize(get_gamepad_axis(device,SDL_CONTROLLER_AXIS_LEFTX));
@@ -394,6 +467,9 @@ void InputManager::set_current_platform(const std::string& platform) {
         // Try to load config for new platform
         if (!load_platform_config(platform)) {
             // If no saved config, load defaults
+            m_port_instances.fill(-1);
+            m_port_identities={};
+            m_active_controller=-1;
             load_default_bindings_for_platform(platform);
         }
     }
@@ -469,6 +545,9 @@ bool InputManager::save_platform_config(const std::string& platform) {
         nlohmann::json j;
         j["platform"] = platform;
         j["active_controller"] = m_active_controller;
+        j["controller_ports"]=nlohmann::json::array();
+        for (const auto& identity:m_port_identities)
+            j["controller_ports"].push_back({{"guid",identity.guid},{"serial",identity.serial}});
 
         nlohmann::json bindings_json;
         for (const auto& [button, binding] : m_bindings) {
@@ -526,7 +605,16 @@ bool InputManager::load_platform_config(const std::string& platform) {
         nlohmann::json j;
         file >> j;
 
-        if (j.contains("active_controller")) {
+        m_port_instances.fill(-1);
+        m_port_identities={};
+        m_active_controller=-1;
+        m_port_buttons.fill(0);
+        if (j.contains("controller_ports")) {
+            const auto& ports=j.at("controller_ports");
+            if (!ports.is_array() || ports.size()!=4) return false;
+            for (int port=0;port<4;++port)
+                m_port_identities[port]={ports[port].value("guid",std::string{}),ports[port].value("serial",std::string{})};
+        } else if (j.contains("active_controller")) {
             m_active_controller = j["active_controller"].get<int>();
         }
 
@@ -572,7 +660,8 @@ bool InputManager::load_platform_config(const std::string& platform) {
             }
         }
         restore_controller_bindings();
-        set_active_controller(m_active_controller);
+        if (j.contains("controller_ports")) restore_port_assignments();
+        else set_active_controller(m_active_controller);
 
         std::cout << "Loaded input config for " << platform << std::endl;
         return true;

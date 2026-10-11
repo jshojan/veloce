@@ -76,7 +76,7 @@ bool InputConfigPanel::render(Application& app) {
     render_controller_selector(app);
     if (m_current_platform=="N64") {
         ImGui::TextWrapped("Stick: selected gamepad left stick, or T/F/G/H for up/left/down/right on keyboard. Arrow bindings control the D-pad.");
-        ImGui::TextWrapped("Stick defaults: 15%% dead zone, range +/-80. Analog remapping is not yet available.");
+        ImGui::TextWrapped("Stick defaults: 15%% dead zone, range +/-80. Z: left trigger; C buttons: right stick. Extra players use these defaults; player one custom bindings override its button defaults.");
     }
 
     ImGui::Separator();
@@ -166,7 +166,9 @@ void InputConfigPanel::render_controller_selector(Application& app) {
     if (ImGui::BeginCombo("##Controller", preview.c_str())) {
         for (size_t i = 0; i < controllers.size(); i++) {
             bool is_selected = (current_index == static_cast<int>(i));
-            if (ImGui::Selectable(controllers[i].second.c_str(), is_selected)) {
+            ImGui::PushID(static_cast<int>(i));
+            const auto label=controllers[i].second+(controllers[i].first<0 ? std::string{} : " (#"+std::to_string(controllers[i].first+1)+")");
+            if (ImGui::Selectable(label.c_str(), is_selected)) {
                 m_selected_controller = controllers[i].first;
                 input.set_active_controller(m_selected_controller);
                 // Save config immediately so controller choice persists
@@ -175,9 +177,29 @@ void InputConfigPanel::render_controller_selector(Application& app) {
             if (is_selected) {
                 ImGui::SetItemDefaultFocus();
             }
+            ImGui::PopID();
         }
         ImGui::EndCombo();
     }
+
+    const auto* layout=input.get_controller_layout();
+    const int ports=layout ? std::clamp(layout->controller_count,1,4) : 1;
+    for (int port=1;port<ports;++port) {
+        ImGui::PushID(port);
+        ImGui::Text("Player %d:",port+1);ImGui::SameLine();ImGui::SetNextItemWidth(200);
+        const int selected=input.get_controller_for_port(port);
+        const auto preview=selected<0 ? std::string("Unassigned") : input.get_controller_name(selected)+" (#"+std::to_string(selected+1)+")";
+        if (ImGui::BeginCombo("##Port",preview.c_str())) {
+            if (ImGui::Selectable("Unassigned",selected<0)) {input.set_controller_for_port(port,-1);input.save_platform_config(m_current_platform);}
+            for (int i=0;i<input.get_connected_controller_count();++i) {
+                const auto label=input.get_controller_name(i)+" (#"+std::to_string(i+1)+")";
+                if (ImGui::Selectable(label.c_str(),selected==i)) {input.set_controller_for_port(port,i);input.save_platform_config(m_current_platform);}
+            }
+            ImGui::EndCombo();
+        }
+        ImGui::PopID();
+    }
+    if (ports>1) ImGui::TextWrapped("Extra players use standard gamepad buttons. Assigning a pad moves it from its previous port. Identical pads without serial numbers may need reselection after reconnecting.");
 
     // Show controller status
     int controller_count = input.get_connected_controller_count();
