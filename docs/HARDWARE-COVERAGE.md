@@ -2857,3 +2857,51 @@ Depth/hidden RDRAM memory, LOD/mipmapping, two-cycle/previous-texel feedback,
 dithering, complete devices/audio, physical timing and hardware-wide corpora
 remain unfinished. The full Nintendo implementation goal remains active.
 N64 stays **45% = 9/20 delivery milestones**; CI/CD remains disabled.
+
+## Hidden RDRAM component foundation
+
+The new [hidden RDRAM component](https://github.com/jshojan/veloce/blob/main/cores/n64/src/hidden_rdram.hpp)
+retains one ninth bit per physical memory byte, packed as four two-bit halfword
+entries per byte. An 8 MiB RAM profile uses a **1,048,576-byte bitmap**. Separate
+state retains eight RDP history lanes and a pending delayed byte-write address.
+Aligned CPU byte/halfword/word/doubleword metadata, settled halfword bursts,
+MI EBUS scatter/gather layout, explicit color/depth metadata and both RDP byte
+traversal directions have independent component tests. Depth metadata writes
+preserve color history; delayed writes can be checkpointed and replayed. Invalid
+widths, alignment, bounds and state fields reject without mutation.
+
+The independent per-byte-bit oracle passes **16,777,216 packed-halfword checks**
+across the complete 8 MiB address range, **1,048,576 CPU stores**, **245,760 EBUS
+transactions**, **786,816 RDP history writes** and **39,168 settled bursts**.
+All **thirteen separately compiled production faults** are rejected after
+execution; compilation failures do not count as rejection. Byte-store address
+and value parity are independently selected, and mixed halfword LSBs exercise
+word/doubleword ordering. Warning-as-error and UBSAN pass. The optional
+[pinned primary comparison](https://github.com/jshojan/veloce/tree/main/tests/reference/n64-hidden)
+compiles unchanged ares and Angrylion sources fetched outside the repository;
+it matches the CPU/EBUS/RDP domains above with zero mismatches. Operand/state
+partners are finite and correlated; no exhaustive joint machine claim is made.
+
+This is a **standalone component**. The production machine does not yet connect
+CPU/cache/DMA stores, the MI EBUS enable latch or RDP framebuffers to this bitmap.
+Machine snapshot **VN64S026**, plugin **0.34.0**, and the **108 owned ROM archives**
+remain current. Component replay does not establish production netplay replay
+for hidden memory. Masked-store metadata, cached EBUS freeze behavior, machine
+integration/serialization, original guest hidden-bit observations, RGBA16
+blending and depth compression/comparison/update remain pending. No new guest
+ROM or retail compatibility is claimed by this increment.
+
+Repeat the normal offline gates:
+
+```sh
+ctest --test-dir build -R '^n64_hidden_rdram' --output-on-failure
+```
+
+Mutation artifacts: `build/artifacts/component/n64_hidden_rdram/`.
+The last private Mario result remains the
+[one-cycle blending probe](https://github.com/jshojan/veloce/blob/main/cores/n64/README.md#one-cycle-blending-and-alpha-coverage):
+200 million CPU attempts, complete 22/22-word blocked triangle, uniform video,
+boot/playability unverified. No commercial ROM bytes are committed.
+N64 stays **45% = 9/20 delivery milestones**; percentages remain in all core
+READMEs and the front page. CI/CD remains disabled. The full Nintendo
+implementation goal remains active.
