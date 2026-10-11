@@ -3681,3 +3681,32 @@ pass on the current build. Completion scores are unchanged.
 Private SM64 production movie verification on **0.48.0** also passes: **121 native
 VI frames**, complete ordinary/record/play states and **six exact seek boundaries**;
 an executed neutral-input movie differs. Production two-peer TCP netplay passes.
+
+
+## 2026-10-11: N64 disabled COP2 exception priority
+
+N64 **0.49.0** now raises coprocessor unusable (CpU=11, CE=2) for disabled
+COP2 and its word/doubleword loads/stores, before reserved suboperations or data
+address/translation errors. The component gate covers all 2^26 payloads for all
+five major opcodes plus metadata contexts: **335,585,280 observations**, with
+unchanged operands/HI/LO/BadVAddr and no data-bus accesses.
+
+The original [COP2 cartridge](tests/roms-src/n64/cop2_unusable/README.md)
+exports **9,056,256 cases / 108,675,072 actual RAM/CP0 words**. The native domain
+includes every memory offset over sixteen address patterns, all move register
+encodings, all branch offsets and low sixteen operation-function bits, in ordinary
+and actual taken-delay contexts. Its independent oracle checks raw handler
+metadata and ERET; executed COP1 substitution, field/stream faults and full-state
+ordinary/fast rollback are checked. See the cartridge README for exact exclusions.
+
+Enabled expansion-COP2 behavior remains unsupported with the existing RI
+convention; COP2 is not the RSP vector unit. Physical exception/pipeline timing,
+complete CPU/device behavior and full-title playability remain unfinished.
+S031/state capacity and fixed completion scores are unchanged: **N64 stays 45%**.
+CI/CD remains disabled. Rules follow NEC VR4300 §6.4.3 and §6.4.12.
+
+Verification: **11 selected gates pass** (two COP2 gates, eight machine/integer/
+linked-memory/native-checkpoint/TAS regressions, and production two-peer TCP
+netplay). Private SM64 native VI walking/jumping/punching and stationary controls
+pass on 0.49.0. All **132 original archives** reproduce; completion renderer and
+whitespace checks pass. The full Release build passes.

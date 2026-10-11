@@ -21889,6 +21889,17 @@
       "source_type": "original",
       "suite": "controller_serial"
     },
+    "n64/cop2_unusable/cop2_unusable.z64": {
+      "build_command": "python3 tests/roms-src/n64/cop2_unusable/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "cf4b7b5c421321418ab40464b69934aa12472757dbeba9f82332cd1da946d5a1",
+      "source_repo": "tests/roms-src/n64/cop2_unusable/build.py",
+      "source_sha": "f03978df0dce317262dcf718dbb8fd499f50e1843cb8ccaf3d00a75864e2d049",
+      "source_type": "original",
+      "suite": "cop2_unusable"
+    },
     "n64/dp_fill_rectangles/dp_fill_rectangles.z64": {
       "build_command": "python3 tests/roms-src/n64/dp_fill_rectangles/build.py",
       "console": "n64",

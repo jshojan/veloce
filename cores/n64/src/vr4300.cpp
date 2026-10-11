@@ -431,6 +431,12 @@ void VR4300::step() {
                     if(target==16 || target==20)fp_put_word(sa,uint32_t(result.bits));else s.fpr[sa]=result.bits;}
             } else fault(10); // Remaining COP1 operations are explicitly unsupported.
             break;
+        case 18: case 50: case 54: case 58: case 62:
+            // CU2 is checked before reserved suboperations or data translation.
+            // Enabled expansion-coprocessor behavior is still unsupported.
+            if(!(s.cp0[12]&0x40000000)) {s.cp0[13]=(s.cp0[13]&~0x30000000ull)|0x20000000;fault(11);}
+            else fault(10);
+            break;
         case 24: add(rt, a, imm, true, false, true); break;
         case 25: add(rt, a, imm, true, false, false); break;
         case 26: merge_load(8, true); break;
