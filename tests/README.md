@@ -600,3 +600,21 @@ instruction coverage: full CPU/system/MMU/exception/privilege behavior, timing,
 firmware/retail boot, graphics/audio and devices remain pending. ABI/state formats
 are unchanged; 3DS remains **30%**. See
 [original source and domains](roms-src/3ds/dual_media_multiply_registers/README.md).
+
+## Switch integer paired transfers (2026-10-11)
+
+Switch 0.8.0 adds integer LDP/STP/LDNP/STNP/LDPSW with signed offsets and
+pre/post-index writeback. The original NSO independently grades **2,490,368
+snapshots / 24,903,680 actual register words**, covering all 128 displacement
+fields, 19 variants, X8/SP bases, two flag surrounds and repeated-byte seeds.
+Executed result/flag/offset mutations reject all 1,520 short rows; unsigned-load
+replacement and skipped stores reject all 240 signed-load/640 store rows.
+Ten field faults and seven malformed streams reject. The independent byte oracle
+and **2,294,067** component observations check truncation, sign extension,
+byte order, aliases, base updates and ordered faults. Production replay compares
+actual captures and complete 4,194,648-byte states. SP diagnostic 6 and partial
+second-access faults have complete machine-state evidence. The state layout is
+unchanged; older readers cannot restore diagnostic 6. Full CPU/MMU/exceptions,
+physical memory ordering/timing, native firmware/HOS/retail boot, graphics/audio,
+controllers and netplay remain pending. Switch stays **25%**; CI/CD remains
+disabled. See [original source and finite domains](roms-src/switch/pair_transfer_registers/README.md).

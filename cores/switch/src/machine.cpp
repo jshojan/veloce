@@ -80,7 +80,7 @@ bool Machine::restore(const std::vector<uint8_t>& data){
     for(auto& v:s.x)v=take();
     s.sp=take();s.pc=take();s.steps=take();s.fault_address=take();
     const auto word=take(),flags=take(),fault=take();
-    if(saved_done>1 || word>0xffffffffu || flags>15 || fault>5 || ((s.pc&3) && fault!=1) || (!fault && (word || s.fault_address)))return false;
+    if(saved_done>1 || word>0xffffffffu || flags>15 || fault>6 || ((s.pc&3) && fault!=1) || (!fault && (word || s.fault_address)))return false;
     // Executable/RO bytes are immutable and fixed by the loaded image identity.
     for(unsigned n=0;n<2;++n){const auto& seg=segments[n];if(seg.size && !std::equal(rom.begin()+seg.file,rom.begin()+seg.file+seg.size,data.begin()+at+seg.address))return false;}
     s.fault_word=uint32_t(word);s.nzcv=unsigned(flags);s.fault=unsigned(fault);

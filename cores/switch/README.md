@@ -11,21 +11,21 @@ These percentages count the 20 explicit delivery milestones in [the completion l
 
 Nintendo Switch delivered milestones: Parse a native cartridge/executable format (boot scored separately), Repository-owned ROM source and reproducible archived image, Separate core plugin and ABI entry points, Actual guest register-file output independently graded on the host, with negative controls, Complete states for the implemented profile and deterministic replay.
 
-Remaining: Full AArch64 CPU/extensions/exceptions, native RAM/MMU/processes, compressed/hash-checked NSO and other formats, firmware/HOS/retail boot, graphics/audio, native controllers/devices, saves/netplay, physical timing and complete original hardware corpus remain. Current execution is an original uncompressed NSO0 integer process profile; retail playability is unverified.
+Remaining: Integer LDP/STP/LDNP/STNP/LDPSW paired transfers now have an original independently graded 2,490,368-snapshot / 24,903,680-word NSO image, executed controls and native state replay. Full AArch64 CPU/extensions/exceptions, native RAM/MMU/processes, compressed/hash-checked NSO and other formats, firmware/HOS/retail boot, graphics/audio, native controllers/devices, saves/netplay, physical timing and complete original hardware corpus remain. Current execution is an original uncompressed NSO0 integer process profile; retail playability is unverified.
 <!-- completion:end -->
 
 `switch_plugin` builds `switch.so` / `switch.dll` / `switch.dylib`, discovered by
 emulator ABI v2 alongside the other cores. It executes original AArch64 code
 from an **uncompressed NSO0 executable**. Firmware/native boot, HOS services,
 retail games, graphics/audio and native peripherals are unimplemented.
-This is a functional integer process profile, with no hardware timing claim.
+Plugin version is **0.8.0**. This is a functional integer process profile, with no hardware timing claim.
 
 ## Execution and loader
 
 Implemented: 32/64-bit ADD/SUB immediate and shifted-register forms, flag-setting
 forms, ADC/ADCS/SBC/SBCS, AND/ORR/EOR/ANDS and inverted operands, LSL/LSR/ASR/ROR
 operand shifts, MOVN/MOVZ/MOVK, ADR/ADRP, B/BL/B.cond, CBZ/CBNZ, BR/BLR/RET,
-unsigned-offset byte/halfword/word/doubleword LDR/STR, NOP and MRS/MSR NZCV,
+unsigned-offset byte/halfword/word/doubleword LDR/STR, integer LDP/STP/LDNP/STNP/LDPSW pairs, NOP and MRS/MSR NZCV,
 MADD/MSUB, signed/unsigned long and high multiply, SDIV/UDIV, CSEL/CSINC/CSINV/CSNEG, variable LSL/LSR/ASR/ROR,
 RBIT, REV16/REV32/REV64, CLZ/CLS, SBFM/BFM/UBFM, EXTR, logical immediates, and CCMP/CCMN register/immediate forms.
 W-register results clear the upper half. SP and XZR uses follow the instruction
@@ -340,3 +340,26 @@ native memory/MMU/devices, firmware/HOS/native boot/retail compatibility,
 GPU/audio/controllers, persistent saves/netplay, physical timing and complete
 native/physical corpus remain pending. CI/CD remains disabled. The full
 Nintendo implementation goal remains active.
+
+## Switch integer paired transfers (2026-10-11)
+
+Switch 0.8.0 adds integer LDP/STP/LDNP/STNP/LDPSW with signed offsets and
+pre/post-index writeback. The original NSO independently grades **2,490,368
+snapshots / 24,903,680 actual register words**, covering all 128 displacement
+fields, 19 variants, X8/SP bases, two flag surrounds and repeated-byte seeds.
+Executed result/flag/offset mutations reject all 1,520 short rows; unsigned-load
+replacement and skipped stores reject all 240 signed-load/640 store rows.
+Ten field faults and seven malformed streams reject. The independent byte oracle
+and **2,294,067** component observations check truncation, sign extension,
+byte order, aliases, base updates and ordered faults. Production replay compares
+actual captures and complete 4,194,648-byte states. SP diagnostic 6 and partial
+second-access faults have complete machine-state evidence. The state layout is
+unchanged; older readers cannot restore diagnostic 6. Full CPU/MMU/exceptions,
+physical memory ordering/timing, native firmware/HOS/retail boot, graphics/audio,
+controllers and netplay remain pending. Switch stays **25%**; CI/CD remains
+disabled. See [original source and finite domains](../../tests/roms-src/switch/pair_transfer_registers/README.md).
+
+Executed integration: the full Release build and all **25 Switch gates** pass,
+including the prior original instruction corpora. The new 2,490,368-row file
+has zero mismatches and unchanged capture provenance. All **146 original
+archives** reproduce; completion rendering and whitespace checks pass.

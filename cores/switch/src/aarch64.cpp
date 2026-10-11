@@ -196,6 +196,30 @@ bool Aarch64::step(){
         const int64_t offset=signed_bits(((w>>5)&0x7ffff)*4+((w>>29)&3),21);
         put(rd,(w>>31)?(pc&~uint64_t(4095))+uint64_t(offset*4096):pc+uint64_t(offset));
     }
+    else if((w&0x3a000000)==0x28000000){
+        const unsigned opc=w>>30,mode=(w>>23)&3,rt2=(w>>10)&31;
+        const bool load=w&(1u<<22),writeback=mode==1 || mode==3;
+        if((w&(1u<<26)) || opc==3 || (opc==1 && (!load || mode==0)) ||
+           (load && rd==rt2) || (writeback && rn!=31 && (rn==rd || rn==rt2)))return fail(3,pc,w);
+        const unsigned size=opc==2?8:4;
+        const uint64_t base=reg(rn,true);
+        // Supplied process profile checks SP alignment; SCTLR/EL controls remain pending.
+        if(rn==31 && (base&15))return fail(6,base,w);
+        const uint64_t updated=base+uint64_t(signed_bits((w>>15)&127,7)*size);
+        const uint64_t address=mode==1?base:updated;
+        if(load){
+            uint64_t first=0,second=0;
+            if(!bus.read(address,size,first))return fail(4,address,w);
+            if(!bus.read(address+size,size,second))return fail(4,address+size,w);
+            if(opc==1){first=uint64_t(signed_bits(first,32));second=uint64_t(signed_bits(second,32));}
+            put(rd,first);put(rt2,second);
+        } else {
+            const uint64_t first=reg(rd),second=reg(rt2);
+            if(!bus.write(address,size,first))return fail(5,address,w);
+            if(!bus.write(address+size,size,second))return fail(5,address+size,w);
+        }
+        if(writeback)put(rn,updated,true);
+    }
     else if((w&0x3b000000)==0x39000000){
         const unsigned size=1u<<(w>>30),op=(w>>22)&3;
         if(op>1 || (w&(1u<<26)))return fail(3,pc,w);
