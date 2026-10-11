@@ -440,6 +440,17 @@
       "source_type": "original",
       "suite": "pi_dma"
     },
+    "n64/rdp_color_convert/rdp_color_convert.z64": {
+      "build_command": "python3 tests/roms-src/n64/rdp_color_convert/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "ed5a0df92953f648e36e1187114cccffe191bcbd28ce771fb4eecb62ec7f0e99",
+      "source_repo": "tests/roms-src/n64/rdp_color_convert/build.py",
+      "source_sha": "00355f82a73ac11b953e30cf18287235ca017cadc706aba46b7de05243d89047",
+      "source_type": "original",
+      "suite": "rdp_color_convert"
+    },
     "n64/rdp_combiner_commands/rdp_combiner_commands.z64": {
       "build_command": "python3 tests/roms-src/n64/rdp_combiner_commands/build.py",
       "console": "n64",
