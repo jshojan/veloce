@@ -484,6 +484,17 @@
       "source_type": "original",
       "suite": "rdp_packets"
     },
+    "n64/rdp_texture_perspective/rdp_texture_perspective.z64": {
+      "build_command": "python3 tests/roms-src/n64/rdp_texture_perspective/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "94ed5f362bbd368d734fec1acb0d13b4202267ece3b91bbca456a81657dc60f5",
+      "source_repo": "tests/roms-src/n64/rdp_texture_perspective/build.py",
+      "source_sha": "2d2c257f8ca71e6dc8d4af21f4ab116208cf879972c0be855829ef825abf950b",
+      "source_type": "original",
+      "suite": "rdp_texture_perspective"
+    },
     "n64/rdp_tile_commands/rdp_tile_commands.z64": {
       "build_command": "python3 tests/roms-src/n64/rdp_tile_commands/build.py",
       "console": "n64",
