@@ -10,6 +10,7 @@
 #include "core/plugin_manager.hpp"
 #include "core/audio_manager.hpp"
 #include "core/input_manager.hpp"
+#include "emu/n64_input.hpp"
 #include "core/savestate_manager.hpp"
 #include "core/paths_config.hpp"
 #include "emu/game_plugin.hpp"
@@ -975,6 +976,19 @@ void GuiManager::render_tas_editor(Application& app) {
     const bool editable=movie->get_mode()!=TASMode::ReadOnly;
     ImGui::BeginDisabled(!editable || m_tas_edit>=movie->get_total_frames());
     for (int c=0;c<4;++c) { ImGui::PushID(c);ImGui::InputScalar(("Controller "+std::to_string(c+1)).c_str(),ImGuiDataType_U32,&m_tas_edit_data.controller_inputs[c],nullptr,nullptr,"%08X",ImGuiInputTextFlags_CharsHexadecimal);ImGui::PopID(); }
+    auto* active_core = app.get_plugin_manager().get_active_plugin();
+    auto* layout = active_core ? active_core->get_controller_layout() : nullptr;
+    if (layout && std::string(layout->platform_name)=="N64") {
+        ImGui::TextUnformatted("N64 stick: T/F/G/H or selected gamepad left stick. X right, Y up.");
+        for (int c=0;c<4;++c) {
+            ImGui::PushID(c+4);
+            auto& word=m_tas_edit_data.controller_inputs[c];
+            int axes[2]={n64_input::axis(word,0),n64_input::axis(word,1)};
+            if (ImGui::InputInt2(("Stick "+std::to_string(c+1)).c_str(),axes))
+                word=n64_input::pack(n64_input::buttons(word),axes[0],axes[1]);
+            ImGui::PopID();
+        }
+    }
     ImGui::Checkbox("Reset before frame",&m_tas_edit_data.has_reset);
     ImGui::Checkbox("Save before frame",&m_tas_edit_data.has_savestate);
     ImGui::InputInt("Save slot (0-9)",&m_tas_edit_data.savestate_slot);

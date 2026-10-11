@@ -50,6 +50,7 @@ public:
     // Gamepad state (for input capture)
     bool is_gamepad_button_pressed(int controller_index, int button) const;
     float get_gamepad_axis(int controller_index, int axis) const;
+    uint32_t encode_controller_input(int controller, uint32_t buttons) const;
 
     // Controller management
     int get_connected_controller_count() const;

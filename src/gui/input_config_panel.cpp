@@ -74,6 +74,10 @@ bool InputConfigPanel::render(Application& app) {
 
     // Controller selector
     render_controller_selector(app);
+    if (m_current_platform=="N64") {
+        ImGui::TextWrapped("Stick: selected gamepad left stick, or T/F/G/H for up/left/down/right on keyboard. Arrow bindings control the D-pad.");
+        ImGui::TextWrapped("Stick defaults: 15%% dead zone, range +/-80. Analog remapping is not yet available.");
+    }
 
     ImGui::Separator();
 

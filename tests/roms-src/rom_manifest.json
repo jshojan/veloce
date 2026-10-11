@@ -21845,6 +21845,17 @@
       "source_type": "original",
       "suite": "cache_coherence"
     },
+    "n64/controller_analog_reads/controller_analog_reads.z64": {
+      "build_command": "python3 tests/roms-src/n64/controller_analog_reads/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "00b65896976e9bea773e98438175e826c3f29a40b4242c5994953c104a236394",
+      "source_repo": "tests/roms-src/n64/controller_analog_reads/build.py",
+      "source_sha": "4e09aa371f6b6a5cfcc475edfe07ea84a6ce5e2eb352b1ada52fb73f8ea1ca8e",
+      "source_type": "original",
+      "suite": "controller_analog_reads"
+    },
     "n64/controller_cached_reads/controller_cached_reads.z64": {
       "build_command": "python3 tests/roms-src/n64/controller_cached_reads/build.py",
       "console": "n64",

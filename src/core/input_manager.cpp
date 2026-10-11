@@ -1,4 +1,5 @@
 #include "input_manager.hpp"
+#include "emu/n64_input.hpp"
 
 #include <SDL.h>
 #include <iostream>
@@ -365,6 +366,22 @@ float InputManager::get_gamepad_axis(int controller_index, int axis) const {
         return std::clamp(value / 32767.0f, -1.0f, 1.0f);
     }
     return 0.0f;
+}
+
+uint32_t InputManager::encode_controller_input(int controller, uint32_t buttons) const {
+    if (m_current_platform != "N64") return buttons;
+    if (m_input_capture_mode || controller<0 || controller>=4) return 0;
+    const int device = controller==0 ? m_active_controller : controller;
+    int x=0,y=0;
+    if (device>=0) {
+        x=n64_input::quantize(get_gamepad_axis(device,SDL_CONTROLLER_AXIS_LEFTX));
+        y=n64_input::quantize(-get_gamepad_axis(device,SDL_CONTROLLER_AXIS_LEFTY));
+    } else if (controller==0) {
+        // T/F/G/H do not overlap the default N64 digital bindings.
+        x=80*(int(is_key_pressed(SDL_SCANCODE_H))-int(is_key_pressed(SDL_SCANCODE_F)));
+        y=80*(int(is_key_pressed(SDL_SCANCODE_T))-int(is_key_pressed(SDL_SCANCODE_G)));
+    }
+    return n64_input::pack(buttons,x,y);
 }
 
 void InputManager::set_current_platform(const std::string& platform) {

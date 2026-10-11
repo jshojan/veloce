@@ -1175,6 +1175,10 @@ add_test(NAME n64_controller_cached_reads COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/controller_cached_reads/run.py --emulator $<TARGET_FILE:veloce>
     --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_controller_cached_reads)
 set_tests_properties(n64_controller_cached_reads PROPERTIES LABELS "accuracy;owned" TIMEOUT 300)
+add_test(NAME n64_controller_analog_reads COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/controller_analog_reads/run.py --emulator $<TARGET_FILE:veloce>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_controller_analog_reads)
+set_tests_properties(n64_controller_analog_reads PROPERTIES LABELS "accuracy;owned" TIMEOUT 360)
 add_executable(n64_pif_state_test cpp/n64_pif_state_test.cpp
     ${CMAKE_SOURCE_DIR}/cores/n64/src/machine.cpp ${CMAKE_SOURCE_DIR}/cores/n64/src/vr4300.cpp)
 target_include_directories(n64_pif_state_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src ${CMAKE_SOURCE_DIR}/include)
