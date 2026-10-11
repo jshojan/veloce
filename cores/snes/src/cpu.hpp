@@ -72,10 +72,10 @@ private:
     void write_db(uint16_t address, uint8_t value);
 
     // Stack operations
-    void push8(uint8_t value);
-    uint8_t pop8();
-    void push16(uint16_t value);
-    uint16_t pop16();
+    void push8(uint8_t value, bool wrap_emulation = true);
+    uint8_t pop8(bool wrap_emulation = true);
+    void push16(uint16_t value, bool wrap_emulation = true);
+    uint16_t pop16(bool wrap_emulation = true);
     void push24(uint32_t value);
     uint32_t pop24();
 

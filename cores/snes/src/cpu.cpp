@@ -76,6 +76,9 @@ int CPU::step() {
 
     // Execute instruction
     execute();
+    // Native stack opcodes access beyond page one during the instruction.
+    // Emulation restores SH=1 after the entire byte sequence completes.
+    if (m_emulation) m_sp = 0x0100 | (m_sp & 0xFF);
 
     return m_cycles;
 }
@@ -158,17 +161,17 @@ void CPU::write_db(uint16_t address, uint8_t value) {
 }
 
 // Stack operations
-void CPU::push8(uint8_t value) {
+void CPU::push8(uint8_t value, bool wrap_emulation) {
     write(m_sp, value);
-    if (m_emulation) {
+    if (m_emulation && wrap_emulation) {
         m_sp = 0x0100 | ((m_sp - 1) & 0xFF);
     } else {
         m_sp--;
     }
 }
 
-uint8_t CPU::pop8() {
-    if (m_emulation) {
+uint8_t CPU::pop8(bool wrap_emulation) {
+    if (m_emulation && wrap_emulation) {
         m_sp = 0x0100 | ((m_sp + 1) & 0xFF);
     } else {
         m_sp++;
@@ -176,14 +179,14 @@ uint8_t CPU::pop8() {
     return read(m_sp);
 }
 
-void CPU::push16(uint16_t value) {
-    push8(value >> 8);
-    push8(value & 0xFF);
+void CPU::push16(uint16_t value, bool wrap_emulation) {
+    push8(value >> 8, wrap_emulation);
+    push8(value & 0xFF, wrap_emulation);
 }
 
-uint16_t CPU::pop16() {
-    uint8_t lo = pop8();
-    uint8_t hi = pop8();
+uint16_t CPU::pop16(bool wrap_emulation) {
+    uint8_t lo = pop8(wrap_emulation);
+    uint8_t hi = pop8(wrap_emulation);
     return lo | (hi << 8);
 }
 
@@ -1346,15 +1349,15 @@ void CPU::execute() {
             break;
         }
         case 0xFC: {  // JSR (abs,X)
-            push16(m_pc + 1);
+            push16(m_pc + 1, false);
             m_pc = addr_absolute_x_indirect() & 0xFFFF;
             break;
         }
         case 0x22: {  // JSL long
             uint32_t addr = read_pc24();
-            push8(m_pbr);
+            push8(m_pbr, false);
             idle(1);
-            push16(m_pc - 1);
+            push16(m_pc - 1, false);
             m_pbr = (addr >> 16) & 0xFF;
             m_pc = addr & 0xFFFF;
             break;
@@ -1519,18 +1522,18 @@ void CPU::execute() {
 
         // PEA/PEI/PER - Push Effective Address
         case 0xF4: {  // PEA abs
-            push16(read_pc16());
+            push16(read_pc16(), false);
             break;
         }
         case 0xD4: {  // PEI (dp)
             uint32_t addr = addr_direct();
             uint16_t val = read(addr) | (read(addr + 1) << 8);
-            push16(val);
+            push16(val, false);
             break;
         }
         case 0x62: {  // PER rel
             int16_t offset = static_cast<int16_t>(read_pc16());
-            push16(m_pc + offset);
+            push16(m_pc + offset, false);
             break;
         }
 
@@ -1544,7 +1547,7 @@ void CPU::execute() {
             }
             break;
         case 0x8B: idle(1); push8(m_dbr); break;  // PHB
-        case 0x0B: idle(1); push16(m_dp); break;  // PHD
+        case 0x0B: idle(1); push16(m_dp, false); break;  // PHD
         case 0x4B: idle(1); push8(m_pbr); break;  // PHK
         case 0x08: idle(1); push8(m_status); break;  // PHP
         case 0xDA:  // PHX
@@ -1577,12 +1580,12 @@ void CPU::execute() {
             break;
         case 0xAB:  // PLB
             idle(2);
-            m_dbr = pop8();
+            m_dbr = pop8(false);
             update_nz8(m_dbr);
             break;
         case 0x2B:  // PLD
             idle(2);
-            m_dp = pop16();
+            m_dp = pop16(false);
             update_nz16(m_dp);
             break;
         case 0x28:  // PLP
@@ -1680,8 +1683,8 @@ void CPU::execute() {
         // RTL - Return from Subroutine Long
         case 0x6B:
             idle(2);
-            m_pc = pop16() + 1;
-            m_pbr = pop8();
+            m_pc = pop16(false) + 1;
+            m_pbr = pop8(false);
             break;
 
         // RTS - Return from Subroutine
