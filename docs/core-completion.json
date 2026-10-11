@@ -221,7 +221,7 @@
         "register_oracle",
         "states"
       ],
-      "remaining": "ARM11 ARMv6 dual-halfword multiply/exchange/accumulate, UMAAL/high-word multiply, packing/absolute differences, parallel arithmetic/SEL, extension/accumulate and saturation now have original independently graded register images, flags/alias/profile controls and native checkpoint continuations. The new dual multiply image checks 12,582,912 snapshots / 125,829,120 register words. Remaining CPU/MMU, firmware/native formats, graphics/audio, analog/touch and wireless multiplayer remain."
+      "remaining": "ARM11 ARMv6 dual-halfword multiply/exchange/accumulate, UMAAL/high-word multiply, packing/absolute differences, parallel arithmetic/SEL, extension/accumulate, saturation and exclusive memory/CLREX now have original independently graded register or memory images and finite profile controls. The exclusive image checks 5,242,880 snapshots / 52,428,800 actual words across both ARM11 contexts; the new state includes reservation monitors and accepts legacy states with empty monitors. Remaining CPU/MMU/cache/physical coherence, firmware/native formats, graphics/audio, analog/touch and wireless multiplayer remain."
     },
     {
       "id": "gc",

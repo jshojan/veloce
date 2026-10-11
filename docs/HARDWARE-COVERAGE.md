@@ -477,7 +477,7 @@ JSON grades stay in `build/artifacts/owned/3ds_reversal/`; CI/CD stays disabled.
 
 The [3DS netplay probe](../tests/roms-src/3ds/netplay_probe/README.md) now passes
 production IPv4 TCP rollback. Both independent peers match the 100-frame solo
-baseline's complete 135,791,096-byte state; twelve guest words from ARM11_0,
+baseline's complete 135,791,128-byte state; twelve guest words from ARM11_0,
 ARM11_1 and ARM9 match the independent host arithmetic oracle. Executed input,
 field and stream controls fail; ROM/transport and lifecycle rejection checks
 pass. Fast states write directly into caller buffers and preserve canonical

@@ -17,7 +17,7 @@ int main(int argc,char** argv){try{
  unsigned rows=0;
  for(unsigned boundary:{0u,1u,3u}) {
   core.plugin->reset();for(unsigned n=0;n<boundary;++n)core.plugin->run_frame({0});
-  const auto before=emulator_test::snapshot(net);require(before.size()==135791096,"complete 3DS snapshot size");
+  const auto before=emulator_test::snapshot(net);require(before.size()==135791128,"complete 3DS snapshot size");
   sink.text.clear();sink.done=false;for(unsigned n=0;n<2;++n)core.plugin->run_frame({0});
   require(!sink.done && sink.text.find("REG r=")!=std::string::npos,"actual extension continuation output");
   const auto text=sink.text;const auto after=emulator_test::snapshot(net);

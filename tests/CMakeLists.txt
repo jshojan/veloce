@@ -1795,3 +1795,13 @@ add_test(NAME vb_cartridge_ram COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/roms-src/vb/cartridge_ram/run.py $<TARGET_FILE:vb_cartridge_capture> $<TARGET_FILE:vb_plugin>
     ${CMAKE_BINARY_DIR}/artifacts/owned/vb_cartridge_ram)
 set_tests_properties(vb_cartridge_ram PROPERTIES LABELS "integration;accuracy;owned" TIMEOUT 900)
+
+add_executable(ctr_exclusive_test cpp/ctr_exclusive_test.cpp
+    ${CMAKE_SOURCE_DIR}/cores/3ds/src/machine.cpp ${CMAKE_SOURCE_DIR}/cores/nds/src/arm.cpp)
+target_include_directories(ctr_exclusive_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/3ds/src ${CMAKE_SOURCE_DIR}/include)
+add_test(NAME ctr_exclusive_test COMMAND ctr_exclusive_test ${CMAKE_SOURCE_DIR}/tests/roms-src/3ds/reversal_registers/reversal_registers.v3ds)
+set_tests_properties(ctr_exclusive_test PROPERTIES LABELS "unit;accuracy;owned" TIMEOUT 180)
+add_test(NAME ctr_exclusive_memory COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/3ds/exclusive_memory/run.py --emulator $<TARGET_FILE:veloce> --core $<TARGET_FILE:ctr_plugin>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/ctr_exclusive)
+set_tests_properties(ctr_exclusive_memory PROPERTIES LABELS "accuracy;owned;integration" TIMEOUT 1200)

@@ -11,6 +11,17 @@
       "source_type": "original",
       "suite": "dual_media_multiply_registers"
     },
+    "3ds/exclusive_memory/exclusive_memory.v3ds": {
+      "build_command": "python3 tests/roms-src/3ds/exclusive_memory/build.py",
+      "console": "3ds",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "3284bc405fb435921d13a0f50395ae5224b1c010f095684a220ab67793acb352",
+      "source_repo": "tests/roms-src/3ds/exclusive_memory/build.py",
+      "source_sha": "03ca17eccd7048582a643120ce2a010fb2ded7a83476a140fd65787d534b7e89",
+      "source_type": "original",
+      "suite": "exclusive_memory"
+    },
     "3ds/extend_registers/extend_registers.v3ds": {
       "build_command": "python3 tests/roms-src/3ds/extend_registers/build.py",
       "console": "3ds",
