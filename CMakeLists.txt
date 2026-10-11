@@ -110,6 +110,7 @@ target_link_libraries(imgui PUBLIC ${SDL2_LIBRARIES} OpenGL::GL)
 set(CORE_SOURCES
     src/core/main.cpp
     src/core/application.cpp
+    src/core/tas_host.cpp
     src/core/window_manager.cpp
     src/core/renderer.cpp
     src/core/input_manager.cpp

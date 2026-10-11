@@ -34,3 +34,12 @@ compatibility requirements.
 
 See [backend evidence and limitations](../../plugins/tas_default/README.md#verified-backend-evidence)
 for independently packed byte tests, negative controls and frame boundary tests.
+
+## Application execution
+
+See [frontend evidence](../../plugins/tas_default/README.md#frontend-integration)
+for native NES RAM observations, production movie controls and reset/save event
+semantics. A reset-start movie uses the ROM-load snapshot, including battery data
+loaded at that boundary; reset events inside the movie use soft reset. Seeking
+suppresses replay audio and pauses. Manual reset/load stops recording/playback.
+Exact paused video previews depend on framebuffer coverage in the core state.

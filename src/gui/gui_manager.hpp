@@ -2,6 +2,7 @@
 
 #include <string>
 #include <memory>
+#include "emu/tas_plugin.hpp"
 
 struct SDL_Window;
 typedef void* SDL_GLContext;
@@ -55,6 +56,7 @@ public:
     void show_ram_watch(bool show) { m_show_ram_watch = show; }
     void show_speedrun_panel(bool show) { m_show_speedrun_panel = show; }
     void show_plugin_config(bool show) { m_show_plugin_config = show; }
+    void show_tas_editor(bool show) { m_show_tas_editor = show; }
     void show_core_config(bool show) { m_show_core_config = show; }
 
     // Notification system access
@@ -67,6 +69,13 @@ private:
     void render_settings(Application& app);
     void render_savestate_file_browser(Application& app);
     void render_core_config(Application& app);
+    void render_tas_editor(Application& app);
+    bool m_show_tas_editor = false;
+    char m_tas_path[1024] = {};
+    bool m_tas_from_state = false;
+    uint64_t m_tas_seek = 0, m_tas_edit = 0, m_tas_loaded_edit = UINT64_MAX;
+    TASFrameData m_tas_edit_data{};
+
 
     // Savestate menu helpers
     void render_save_state_menu(Application& app);

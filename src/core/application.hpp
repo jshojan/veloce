@@ -3,6 +3,8 @@
 #include "emu/netplay_plugin.hpp"
 #include "emu/input_plugin.hpp"
 #include <array>
+#include <optional>
+#include "emu/tas_plugin.hpp"
 #include <string>
 #include <memory>
 #include <vector>
@@ -15,6 +17,7 @@ class Renderer;
 class InputManager;
 class AudioManager;
 class AudioPipeline;
+class TASHost;
 class PluginManager;
 class GuiManager;
 class SavestateManager;
@@ -70,7 +73,10 @@ public:
 
     // Frame control
     void frame_advance();
-    void reset_input_timeline();
+    bool step_frame();
+    bool can_run_tas() const;
+    bool run_replay_frame(const TASFrameData& frame);
+    void reset_input_timeline(bool stop_movie = true);
     void set_speed(float speed) { m_speed_multiplier = speed; }
     float get_speed() const { return m_speed_multiplier; }
 
@@ -135,6 +141,7 @@ public:
     void on_netplay_chat_message(int player_id, const char* message) override;
 
 private:
+    friend class TASHost;
     enum class CommandLineResult { Run, Exit, Error };
     CommandLineResult parse_command_line(int argc, char* argv[], std::string& rom_path);
     void print_usage(const char* program_name);
@@ -143,7 +150,8 @@ private:
     void process_events();
     void update();
     void render();
-    void run_emulation_frame();
+    bool run_emulation_frame();
+    bool execute_tas_frame(const TASFrameData& frame, bool replay);
     void sample_input();
 
     // Get INetplayCapable interface from current emulator if available
@@ -161,6 +169,9 @@ private:
     std::unique_ptr<InputManager> m_input_manager;
     std::unique_ptr<AudioManager> m_audio_manager;
     std::unique_ptr<AudioPipeline> m_audio_pipeline;
+    std::unique_ptr<TASHost> m_tas_host;
+    std::array<std::optional<uint32_t>, 4> m_injected_inputs;
+    bool m_tas_replaying = false;
     std::unique_ptr<PluginManager> m_plugin_manager;
     std::unique_ptr<GuiManager> m_gui_manager;
     std::unique_ptr<SavestateManager> m_savestate_manager;
