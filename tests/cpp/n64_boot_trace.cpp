@@ -47,6 +47,11 @@ int main(int argc,char** argv) {
              <<",\"rsp_blocked_word\":\""<<std::hex<<machine.rsp.blocked_word<<"\",\"dp_registers\":[";
     for(unsigned n=0;n<8;++n){if(n)std::cout<<',';std::cout<<'"'<<machine.dp_interface.read(n)<<'"';}
     std::cout<<"],\"dp_blocked\":"<<(machine.dp_interface.blocked?"true":"false")<<",\"dp_blocked_word\":\""<<machine.dp_interface.blocked_word
-             <<"\",\"dp_blocked_reason\":"<<std::dec<<machine.dp_interface.blocked_reason<<",\"dp_packet_start\":"<<machine.dp_interface.packet.start<<",\"dp_packet_count\":"<<machine.dp_interface.packet.count<<",\"dp_packet_needed\":"<<machine.dp_interface.packet.needed<<",\"retail_boot_verified\":false,\"playability_verified\":false}\n";
+             <<"\",\"dp_blocked_reason\":"<<std::dec<<machine.dp_interface.blocked_reason<<",\"dp_packet_start\":"<<machine.dp_interface.packet.start<<",\"dp_packet_count\":"<<machine.dp_interface.packet.count<<",\"dp_packet_needed\":"<<machine.dp_interface.packet.needed<<",\"dp_packet_words\":[";
+    for(unsigned n=0;n<machine.dp_interface.packet.count;++n) {
+        if(n)std::cout<<',';
+        std::cout<<'"'<<std::hex<<std::setw(16)<<std::setfill('0')<<machine.dp_interface.packet.words[n]<<'"';
+    }
+    std::cout<<"],\"retail_boot_verified\":false,\"playability_verified\":false}\n";
     return 0;
 }

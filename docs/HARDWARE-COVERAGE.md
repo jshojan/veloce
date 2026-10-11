@@ -2172,9 +2172,10 @@ video. Packet **CF000FFA0FFAF006** is now retained completely: **22/22 words**,
 start **0x227160**, fetched CURRENT **0x227210**, blocker reason 1. Triangle
 shading/texturing/depth and native boot/playability remain unimplemented or
 unverified. The reader does not fabricate successful graphics. Reports are
-local at `build/artifacts/retail/n64-packets.json`; no commercial bytes are
+local at `build/artifacts/retail/n64-packets.json`, including all 22 retained
+packet words for renderer diagnosis; no commercial bytes are
 archived. Core SHA-256: **5b97a566a9030d0beb1b94bf1226725dd14c81dc5b93933c5f07759d9da07df4**;
-trace SHA-256: **985926d437d26bd3e46f409a6d35a9f007f032a54dec8ce8e847fcd305119eb2**.
+trace SHA-256: **29498832f3274f0a64b72e984b01a80ee89efdc67717e7c7d52a65bfb5324939**.
 
 All **102 original archives** reproduce. The new cartridge/component/production
 ABI gates and seven affected smoke gates pass; the broad N64 regression batch
