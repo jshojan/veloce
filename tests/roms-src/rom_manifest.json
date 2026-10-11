@@ -866,6 +866,17 @@
       "source_type": "original",
       "suite": "arithmetic_registers"
     },
+    "switch/bitfield_registers/bitfield_registers.nso": {
+      "build_command": "python3 tests/roms-src/switch/bitfield_registers/build.py",
+      "console": "switch",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "f127f3383a4e2be953644331166a3c3d389d0eb6c7ae0cb231085767014bffca",
+      "source_repo": "tests/roms-src/switch/bitfield_registers/build.py",
+      "source_sha": "ea9b5e6041655a5b88689117b52a9247c51051e362b6cdce8803cd3166fb97bb",
+      "source_type": "original",
+      "suite": "bitfield_registers"
+    },
     "switch/bitops_registers/bitops_registers.nso": {
       "build_command": "python3 tests/roms-src/switch/bitops_registers/build.py",
       "console": "switch",

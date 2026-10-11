@@ -2004,3 +2004,43 @@ memory/MMU, firmware/HOS/retail boot, GPU/audio/controllers/devices, persistent
 saves/netplay, physical timing and the complete native hardware corpus remain
 pending. These finite operand domains do not claim complete hardware accuracy.
 CI/CD remains disabled. The full Nintendo implementation goal remains active.
+
+
+## AArch64 bit-field and extract
+
+Plugin **0.5.0**, emulator ABI v2, adds W/X SBFM, BFM, UBFM and EXTR. This
+includes their fixed-shift, sign/zero-extension and field insertion/extraction
+aliases. BFM preserves bits outside the field; SBFM extends the source end bit;
+EXTR reads Rn:Rm in high:low order. W results zero-extend, NZCV/SP remain
+unchanged, and register aliases/XZR follow native operand rules. Reserved
+opcode/N/width/immediate encodings stop before architectural writes.
+`VNXS0001`, the process map and scheduling remain unchanged.
+
+The [original guest](../tests/roms-src/switch/bitfield_registers/README.md) passes **494,592 rows / 2,967,552 actual words**:
+sixteen boundary/mixed-bit inputs, zero/all-ones prior destinations with NZCV
+seeds 9/F, and every legal immediate across both widths. There are 15,360
+bit-field plus 96 extract instructions. Actual source/high, complement/low,
+prior destination, result, MRS NZCV and context are captured by STR. Separate
+contiguous-field arithmetic and double-width host integers grade the file.
+The executed result mutant fails all **240** short rows; six field and seven
+malformed-stream controls reject. Production ABI replay matches actual output
+and complete states. Artifacts: `build/artifacts/owned/switch_bitfield/`.
+
+The independent per-bit component passes **247,414,784 snapshots**: 133,693,440
+field cases, 113,639,424 extract cases and 81,920 register/alias/XZR cases.
+Every legal immediate, all sixteen initial NZCV values and full EXTR ordered
+pairs across the 272 repeated-byte/boundary values are checked. The former
+core failed the component and emitted no guest row before implementation.
+Every one of the **15,456 generated instruction words** matches eight
+[pinned LLVM opcode/width patterns](../tests/reference/switch-bitfield/README.md). These are finite operand
+domains; physical instruction execution and native timing remain unverified.
+
+All **fifteen Switch gates pass** in **36.35 seconds** after a warning-free full
+build, including twelve existing regressions. Component UBSAN passes with clean
+compilation. All **99 original archives** reproduce; report identities,
+completion renderer, changed local links and whitespace pass. Switch stays
+**25% = 5/20 fixed delivery milestones**: the full CPU/extensions/exceptions,
+native memory/MMU/devices, firmware/HOS/native boot/retail compatibility,
+GPU/audio/controllers, persistent saves, netplay, physical timing and the
+complete original native corpus remain pending. CI/CD remains disabled. The
+full Nintendo implementation goal remains active.
