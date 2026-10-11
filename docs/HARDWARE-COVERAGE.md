@@ -3843,3 +3843,20 @@ checkpoint/rollback records and full states match. The component gate covers
 operand cross-products, physical timing, full CP0/COP1 rights, non-linked 32-bit
 address normalization and complete hardware pending. No ABI/state-format change;
 N64 stays 50%. See [source, grading and limits](../tests/roms-src/n64/doubleword_privilege/README.md).
+
+## N64 Kernel32 wide integer address formation (2026-10-11)
+
+N64 0.53.0 corrects the explicit Kernel32 VA63:32-ignore rule for LDL/LDR,
+LWU, SDL/SDR and LD/SD; LLD/SCD already implement it. Extended modes preserve
+full addresses. The original cached-data cartridge grades 4,718,592 actual
+cases / 56,623,104 RAM/CP0 words across nine complete immediate domains,
+eight lanes, four width/high-half profiles and direct/taken-delay execution.
+The independent oracle checks numerical merge/load/store values, SCD success,
+alignment/address exceptions, preserved operands and EPC/BD/BadVAddr. Executed
+NOP, field and malformed stream controls reject; native/fast rollback records
+and complete states match. The component gate checks 4,730,235 address/mode/
+metadata/bus observations, including carry/segment boundaries, EXL/ERL, valid
+extended mappings and ordinary word/FP error controls. This does not establish
+all operands/bases/TLB layouts, reverse endian operation, physical timing or
+complete CPU/hardware. No ABI/S031 change; N64 remains 50%. See
+[source, file evidence and limits](../tests/roms-src/n64/kernel32_addresses/README.md).

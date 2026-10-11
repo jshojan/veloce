@@ -379,3 +379,26 @@ controls pass on 0.52.0; all 134 original archives reproduce. Full Release build
 completion renderer and whitespace checks pass. Non-linked 32-bit address
 normalization, remaining CP0/COP1 rights, physical timing and complete hardware
 remain pending. N64 stays 50%; no CI/CD is added.
+
+## N64 Kernel32 wide integer addresses
+
+```sh
+ctest --test-dir build -R '^(n64_kernel32_addresses|n64_kernel32_address_test)$' --output-on-failure
+```
+
+The original cached-data cartridge grades 4,718,592 cases / 56,623,104 actual
+RAM/CP0 words: all immediates of nine wide integer memory families, eight lanes,
+four Kernel32/Kernel64 upper-base profiles and direct/taken-delay contexts.
+The independent Python oracle checks load/merge/store results, SCD success,
+alignment/address faults and preserved operands/EPC/BD/BadVAddr. Real NOP
+substitution is rejected in all 1,152 short cases; twelve field and six stream
+mutants reject. Twelve ordinary/native fast rollback records and complete
+states match. The component gate checks 4,730,235 address/mode/bus observations,
+including carry/segment boundaries and ordinary word/FP invalid-address controls.
+See [source, artifact paths and limits](roms-src/n64/kernel32_addresses/README.md).
+
+On 0.53.0 all 15 selected CPU/machine/cache/TLB/FPU/controller/frontend/TAS/TCP
+regression gates pass. Private SM64 native VI movement/action/neutral controls
+pass; all 135 original archives reproduce. Full Release build, completion
+renderer and whitespace checks pass. Full hardware and retail playability
+remain unfinished; N64 remains 50%.

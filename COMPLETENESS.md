@@ -3782,3 +3782,17 @@ SM64 VI movement/action/neutral controls pass on 0.52.0. Fourteen selected gates
 pass after fixing an obsolete single-port layout expectation; all 134 original
 archives reproduce. Full CPU/devices/physical timing and retail playability stay
 unverified. N64 remains 50%; CI/CD remains removed and Actions disabled.
+
+## N64 Kernel32 wide memory address corpus (2026-10-11)
+
+N64 0.53.0 applies the documented upper-half-ignore rule to seven non-linked
+wide integer memory families in Kernel32; the original ROM also checks LLD/SCD.
+All 65,536 immediates, eight lanes, Kernel32/Kernel64 zero/noncanonical upper
+bases and direct/taken-delay contexts produce 4,718,592 cases / 56,623,104 actual
+RAM/CP0 words. The independent oracle checks numerical memory/register values,
+SCD success and alignment/extended-address fault metadata. Executed NOP in all
+1,152 short cases, twelve field and six malformed-stream faults are rejected.
+Twelve native/fast rollback records and complete states match. The component
+gate checks 4,730,235 address/mode/metadata/bus observations. Complete CPU/CP0/
+COP1/hardware, other address corner cases and physical timing remain pending;
+N64 remains 50%. Details: [original cartridge](tests/roms-src/n64/kernel32_addresses/README.md).
