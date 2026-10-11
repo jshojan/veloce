@@ -7,6 +7,7 @@
 #include "rdp_fill.hpp"
 #include "rdp_texture.hpp"
 #include "rdp_tmem.hpp"
+#include "rdp_packet.hpp"
 namespace n64 {
 // Shared CPU/RSP DP interface and bounded, functional RDP fill engine.
 // Command issue/counters are nominal clocks, not DMA FIFO or rasterizer timing.
@@ -19,6 +20,7 @@ public:
     RdpCombiner combiner;
     RdpTexture texture;
     RdpTmem tmem;
+    RdpPacket packet;
     uint32_t depth_image=0;
     using State=std::array<uint64_t,19>;
     void reset(){*this=DpInterface{};}
@@ -46,12 +48,18 @@ public:
     void tick(std::vector<uint8_t>& ram,const std::array<uint8_t,8192>& sp,bool& interrupt){
         if(pipeline){clock=(clock+1)&0xffffff;pipe_busy=(pipe_busy+1)&0xffffff;}
         if(current==active_end && start_valid && end_valid)activate();
-        if((flags&6) || current==active_end)return; // No DMA prefetch while frozen/flushed in this profile.
-        command_busy=(command_busy+1)&0xffffff;
-        uint64_t word=0;
-        for(unsigned n=0;n<8;++n){const uint32_t address=(current+n)&0xffffff;
-            if(flags&1)word=(word<<8)|sp[address&4095];
-            else{if(address>=ram.size()){block(0,2);return;}word=(word<<8)|ram[address];}}
+        if((flags&6) || blocked)return;
+        if(!packet.ready()){
+            if(current==active_end)return;
+            command_busy=(command_busy+1)&0xffffff;
+            uint64_t fetched=0;
+            for(unsigned n=0;n<8;++n){const uint32_t address=(current+n)&0xffffff;
+                if(flags&1)fetched=(fetched<<8)|sp[address&4095];
+                else{if(address>=ram.size()){block(0,2);return;}fetched=(fetched<<8)|ram[address];}}
+            packet.push(current,fetched);current=(current+8)&0xfffff8;
+            if(!packet.ready())return;
+        }
+        const uint64_t word=packet.words[0];
         const unsigned op=unsigned(word>>56)&63;
         bool supported=true;unsigned reason=1;
         switch(op){
@@ -70,7 +78,7 @@ public:
         }
         if(!supported){block(word,reason);return;}
         if(op!=41)pipeline=true;
-        blocked=false;blocked_reason=0;blocked_word=0;current=(current+8)&0xfffff8;
+        blocked=false;blocked_reason=0;blocked_word=0;packet.clear();
     }
     State snapshot() const{return {start,end,current,active_end,flags,uint64_t(start_valid),uint64_t(end_valid),uint64_t(pipeline),clock,command_busy,pipe_busy,tmem_busy,uint64_t(blocked),blocked_word,color_image,other_mode,scissor,fill_color,blocked_reason};}
     bool restore(const State& s){
@@ -82,7 +90,7 @@ public:
         start=uint32_t(s[0]);end=uint32_t(s[1]);current=uint32_t(s[2]);active_end=uint32_t(s[3]);flags=uint32_t(s[4]);start_valid=bool(s[5]);end_valid=bool(s[6]);pipeline=bool(s[7]);clock=uint32_t(s[8]);command_busy=uint32_t(s[9]);pipe_busy=uint32_t(s[10]);tmem_busy=uint32_t(s[11]);blocked=bool(s[12]);blocked_word=s[13];color_image=s[14];other_mode=s[15];scissor=s[16];fill_color=uint32_t(s[17]);blocked_reason=uint32_t(s[18]);return true;
     }
 private:
-    void activate(){current=start;active_end=end;start_valid=end_valid=false;pipeline=true;blocked=false;blocked_reason=0;blocked_word=0;}
+    void activate(){if(blocked)packet.clear();current=start;active_end=end;start_valid=end_valid=false;pipeline=true;blocked=false;blocked_reason=0;blocked_word=0;}
     void block(uint64_t word,unsigned reason){blocked=true;blocked_word=word;blocked_reason=reason;}
 };
 }

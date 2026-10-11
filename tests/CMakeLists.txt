@@ -854,3 +854,23 @@ set_tests_properties(switch_ccmp_registers PROPERTIES LABELS "accuracy;owned" TI
 add_test(NAME switch_ccmp_plugin_state_test COMMAND switch_plugin_state_test $<TARGET_FILE:switch_plugin>
     ${CMAKE_SOURCE_DIR}/tests/roms-src/switch/ccmp_registers/ccmp_registers.nso)
 set_tests_properties(switch_ccmp_plugin_state_test PROPERTIES LABELS "integration;accuracy;owned" TIMEOUT 90)
+
+add_executable(n64_rdp_packet_test cpp/n64_rdp_packet_test.cpp
+    ${CMAKE_SOURCE_DIR}/cores/n64/src/machine.cpp ${CMAKE_SOURCE_DIR}/cores/n64/src/vr4300.cpp)
+target_include_directories(n64_rdp_packet_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src ${CMAKE_SOURCE_DIR}/include)
+add_test(NAME n64_rdp_packet_test COMMAND n64_rdp_packet_test
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/dp_registers/dp_registers.z64)
+set_tests_properties(n64_rdp_packet_test PROPERTIES LABELS "unit;accuracy;owned" TIMEOUT 180)
+
+add_test(NAME n64_rdp_packets COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/rdp_packets/run.py --emulator $<TARGET_FILE:veloce>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_rdp_packets)
+set_tests_properties(n64_rdp_packets PROPERTIES LABELS "accuracy;owned" TIMEOUT 700)
+
+add_executable(n64_rdp_packet_plugin_test cpp/n64_rdp_packet_plugin_test.cpp)
+target_include_directories(n64_rdp_packet_plugin_test PRIVATE ${CMAKE_SOURCE_DIR}/include ${SDL2_INCLUDE_DIRS})
+target_link_libraries(n64_rdp_packet_plugin_test PRIVATE ${SDL2_LIBRARIES})
+add_dependencies(n64_rdp_packet_plugin_test n64_plugin)
+add_test(NAME n64_rdp_packet_plugin_test COMMAND n64_rdp_packet_plugin_test $<TARGET_FILE:n64_plugin>
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/rdp_packets/rdp_packets.z64)
+set_tests_properties(n64_rdp_packet_plugin_test PROPERTIES LABELS "integration;netplay;owned" TIMEOUT 90)

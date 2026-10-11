@@ -63,18 +63,18 @@ int main(int argc,char** argv) {
         const auto revision=get(m,1),pending=get(m,2);put(m,1,0);put(m,2,0xffffffff);
         require(get(m,1)==revision && get(m,2)==pending && m.save(replay) && replay==after,"read-only writes or invalid accesses changed state");
         for(unsigned index=0;index<2;++index) {
-            auto bad=after;const size_t pos=bad.size()-81064+index*8;
+            auto bad=after;const size_t pos=bad.size()-81264+index*8;
             bad[pos+6]=index==0?4:0;bad[pos+7]=index==0?0:2;
             require(!m.restore(bad) && m.save(replay) && replay==after,"invalid MI state atomicity");
         }
-        auto old=state;old.resize(old.size()-81064);old[6]='0';old[7]='4';
+        auto old=state;old.resize(old.size()-81264);old[6]='0';old[7]='4';
         require(m.restore(old) && !m.mi_mode && !m.dp_interrupt && m.ri[4]==0x12345,"S004 MI conversion");
         emulator_test::LoadedCore core(argv[1],rom);
         for(unsigned frame=0;frame<5000;++frame) {core.plugin->run_frame({});require(core.plugin->save_state(state) && m.restore(state),"plugin MI snapshot");if(m.done)break;}
         require(m.done && m.mi_mode==0 && m.mi_mask==63 && m.si_interrupt && m.pi_interrupt,"loaded MI corpus completion");
         m.reset();require(!m.mi_mode && !m.dp_interrupt,"MI reset");
         auto native=rom;std::memcpy(native.data()+0x34,"V64IP001",8);
-        require(m.load(native.data(),native.size()) && m.save(state),"native state");old=state;old.resize(old.size()-81064);old[6]='0';old[7]='4';m.mi_mode=1023;m.dp_interrupt=true;
+        require(m.load(native.data(),native.size()) && m.save(state),"native state");old=state;old.resize(old.size()-81264);old[6]='0';old[7]='4';m.mi_mode=1023;m.dp_interrupt=true;
         require(m.restore(old) && m.save(replay) && replay==state,"native S004 conversion");
         std::cout<<"16777216 mode transitions, 262144 mask transitions and 512 pending/mask combinations matched; DP ack/IRQ/ERET, atomic access/state rejection, replay, old states and loaded plugin passed\n";
         return 0;

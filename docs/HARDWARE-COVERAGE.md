@@ -2129,3 +2129,61 @@ native memory/MMU/devices, firmware/HOS/native boot/retail compatibility,
 GPU/audio/controllers, persistent saves/netplay, physical timing and complete
 native/physical corpus remain pending. CI/CD remains disabled. The full
 Nintendo implementation goal remains active.
+
+
+## RDP complete command packets
+
+Plugin **0.28.0**, emulator ABI v2, fetches complete native command packets,
+including all eight triangle forms (4–22 64-bit words) and two-word texture
+rectangles. CURRENT advances with each fetched word. Partial packets survive
+an END boundary and continue on extension; coefficient words cannot become
+commands. A complete unimplemented draw retains its packet and reports a
+blocker without drawing or asserting FullSync. Freeze/flush and nominal issue
+counters retain their functional-profile conventions; physical FIFO depth,
+prefetch/raster timing and reserved electrical behavior remain ungraded.
+
+The [original cartridge](../tests/roms-src/n64/rdp_packets/README.md) passes **200,704 cases / 1,404,928 actual words**:
+all repeated-byte payloads, every opcode-byte alias, RDRAM/wrapping XBUS and
+every partial split in all triangle/rectangle packets. Actual CURRENT/STATUS/MI
+pending before and after END extension and a RAM guard are independently graded.
+Every coefficient is headed by FullSync's byte; none escapes as an interrupt.
+The executed mutant fails all **72** short cases; seven field and seven stream
+controls reject. Artifacts: `build/artifacts/owned/n64_rdp_packets/`.
+
+The component verifies **1,441,792 coefficient words**, **648 partial header
+states**, and **10,240 RDRAM/XBUS streams / 110,592 word-boundary captures**.
+Every eight-byte DMEM alignment, retained data, freeze/flush, fetch faults and
+state rejection/replay are checked. The old DP implementation failed the
+incomplete-packet check by blocking on its first word. Component UBSAN passes
+with clean compilation. A production ABI gate checkpoints a real partial guest
+packet and restores through `INetplayCapable`, reproducing actual output and
+complete states, with exact capacity and malformed-state guards.
+
+State **VN64S024** appends **200 bytes** to S023 (start/count/needed and 22
+canonical words), totaling **8,478,944 bytes**. Unused words must be zero;
+invalid counts/lengths/addresses reject before any machine mutation. Accepted
+older formats receive a neutral packet and preserve their represented prefix.
+Legacy checks now account for the appended bytes. Existing four digital ports
+and production TCP capabilities remain present; timing and analog are pending.
+
+The private **Super Mario 64 (USA)** probe was repeated for **2,000 scheduling
+quanta / 200,000,000 CPU attempts**. It has no terminal CPU fault and uniform
+video. Packet **CF000FFA0FFAF006** is now retained completely: **22/22 words**,
+start **0x227160**, fetched CURRENT **0x227210**, blocker reason 1. Triangle
+shading/texturing/depth and native boot/playability remain unimplemented or
+unverified. The reader does not fabricate successful graphics. Reports are
+local at `build/artifacts/retail/n64-packets.json`, including all 22 retained
+packet words for renderer diagnosis; no commercial bytes are
+archived. Core SHA-256: **5b97a566a9030d0beb1b94bf1226725dd14c81dc5b93933c5f07759d9da07df4**;
+trace SHA-256: **29498832f3274f0a64b72e984b01a80ee89efdc67717e7c7d52a65bfb5324939**.
+
+All **102 original archives** reproduce. **80 distinct N64 gates pass
+cumulatively**: the 79-gate batch finished in **2,598.12 seconds**, with 78
+passes and one sandbox socket-creation failure; that TCP netplay gate passes
+with local networking allowed (**2.66 seconds**, unchanged binaries). The new
+production packet-state ABI gate separately passes (**0.15 seconds**). Final
+component UBSAN, completion rendering and whitespace checks pass. N64 remains
+**45% = 9/20 delivery milestones**, with complete native CPU/devices/RSP/RDP/audio, boot/retail play,
+analog/accessories/local frontend routing, physical timing and the exhaustive
+native/physical corpus still pending. CI/CD remains disabled; the full Nintendo
+implementation goal remains active.

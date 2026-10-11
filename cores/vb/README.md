@@ -203,7 +203,8 @@ Video is a blank 384×224 buffer, audio is empty and input is ignored. Stereo
 presentation, rendered UI usage, Windows/macOS builds, real hardware and netplay
 for this core remain unverified or unimplemented. Other plugins retain their
 existing networking/controller behavior. The external four-platform suite
-matrix does not include VB; its owned original ROM and component gates run in CI.
+matrix does not include VB; its owned original ROM and component gates run
+locally with CTest while CI/CD is disabled.
 
 ### Pending bit-string search evidence
 
