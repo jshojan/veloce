@@ -1939,10 +1939,13 @@ packet words for renderer diagnosis; no commercial bytes are
 archived. Core SHA-256: **5b97a566a9030d0beb1b94bf1226725dd14c81dc5b93933c5f07759d9da07df4**;
 trace SHA-256: **29498832f3274f0a64b72e984b01a80ee89efdc67717e7c7d52a65bfb5324939**.
 
-All **102 original archives** reproduce. The new cartridge/component/production
-ABI gates and seven affected smoke gates pass; the broad N64 regression batch
-is running and this branch is not yet merged. N64 remains **45% = 9/20 delivery
-milestones**, with complete native CPU/devices/RSP/RDP/audio, boot/retail play,
+All **102 original archives** reproduce. **80 distinct N64 gates pass
+cumulatively**: the 79-gate batch finished in **2,598.12 seconds**, with 78
+passes and one sandbox socket-creation failure; that TCP netplay gate passes
+with local networking allowed (**2.66 seconds**, unchanged binaries). The new
+production packet-state ABI gate separately passes (**0.15 seconds**). Final
+component UBSAN, completion rendering and whitespace checks pass. N64 remains
+**45% = 9/20 delivery milestones**, with complete native CPU/devices/RSP/RDP/audio, boot/retail play,
 analog/accessories/local frontend routing, physical timing and the exhaustive
 native/physical corpus still pending. CI/CD remains disabled; the full Nintendo
 implementation goal remains active.
