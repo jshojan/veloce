@@ -398,6 +398,9 @@ void VR4300::step() {
                 }
                 else if(rd==17)s.cp0[17]=value&0x0fffffff; // Diagnostic PA31:4, no LLbit side effect.
                 else if(rd==18)s.cp0[18]=value&0xfffffffb; // PA31:3, R and W; bit 2 is reserved.
+                else if(rd==26)s.cp0[26]=value&0xff; // Compatibility diagnostic field; no hardware parity.
+                else if(rd==28)s.cp0[28]=value&0x0fffffc0; // Physical tag and primary cache state.
+                else if(rd==29)s.cp0[29]=0; // TagHi is entirely reserved on VR4300.
                 else if(rd==19)s.cp0[19]=value&15; // Readable compatibility PA35:32 field.
                 else s.cp0[rd]=(rd==14 || rd==30)?value:uint32_t(value);
             } else if(ins==0x42000001) {
