@@ -14,6 +14,9 @@ Every guest response must be `C0` for 16 Kbit or `80` for 4 Kbit. It also
 checks the frontend battery length and rejects a 512-byte save for 16 Kbit IDs.
 The test grades 30 guest SI responses; the full 2,048-byte read/write corpus
 remains in the separate [16 Kbit EEPROM cartridge](../eeprom_16k/README.md).
+Each result is captured from guest MIPS register `$t2` (`r10`) and written as
+a `REG case=... r10=... battery_bytes=...` row in
+`build/artifacts/owned/n64_native_save_identity/registers.txt`.
 
 The ID list follows [ares' Nintendo 64 media table](https://github.com/ares-emulator/ares/blob/master/mia/medium/nintendo-64.cpp).
 Unknown native IDs still use the 4 Kbit fallback unless a pre-existing

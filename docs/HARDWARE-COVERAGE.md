@@ -4288,6 +4288,8 @@ The [original synthetic native-header ROM](../tests/roms-src/n64/native_save_ide
 executes guest SI/PIF cartridge-status requests for 23 known 16 Kbit IDs,
 four 4 Kbit controls and two byte-swapped formats. The production gate grades
 all 30 guest identity responses and selected battery sizes. Full EEPROM data
-coverage remains in the original 4/16 Kbit cartridges. Unknown native IDs
+coverage remains in the original 4/16 Kbit cartridges. The 30 captured guest
+`$t2` values are written to
+`build/artifacts/owned/n64_native_save_identity/registers.txt`. Unknown native IDs
 still require a 2,048-byte save or explicit media selection for 16 Kbit.
 N64 remains **50% (10/20)**.
