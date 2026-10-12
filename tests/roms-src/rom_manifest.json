@@ -22560,6 +22560,17 @@
       "source_type": "original",
       "suite": "rdp_triangle_texture"
     },
+    "n64/rdp_two_cycle_fog/rdp_two_cycle_fog.z64": {
+      "build_command": "python3 tests/roms-src/n64/rdp_two_cycle_fog/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "698749ed3a8122e48b8dbc6fcda2b571585d703a8c7652254e67f8ab50b09c00",
+      "source_repo": "tests/roms-src/n64/rdp_two_cycle_fog/build.py",
+      "source_sha": "b747a4b18b59d3a3dd198a700c5ad7d9b7d7f6d06ff50e59881eca6356d1b80d",
+      "source_type": "original",
+      "suite": "rdp_two_cycle_fog"
+    },
     "n64/rdram_devices/rdram_devices.z64": {
       "build_command": "python3 tests/roms-src/n64/rdram_devices/build.py",
       "console": "n64",
