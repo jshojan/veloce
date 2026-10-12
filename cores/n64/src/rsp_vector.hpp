@@ -93,7 +93,7 @@ private:
         else for(unsigned i=0;i<8;++i){const unsigned selected=e<4?(i&6)|(e&1):(i&4)|(e&3);right[i]=lane(vt,selected);}
         RspSimd::Words accelerated;
         if(simd_enabled && RspSimd::alu(fn,left,right,accumulator,flags,accelerated)){
-            for(unsigned i=0;i<8;++i)set_lane(vd,i,accelerated[i]);
+            RspSimd::store_words(registers[vd],accelerated);
             return true;
         }
         std::array<uint16_t,3> next{};
@@ -119,7 +119,7 @@ private:
         else for(unsigned i=0;i<8;++i){const unsigned selected=e<4?(i&6)|(e&1):(i&4)|(e&3);right[i]=lane(vt,selected);}
         RspSimd::Words accelerated;
         if(simd_enabled && RspSimd::multiply(fn,left,right,accumulator,accelerated)){
-            for(unsigned i=0;i<8;++i)set_lane(vd,i,accelerated[i]);
+            RspSimd::store_words(registers[vd],accelerated);
             return true;
         }
         for(unsigned i=0;i<8;++i){const int64_t a=signed16(left[i]),b=signed16(right[i]),old=signed48(accumulator[i]);int64_t value=0;

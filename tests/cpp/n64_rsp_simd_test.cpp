@@ -13,6 +13,10 @@ int main(){try{
         for(unsigned lane=0;lane<8;++lane)
             if(words[lane]!=(unsigned(bytes[2*lane])<<8|bytes[2*lane+1]))
                 throw std::runtime_error("vector register byte-order load changed");
+        std::array<uint8_t,16> roundtrip{};
+        RspSimd::store_words(roundtrip,words);
+        if(roundtrip!=bytes)
+            throw std::runtime_error("vector register byte-order store changed");
     }
     constexpr unsigned functions[]={0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,19,20,21,29,32,33,34,35,36,37,38,39,40,41,42,43,44,45};
     constexpr uint64_t edges[]={0,1,0x7fff,0x8000,0xffff,0x7fffffff,0x80000000,0x80000001,

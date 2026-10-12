@@ -559,3 +559,28 @@ CPU attempt and audio counts. Ignored local reports are at
 `build/artifacts/performance/n64-rsp-nop-{short,long,confirmation}/` in the
 N64 lane. The gain is bounded and remains subject to host variation; SM64 is
 still below the 60-field real-time target. **N64 stays 50% (10/20)**.
+
+## RSP vector register byte-order stores (0.105.0)
+
+The accelerated RSP ALU and multiply paths previously wrote each of eight
+result lanes as two separate bytes. They now byte-swap one SSE2 register and
+write all 16 bytes at once. Non-SSE2 hosts retain the portable scalar store.
+The host-only change does not alter the native state format.
+
+The component gate checks **65,536 register load/store roundtrips** and
+compares **2,359,296 accelerated vector/accumulator/flag/scalar/DMEM
+continuations** with the scalar path. A separate forced-scalar build passes
+its component gate. Five alternating 60-field private SM64 course-checkpoint
+pairs measured **19.14 to 19.65 VI fields/second** by median time, a **2.7%**
+median paired gain. All five pairs were faster, with byte-identical complete
+native states, matching CPU attempts and matching audio counts. The ignored
+local report is `build/artifacts/performance/n64-simd-store-trial/report.json`.
+Three CPU-pinned 300-field pairs measured **19.50 to 19.96 VI fields/second**
+by median time, a **2.4%** median paired gain; two of three pairs were faster.
+Every long-run complete state, CPU attempt count and audio count also matched.
+The ignored long report is `build/artifacts/performance/n64-simd-store-long/report.json`.
+Six original register-output RSP ROM suites pass: multiply pairs, accumulator
+edges, comparison pairs and edges, and integer pairs and edges. The production
+N64 TCP netplay gate passes with the optimized plugin.
+These measurements cover one bounded course scene; normal-speed SM64 play
+remains unverified. **N64 stays 50% (10/20)**.

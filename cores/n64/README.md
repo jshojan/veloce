@@ -4711,3 +4711,19 @@ active-RSP batches and **0.99 seconds** in RDP draws, with overlapping
 categories. Guest execution and complete native state match the ordinary
 plugin. [Profile details](../../docs/N64-PERFORMANCE.md#opt-in-n64-execution-profile-01030).
 **N64 stays 50% (10/20)**.
+
+## RSP vector register byte-order stores (0.105.0)
+
+Accelerated vector ALU and multiply results now use one SSE2 byte-order
+store for all eight lanes. The portable scalar store remains available.
+The component gate compares **2,359,296 vector/accumulator/flag/scalar/DMEM
+continuations** with the scalar oracle and checks **65,536 register
+roundtrips**. Five paired 60-field SM64 course-checkpoint runs measured
+**19.14 to 19.65 VI fields/second** by median time, a **2.7%** gain; all
+five pairs were faster and complete native states matched byte for byte.
+Three CPU-pinned 300-field pairs measured **19.50 to 19.96 fields/second**
+by median time, a **2.4%** gain; two pairs were faster. The original RSP
+multiply, accumulator, comparison and integer ROM suites all pass, as does
+the production TCP netplay gate.
+See [performance details](../../docs/N64-PERFORMANCE.md#rsp-vector-register-byte-order-stores-01050).
+SM64 remains below real time; **N64 stays 50% (10/20)**.
