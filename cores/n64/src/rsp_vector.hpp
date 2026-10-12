@@ -2,6 +2,7 @@
 #include <array>
 #include <algorithm>
 #include <cstdint>
+#include <cstring>
 #include "rsp_compare.hpp"
 #include "rsp_alu.hpp"
 #include "rsp_divider.hpp"
@@ -41,6 +42,12 @@ public:
         auto write=[&](uint32_t at,uint8_t value){memory[at&4095]=value;};
         auto& v=registers[vt];
         if(kind<=4){const unsigned count=kind==4?16-(a&15):1u<<kind;
+            const unsigned address=a&4095;
+            if(address+count<=4096 && e+count<=16){
+                if(op==50)std::memcpy(v.data()+e,memory.data()+address,count);
+                else std::memcpy(memory.data()+address,v.data()+e,count);
+                return true;
+            }
             for(unsigned n=0;n<count;++n){if(op==50){if(e+n<16)v[e+n]=read(a+n);}else write(a+n,v[(e+n)&15]);}return true;}
         if(kind==5){const unsigned count=a&15;for(unsigned n=0;n<count;++n){const unsigned index=e+16-count+n;if(op==50){if(index<16)v[index]=read((a&~15u)+n);}else write((a&~15u)+n,v[index&15]);}return true;}
         if(op==50){

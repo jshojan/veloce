@@ -4638,3 +4638,15 @@ checkpoint runs measured **18.94 to 19.35 VI fields/second** by median time,
 with all three pairs faster and byte-identical complete states. See
 [performance details](../../docs/N64-PERFORMANCE.md#exact-rgba16-triangular-filter-route-0990).
 The game remains below real time; **N64 stays 50% (10/20)**.
+
+## Contiguous RSP vector-memory transfers (0.100.0)
+
+RSP vector loads and stores now copy a byte range directly when it remains
+inside DMEM and the selected 16-byte vector register. Boundary-crossing
+transfers keep the original byte-mapped path. The two original load/store
+cartridges pass **1,572,864 guest cases / 45,613,056 captured words**, including
+all elements, low alignments and DMEM wrap patterns; the component vector
+gate also passes. Three CPU-pinned, paired 300-field SM64 course-checkpoint
+runs measured **17.62 to 18.13 VI fields/second** by median time, with
+byte-identical complete states. See [performance details](../../docs/N64-PERFORMANCE.md#contiguous-rsp-vector-memory-transfers-01000).
+SM64 remains below real time; **N64 stays 50% (10/20)**.
