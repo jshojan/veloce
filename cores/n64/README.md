@@ -4784,3 +4784,19 @@ The hottest individual IMEM address was under 0.6% of the total. A native
 LTO/PGO build lost a direct five-pair comparison against the installed native
 PGO plugin, so it was not installed. See [the measurements](../../docs/N64-PERFORMANCE.md#rsp-guest-instruction-distribution-october-2026).
 **N64 stays 50% (10/20)**.
+
+## Fixed-size RSP vector transfers (0.108.0)
+
+The common contiguous 1-, 2-, 4-, and 8-byte vector load/store forms now use
+compile-time copy widths. Boundary and variable-length forms retain their
+existing byte mapping. The vector component gate passes millions of address,
+element and payload cases. Three original guest register-output ROM suites
+pass **2,621,440 cases / 56,098,816 captured words** with zero mismatches.
+Native-state and production TCP netplay pass.
+
+Five paired 60-field SM64 runs measured a **3.9% median paired gain**, all
+faster; five 300-field runs measured **2.4%**, three faster. A trained local
+build improved on the previous trained core by **2.2%** in five 300-field
+pairs, four faster. Complete native states matched in every pair. See
+[performance details](../../docs/N64-PERFORMANCE.md#fixed-size-rsp-vector-transfers-01080).
+SM64 remains below real time; **N64 stays 50% (10/20)**.

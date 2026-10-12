@@ -44,8 +44,15 @@ public:
         if(kind<=4){const unsigned count=kind==4?16-(a&15):1u<<kind;
             const unsigned address=a&4095;
             if(address+count<=4096 && e+count<=16){
-                if(op==50)std::memcpy(v.data()+e,memory.data()+address,count);
-                else std::memcpy(memory.data()+address,v.data()+e,count);
+                const auto* source=op==50?memory.data()+address:v.data()+e;
+                auto* target=op==50?v.data()+e:memory.data()+address;
+                switch(kind){
+                case 0:target[0]=source[0];break;
+                case 1:std::memcpy(target,source,2);break;
+                case 2:std::memcpy(target,source,4);break;
+                case 3:std::memcpy(target,source,8);break;
+                default:std::memcpy(target,source,count);break;
+                }
                 return true;
             }
             for(unsigned n=0;n<count;++n){if(op==50){if(e+n<16)v[e+n]=read(a+n);}else write(a+n,v[(e+n)&15]);}return true;}
