@@ -32,7 +32,7 @@ private:
         const bool lod_enabled=mode&(1ull<<48);
         // This affine LOD profile has a single exact integer-texel S gradient.
         // Other gradients, perspective, detail and sharpen remain outside it.
-        unsigned first_tile=triangle.tile,second_tile=(triangle.tile+1)&7;
+        unsigned first_tile=triangle.tile,second_tile=(triangle.tile+1)&7,lod_fraction=0;
         if(lod_enabled){
             bool simple_gradient=!triangle.tex[1][1] && !triangle.tex[1][2];
             for(unsigned group=2;group<4;++group)
@@ -46,6 +46,11 @@ private:
             const unsigned steps=unsigned(magnitude/texel);
             unsigned level=0;
             for(unsigned value=steps;value>1;value>>=1)++level;
+            if(combiner.uses_lod_fraction()){
+                if(!steps || level>triangle.level || combiner.minimum_lod())return 1;
+                const unsigned base=1u<<level;
+                lod_fraction=((steps-base)*256u)/base;
+            }
             if(level>triangle.level)level=triangle.level;
             first_tile=(triangle.tile+level)&7;
             second_tile=(first_tile+(steps?1u:0u))&7;
@@ -59,7 +64,7 @@ private:
         const uint64_t ignored=blender?((3ull<<54)|(15ull<<32)|(1ull<<15)):0;
         const uint64_t allowed=ignored|dither|0xffff0000ull|0x340ull|sampling|(blender?0x7cbdull:0)|(two_cycle?(1ull<<52):0);
         if((mode&~allowed) || (blender?!RdpDither::supported(rgb_dither,alpha_dither):(mode&dither)!=dither) || (!blender && ((mode>>30)&3)) ||
-           (two_cycle?(!blender || !(RdpBlender::fog_two_cycle_supported(mode) || RdpBlender::pass_two_cycle_supported(mode)) || !combiner.independent_two_cycle(textured,conversion!=nullptr,textured)):
+           (two_cycle?(!blender || !(RdpBlender::fog_two_cycle_supported(mode) || RdpBlender::pass_two_cycle_supported(mode)) || !combiner.independent_two_cycle(textured,conversion!=nullptr,textured,lod_enabled)):
                       !combiner.independent_one_cycle(textured,conversion!=nullptr)) ||
            (textured && !(mode&(1ull<<43)) && !conversion))return 1;
         const unsigned size=unsigned(image>>51)&3,bytes=size==2?2:4;
@@ -88,6 +93,7 @@ private:
                 if(!blender && !(mask&128))continue;
                 RdpTriangleAttributes::Pixel pixel;RdpTriangleAttributes::pixel(attributes,x,mask,pixel);
                 RdpCombiner::Sources sources;
+                sources.lod=lod_fraction;
                 if(conversion){sources.k4=conversion->coefficient(4);sources.k5=conversion->coefficient(5);}
                 for(unsigned lane=0;lane<4;++lane)sources.shade[lane]=pixel.rgba[lane];
                 if(textured){

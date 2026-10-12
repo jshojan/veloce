@@ -22428,6 +22428,17 @@
       "source_type": "original",
       "suite": "rdp_lod_affine_levels"
     },
+    "n64/rdp_lod_fraction/rdp_lod_fraction.z64": {
+      "build_command": "python3 tests/roms-src/n64/rdp_lod_fraction/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "8ea479eb39f64c7c147ec8aa505032c528fe5aa5e197b09832f6e8dba286e45f",
+      "source_repo": "tests/roms-src/n64/rdp_lod_fraction/build.py",
+      "source_sha": "67a88bbcc6eeabd9ede66fc91df43284895e1b8244af491097c5b219670a2b29",
+      "source_type": "original",
+      "suite": "rdp_lod_fraction"
+    },
     "n64/rdp_lod_magnify/rdp_lod_magnify.z64": {
       "build_command": "python3 tests/roms-src/n64/rdp_lod_magnify/build.py",
       "console": "n64",

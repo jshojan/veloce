@@ -32,6 +32,21 @@ int main(){
     {auto bad=combine;bad.combine=(bad.combine&~(7ull<<15));check(!bad.independent_two_cycle(true));}
     {auto bad=combine;bad.combine=(bad.combine&~(31ull<<32))|(13ull<<32);check(!bad.independent_two_cycle(true));}
     {auto bad=combine;bad.combine=(bad.combine&~(7ull<<18));check(!bad.independent_two_cycle(true));}
+    {auto lod=combine;
+     lod.combine=(lod.combine&~((15ull<<37)|(15ull<<24)|(31ull<<32)|(7ull<<6)|
+         (7ull<<18)|(7ull<<21)|(7ull<<3)))|
+         (2ull<<24)|(13ull<<32)|(2ull<<6)|(2ull<<3)|2ull;
+     check(lod.uses_lod_fraction() && !lod.independent_two_cycle(true,false,true) &&
+           lod.independent_two_cycle(true,false,true,true));
+     for(unsigned fraction:{0u,64u,128u,192u,224u}){
+         n64::RdpCombiner::Sources inputs;
+         inputs.combined={200,100,40,220};inputs.texel1={40,200,120,20};inputs.lod=fraction;
+         const auto result=lod.evaluate(1,inputs);
+         for(unsigned lane=0;lane<3;++lane)
+             check(result.clamped[lane]==unsigned(((int(inputs.combined[lane])-int(inputs.texel1[lane]))*int(fraction)+int(inputs.texel1[lane])*256+128)/256));
+         check(result.clamped[3]==((220-20)*fraction+20*256+128)/256);
+     }
+    }
     {auto routed=combine;routed.combine=(routed.combine&~(7ull<<6))|(1ull<<6);
      check(routed.independent_two_cycle(true) && !routed.independent_two_cycle(false));}
     {auto routed=combine;routed.combine=(routed.combine&~(31ull<<32))|(8ull<<32);
