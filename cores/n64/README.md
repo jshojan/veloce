@@ -4525,3 +4525,20 @@ build added **3.8%** over ordinary 0.92.0 in another five pairs. See
 perspective texture register ROM, private course continuation, perspective
 checkpoint and production netplay pass. Performance remains below real time,
 and the fixed N64 checklist remains **50% (10/20)**.
+
+## Common RDP combiner selector speed (0.93.0)
+
+Two cycle-one selector patterns used for about 86% of shaded pixels in the
+private SM64 course checkpoint now have exact direct evaluators. Other
+selectors retain the general path. An independent routing oracle passes
+**525,312 source cases** across both patterns and distinct channel values.
+The [original shaded-texture cartridge](../../tests/roms-src/n64/rdp_two_cycle_shaded_texture/README.md)
+grades **262,144 guest cases / 3,407,872 actual framebuffer and register
+words**, with zero mismatches and an executed wrong-capture rejection. Five
+paired production-build SM64 runs measured **3.1% more throughput** (17.97 to
+18.54 VI fields/second) with identical complete states, CPU attempts and audio
+counts. A newly trained optional PGO build reaches **18.99 VI fields/second**
+in its paired run, 4.3% above ordinary 0.93.0. The private course continuation,
+production netplay and trained-plugin RDP checkpoint pass. See
+[benchmark details](../../docs/N64-PERFORMANCE.md). Performance
+remains below real time; the fixed N64 checklist remains **50% (10/20)**.

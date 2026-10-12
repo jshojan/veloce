@@ -295,3 +295,31 @@ continuation, trained-plugin perspective checkpoint and production netplay
 passed. Performance remains below the 60-field real-time target.
 The fixed N64 delivery checklist remains **50% (10/20)**. Physical timing
 and full-title playability remain unverified.
+
+## Common RDP combiner selectors (0.93.0)
+
+A 60-field private SM64 course checkpoint used two cycle-one selector
+patterns for about **86% of its shaded pixels**. The N64 combiner now evaluates
+those patterns directly: COMBINED feedback and TEXEL0 RGB multiplied by SHADE
+RGB with SHADE alpha. The guard checks only cycle-one selector bits, so other
+cycle-zero settings retain the same exact arithmetic. All remaining selectors
+keep the general evaluator.
+
+The independent routing oracle checks **525,312 nine-bit common-profile source
+cases**, including distinct channel values, special negative encodings and
+both cycle-zero variants. The original shaded-texture cartridge grades
+**262,144 guest cases / 3,407,872 actual framebuffer and register words**,
+with zero mismatches; its executed wrong-capture control is rejected. Five
+alternating production-build SM64 checkpoint pairs measured **3.1% more
+throughput (17.97 to 18.54 VI fields/second)**, with byte-identical complete
+states, CPU attempts and audio counts. The local release build measured **5.4%**
+in a separate five-pair run. Raw results are in ignored
+`build/artifacts/performance/n64-common-combiner-masked*/` artifacts.
+Freshly trained local GCC PGO added another **4.3%** over ordinary 0.93.0 in
+five pairs (**18.20 to 18.99 VI fields/second**), again with identical complete
+states, CPU attempts and audio counts. Its ignored report is at
+`build/artifacts/performance/n64-common-combiner-pgo/check/report.json`.
+The private SM64 course continuation, production netplay and trained-plugin
+RDP checkpoint pass.
+Performance is still below the 60-field real-time target; **N64 remains
+50% (10/20)** of the fixed delivery checklist.

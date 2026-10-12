@@ -46,5 +46,35 @@ int main(){
     }
     n64::RdpCombiner p;p.combine=encode(1,0,0,31,4,0,0,7,4);check(p.independent_one_cycle());
     p.combine=encode(1,0,8,4,4,7,7,7,4);check(!p.independent_one_cycle());
-    std::cout<<rgb_cases<<" RGB routing captures; "<<alpha_cases<<" alpha routing captures; both cycles and stateless profile checks PASS\n";
+    // The two common shaded-texture profiles have direct evaluators. Grade
+    // every nine-bit source pair against the independent equation above,
+    // including special negative encodings and clamp boundaries.
+    n64::RdpCombiner::Sources common{};
+    n64::RdpCombiner pass,multiply;
+    for(unsigned variant=0;variant<2;++variant){
+        pass.combine=variant?0x127ffffffff238ull:0x127ffffffff838ull;
+        multiply.combine=variant?(0x127e24fffff9fcull^(1ull<<52)):0x127e24fffff9fcull;
+        for(unsigned texel=0;texel<512;++texel){
+            for(unsigned lane=0;lane<4;++lane)common.combined[lane]=(texel+lane*17)&511;
+            const auto passed=pass.evaluate(1,common);
+            for(unsigned lane=0;lane<3;++lane){
+                const unsigned fixed=equation(0,0,0,common.combined[lane]),value=fixed/256;
+                check(passed.rgb_fixed[lane]==fixed && passed.combined[lane]==value && passed.clamped[lane]==clamp(value));
+            }
+            const unsigned alpha=equation(0,0,0,common.combined[3])/256;
+            check(passed.combined[3]==alpha && passed.clamped[3]==clamp(alpha));
+            for(unsigned lane=0;lane<4;++lane)common.texel0[lane]=(texel+lane*29)&511;
+            for(unsigned shade=0;shade<512;++shade){
+                for(unsigned lane=0;lane<4;++lane)common.shade[lane]=(shade+lane*37)&511;
+                const auto multiplied=multiply.evaluate(1,common);
+                const unsigned a=equation(0,0,0,common.shade[3])/256;
+                for(unsigned lane=0;lane<3;++lane){
+                    const unsigned rgb=equation(common.texel0[lane],0,common.shade[lane],0);
+                    check(multiplied.rgb_fixed[lane]==rgb && multiplied.combined[lane]==rgb/256 && multiplied.clamped[lane]==clamp(rgb/256));
+                }
+                check(multiplied.combined[3]==a && multiplied.clamped[3]==clamp(a));
+            }
+        }
+    }
+    std::cout<<rgb_cases<<" RGB routing captures; "<<alpha_cases<<" alpha routing captures; 525312 common-profile source cases; both cycles and stateless profile checks PASS\n";
 }
