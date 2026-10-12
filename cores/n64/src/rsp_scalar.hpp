@@ -35,6 +35,14 @@ public:
             imem_words[slot]=word;imem_tags[slot]=control.imem_generation;
         }
         const uint32_t ins=imem_words[slot];
+        if(!ins){
+            // A literal NOP is common in microcode delay slots. It still
+            // advances the RSP PC, instruction count and single-step HALT.
+            control.pc=old_next;next_pc=(old_next+4)&4092;delay_slot=false;
+            gpr[0]=0;blocked=false;blocked_word=0;++instructions;
+            if(control.status&32)control.status|=1;
+            return true;
+        }
         const unsigned op=ins>>26,rs=(ins>>21)&31,rt=(ins>>16)&31,rd=(ins>>11)&31,sa=(ins>>6)&31,fn=ins&63;
         const uint32_t a=gpr[rs],b=gpr[rt],imm=(ins&0xffff)|((ins&0x8000)?0xffff0000u:0);
         control.pc=old_next;next_pc=(old_next+4)&4092;const bool old_delay=delay_slot;delay_slot=false;

@@ -173,6 +173,8 @@ N64 0.102.0 decodes eight RSP vector lanes with one SSE2 byte-order load on supp
 
 N64 0.103.0 adds an opt-in [execution profile](docs/N64-PERFORMANCE.md#opt-in-n64-execution-profile-01030) that reports CPU/idle clocks, RSP instructions and RDP draw time from local game checkpoints. A 60-field SM64 course continuation recorded **38,237,541 completed RSP instructions** and **27,192 RDP draws**; the profiled and ordinary plugins produced byte-identical complete states. Normal builds compile out the profiler. This is a diagnostic tool, not a speed gain; **N64 stays 50% (10/20)**.
 
+N64 0.104.0 handles literal RSP NOPs without general scalar decode while preserving PC, delay, single-step and diagnostic state. The component gate checks all **1,024 instruction addresses**; the original scalar ALU ROM passes **704,512 guest register cases**. Nine paired 60-field SM64 checkpoint runs measured **19.05 to 19.40 VI fields/second** by median time, seven faster, with byte-identical complete states; three 300-field pairs measured **18.78 to 19.64 fields/second**, two faster. [Performance details](docs/N64-PERFORMANCE.md#exact-rsp-nop-fast-path-01040). Play remains below real time; **N64 stays 50% (10/20)**.
+
 A cross-platform, plugin-based emulator framework built for speedrunners and TAS creators.
 
 *Veloce* - Italian for "fast"

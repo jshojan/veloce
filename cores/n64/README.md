@@ -4688,3 +4688,16 @@ completed RSP instructions** and **27,192 RDP draws**. The ordinary build
 compiles out instrumentation; a paired profile/ordinary run matched complete
 native state, CPU attempts and audio counts. See [reproduction and limits](../../docs/N64-PERFORMANCE.md#opt-in-n64-execution-profile-01030).
 This adds diagnostic evidence, not emulator speed. **N64 stays 50% (10/20)**.
+
+## Exact RSP NOP fast path (0.104.0)
+
+A literal zero RSP instruction now advances the same PC, delay, single-step
+and diagnostic state without general scalar decode. The component test checks
+all **1,024 RSP instruction addresses**. The original scalar ALU cartridge
+grades **704,512 guest register cases** from its file with zero mismatches;
+the original acceleration ROMs pass. Nine paired 60-field private SM64
+course-checkpoint runs measured **19.05 to 19.40 VI fields/second** by median
+time, seven of nine faster. Three 300-field pairs measured **18.78 to 19.64
+fields/second**, two of three faster. Complete states matched byte for byte.
+See [performance details](../../docs/N64-PERFORMANCE.md#exact-rsp-nop-fast-path-01040).
+SM64 remains below real time; **N64 stays 50% (10/20)**.
