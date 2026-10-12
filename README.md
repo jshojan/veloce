@@ -43,6 +43,8 @@ N64 0.66.0 adds 32 KiB and 96 KiB cartridge SRAM via PI DMA, direct aligned I/O,
 
 N64 0.67.0 adds functional 128 KiB FlashRAM page programming, silicon ID, sector and chip erase, PI DMA, frontend `.sav` persistence and S037 rollback. Its [original MIPS cartridge](tests/roms-src/n64/cartridge_flash/README.md) grades **1,024 guest page cases / 20,480 register words** and **131,072 saved bytes**, with an executed wrong-register control and damaged-file rejection. Known native IDs select both Macronix models; existing 128 KiB saves can identify unknown native boards. Physical timing, busy status and retail save APIs remain unverified. N64 stays **50% (10/20)**.
 
+A second [original native FlashRAM identity cartridge](tests/roms-src/n64/native_flash_identity/README.md) executes silicon-ID PI DMA reads for all 20 known native IDs and both swapped ROM formats. The independent file oracle grades **22 guest cases / 44 actual register words**, with an executed wrong-register control and damaged-file rejection. Each case selects erased 128 KiB media; eight use the older Macronix ID. Physical timing and retail save APIs remain pending. N64 stays **50% (10/20)**.
+
 ### 3DS ARM11 instruction coverage
 
 The 3DS plugin implements the following ARMv6 instruction subsets. Each linked

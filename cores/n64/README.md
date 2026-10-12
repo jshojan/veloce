@@ -4135,3 +4135,12 @@ sessions and rejects malformed sizes. Twenty known native cartridge IDs select
 FlashRAM, with an existing 128 KiB save available for unknown native boards.
 Reset retains media. Physical PI timing, busy and stale-status behavior, retail
 save APIs and full-title playability remain unverified. N64 stays **50% (10/20)**.
+
+The [original native FlashRAM identity cartridge](../../tests/roms-src/n64/native_flash_identity/README.md)
+also executes a silicon-ID PI DMA read for all 20 known cartridge IDs and both
+swapped ROM formats. An independent file oracle grades **22 guest cases / 44
+actual register words** and rejects an executed wrong-register variant and a
+damaged result file. Every native case selects erased 128 KiB battery media;
+eight IDs report the older Macronix model. This extends native board selection
+evidence without completing physical timing or retail save APIs. **N64 remains
+50% (10/20).**

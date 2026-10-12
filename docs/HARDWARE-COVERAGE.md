@@ -4355,3 +4355,10 @@ media selection, cross-session `.sav` reload, S037 rollback and malformed-state
 or save rejection. This is a functional settled transfer profile; physical PI
 timing, busy behavior, retail save APIs and full-title playability remain
 unverified. N64 stays **50% (10/20)**.
+
+The [original native FlashRAM identity cartridge](../tests/roms-src/n64/native_flash_identity/README.md)
+grades silicon-ID PI DMA results for all 20 known native FlashRAM IDs and both
+swapped ROM formats: 22 guest cases / 44 register words, plus an executed
+wrong-register control and damaged-file rejection. Each case selects erased
+128 KiB media. Full native retail save behavior remains unverified; N64 stays
+**50% (10/20)**.

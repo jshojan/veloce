@@ -1224,6 +1224,15 @@ add_test(NAME n64_native_save_identity_test COMMAND n64_native_save_identity_tes
     $<TARGET_FILE:n64_plugin> ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/native_save_identity/native_save_identity.z64
     ${CMAKE_BINARY_DIR}/artifacts/owned/n64_native_save_identity/registers.txt)
 set_tests_properties(n64_native_save_identity_test PROPERTIES LABELS "integration;accuracy;owned;save" TIMEOUT 90)
+add_executable(n64_native_flash_identity_test cpp/n64_native_flash_identity_test.cpp)
+target_include_directories(n64_native_flash_identity_test PRIVATE ${CMAKE_SOURCE_DIR}/include ${SDL2_INCLUDE_DIRS})
+target_link_libraries(n64_native_flash_identity_test PRIVATE ${SDL2_LIBRARIES})
+add_dependencies(n64_native_flash_identity_test n64_plugin)
+add_test(NAME n64_native_flash_identity_test COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/native_flash_identity/run.py
+    --capture $<TARGET_FILE:n64_native_flash_identity_test> --plugin $<TARGET_FILE:n64_plugin>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_native_flash_identity)
+set_tests_properties(n64_native_flash_identity_test PROPERTIES LABELS "integration;accuracy;owned;save" TIMEOUT 90)
 add_executable(n64_controller_pak_joybus_test cpp/n64_controller_pak_joybus_test.cpp)
 target_include_directories(n64_controller_pak_joybus_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src ${CMAKE_SOURCE_DIR}/include)
 add_test(NAME n64_controller_pak_joybus_test COMMAND n64_controller_pak_joybus_test)

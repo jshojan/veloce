@@ -22318,6 +22318,17 @@
       "source_type": "original",
       "suite": "muldiv64"
     },
+    "n64/native_flash_identity/native_flash_identity.z64": {
+      "build_command": "python3 tests/roms-src/n64/native_flash_identity/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "bae597d95673631aea4974ea7bef3c5a3c04ce616cc956f5428b295821603ade",
+      "source_repo": "tests/roms-src/n64/native_flash_identity/build.py",
+      "source_sha": "edb4d618b828dccc177b17fba4d59b375dcedcbeac94425f862d3ff6698047e5",
+      "source_type": "original",
+      "suite": "native_flash_identity"
+    },
     "n64/native_save_identity/native_save_identity.z64": {
       "build_command": "python3 tests/roms-src/n64/native_save_identity/build.py",
       "console": "n64",
