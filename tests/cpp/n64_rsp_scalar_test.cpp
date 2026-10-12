@@ -83,6 +83,16 @@ int main(int argc,char** argv){try{
  for(uint32_t bad:{0x40048000u,0x4a000012u,0x70000000u}){opcode(m,bad);const auto before=r.gpr;const auto count=r.instructions;require(!r.step(sp,m.dp_interface,m.sp,m.ram) && r.gpr==before && sp.pc==0 && sp.status==1 && r.blocked && r.blocked_word==bad && r.instructions==count,"unsupported control/vector operation never fabricates BREAK or IRQ");}
  for(unsigned flags=0;flags<8;++flags){opcode(m,13);sp.status=(flags%2)*1+(flags/2%2)*32+(flags/4)*64;sp.interrupt=0;const bool halted=flags%2;r.step(sp,m.dp_interface,m.sp,m.ram);require(sp.pc==(halted?0u:4u) && (sp.status&3)==(halted?1u:3u) && sp.interrupt==(!halted && flags/4),"HALT/BREAK/IOB combinations");}
  opcode(m,0);sp.status=32;step(m);require(sp.pc==4 && sp.status==33,"single NOP step settles HALT");
+ for(unsigned slot=0;slot<1024;++slot){
+  const unsigned pc=slot*4;opcode(m,0,pc);
+  r.delay_slot=slot&1;r.blocked=true;r.blocked_word=0x4a000012;r.gpr[0]=0x12345678;
+  sp.status=(slot&2)?32:0;
+  const auto count=r.instructions;
+  step(m);
+  require(sp.pc==((pc+4)&4092) && r.next_pc==((pc+8)&4092) && !r.delay_slot &&
+   !r.blocked && !r.blocked_word && !r.gpr[0] && r.instructions==count+1 &&
+   sp.status==((slot&2)?33u:0u),"literal NOP PC wrap, delay, diagnostics and single-step");
+ }
  // CPU clock and MI see actual RSP BREAK, then CPU ack clears the shared level.
  m.reset();opcode(m,13);sp.status=64;m.mi_mask=1;m.rsp_phase=1;m.cpu.state.cp0[12]=0x401;require(m.write(n64::sign32(0xa0000400),4,0),"CPU NOP");m.cpu.step();require(m.cpu.exception_taken && sp.interrupt && (m.cpu.state.cp0[13]&0x400),"real RSP BREAK drives CPU MI interrupt");require(m.write(n64::sign32(0xa4040010),4,8) && !m.interrupt_pending(),"CPU acknowledges RSP interrupt");
  // Pending branch, fractional phase, blocked diagnostics and all registers survive state replay.

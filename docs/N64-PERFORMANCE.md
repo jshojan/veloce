@@ -530,3 +530,26 @@ profiled plugins produced byte-identical complete native states and matching
 CPU attempt and audio counts. The normal plugin's production TCP netplay gate
 passes. This is diagnosis of a bounded course scene;
 SM64 remains below real time and **N64 stays 50% (10/20)**.
+
+## Exact RSP NOP fast path (0.104.0)
+
+An instrumented 60-field private SM64 course continuation executed **821,741
+literal RSP NOPs**. The RSP now handles a cached zero instruction before
+decoding its operands and dispatching the scalar switch. It still advances the
+PC, instruction count and delay state, clears blocked diagnostics, maintains
+register zero, and applies single-step HALT. The component gate checks all
+**1,024 RSP instruction addresses**, both delay states and single-step modes.
+The full original RSP scalar ALU cartridge grades **704,512 guest register
+cases** with zero mismatches, and the original acceleration ROMs pass.
+The production N64 plugin TCP netplay gate passes.
+
+Nine alternating, CPU-pinned 60-field SM64 course-checkpoint pairs measured
+**19.05 to 19.40 VI fields/second** by median time, a **1.9%** gain; seven of
+nine pairs favored the change. Three 300-field pairs measured **18.78 to
+19.64 VI fields/second** by median time, a **4.6%** gain; two of three were
+faster. An earlier five-pair 60-field sample favored it in four pairs. Every
+paired continuation had byte-identical complete native states and matching
+CPU attempt and audio counts. Ignored local reports are at
+`build/artifacts/performance/n64-rsp-nop-{short,long,confirmation}/` in the
+N64 lane. The gain is bounded and remains subject to host variation; SM64 is
+still below the 60-field real-time target. **N64 stays 50% (10/20)**.
