@@ -19,7 +19,7 @@ Remaining: Cached SI/PIF reads refresh digital and signed-byte analog input. The
 `n64_plugin` builds `n64.so`/`n64.dll`/`n64.dylib` and implements emulator ABI v2.
 The frontend discovers it alongside the other core plugins. It executes original
 MIPS III integer homebrew ROMs with 64-bit GPRs, big-endian memory, delay slots,
-HI/LO, and basic CP0 exception context. An experimental NTSC CIC-6102 handoff accepts recognized native cartridges; **retail boot and gameplay remain unverified.**
+HI/LO, and basic CP0 exception context. An experimental NTSC CIC-6102 handoff accepts recognized native cartridges. The private SM64 US route reaches the castle lobby and main hall; native PIF/IPL boot, course entry and full-title playability remain unverified.
 Full-core completion is unknown; the available corpus measures defined results
 on selected operands, not a percentage of N64 hardware implemented.
 
@@ -3954,3 +3954,27 @@ selection and progression, save-file behavior, full-title playability, exact
 physical timing and normal-speed performance remain unverified. The fixed N64
 delivery checklist remains **50% (10/20)**; this bounded retail continuation
 does not complete another whole-hardware milestone.
+
+## Private Super Mario 64 lobby continuation (2026-10-11)
+
+From the private castle interior checkpoint above, another VI-field route
+reaches the raised main hall. Guest RAM first enters the automatic castle
+welcome dialogue (`20001305`). A 300-field neutral control leaves that action
+and Mario's position unchanged. Spaced A presses dismiss the dialogue;
+subsequent stick input moves Mario from **(-946, 0, 1902)** to approximately
+**(915, 205, 38)** with walking action `04000440`. The final framebuffer shows
+Mario in the raised hall near the one-star door. No CPU, RSP or DP stop occurs
+along the route. This verifies bounded lobby navigation, not course entry.
+
+The [private lobby grader](../../tests/n64_retail_lobby.py) checks each guest
+action and position, executes the neutral dialogue control and fingerprints the
+ROM, checkpoint, input scripts, executables, states and framebuffers. Private
+artifacts stay under ignored `build/artifacts/` paths.
+
+```sh
+python3 tests/n64_retail_lobby.py /path/to/private/sm64-us.z64 \
+  --checkpoint build/artifacts/retail/castle-entry/interior.state
+```
+
+Course entry, save-file behavior and full-title playability remain unverified.
+The fixed N64 delivery checklist remains **50% (10/20)**.
