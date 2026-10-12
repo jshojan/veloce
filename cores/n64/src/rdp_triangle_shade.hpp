@@ -30,7 +30,7 @@ private:
         const bool textured=triangle.texture && texture && tmem;
         const bool two_cycle=((mode>>52)&3)==1;
         const bool lod_enabled=mode&(1ull<<48);
-        // Bounded affine LOD: exact integer-texel S/T gradients on both axes.
+        // Bounded affine LOD: exact 1/32-texel S/T gradients on both axes.
         // The edge gradient equals d/dY, as on a vertical major edge.
         // Perspective, detail and sharpen remain outside this profile.
         unsigned first_tile=triangle.tile,second_tile=(triangle.tile+1)&7,lod_fraction=0;
@@ -38,26 +38,30 @@ private:
             const bool simple_gradient=!triangle.tex[1][2] && !triangle.tex[2][2] &&
                 !triangle.tex[3][2] && triangle.tex[2][0]==triangle.tex[3][0] &&
                 triangle.tex[2][1]==triangle.tex[3][1];
-            constexpr uint64_t texel=32ull<<16;
-            uint64_t magnitude=0;
+            constexpr uint64_t unit=1ull<<16;
+            unsigned lod_units=0;
             for(unsigned group=1;group<=3;group+=2)for(unsigned lane=0;lane<2;++lane){
                 const int64_t gradient=int32_t(triangle.tex[group][lane]);
                 const uint64_t absolute=uint64_t(gradient<0?-gradient:gradient);
-                if(absolute%texel || absolute/texel>255)return 1;
-                if(absolute>magnitude)magnitude=absolute;
+                if(absolute%unit || absolute/unit>255*32)return 1;
+                // The RDP's signed-difference absolute value uses ones'
+                // complement, so a negative delta loses one 1/32-texel unit.
+                const unsigned units=unsigned(absolute/unit)-(gradient<0?1u:0u);
+                if(units>lod_units)lod_units=units;
             }
             if(!textured || !two_cycle || !simple_gradient || (mode&(1ull<<51)))return 1;
-            const unsigned steps=unsigned(magnitude/texel);
+            const bool magnify=lod_units<32;
+            const unsigned steps=lod_units>>5;
             unsigned level=0;
             for(unsigned value=steps;value>1;value>>=1)++level;
+            const bool distant=!triangle.level || (!magnify && level>=triangle.level);
             if(combiner.uses_lod_fraction()){
-                if(!steps || level>triangle.level || combiner.minimum_lod())return 1;
-                const unsigned base=1u<<level;
-                lod_fraction=((steps-base)*256u)/base;
+                if(combiner.minimum_lod())return 1;
+                lod_fraction=distant?255u:magnify?0u:((lod_units<<3)>>level)&255u;
             }
             if(level>triangle.level)level=triangle.level;
             first_tile=(triangle.tile+level)&7;
-            second_tile=(first_tile+(steps?1u:0u))&7;
+            second_tile=(first_tile+(!magnify&&!distant?1u:0u))&7;
         }
         const uint64_t sampling=textured?((63ull<<42)|(1ull<<51)|(1ull<<48)):(blender?(2047ull<<41):0);
         const uint64_t dither=(3ull<<38)|(3ull<<36);

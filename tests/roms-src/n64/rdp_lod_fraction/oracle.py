@@ -14,10 +14,15 @@ def decode(word,format_code):
 def expected(case):
     step,(format_code,source,negative,mux)=case
     assert 1<=step<=15
-    level=step.bit_length()-1
-    texel0,alpha0=decode(TILE_WORDS[level],format_code)
-    texel1,alpha1=decode(TILE_WORDS[level+1],format_code)
-    fraction=((step-(1<<level))*256)//(1<<level)
+    units=step*32-(1 if negative else 0)
+    magnify=units<32
+    level=(units>>5).bit_length()-1 if not magnify else 0
+    distant=level>=3 if not magnify else False
+    first=min(level,3)
+    second=first+(0 if magnify or distant else 1)
+    texel0,alpha0=decode(TILE_WORDS[first],format_code)
+    texel1,alpha1=decode(TILE_WORDS[second],format_code)
+    fraction=255 if distant else 0 if magnify else ((units<<3)>>level)&255
     rgb_factor=fraction if mux in (0,2) else 64
     opacity=((alpha0-alpha1)*fraction+alpha1*256+128)//256 if mux in (1,2) else alpha1
     combined=[((texel0[lane]-texel1[lane])*rgb_factor+

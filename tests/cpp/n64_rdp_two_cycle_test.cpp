@@ -123,10 +123,10 @@ int main(){
         const unsigned at=64+position*4;
         check(ram[at]==96 && ram[at+1]==96 && ram[at+2]==96);
     }
-    // Pixel LOD is admitted only for constant STW magnification in two cycles;
-    // a nonzero S gradient must reject before touching the framebuffer.
+    // The bounded LOD path rejects gradients below one 1/32-texel unit
+    // atomically, as well as excessive gradients and perspective mode.
     const auto preserved=ram;
-    auto gradient=packet;gradient.words[13]|=1ull<<48;
+    auto gradient=packet;gradient.words[15]|=1ull<<48;
     check(n64::RdpTriangleShade::draw(gradient,dp.color_image,dp.other_mode|(1ull<<48),dp.scissor,
           dp.combiner,ram,&dp.texture,&dp.tmem,&dp.conversion,&dp.blender)==1 && ram==preserved);
     auto excessive=packet;excessive.words[13]|=8192ull<<48;
