@@ -13,7 +13,7 @@ namespace n64 {
 // Functional one-cycle RGBA16/RGBA32 and bounded two-cycle fog/pass feedback:
 // optional blending/AA/alpha-coverage decisions.
 // Interpolated/primitive Z, ordered RGB/alpha dither; no key or prior-pixel feedback. Affine/perspective
-// texture sampling supports cycle-zero filtering/passthrough, color conversion and
+// texture sampling supports cycle-zero/one tile filtering and passthrough, color conversion and
 // optional TLUT. SetConvert also supplies K4/K5 combiner inputs.
 // Unsupported profiles reject before any framebuffer write. Physical pipeline/crash timing remains separate work.
 struct RdpTriangleShade {
@@ -38,7 +38,7 @@ private:
         const uint64_t ignored=blender?((3ull<<54)|(15ull<<32)|(1ull<<15)):0;
         const uint64_t allowed=ignored|dither|0xffff0000ull|0x340ull|sampling|(blender?0x7cbdull:0)|(two_cycle?(1ull<<52):0);
         if((mode&~allowed) || (blender?!RdpDither::supported(rgb_dither,alpha_dither):(mode&dither)!=dither) || (!blender && ((mode>>30)&3)) ||
-           (two_cycle?(!blender || !(RdpBlender::fog_two_cycle_supported(mode) || RdpBlender::pass_two_cycle_supported(mode)) || !combiner.independent_two_cycle(textured,conversion!=nullptr)):
+           (two_cycle?(!blender || !(RdpBlender::fog_two_cycle_supported(mode) || RdpBlender::pass_two_cycle_supported(mode)) || !combiner.independent_two_cycle(textured,conversion!=nullptr,textured)):
                       !combiner.independent_one_cycle(textured,conversion!=nullptr)) ||
            (textured && !(mode&(1ull<<43)) && !conversion))return 1;
         const unsigned size=unsigned(image>>51)&3,bytes=size==2?2:4;
@@ -70,20 +70,25 @@ private:
                 if(conversion){sources.k4=conversion->coefficient(4);sources.k5=conversion->coefficient(5);}
                 for(unsigned lane=0;lane<4;++lane)sources.shade[lane]=pixel.rgba[lane];
                 if(textured){
-                    const auto& tile=texture->tiles[triangle.tile];
                     const auto divided=RdpTextureDivider::divide(uint16_t(pixel.stw[0]),uint16_t(pixel.stw[1]),uint16_t(pixel.stw[2]),mode&(1ull<<51));
-                    const auto sample=RdpTextureCoordinates::sample(tile,RdpTextureDivider::saturate(divided.s),RdpTextureDivider::saturate(divided.t));
-                    if((mode&(1ull<<45)) || (mode&(1ull<<47))){
-                        const auto palette=(mode&(1ull<<47))?((mode&(1ull<<46))?RdpTexelQuad::Palette::ia:RdpTexelQuad::Palette::rgba):RdpTexelQuad::Palette::none;
-                        const auto quad=RdpTexelQuad::read(*tmem,tile,sample,palette,!(mode&(1ull<<45)));
-                        RdpTextureFilter::Options options;options.s=sample.s.fraction;options.t=sample.t.fraction;
-                        options.mid=mode&(1ull<<44);options.yuv=tile.format()==1;options.odd_s=sample.s.texel&1;
-                        sources.texel0=(mode&(1ull<<43))?RdpTextureFilter::filter(quad,options):RdpTextureFilter::convert_weights(quad,options,conversion->weights());
-                    }else{
+                    const auto fetch=[&](const RdpTexture::Tile& tile)->RdpCombiner::Color{
+                        const auto sample=RdpTextureCoordinates::sample(tile,RdpTextureDivider::saturate(divided.s),RdpTextureDivider::saturate(divided.t));
+                        if((mode&(1ull<<45)) || (mode&(1ull<<47))){
+                            const auto palette=(mode&(1ull<<47))?((mode&(1ull<<46))?RdpTexelQuad::Palette::ia:RdpTexelQuad::Palette::rgba):RdpTexelQuad::Palette::none;
+                            const auto quad=RdpTexelQuad::read(*tmem,tile,sample,palette,!(mode&(1ull<<45)));
+                            RdpTextureFilter::Options options;options.s=sample.s.fraction;options.t=sample.t.fraction;
+                            options.mid=mode&(1ull<<44);options.yuv=tile.format()==1;options.odd_s=sample.s.texel&1;
+                            return (mode&(1ull<<43))?RdpTextureFilter::filter(quad,options):RdpTextureFilter::convert_weights(quad,options,conversion->weights());
+                        }
                         const auto texel=RdpTexelFetch::read(*tmem,tile,sample.s.texel,sample.t.texel);
-                        if(mode&(1ull<<43)){for(unsigned lane=0;lane<4;++lane)sources.texel0[lane]=unsigned(texel[lane])&511;}
-                        else{RdpTextureFilter::Quad quad{};quad.fill(texel);sources.texel0=RdpTextureFilter::convert_weights(quad,{},conversion->weights());}
-                    }
+                        if(mode&(1ull<<43)){
+                            RdpCombiner::Color color{};for(unsigned lane=0;lane<4;++lane)color[lane]=unsigned(texel[lane])&511;return color;
+                        }
+                        RdpTextureFilter::Quad quad{};quad.fill(texel);return RdpTextureFilter::convert_weights(quad,{},conversion->weights());
+                    };
+                    sources.texel0=fetch(texture->tiles[triangle.tile]);
+                    if(two_cycle && combiner.uses_texel1_cycle1())
+                        sources.texel1=fetch(texture->tiles[(triangle.tile+1)&7]);
                 }
                 if(two_cycle)sources.combined=combiner.evaluate(0,sources).combined;
                 auto color=combiner.evaluate(1,sources).clamped;

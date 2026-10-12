@@ -58,18 +58,18 @@ struct RdpCombiner {
         return factor && (m.rgb_c>=16 || ((rgb(m.rgb_a) || m.rgb_a==6) && rgb_b(m.rgb_b))) && add(m.rgb_d)
             && alpha(m.alpha_c) && (m.alpha_c==7 || (alpha(m.alpha_a) && alpha(m.alpha_b))) && alpha(m.alpha_d);
     }
-    // Two-cycle profile with one sampled texel and first-cycle combined-color
-    // feedback. TEXEL1, LOD, key and noise sources need further pipeline work.
-    bool independent_two_cycle(bool texel0=false,bool coefficients=false) const {
-        const auto supported=[&](unsigned n,bool combined,bool sampled){
+    // Two-cycle profile with primitive-tile TEXEL0, next-tile TEXEL1 and
+    // combined-color feedback. LOD, key and noise remain separate work.
+    bool independent_two_cycle(bool texel0=false,bool coefficients=false,bool texel1=false) const {
+        const auto supported=[&](unsigned n,bool combined,unsigned sampled){
             const auto m=cycle(n);
-            const auto rgb=[&](unsigned v){return (combined && v==0) || (sampled && v==1) || v==3 || v==4 || v==5 || v>=8;};
-            const auto add=[&](unsigned v){return (combined && v==0) || (sampled && v==1) || v>=3;};
+            const auto rgb=[&](unsigned v){return (combined && v==0) || (sampled && v==sampled) || v==3 || v==4 || v==5 || v>=8;};
+            const auto add=[&](unsigned v){return (combined && v==0) || (sampled && v==sampled) || v>=3;};
             const auto alpha=add;
             const auto rgb_b=[&](unsigned v){return rgb(v) || (coefficients && v==7);};
             const bool factor=(combined && (m.rgb_c==0 || m.rgb_c==7)) ||
                 (coefficients && m.rgb_c==15) ||
-                (sampled && (m.rgb_c==1 || m.rgb_c==8)) ||
+                (sampled && (m.rgb_c==sampled || m.rgb_c==sampled+7)) ||
                 m.rgb_c==3 || m.rgb_c==4 || m.rgb_c==5 ||
                 m.rgb_c==10 || m.rgb_c==11 || m.rgb_c==12 ||
                 m.rgb_c==14 || m.rgb_c>=16;
@@ -79,7 +79,13 @@ struct RdpCombiner {
                 (m.alpha_c==7 || (alpha(m.alpha_a) && alpha(m.alpha_b))) &&
                 alpha(m.alpha_d);
         };
-        return supported(0,false,texel0) && supported(1,true,false);
+        return supported(0,false,texel0?1u:0u) && supported(1,true,texel1?2u:0u);
+    }
+    bool uses_texel1_cycle1() const {
+        const auto m=cycle(1);
+        return m.rgb_a==2 || m.rgb_b==2 || m.rgb_c==2 || m.rgb_c==9 ||
+               m.rgb_d==2 || m.alpha_a==2 || m.alpha_b==2 ||
+               m.alpha_c==2 || m.alpha_d==2;
     }
     Cycle cycle(unsigned n) const {
         if(n==0)return {field(52,15),field(28,15),field(47,31),field(15,7),field(44,7),field(12,7),field(41,7),field(9,7)};
