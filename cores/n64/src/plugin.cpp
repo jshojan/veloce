@@ -21,7 +21,7 @@ class Plugin : public emu::IEmulatorPlugin, public emu::INetplayCapable,
 public:
     emu::EmulatorInfo get_info() override {
         static const char* extensions[] = {".z64", ".v64", ".n64", nullptr};
-        return {"N64", "0.77.0", "Veloce", "Experimental N64 core with MIPS III, CP0, RSP, partial RDP including bounded two-cycle fog and PASS blender modes, dual-texel color/alpha and filtering plus affine integer-gradient LOD tile selection and fraction interpolation, SI/PIF controller polling, per-port Controller or Rumble Paks, 4/16 Kbit EEPROM, 32/96 KiB SRAM, 128 KiB FlashRAM and functional cartridge RTC. Bounded retail course movement passes; complete hardware, full-title playability and physical timing remain pending.",
+        return {"N64", "0.78.0", "Veloce", "Experimental N64 core with MIPS III, CP0, RSP, partial RDP including bounded two-cycle fog and PASS blender modes, dual-texel color/alpha and filtering plus four-axis affine integer-gradient LOD tile selection and fraction interpolation, SI/PIF controller polling, per-port Controller or Rumble Paks, 4/16 Kbit EEPROM, 32/96 KiB SRAM, 128 KiB FlashRAM and functional cartridge RTC. Bounded retail course movement passes; complete hardware, full-title playability and physical timing remain pending.",
                 extensions, 60.0, 93750000, 320, 240};
     }
     const emu::ControllerLayoutInfo* get_controller_layout() override {

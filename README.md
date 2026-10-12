@@ -71,6 +71,8 @@ N64 0.76.0 adds affine integer-gradient LOD tile selection. The [original tile-l
 
 N64 0.77.0 routes exact affine LOD fractions into two-cycle RGB and alpha combiner multipliers. The [original LOD-fraction cartridge](tests/roms-src/n64/rdp_lod_fraction/README.md) grades **360 cases / 4,680 actual framebuffer and DP/MI register words** across 1–15 texel-per-pixel gradients in both directions, RGB-only/alpha-only/combined fraction muxes, RGBA16/IA16 and RDRAM/XBUS delivery. Executed wrong-fraction and wrong-tile ROMs are rejected. Capped fractions, nonzero minimum level, fractional/T/Y gradients, perspective, detail/sharpen and full mipmap filtering remain pending; N64 stays **50% (10/20)**.
 
+N64 0.78.0 selects the affine LOD level and fraction from the largest S/T gradient along either screen axis. The [original four-axis cartridge](tests/roms-src/n64/rdp_lod_affine_2d/README.md) grades **524,280 cases / 6,815,640 actual framebuffer and DP/MI register words** over every nonzero four-tuple of 0–15 integer texels per pixel, both common signs, RGBA16/IA16 and RDRAM/XBUS delivery. Executed wrong-T, wrong-Y, wrong-fraction and wrong-tile ROMs are rejected. Fractional gradients, independent signs, perspective and general mipmap filtering remain pending; N64 stays **50% (10/20)**.
+
 ### 3DS ARM11 instruction coverage
 
 The 3DS plugin implements the following ARMv6 instruction subsets. Each linked
