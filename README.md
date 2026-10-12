@@ -33,6 +33,8 @@ N64 0.60.0 selects 16 Kbit EEPROM for [23 documented native cartridge IDs](tests
 
 N64 0.61.0 adds correct absent-controller-accessory replies for Joybus read/write commands. Its [original MIPS cartridge](tests/roms-src/n64/accessory_absent/README.md) captures **2,048 guest SI packets / 16,384 actual register words** across all four ports, with an independent file oracle and an executed wrong-register control. Controller Pak insertion, storage and persistence remain unfinished; N64 stays **50% (10/20)**.
 
+N64 0.62.0 adds configurable 32 KiB Controller Paks on four ports, addressed Joybus reads and writes, deterministic fresh-Pak formatting, S034 rollback state and frontend `.mpk1` through `.mpk4` persistence. A component gate writes and rereads all **4,096 Pak blocks** across four ports; state and frontend gates cover rollback, cross-session reload and malformed-file rejection. The private Super Mario 64 lobby checkpoint is rerun as a compatibility gate. Other save media and complete accessory behavior remain pending; N64 stays **50% (10/20)**.
+
 ### 3DS ARM11 instruction coverage
 
 The 3DS plugin implements the following ARMv6 instruction subsets. Each linked

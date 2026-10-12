@@ -1,4 +1,5 @@
 #include "plugin_manager.hpp"
+#include "emu/controller_pak_storage.hpp"
 #include "paths_config.hpp"
 
 #include <iostream>
@@ -1071,6 +1072,7 @@ bool PluginManager::load_rom(const std::string& path) {
     // If ROM loaded successfully and has battery save, try to load it
     if (result) {
         load_battery_save();
+        load_controller_paks();
     }
 
     return result;
@@ -1111,6 +1113,7 @@ void PluginManager::unload_rom() {
     m_full_rom_hash = 0;
     // Save battery-backed data before unloading
     save_battery_save();
+    save_controller_paks();
 
     // Notify game plugins about ROM unload
     notify_game_plugins_rom_unloaded();
@@ -1254,6 +1257,59 @@ bool PluginManager::save_battery_save() {
 
     std::cout << "Saved battery data: " << save_path << " (" << data.size() << " bytes)" << std::endl;
     return true;
+}
+
+bool PluginManager::load_controller_paks() {
+    auto* storage=dynamic_cast<IControllerPakStorage*>(m_active.emulator);
+    if(!storage || !m_active.emulator->is_rom_loaded())return false;
+    const fs::path save_path=get_save_file_path();
+    if(save_path.empty())return false;
+    bool loaded=false;
+    for(unsigned port=0;port<storage->controller_pak_ports();++port){
+        if(!storage->controller_pak_inserted(port))continue;
+        fs::path pak_path=save_path;
+        pak_path.replace_extension(".mpk"+std::to_string(port+1));
+        if(!fs::exists(pak_path))continue;
+        std::ifstream file(pak_path,std::ios::binary|std::ios::ate);
+        if(!file || file.tellg()!=32768){
+            std::cerr<<"Invalid Controller Pak file: "<<pak_path<<std::endl;
+            continue;
+        }
+        file.seekg(0,std::ios::beg);
+        std::vector<uint8_t> data(32768);
+        if(!file.read(reinterpret_cast<char*>(data.data()),data.size()) ||
+           !storage->set_controller_pak_data(port,data)){
+            std::cerr<<"Failed to load Controller Pak: "<<pak_path<<std::endl;
+            continue;
+        }
+        std::cout<<"Loaded Controller Pak: "<<pak_path<<std::endl;
+        loaded=true;
+    }
+    return loaded;
+}
+
+bool PluginManager::save_controller_paks() {
+    auto* storage=dynamic_cast<IControllerPakStorage*>(m_active.emulator);
+    if(!storage || !m_active.emulator->is_rom_loaded())return false;
+    const fs::path save_path=get_save_file_path();
+    if(save_path.empty())return false;
+    if(save_path.has_parent_path())fs::create_directories(save_path.parent_path());
+    bool saved=false;
+    for(unsigned port=0;port<storage->controller_pak_ports();++port){
+        if(!storage->controller_pak_inserted(port))continue;
+        const auto data=storage->get_controller_pak_data(port);
+        if(data.size()!=32768)continue;
+        fs::path pak_path=save_path;
+        pak_path.replace_extension(".mpk"+std::to_string(port+1));
+        std::ofstream file(pak_path,std::ios::binary|std::ios::trunc);
+        if(!file || !file.write(reinterpret_cast<const char*>(data.data()),data.size())){
+            std::cerr<<"Failed to save Controller Pak: "<<pak_path<<std::endl;
+            continue;
+        }
+        std::cout<<"Saved Controller Pak: "<<pak_path<<std::endl;
+        saved=true;
+    }
+    return saved;
 }
 
 } // namespace emu
