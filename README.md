@@ -79,6 +79,8 @@ N64 0.80.0 calculates affine LOD from screen-X/Y texture gradients independently
 
 N64 0.81.0 computes two-cycle LOD from adjacent perspective-divided texture coordinates per pixel for constant-W triangles. The [original perspective-LOD cartridge](tests/roms-src/n64/rdp_lod_perspective/README.md) grades **147,456 cases / 1,916,928 actual framebuffer and DP/MI register words** across 0–255 subtexel input gradients on four axes, both signs, six W values, three maximum levels, RGBA16/IA16 and RDRAM/XBUS delivery. Non-power-of-two W values exercise within-triangle LOD variation; executed wrong-W, wrong-T, wrong-Y, wrong-fraction and wrong-tile ROMs are rejected. Varying W, perspective overflow, mixed derivatives, detail/sharpen and full mipmap filtering remain pending; N64 stays **50% (10/20)**.
 
+N64 0.82.0 extends two-cycle perspective LOD to changing W along screen X and Y. The [original varying-W cartridge](tests/roms-src/n64/rdp_lod_varying_w/README.md) grades **147,456 cases / 1,916,928 actual framebuffer and DP/MI register words** across 0–127 subtexel S/T gradients on four axes, both signs, six W slope pairs, two W bases, three maximum levels, RGBA16/IA16 and RDRAM/XBUS delivery. The independent reciprocal oracle checks per-pixel LOD and rejects an executed zero-W-gradient ROM. W overflow, arbitrary fractional gradients, detail/sharpen and full mipmap filtering remain pending; N64 stays **50% (10/20)**.
+
 ### 3DS ARM11 instruction coverage
 
 The 3DS plugin implements the following ARMv6 instruction subsets. Each linked

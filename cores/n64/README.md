@@ -4362,3 +4362,16 @@ FlashRAM `.sav`, advances it by elapsed host time on reload, and accepts legacy
 raw 128 KiB FlashRAM saves. Fresh cartridges start at 2000-01-01 UTC for
 deterministic replay. Oscillator drift, physical serial timing, 64DD RTC and
 retail title behavior remain unverified. **N64 stays 50% (10/20).**
+
+## Varying-W perspective LOD (0.82.0)
+
+The two-cycle RDP path divides texture coordinates using each pixel's W and
+uses independently advanced W values for the neighboring X and Y samples.
+The [original varying-W cartridge](../../tests/roms-src/n64/rdp_lod_varying_w/README.md)
+grades **147,456 guest cases / 1,916,928 actual framebuffer and DP/MI register
+words** across signed S/T gradients, six W slope pairs, two W bases, three
+maximum levels, RGBA16/IA16 and both DP command sources. Its independent
+reciprocal oracle and executed zero-W-gradient mutant check that varying W
+changes the tile pair and LOD fraction. This finite profile still excludes W
+overflow, arbitrary fractional gradients, detail/sharpen and full mipmap
+filtering. **N64 remains 50% (10/20).**
