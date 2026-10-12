@@ -22494,6 +22494,17 @@
       "source_type": "original",
       "suite": "rdp_lod_subtexel"
     },
+    "n64/rdp_lod_varying_w/rdp_lod_varying_w.z64": {
+      "build_command": "python3 tests/roms-src/n64/rdp_lod_varying_w/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "aabc3d9027da0386813f5426b1ca7e686912b76ede1b2d478a75774a5e87e270",
+      "source_repo": "tests/roms-src/n64/rdp_lod_varying_w/build.py",
+      "source_sha": "a1c94dde9294b48a1fbba4d83cdc0500816f475412b2506b9bafbbbd41ad1996",
+      "source_type": "original",
+      "suite": "rdp_lod_varying_w"
+    },
     "n64/rdp_one_cycle_blend/rdp_one_cycle_blend.z64": {
       "build_command": "python3 tests/roms-src/n64/rdp_one_cycle_blend/build.py",
       "console": "n64",

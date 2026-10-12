@@ -1113,6 +1113,10 @@ add_test(NAME n64_rdp_lod_perspective COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/rdp_lod_perspective/run.py --emulator $<TARGET_FILE:veloce>
     --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_rdp_lod_perspective)
 set_tests_properties(n64_rdp_lod_perspective PROPERTIES LABELS "accuracy;owned" TIMEOUT 700)
+add_test(NAME n64_rdp_lod_varying_w COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/rdp_lod_varying_w/run.py --emulator $<TARGET_FILE:veloce>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_rdp_lod_varying_w)
+set_tests_properties(n64_rdp_lod_varying_w PROPERTIES LABELS "accuracy;owned" TIMEOUT 700)
 add_test(NAME n64_rdp_two_cycle_shaded_texture COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/rdp_two_cycle_shaded_texture/run.py --emulator $<TARGET_FILE:veloce>
     --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_rdp_two_cycle_shaded_texture)

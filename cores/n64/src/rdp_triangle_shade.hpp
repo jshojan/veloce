@@ -30,7 +30,7 @@ private:
         const bool textured=triangle.texture && texture && tmem;
         const bool two_cycle=((mode>>52)&3)==1;
         const bool lod_enabled=mode&(1ull<<48);
-        // Bounded two-cycle LOD: exact 1/32-texel S/T gradients and constant W.
+        // Bounded two-cycle LOD: exact 1/32-texel S/T and integer W gradients.
         // d/dEdge drives interpolation; LOD uses the independent d/dY.
         // Perspective uses post-division adjacent coordinates per pixel.
         unsigned first_tile=triangle.tile,second_tile=(triangle.tile+1)&7,lod_fraction=0;
@@ -45,8 +45,7 @@ private:
             second=(first+(!magnify&&!distant?1u:0u))&7;
         };
         if(lod_enabled){
-            const bool simple_gradient=!triangle.tex[1][2] && !triangle.tex[2][2] &&
-                !triangle.tex[3][2];
+            const bool perspective=mode&(1ull<<51);
             constexpr uint64_t unit=1ull<<16;
             unsigned lod_units=0;
             for(unsigned group=1;group<=3;group+=2)for(unsigned lane=0;lane<2;++lane){
@@ -58,7 +57,12 @@ private:
                 const unsigned units=unsigned(absolute/unit)-(gradient<0?1u:0u);
                 if(units>lod_units)lod_units=units;
             }
-            if(!textured || !two_cycle || !simple_gradient ||
+            for(unsigned group=1;group<=3;++group){
+                const int64_t gradient=int32_t(triangle.tex[group][2]);
+                const uint64_t absolute=uint64_t(gradient<0?-gradient:gradient);
+                if((!perspective && gradient) || absolute%unit || absolute/unit>255*32)return 1;
+            }
+            if(!textured || !two_cycle ||
                (combiner.uses_lod_fraction() && combiner.minimum_lod()))return 1;
             if(!(mode&(1ull<<51)))select_lod(lod_units,first_tile,second_tile,lod_fraction);
         }
@@ -107,12 +111,12 @@ private:
                 if(textured){
                     const auto divided=RdpTextureDivider::divide(uint16_t(pixel.stw[0]),uint16_t(pixel.stw[1]),uint16_t(pixel.stw[2]),mode&(1ull<<51));
                     if(lod_enabled && (mode&(1ull<<51))){
-                        const auto neighbor=[&](uint32_t ds,uint32_t dt){
+                        const auto neighbor=[&](uint32_t ds,uint32_t dt,uint32_t dw){
                             return RdpTextureDivider::divide(uint16_t((pixel.raw[4]+ds)>>16),
-                                uint16_t((pixel.raw[5]+dt)>>16),uint16_t(pixel.stw[2]),true);
+                                uint16_t((pixel.raw[5]+dt)>>16),uint16_t((pixel.raw[6]+dw)>>16),true);
                         };
-                        const auto right=neighbor(attributes.dx[4],attributes.dx[5]);
-                        const auto below=neighbor(triangle.tex[3][0],triangle.tex[3][1]);
+                        const auto right=neighbor(attributes.dx[4],attributes.dx[5],attributes.dx[6]);
+                        const auto below=neighbor(triangle.tex[3][0],triangle.tex[3][1],triangle.tex[3][2]);
                         const auto distance=[](uint32_t current,uint32_t next){
                             const int32_t a=int32_t(current&131071)-((current&65536)?131072:0);
                             const int32_t b=int32_t(next&131071)-((next&65536)?131072:0);
