@@ -396,3 +396,18 @@ and audio sample counts. The local ignored report is at
 `build/artifacts/performance/n64-predecoded-cycle/report.json` in the N64 lane.
 Combiner routing, math, triangle texture and machine component gates pass. Play remains below the 60-field
 real-time target. **N64 remains 50% (10/20)**.
+
+## Reused draw invariants (0.97.0)
+
+The triangle renderer now computes the cycle-one second-tile decision and
+texture conversion coefficients and weights once per draw. The same values
+were previously recomputed for every shaded pixel. Three alternating,
+CPU-pinned 300-field Super Mario 64 course-checkpoint pairs measured a
+**1.0% median paired speedup**; two of three pairs were faster. Median
+throughput was **19.00 to 19.14 VI fields/second**. Complete native states,
+CPU attempt counts and audio sample counts matched in every pair. The
+original two-cycle filter cartridge and combiner, conversion, texture filter
+and triangle texture component gates pass. The local ignored report is at
+`build/artifacts/performance/n64-draw-invariants/report.json` in the N64
+lane. This is a small gain; N64 remains below the 60-field real-time target
+and **50% (10/20)** on the delivery checklist.
