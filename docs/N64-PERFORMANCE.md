@@ -633,3 +633,32 @@ host-load variation, so use the confirmation result for the long run.
 CPU attempt and audio counts matched in every pair. Ignored local reports
 are `build/artifacts/performance/n64-cycle-zero-{trial,confirmation,long,long-confirmation}/`.
 SM64 remains below 60 VI fields/second; **N64 stays 50% (10/20)**.
+
+## Course-checkpoint sampling and rejected trials (October 2026)
+
+A temporary SIGPROF sampler collected **14,871 samples** during a 300-field
+private SM64 course continuation; **14,793** landed in the symbolized N64
+plugin. Approximate inclusive sample shares were VR4300 stepping **9.3%**,
+RSP scalar stepping **7.8%**, RSP/DP tick dispatch **5.5%**, VR4300 address
+translation **4.7%**, textured triangle drawing **4.3%**, RSP vector execution
+**3.7%**, active-RSP clock batching **2.9%**, CPU reads **2.3%**, and RDP
+blending **2.2%**. These are sampled program counters, not disjoint elapsed
+times; inlining, signal frequency and this scene limit their precision.
+
+Three source changes were built as Release plugins and compared against
+0.107.0 using alternating CPU-pinned runs from the same checkpoint:
+
+| Trial | VI fields × pairs | Median paired throughput | Faster pairs | Complete states |
+|---|---:|---:|---:|---|
+| Direct canonical kernel-segment translation | 60 × 5 | 0.997× | 2/5 | Identical |
+| One-entry mapped TLB probe cache | 60 × 5 | 0.988× | 1/5 | Identical |
+| Four-mask RDP depth-delta encoding | 60 × 5 | 1.037× | 4/5 | Identical |
+| Same depth trial, longer continuation | 300 × 3 | 0.979× | 1/3 | Identical |
+
+The short depth result did not hold in the longer run. All three changes were
+reverted; 0.107.0 remains the shipped implementation. Ignored local reports
+are in `build/artifacts/performance/n64-{direct-segment-trial,tlb-cache-trial,delta-mask-trial,delta-mask-long}/`.
+The measured course remains around **19–20 VI fields/second** on this host,
+below the 60-field target. Future work should measure the RSP/DP execution
+path and textured drawing with longer paired runs before retaining a change.
+**N64 stays 50% (10/20)**.
