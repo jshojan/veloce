@@ -22571,6 +22571,17 @@
       "source_type": "original",
       "suite": "rdp_two_cycle_fog"
     },
+    "n64/rdp_two_cycle_shaded_texture/rdp_two_cycle_shaded_texture.z64": {
+      "build_command": "python3 tests/roms-src/n64/rdp_two_cycle_shaded_texture/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "427fc52c4dcd3f0c6e7c7e710dfaec084410c4ff50f7825309dd7b2cf4557512",
+      "source_repo": "tests/roms-src/n64/rdp_two_cycle_shaded_texture/build.py",
+      "source_sha": "137e9caf14231bde2b2e96e6d0486ebdceb6b7185b2069ed5b6d05f973fa47d6",
+      "source_type": "original",
+      "suite": "rdp_two_cycle_shaded_texture"
+    },
     "n64/rdp_two_cycle_texture/rdp_two_cycle_texture.z64": {
       "build_command": "python3 tests/roms-src/n64/rdp_two_cycle_texture/build.py",
       "console": "n64",

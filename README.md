@@ -51,6 +51,10 @@ N64 0.69.0 adds a bounded two-cycle RDP fog profile used by the private Bob-omb 
 
 The companion [original textured two-cycle cartridge](tests/roms-src/n64/rdp_two_cycle_texture/README.md) grades another **262,144 guest cases / 3,407,872 actual framebuffer and DP/MI register words**. It loads every 16-bit RGBA16 and IA16 TEXEL0 pattern into TMEM, forwards it through cycle-one COMBINED, and checks framebuffer blending under RDRAM and XBUS delivery. The finite corpus uses point sampling and zero fog factor; general textured two-cycle behavior remains pending. N64 stays **50% (10/20)**.
 
+A third [original shaded-texture cartridge](tests/roms-src/n64/rdp_two_cycle_shaded_texture/README.md) grades **262,144 guest cases / 3,407,872 actual framebuffer and DP/MI register words** with TEXEL0×SHADE, COMBINED feedback, nonzero fog color and shade alpha, and framebuffer blending. Its independent oracle and executed wrong-capture control pass. Shade alpha is correlated with the texture byte; independent shade patterns, filtering, depth and general two-cycle hardware remain unfinished. N64 stays **50% (10/20)**.
+
+The private [Bob-omb Battlefield continuation](tests/n64_retail_course_entry.py) now branches from the same walking checkpoint for **300 VI fields** of neutral and sustained stick input. Guest RAM and local frames show Mario settling near (-5767, 128, 5808) in the control and moving to about (-2020, 0, 3407) with stick input, without RSP/DP stops. This remains bounded course movement; N64 stays **50% (10/20)**.
+
 ### 3DS ARM11 instruction coverage
 
 The 3DS plugin implements the following ARMv6 instruction subsets. Each linked

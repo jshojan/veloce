@@ -4033,7 +4033,11 @@ grades another **262,144 guest cases / 3,407,872 actual framebuffer and DP/MI
 register words**. It loads every 16-bit RGBA16 and IA16 TEXEL0 pattern through
 TMEM, passes cycle-zero TEXEL0 to cycle-one COMBINED, and checks framebuffer
 blending under both RDRAM and XBUS command delivery. Its first fog factor is
-zero; textured shading, filtering and nonzero fog together remain ungraded.
+zero. The [original shaded-texture cartridge](../../tests/roms-src/n64/rdp_two_cycle_shaded_texture/README.md)
+grades another **262,144 guest cases / 3,407,872 actual framebuffer and DP/MI
+register words** with TEXEL0×SHADE, COMBINED feedback, nonzero fog color and
+shade alpha, and framebuffer blending. Its shade alpha is correlated with the
+texture byte; independent shade patterns, filtering and depth remain ungraded.
 
 An A pulse now loads Bob-omb Battlefield. Guest RAM places Mario near
 **(-6525, 0, 6431)** with a course terrain and camera. A 120-field neutral
@@ -4042,6 +4046,11 @@ dismiss the dialogue. Stick input then moves Mario to approximately
 **(-5803, 128, 5784)** with `ACT_WALKING` (`04000440`). The local framebuffer
 shows the course and Mario on its stone path; RSP and DP do not stop along
 this bounded route.
+From that walking checkpoint, a 300-field neutral branch settles Mario near
+**(-5767, 128, 5808)**, while the same 300 fields of sustained stick input
+advance him to about **(-2020, 0, 3407)**. Both branches keep the course terrain
+and complete without an RSP or DP stop. This verifies a longer bounded route,
+not course completion or full-title playability.
 
 The [private course-entry grader](../../tests/n64_retail_course_entry.py)
 checks guest positions, actions, terrain and camera, both neutral controls and

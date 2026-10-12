@@ -113,18 +113,30 @@ def main():
     require(observations['dismiss_intro']['action'] !=
             observations['intro_no_a']['action'],
             'A pulses did not dismiss the course introduction')
-    run('walk', dismissed, 120, [(76080, 0x5000c000)])
+    walk = run('walk', dismissed, 120, [(76080, 0x5000c000)])
     x, y, z = observations['walk']['position']
     require(observations['walk']['action'] == 0x04000440 and
             -5850 < x < -5750 and y == 128.0 and 5700 < z < 5850 and
             observations['walk']['terrain'] == observations['select']['terrain'],
             'Mario did not walk in Bob-omb Battlefield')
+    run('course_neutral', walk, 300, [(76200, 0x0000c000)])
+    run('course_walk', walk, 300, [(76200, 0x5000c000)])
+    nx, ny, nz = observations['course_neutral']['position']
+    x, y, z = observations['course_walk']['position']
+    require(observations['course_neutral']['action'] == 0x0c400201 and
+            abs(nx - observations['walk']['position'][0]) < 100 and
+            ny == 128.0 and abs(nz - observations['walk']['position'][2]) < 100,
+            'neutral course control kept Mario moving')
+    require(observations['course_walk']['action'] == 0x04000440 and
+            -2100 < x < -1900 and y == 0.0 and 3300 < z < 3500 and
+            observations['course_walk']['terrain'] == observations['select']['terrain'],
+            'sustained stick did not advance Mario across the course')
     require(all(digest(Path(path)) == value for path, value in sources.items()),
             'ROM, checkpoint, source or executable changed during capture')
     report = {'status': 'bob-omb-battlefield-walk-pass',
               'private_rom_sha256': ROM_SHA, 'sources_sha256': sources,
               'observations': observations, 'artifacts': records,
-              'controls': ['title_no_a', 'intro_no_a'],
+              'controls': ['title_no_a', 'intro_no_a', 'course_neutral'],
               'bounded_course_gameplay_verified': True,
               'full_title_playability': False}
     (args.artifacts / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
