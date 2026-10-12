@@ -219,3 +219,51 @@ ctest --test-dir build -R '^n64_(idle_clock_test|interrupts)$' --output-on-failu
 
 **N64 remains 50% (10/20)**. Full-title playability, physical timing and
 further performance work remain pending. CI/CD remains disabled.
+
+## Optional N64 profile-guided build (0.91.0)
+
+GCC can train **only the N64 plugin** on locally owned game data and rebuild it
+with recorded branch counts. This is opt-in: ordinary builds use `OFF`, and
+neither ROM bytes nor generated profiles are committed. The compiled core keeps
+the same plugin interface and native state format. A profile trained on one
+scene may not speed up every game or host.
+
+Five alternating 60-field private SM64 checkpoint pairs compared a normal
+0.90.0 release build with a profile-trained N64 plugin. The local median rose
+from **16.83 to 17.77 VI fields/second (5.6%)**. All ten complete native states,
+94,022,500 CPU attempts and 48,140 audio sample pairs matched. The exact
+profile-trained plugin was reproduced byte for byte after copying profile data
+into the ignored local build artifacts. Raw measurements and hashes are in
+`build/artifacts/performance/n64-pgo-release-final/report.json`. The result is
+still below the 60-field real-time target.
+
+From the repository root, with a ROM and a representative native checkpoint:
+
+```sh
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DVELOCE_N64_PGO=OFF
+cmake --build build --target n64_plugin -j4
+mkdir -p build/artifacts/performance/n64-pgo/profile
+cp build/bin/cores/n64.so build/artifacts/performance/n64-pgo/before.so
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+  -DVELOCE_N64_PGO=GENERATE \
+  -DVELOCE_N64_PGO_DATA="$PWD/build/artifacts/performance/n64-pgo/profile"
+cmake --build build --target n64_plugin -j4
+build/bin/retail_core_probe build/bin/cores/n64.so "$ROM" 60 - - \
+  --scheduling video-field --load-state "$CHECKPOINT" \
+  --save-state build/artifacts/performance/n64-pgo/trained.state
+cmake -S . -B build -DVELOCE_N64_PGO=USE \
+  -DVELOCE_N64_PGO_DATA="$PWD/build/artifacts/performance/n64-pgo/profile"
+cmake --build build --target n64_plugin -j4
+python3 tests/n64_performance.py "$ROM" --checkpoint "$CHECKPOINT" \
+  --before-core build/artifacts/performance/n64-pgo/before.so \
+  --runs 5 --fields 60 --artifacts build/artifacts/performance/n64-pgo/check
+```
+
+The USE build requires profile data for every N64 translation unit and fails
+if it is missing. To return to the ordinary portable build, configure with
+`-DVELOCE_N64_PGO=OFF` and rebuild `n64_plugin`. Native save/rollback, original
+register ROMs, production netplay and the private SM64 course continuation pass
+with the trained plugin. CI/CD remains disabled.
+
+**N64 remains 50% (10/20)**; complete hardware, full-title playability and
+physical timing are pending.

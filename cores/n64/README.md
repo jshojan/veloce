@@ -4488,3 +4488,14 @@ CPU attempts and audio counts. The 128-state differential gate exercises
 RSP BREAK and DP FullSync interrupt paths. Original interrupt ROMs, netplay
 and private course movement pass. See [benchmark details](../../docs/N64-PERFORMANCE.md).
 Performance remains below real time. **N64 remains 50% (10/20).**
+
+## Optional profile-guided N64 build (0.91.0)
+
+A local GCC build can train only the N64 plugin on an owned ROM/checkpoint and
+rebuild it with that profile. Five paired SM64 checkpoint runs measured **5.6%
+more throughput** than an ordinary 0.90.0 release build (**16.83 to 17.77 VI
+fields/second**), with identical complete states, CPU attempts and audio counts.
+This is an opt-in local build setting; profiles and private ROM data remain
+outside Git. See the [commands and verification](../../docs/N64-PERFORMANCE.md).
+Original register ROMs, netplay and private course continuation pass with the
+trained plugin. Performance remains below real time. **N64 remains 50% (10/20).**
