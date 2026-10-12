@@ -39,6 +39,8 @@ N64 0.64.0 extends the [original Controller Pak MIPS cartridge](tests/roms-src/n
 
 N64 0.65.0 adds per-port Rumble Pak accessory commands, SDL controller feedback and S035 motor rollback. An [original MIPS cartridge](tests/roms-src/n64/rumble_pak/README.md) grades **24,596 complete SI packets / 196,768 guest register words** across four ports and all 2,048 aligned accessory addresses in three motor phases. An executed wrong-register ROM, malformed files, virtual SDL feedback routing and state import/rollback are checked. Physical N64 hardware and controller feedback remain unverified; N64 stays **50% (10/20)**.
 
+N64 0.66.0 adds 32 KiB and 96 KiB cartridge SRAM via PI DMA, direct aligned I/O, frontend save persistence and S036 rollback. Its [original MIPS cartridge](tests/roms-src/n64/cartridge_sram/README.md) grades **2,048 guest DMA cases / 24,576 register words** and **131,072 saved bytes**, with executed wrong-register and damaged-file controls. Known native SRAM IDs select the right media; existing saves can identify unknown native boards. FlashRAM and physical PI timing remain pending. N64 stays **50% (10/20)**.
+
 ### 3DS ARM11 instruction coverage
 
 The 3DS plugin implements the following ARMv6 instruction subsets. Each linked

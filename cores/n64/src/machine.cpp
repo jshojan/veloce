@@ -47,10 +47,15 @@ bool Machine::load(const uint8_t* data, size_t size) {
     rom = std::move(image);
     joybus.erase_eeprom();
     joybus.clear_accessories();
+    size_t sram_bytes=0;
+    if(mode==BootMode::Homebrew && !std::memcmp(rom.data()+0x3c,"S32K",4))sram_bytes=32*1024;
+    else if(mode==BootMode::Homebrew && !std::memcmp(rom.data()+0x3c,"S96K",4))sram_bytes=96*1024;
+    else if(mode==BootMode::Native6102)sram_bytes=native_sram_bytes(rom.data());
+    sram.assign(sram_bytes,0xff);
     size_t eeprom_bytes=0;
     if(mode==BootMode::Homebrew && !std::memcmp(rom.data()+0x3c,"E16K",4))
         eeprom_bytes=2048;
-    else if(mode==BootMode::Native6102)
+    else if(mode==BootMode::Native6102 && !sram_bytes)
         eeprom_bytes=native_eeprom_bytes(rom.data());
     else if(mode==BootMode::Homebrew && !std::memcmp(rom.data()+0x3c,"E4K1",4))
         eeprom_bytes=512;
@@ -136,6 +141,8 @@ bool Machine::read(uint64_t address, unsigned bytes, uint64_t& value) {
     }
     if (p >= 0x04000000 && uint64_t(p) + bytes <= 0x04000000 + sp.size()) { value = be(sp.data() + p - 0x04000000, bytes); return true; }
     if (p >= 0x10000000 && uint64_t(p) + bytes <= 0x10000000 + rom.size()) { value = be(rom.data() + p - 0x10000000, bytes); return true; }
+    if (p >= 0x08000000 && uint64_t(p) + bytes <= 0x08000000 + sram.size() &&
+        bytes==4 && !(p&3)) { value=be(sram.data()+p-0x08000000,bytes);return true; }
     if (p >= 0x1fc007c0 && uint64_t(p) + bytes <= 0x1fc00800) { value = be(pif.data() + p - 0x1fc007c0, bytes); return true; }
     if (bytes == 4) {
         if(p>=0x04100000 && p<=0x0410001c && !(p&3)){value=dp_interface.read((p-0x04100000)/4);return true;}
@@ -178,6 +185,11 @@ bool Machine::write(uint64_t address, unsigned bytes, uint64_t value) {
     }
     if (p == 0x1ff00004 && bytes == 4) { done = true; if (sink) sink->finish(-1); return true; }
     if (p == 0x1ff0000c && bytes == 4) { yielded = true; return true; }
+    if (p >= 0x08000000 && uint64_t(p) + bytes <= 0x08000000 + sram.size() &&
+        bytes==4 && !(p&3)) {
+        for(unsigned i=0;i<4;++i)sram[p-0x08000000+i]=uint8_t(value>>(24-8*i));
+        return true;
+    }
     if (p >= 0x1fc007c0 && uint64_t(p) + bytes <= 0x1fc00800) {
         for (unsigned i = 0; i < bytes; ++i) pif[p - 0x1fc007c0 + i] = uint8_t(value >> (8 * (bytes - 1 - i)));
         if (p + bytes == 0x1fc00800) process_pif();
@@ -240,16 +252,21 @@ bool Machine::write_ri(unsigned reg,uint32_t value) {
 bool Machine::write_pi(unsigned reg,uint32_t value) {
     if(reg==0) {pi[0]=value&0xfffffe;return true;}
     if(reg==1) {pi[1]=value&~1u;return true;}
-    if(reg==2) return false; // Save-media/peripheral write DMA is pending.
-    if(reg==3) {
+    if(reg==2 || reg==3) {
         const uint32_t length=(value&0xffffff)+1;
+        const uint64_t save_offset=pi[1]>=0x08000000u?uint64_t(pi[1])-0x08000000u:uint64_t(-1);
+        const bool save_region=!sram.empty() && save_offset<sram.size();
         const uint64_t source=pi[1]>=0x10000000u?uint64_t(pi[1])-0x10000000u:uint64_t(-1);
-        // Defined aligned, even-length ROM reads. Reject unsupported transfers
+        // Defined aligned, even-length ROM/SRAM transfers. Reject unsupported transfers
         // before modifying memory, addresses, completion or interrupt state.
         if((pi[0]&7) || (length&1) || uint64_t(pi[0])+length>ram.size() ||
-            source>rom.size() || length>rom.size()-source) return false;
-        std::copy_n(rom.begin()+size_t(source),length,ram.begin()+pi[0]);
-        hidden.ordinary_burst(pi[0],ram.data()+pi[0],length);
+            (save_region?length>sram.size()-save_offset:reg==2 || source>rom.size() || length>rom.size()-source))return false;
+        if(reg==2)std::copy_n(ram.begin()+pi[0],length,sram.begin()+size_t(save_offset));
+        else {
+            if(save_region)std::copy_n(sram.begin()+size_t(save_offset),length,ram.begin()+pi[0]);
+            else std::copy_n(rom.begin()+size_t(source),length,ram.begin()+pi[0]);
+            hidden.ordinary_burst(pi[0],ram.data()+pi[0],length);
+        }
         pi[0]=(pi[0]+length+7)&0xfffff8u;pi[1]+=length;pi[3]=127;
         pi_interrupt=true;return true;
     }
@@ -292,7 +309,8 @@ static void append(std::vector<uint8_t>& data, uint64_t value) {
 bool Machine::save(std::vector<uint8_t>& data) const {
     if (rom.empty()) return false;
     data.assign({'V','N','6','4','S','0','3','3'});
-    if(joybus.has_rumble_state())data[7]='5';
+    if(!sram.empty())data[7]='6';
+    else if(joybus.has_rumble_state())data[7]='5';
     else if(joybus.has_pak_state())data[7]='4';
     data.reserve(state_size());
     append(data, identity); append(data, crc); append(data, frames); append(data, done);
@@ -341,13 +359,14 @@ bool Machine::save(std::vector<uint8_t>& data) const {
     const auto& eeprom=joybus.eeprom_data();
     data.insert(data.end(),eeprom.begin(),eeprom.end());
     append(data,joybus.eeprom_bytes());
-    if(joybus.has_pak_state() || joybus.has_rumble_state()){
+    if(joybus.has_pak_state() || joybus.has_rumble_state() || !sram.empty()){
         const auto& paks=joybus.pak_storage();
         data.insert(data.end(),paks.begin(),paks.end());
         append(data,uint64_t(joybus.inserted_paks())|(uint64_t(joybus.pending_pak_changes())<<8));
-        if(joybus.has_rumble_state())
+        if(joybus.has_rumble_state() || !sram.empty())
             append(data,uint64_t(joybus.inserted_rumble_paks())|(uint64_t(joybus.active_motors())<<8));
     }
+    if(!sram.empty()){data.insert(data.end(),sram.begin(),sram.end());append(data,sram.size());}
     return true;
 }
 bool Machine::restore(const std::vector<uint8_t>& data) {
@@ -380,14 +399,17 @@ bool Machine::restore(const std::vector<uint8_t>& data) {
     const bool hidden_previous=!std::memcmp(data.data(),"VN64S026",8);
     const bool primitive_previous=!std::memcmp(data.data(),"VN64S027",8);
     const bool joybus_previous=!std::memcmp(data.data(),"VN64S028",8);
-    const bool rumble_current=!std::memcmp(data.data(),"VN64S035",8);
+    const bool sram_current=!std::memcmp(data.data(),"VN64S036",8);
+    const bool rumble_current=sram_current || !std::memcmp(data.data(),"VN64S035",8);
     const bool pak_current=rumble_current || !std::memcmp(data.data(),"VN64S034",8);
     const bool eeprom_current=pak_current || !std::memcmp(data.data(),"VN64S033",8);
     const bool eeprom_previous=!std::memcmp(data.data(),"VN64S032",8);
     const bool linked=eeprom_current || eeprom_previous || !std::memcmp(data.data(),"VN64S031",8);
     const bool scheduled=linked || !std::memcmp(data.data(),"VN64S030",8);
     const bool current=scheduled || !std::memcmp(data.data(),"VN64S029",8);
-    if((!legacy && !previous && !ri_previous && !mi_previous && !devices_previous && !caches_previous && !sp_previous && !audio_previous && !fpu_previous && !tlb_previous && !video_previous && !scalar_previous && !dp_previous && !vector_previous && !accumulator_previous && !combiner_previous && !depth_previous && !divider_previous && !texture_previous && !tmem_previous && !controllers_previous && !packet_previous && !conversion_previous && !blender_previous && !hidden_previous && !(primitive_previous || joybus_previous || current)) || data.size()!=prefix+ram_size+sp.size()+(legacy?0:previous?120:ri_previous?176:mi_previous?192:devices_previous?480:caches_previous?41440:sp_previous?41512:audio_previous?74440:fpu_previous?74448:tlb_previous?75472:video_previous?75632:scalar_previous?75888:dp_previous?75888+rsp_state_size:vector_previous?75888+rsp_state_size+dp_state_size:accumulator_previous?75888+rsp_state_size+dp_state_size+vector_state_size:combiner_previous?75888+rsp_state_size+dp_state_size+vector_state_size+accumulator_state_size:depth_previous?75888+rsp_state_size+dp_state_size+vector_state_size+accumulator_state_size+combiner_state_size:75888+rsp_state_size+dp_state_size+vector_state_size+accumulator_state_size+combiner_state_size+depth_image_state_size+(divider_previous?0:divider_state_size+(texture_previous?0:texture_state_size+(tmem_previous?0:tmem_state_size+((packet_previous || conversion_previous || blender_previous || hidden_previous || (primitive_previous || joybus_previous || current))?controller_state_size:0)+((conversion_previous || blender_previous || hidden_previous || (primitive_previous || joybus_previous || current))?packet_state_size:0)+((blender_previous || hidden_previous || (primitive_previous || joybus_previous || current))?conversion_state_size:0)+((hidden_previous || (primitive_previous || joybus_previous || current))?blender_state_size:0)+((primitive_previous || joybus_previous || current)?hidden_state_size:0)))))+((joybus_previous || current)?primitive_depth_state_size:0)+(current?joybus_state_size:0)+(eeprom_current?PifJoybus::Eeprom{}.size()+8:eeprom_previous?512:0)+(pak_current?PifJoybus::PakStorage{}.size()+8:0)+(rumble_current?8:0) ||
+    const size_t saved_sram_size=sram_current?size_t(be(data.data()+data.size()-8,8)):0;
+    if((sram_current && (saved_sram_size!=sram.size() || (saved_sram_size!=32*1024 && saved_sram_size!=96*1024))) ||
+        (!legacy && !previous && !ri_previous && !mi_previous && !devices_previous && !caches_previous && !sp_previous && !audio_previous && !fpu_previous && !tlb_previous && !video_previous && !scalar_previous && !dp_previous && !vector_previous && !accumulator_previous && !combiner_previous && !depth_previous && !divider_previous && !texture_previous && !tmem_previous && !controllers_previous && !packet_previous && !conversion_previous && !blender_previous && !hidden_previous && !(primitive_previous || joybus_previous || current)) || data.size()!=prefix+ram_size+sp.size()+(legacy?0:previous?120:ri_previous?176:mi_previous?192:devices_previous?480:caches_previous?41440:sp_previous?41512:audio_previous?74440:fpu_previous?74448:tlb_previous?75472:video_previous?75632:scalar_previous?75888:dp_previous?75888+rsp_state_size:vector_previous?75888+rsp_state_size+dp_state_size:accumulator_previous?75888+rsp_state_size+dp_state_size+vector_state_size:combiner_previous?75888+rsp_state_size+dp_state_size+vector_state_size+accumulator_state_size:depth_previous?75888+rsp_state_size+dp_state_size+vector_state_size+accumulator_state_size+combiner_state_size:75888+rsp_state_size+dp_state_size+vector_state_size+accumulator_state_size+combiner_state_size+depth_image_state_size+(divider_previous?0:divider_state_size+(texture_previous?0:texture_state_size+(tmem_previous?0:tmem_state_size+((packet_previous || conversion_previous || blender_previous || hidden_previous || (primitive_previous || joybus_previous || current))?controller_state_size:0)+((conversion_previous || blender_previous || hidden_previous || (primitive_previous || joybus_previous || current))?packet_state_size:0)+((blender_previous || hidden_previous || (primitive_previous || joybus_previous || current))?conversion_state_size:0)+((hidden_previous || (primitive_previous || joybus_previous || current))?blender_state_size:0)+((primitive_previous || joybus_previous || current)?hidden_state_size:0)))))+((joybus_previous || current)?primitive_depth_state_size:0)+(current?joybus_state_size:0)+(eeprom_current?PifJoybus::Eeprom{}.size()+8:eeprom_previous?512:0)+(pak_current?PifJoybus::PakStorage{}.size()+8:0)+(rumble_current?8:0)+(sram_current?saved_sram_size+8:0) ||
         (legacy && boot_mode!=BootMode::Homebrew)) return false;
     size_t position = 8;
     auto take = [&]() { auto v = be(data.data() + position, 8); position += 8; return v; };
@@ -516,7 +538,7 @@ bool Machine::restore(const std::vector<uint8_t>& data) {
     if(eeprom_current){const auto profile=take();if(profile!=0 && profile!=512 && profile!=2048)return false;
         if((boot_mode==BootMode::Homebrew && profile!=joybus.eeprom_bytes()) ||
            (boot_mode==BootMode::OriginalIPL && profile!=0) ||
-           (boot_mode==BootMode::Native6102 && profile==0))return false;
+           (boot_mode==BootMode::Native6102 && profile==0 && !sram_current))return false;
         saved_joybus.configure_eeprom(size_t(profile));}
     if(pak_current){
         auto storage=saved_joybus.pak_storage();
@@ -530,9 +552,16 @@ bool Machine::restore(const std::vector<uint8_t>& data) {
         }
         if(flags>0xffff || !saved_joybus.restore_pak_flags(uint8_t(flags),uint8_t(flags>>8)))return false;
     }
+    std::vector<uint8_t> saved_sram;
+    if(sram_current){
+        saved_sram.assign(data.begin()+position,data.begin()+position+saved_sram_size);
+        position+=saved_sram_size;
+        if(take()!=saved_sram_size)return false;
+    }else if(!sram.empty())saved_sram.assign(sram.size(),0xff);
     position=memory_position;
     // Validate first; rejected states leave the active machine untouched.
     hidden=std::move(saved_hidden);joybus=saved_joybus;
+    if(!sram.empty())sram=std::move(saved_sram);
     cpu.state = s;cpu.caches=saved_caches;cpu.tlb=saved_tlb; frames = saved_frames; done = saved_done;
     si_address = uint32_t(saved_si_address); input_buttons = uint32_t(saved_input);other_input_buttons=saved_other_input; si_interrupt = saved_irq;
     mi_mask = uint8_t(saved_mask); yielded = saved_yield&1;
