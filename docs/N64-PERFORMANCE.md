@@ -524,12 +524,18 @@ One private 60-field SM64 course continuation measured **11,704,904 CPU
 steps**, **82,317,597 cached-idle clocks** (53,344,712 active-RSP and
 28,888,785 inactive, plus 84,100 ordinary event clocks), **38,237,541
 completed RSP instructions**, and **27,192 RDP draw calls**. The profiling
-build recorded 0.80 seconds in active-RSP batches and 1.03 seconds in RDP
-draws on that host-load sample. A paired 60-field run with the ordinary and
-profiled plugins produced byte-identical complete native states and matching
+build recorded 2.12 seconds in active-RSP batches and 0.99 seconds in RDP
+draws on a corrected host-load sample. The stage times overlap. A paired
+60-field run with the ordinary and profiled plugins produced byte-identical
+complete native states and matching
 CPU attempt and audio counts. The normal plugin's production TCP netplay gate
 passes. This is diagnosis of a bounded course scene;
 SM64 remains below real time and **N64 stays 50% (10/20)**.
+
+N64 0.104.1 corrects the `active_ms` timer placement. In 0.103.0 and
+0.104.0 profiling builds, that field timed inactive-clock skipping. The
+instruction and draw counts were unaffected; use 0.104.1 or later for
+active-RSP timing.
 
 ## Exact RSP NOP fast path (0.104.0)
 

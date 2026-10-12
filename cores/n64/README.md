@@ -4701,3 +4701,13 @@ time, seven of nine faster. Three 300-field pairs measured **18.78 to 19.64
 fields/second**, two of three faster. Complete states matched byte for byte.
 See [performance details](../../docs/N64-PERFORMANCE.md#exact-rsp-nop-fast-path-01040).
 SM64 remains below real time; **N64 stays 50% (10/20)**.
+
+## Corrected active-RSP profile timing (0.104.1)
+
+The opt-in `active_ms` timer now measures the active-RSP batch; earlier
+0.103.0–0.104.0 profiling builds timed inactive-clock skipping under that
+label. A corrected 60-field SM64 profile measured **2.12 seconds** in
+active-RSP batches and **0.99 seconds** in RDP draws, with overlapping
+categories. Guest execution and complete native state match the ordinary
+plugin. [Profile details](../../docs/N64-PERFORMANCE.md#opt-in-n64-execution-profile-01030).
+**N64 stays 50% (10/20)**.
