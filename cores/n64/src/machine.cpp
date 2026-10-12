@@ -161,7 +161,19 @@ unsigned Machine::skip_inactive_clocks(unsigned maximum) {
 }
 void Machine::clock() {
     // One nominal CPU clock per interpreter attempt: physical CPI is unmodeled.
-    rsp_phase+=2;if(rsp_phase>=3){rsp_phase-=3;rsp.step(sp_interface,dp_interface,sp,ram);dp_interface.tick(ram,sp,dp_interrupt,&hidden);}
+    rsp_phase+=2;if(rsp_phase>=3){
+        rsp_phase-=3;rsp.step(sp_interface,dp_interface,sp,ram);
+        // A settled command stream only advances the nominal pipeline
+        // counters. RSP writes above can start a new stream on this tick.
+        if(fast_dp_clock_enabled && dp_interface.current==dp_interface.active_end &&
+           !(dp_interface.start_valid && dp_interface.end_valid) &&
+           !dp_interface.packet.ready()){
+            if(dp_interface.pipeline){
+                dp_interface.clock=(dp_interface.clock+1)&0xffffff;
+                dp_interface.pipe_busy=(dp_interface.pipe_busy+1)&0xffffff;
+            }
+        }else dp_interface.tick(ram,sp,dp_interrupt,&hidden);
+    }
     joybus.rtc.tick();
     crystal_phase+=48681818;
     if(crystal_phase>=93750000) {crystal_phase-=93750000;audio_interface.tick(ram);video_interface.tick();}

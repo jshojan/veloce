@@ -4453,3 +4453,15 @@ forced scalar fallback and executed mutants pass. Original two-cycle filtering,
 private course continuation and production netplay regressions also pass.
 See the [benchmark details](../../docs/N64-PERFORMANCE.md).
 Performance remains below real time. **N64 remains 50% (10/20).**
+
+## Settled DP clock acceleration (0.88.0)
+
+The core advances nominal DP counters directly while its command stream is
+settled, checking again after each RSP step so a new command is processed on
+its proper tick. A host-only switch enables direct comparison with the original
+path. Five private SM64 checkpoint pairs measured **2.9% more throughput**
+(**14.07 to 14.47 VI fields/second**) than 0.87.0, with identical complete
+states, CPU attempts and audio counts. Differential clocks, the original DP
+register ROM, netplay and private course movement pass. See the
+[benchmark and tests](../../docs/N64-PERFORMANCE.md). Performance remains below
+real time. **N64 remains 50% (10/20).**
