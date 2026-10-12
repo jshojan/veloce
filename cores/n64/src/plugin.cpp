@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <array>
 #include <cstring>
+#include <ctime>
 #include <charconv>
 #include <fstream>
 #include <iterator>
@@ -20,7 +21,7 @@ class Plugin : public emu::IEmulatorPlugin, public emu::INetplayCapable,
 public:
     emu::EmulatorInfo get_info() override {
         static const char* extensions[] = {".z64", ".v64", ".n64", nullptr};
-        return {"N64", "0.67.0", "Veloce", "Experimental N64 core with MIPS III, CP0, RSP, partial RDP, SI/PIF controller polling, per-port Controller or Rumble Paks, 4/16 Kbit EEPROM, 32/96 KiB SRAM and functional 128 KiB FlashRAM saves. Retail course entry, complete hardware and physical timing remain pending.",
+        return {"N64", "0.68.0", "Veloce", "Experimental N64 core with MIPS III, CP0, RSP, partial RDP, SI/PIF controller polling, per-port Controller or Rumble Paks, 4/16 Kbit EEPROM, 32/96 KiB SRAM, 128 KiB FlashRAM and functional cartridge RTC. Retail course entry, complete hardware and physical timing remain pending.",
                 extensions, 60.0, 93750000, 320, 240};
     }
     const emu::ControllerLayoutInfo* get_controller_layout() override {
@@ -57,7 +58,15 @@ public:
     bool has_battery_save() const override { return is_rom_loaded() && (machine.joybus.has_eeprom() || !machine.sram.empty() || machine.flash.enabled); }
     std::vector<uint8_t> get_battery_save_data() const override {
         if(!has_battery_save())return {};
-        if(machine.flash.enabled)return {machine.flash.data.begin(),machine.flash.data.end()};
+        if(machine.flash.enabled){
+            std::vector<uint8_t> content(machine.flash.data.begin(),machine.flash.data.end());
+            if(machine.joybus.rtc.present){
+                content.insert(content.end(),machine.joybus.rtc.ram.begin(),machine.joybus.rtc.ram.end());
+                const uint64_t timestamp=uint64_t(std::time(nullptr));
+                for(unsigned n=0;n<8;++n)content.push_back(uint8_t(timestamp>>(56-8*n)));
+            }
+            return content;
+        }
         if(!machine.sram.empty())return machine.sram;
         const auto& eeprom=machine.joybus.eeprom_data();
         return {eeprom.begin(),eeprom.begin()+machine.joybus.eeprom_bytes()};
@@ -70,8 +79,19 @@ public:
             machine.joybus.configure_eeprom(0);
         }
         if(machine.flash.enabled){
-            if(data.size()!=FlashRam::bytes)return false;
-            std::copy(data.begin(),data.end(),machine.flash.data.begin());return true;
+            const bool rtc=machine.joybus.rtc.present;
+            if(data.size()!=FlashRam::bytes && !(rtc && data.size()==FlashRam::bytes+40))return false;
+            CartridgeRtc incoming=machine.joybus.rtc;
+            if(rtc && data.size()==FlashRam::bytes+40){
+                std::copy_n(data.begin()+FlashRam::bytes,32,incoming.ram.begin());
+                if(!incoming.valid_time())return false;
+                uint64_t timestamp=0;
+                for(unsigned n=0;n<8;++n)timestamp=(timestamp<<8)|data[FlashRam::bytes+32+n];
+                const uint64_t now=uint64_t(std::time(nullptr));
+                if(now>timestamp)incoming.advance(now-timestamp);
+            }
+            std::copy_n(data.begin(),FlashRam::bytes,machine.flash.data.begin());
+            machine.joybus.rtc=incoming;return true;
         }
         // Existing saves can identify a native board absent from the ID table.
         if(machine.boot_mode==Machine::BootMode::Native6102 && machine.sram.empty() &&
@@ -195,7 +215,7 @@ public:
         std::memcpy(buffer,state_scratch.data(),state_scratch.size());return state_scratch.size();
     }
     bool load_state_fast(const uint8_t* buffer,size_t size) override {
-        if(!is_loaded() || !buffer || size<8 || size>Machine::flash_state_size)return false;
+        if(!is_loaded() || !buffer || size<8 || size>Machine::rtc_state_size)return false;
         return machine.restore(std::vector<uint8_t>(buffer,buffer+size));
     }
     uint64_t get_state_hash() const override {

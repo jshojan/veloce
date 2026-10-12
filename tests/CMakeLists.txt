@@ -1233,6 +1233,31 @@ add_test(NAME n64_native_flash_identity_test COMMAND ${Python3_EXECUTABLE}
     --capture $<TARGET_FILE:n64_native_flash_identity_test> --plugin $<TARGET_FILE:n64_plugin>
     --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_native_flash_identity)
 set_tests_properties(n64_native_flash_identity_test PROPERTIES LABELS "integration;accuracy;owned;save" TIMEOUT 90)
+add_executable(n64_cartridge_rtc_test cpp/n64_cartridge_rtc_test.cpp)
+target_include_directories(n64_cartridge_rtc_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(n64_cartridge_rtc_test PRIVATE n64_plugin)
+add_test(NAME n64_cartridge_rtc_test COMMAND n64_cartridge_rtc_test
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/native_flash_identity/native_flash_identity.z64)
+set_tests_properties(n64_cartridge_rtc_test PROPERTIES LABELS "unit;accuracy;save;controller" TIMEOUT 90)
+add_executable(n64_cartridge_rtc_capture cpp/n64_cartridge_rtc_capture.cpp)
+target_include_directories(n64_cartridge_rtc_capture PRIVATE ${CMAKE_SOURCE_DIR}/include ${SDL2_INCLUDE_DIRS})
+target_link_libraries(n64_cartridge_rtc_capture PRIVATE ${SDL2_LIBRARIES})
+add_dependencies(n64_cartridge_rtc_capture n64_plugin)
+add_test(NAME n64_cartridge_rtc COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/cartridge_rtc/run.py
+    --capture $<TARGET_FILE:n64_cartridge_rtc_capture> --plugin $<TARGET_FILE:n64_plugin>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_cartridge_rtc)
+set_tests_properties(n64_cartridge_rtc PROPERTIES LABELS "integration;accuracy;owned;save;controller" TIMEOUT 120)
+add_executable(n64_rtc_frontend_test cpp/n64_rtc_frontend_test.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/plugin_manager.cpp ${CMAKE_SOURCE_DIR}/src/core/plugin_registry.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/plugin_config.cpp ${CMAKE_SOURCE_DIR}/src/core/paths_config.cpp)
+target_include_directories(n64_rtc_frontend_test PRIVATE ${CMAKE_SOURCE_DIR}/include ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(n64_rtc_frontend_test PRIVATE nlohmann_json::nlohmann_json ${CMAKE_DL_LIBS})
+add_dependencies(n64_rtc_frontend_test n64_plugin)
+add_test(NAME n64_rtc_frontend_test COMMAND n64_rtc_frontend_test
+    $<TARGET_FILE:n64_plugin> ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/cartridge_rtc/cartridge_rtc.z64
+    ${CMAKE_BINARY_DIR}/artifacts/owned/n64_rtc_frontend)
+set_tests_properties(n64_rtc_frontend_test PROPERTIES LABELS "integration;save;netplay;controller" TIMEOUT 120)
 add_executable(n64_controller_pak_joybus_test cpp/n64_controller_pak_joybus_test.cpp)
 target_include_directories(n64_controller_pak_joybus_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src ${CMAKE_SOURCE_DIR}/include)
 add_test(NAME n64_controller_pak_joybus_test COMMAND n64_controller_pak_joybus_test)

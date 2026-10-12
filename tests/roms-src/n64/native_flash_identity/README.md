@@ -9,8 +9,9 @@ IDs** and both swapped ROM formats. Its independent file oracle grades **22
 guest cases / 44 register words** from `registers.txt`, and rejects an executed
 wrong-register cartridge and a damaged result file.
 
-The gate also verifies that each native cartridge selects an erased 128 KiB
-battery save. Eight IDs expect the older Macronix silicon ID; the other twelve
+The gate also verifies that each native cartridge selects erased 128 KiB
+FlashRAM. The `NAF` RTC board additionally stores a 40-byte clock trailer in
+its battery file. Eight IDs expect the older Macronix silicon ID; the other twelve
 and the swapped controls expect the newer ID. Full page programming, erase and
 save rollback are covered by the separate [FlashRAM cartridge](../cartridge_flash/README.md).
 

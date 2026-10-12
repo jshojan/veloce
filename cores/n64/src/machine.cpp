@@ -65,6 +65,8 @@ bool Machine::load(const uint8_t* data, size_t size) {
     else if(mode==BootMode::Homebrew && !std::memcmp(rom.data()+0x3c,"E4K1",4))
         eeprom_bytes=512;
     joybus.configure_eeprom(eeprom_bytes);
+    joybus.rtc.configure(mode==BootMode::Native6102 &&
+                         !std::memcmp(rom.data()+0x3b,"NAF",3));
     reset();
     return true;
 }
@@ -111,6 +113,7 @@ void Machine::run_frontend_frame() {
 void Machine::clock() {
     // One nominal CPU clock per interpreter attempt: physical CPI is unmodeled.
     rsp_phase+=2;if(rsp_phase>=3){rsp_phase-=3;rsp.step(sp_interface,dp_interface,sp,ram);dp_interface.tick(ram,sp,dp_interrupt,&hidden);}
+    joybus.rtc.tick();
     crystal_phase+=48681818;
     if(crystal_phase>=93750000) {crystal_phase-=93750000;audio_interface.tick(ram);video_interface.tick();}
     output_phase+=48000;
@@ -329,7 +332,8 @@ static void append(std::vector<uint8_t>& data, uint64_t value) {
 bool Machine::save(std::vector<uint8_t>& data) const {
     if (rom.empty()) return false;
     data.assign({'V','N','6','4','S','0','3','3'});
-    if(flash.enabled)data[7]='7';
+    if(joybus.rtc.present)data[7]='8';
+    else if(flash.enabled)data[7]='7';
     else if(!sram.empty())data[7]='6';
     else if(joybus.has_rumble_state())data[7]='5';
     else if(joybus.has_pak_state())data[7]='4';
@@ -393,6 +397,10 @@ bool Machine::save(std::vector<uint8_t>& data) const {
         data.insert(data.end(),flash.page.begin(),flash.page.end());
         for(auto value:flash.flags())append(data,value);
     }
+    if(joybus.rtc.present){
+        data.insert(data.end(),joybus.rtc.ram.begin(),joybus.rtc.ram.end());
+        append(data,joybus.rtc.status);append(data,joybus.rtc.clocks);
+    }
     return true;
 }
 bool Machine::restore(const std::vector<uint8_t>& data) {
@@ -425,7 +433,8 @@ bool Machine::restore(const std::vector<uint8_t>& data) {
     const bool hidden_previous=!std::memcmp(data.data(),"VN64S026",8);
     const bool primitive_previous=!std::memcmp(data.data(),"VN64S027",8);
     const bool joybus_previous=!std::memcmp(data.data(),"VN64S028",8);
-    const bool flash_current=!std::memcmp(data.data(),"VN64S037",8);
+    const bool rtc_current=!std::memcmp(data.data(),"VN64S038",8);
+    const bool flash_current=rtc_current || !std::memcmp(data.data(),"VN64S037",8);
     const bool sram_current=!std::memcmp(data.data(),"VN64S036",8);
     const bool rumble_current=flash_current || sram_current || !std::memcmp(data.data(),"VN64S035",8);
     const bool pak_current=rumble_current || !std::memcmp(data.data(),"VN64S034",8);
@@ -435,9 +444,10 @@ bool Machine::restore(const std::vector<uint8_t>& data) {
     const bool scheduled=linked || !std::memcmp(data.data(),"VN64S030",8);
     const bool current=scheduled || !std::memcmp(data.data(),"VN64S029",8);
     const size_t saved_sram_size=sram_current?size_t(be(data.data()+data.size()-8,8)):0;
-    if((flash_current && (!flash.enabled || !sram.empty())) ||
+    if((rtc_current && !joybus.rtc.present) ||
+       (flash_current && (!flash.enabled || !sram.empty())) ||
        (sram_current && (saved_sram_size!=sram.size() || (saved_sram_size!=32*1024 && saved_sram_size!=96*1024))) ||
-        (!legacy && !previous && !ri_previous && !mi_previous && !devices_previous && !caches_previous && !sp_previous && !audio_previous && !fpu_previous && !tlb_previous && !video_previous && !scalar_previous && !dp_previous && !vector_previous && !accumulator_previous && !combiner_previous && !depth_previous && !divider_previous && !texture_previous && !tmem_previous && !controllers_previous && !packet_previous && !conversion_previous && !blender_previous && !hidden_previous && !(primitive_previous || joybus_previous || current)) || data.size()!=prefix+ram_size+sp.size()+(legacy?0:previous?120:ri_previous?176:mi_previous?192:devices_previous?480:caches_previous?41440:sp_previous?41512:audio_previous?74440:fpu_previous?74448:tlb_previous?75472:video_previous?75632:scalar_previous?75888:dp_previous?75888+rsp_state_size:vector_previous?75888+rsp_state_size+dp_state_size:accumulator_previous?75888+rsp_state_size+dp_state_size+vector_state_size:combiner_previous?75888+rsp_state_size+dp_state_size+vector_state_size+accumulator_state_size:depth_previous?75888+rsp_state_size+dp_state_size+vector_state_size+accumulator_state_size+combiner_state_size:75888+rsp_state_size+dp_state_size+vector_state_size+accumulator_state_size+combiner_state_size+depth_image_state_size+(divider_previous?0:divider_state_size+(texture_previous?0:texture_state_size+(tmem_previous?0:tmem_state_size+((packet_previous || conversion_previous || blender_previous || hidden_previous || (primitive_previous || joybus_previous || current))?controller_state_size:0)+((conversion_previous || blender_previous || hidden_previous || (primitive_previous || joybus_previous || current))?packet_state_size:0)+((blender_previous || hidden_previous || (primitive_previous || joybus_previous || current))?conversion_state_size:0)+((hidden_previous || (primitive_previous || joybus_previous || current))?blender_state_size:0)+((primitive_previous || joybus_previous || current)?hidden_state_size:0)))))+((joybus_previous || current)?primitive_depth_state_size:0)+(current?joybus_state_size:0)+(eeprom_current?PifJoybus::Eeprom{}.size()+8:eeprom_previous?512:0)+(pak_current?PifJoybus::PakStorage{}.size()+8:0)+(rumble_current?8:0)+(sram_current?saved_sram_size+8:0)+(flash_current?FlashRam::bytes+128+32:0) ||
+        (!legacy && !previous && !ri_previous && !mi_previous && !devices_previous && !caches_previous && !sp_previous && !audio_previous && !fpu_previous && !tlb_previous && !video_previous && !scalar_previous && !dp_previous && !vector_previous && !accumulator_previous && !combiner_previous && !depth_previous && !divider_previous && !texture_previous && !tmem_previous && !controllers_previous && !packet_previous && !conversion_previous && !blender_previous && !hidden_previous && !(primitive_previous || joybus_previous || current)) || data.size()!=prefix+ram_size+sp.size()+(legacy?0:previous?120:ri_previous?176:mi_previous?192:devices_previous?480:caches_previous?41440:sp_previous?41512:audio_previous?74440:fpu_previous?74448:tlb_previous?75472:video_previous?75632:scalar_previous?75888:dp_previous?75888+rsp_state_size:vector_previous?75888+rsp_state_size+dp_state_size:accumulator_previous?75888+rsp_state_size+dp_state_size+vector_state_size:combiner_previous?75888+rsp_state_size+dp_state_size+vector_state_size+accumulator_state_size:depth_previous?75888+rsp_state_size+dp_state_size+vector_state_size+accumulator_state_size+combiner_state_size:75888+rsp_state_size+dp_state_size+vector_state_size+accumulator_state_size+combiner_state_size+depth_image_state_size+(divider_previous?0:divider_state_size+(texture_previous?0:texture_state_size+(tmem_previous?0:tmem_state_size+((packet_previous || conversion_previous || blender_previous || hidden_previous || (primitive_previous || joybus_previous || current))?controller_state_size:0)+((conversion_previous || blender_previous || hidden_previous || (primitive_previous || joybus_previous || current))?packet_state_size:0)+((blender_previous || hidden_previous || (primitive_previous || joybus_previous || current))?conversion_state_size:0)+((hidden_previous || (primitive_previous || joybus_previous || current))?blender_state_size:0)+((primitive_previous || joybus_previous || current)?hidden_state_size:0)))))+((joybus_previous || current)?primitive_depth_state_size:0)+(current?joybus_state_size:0)+(eeprom_current?PifJoybus::Eeprom{}.size()+8:eeprom_previous?512:0)+(pak_current?PifJoybus::PakStorage{}.size()+8:0)+(rumble_current?8:0)+(sram_current?saved_sram_size+8:0)+(flash_current?FlashRam::bytes+128+32:0)+(rtc_current?48:0) ||
         (legacy && boot_mode!=BootMode::Homebrew)) return false;
     size_t position = 8;
     auto take = [&]() { auto v = be(data.data() + position, 8); position += 8; return v; };
@@ -557,6 +567,7 @@ bool Machine::restore(const std::vector<uint8_t>& data) {
     if((joybus_previous || current) && !saved_dp_interface.primitive_depth.restore(take()))return false;
     PifJoybus saved_joybus;
     saved_joybus.configure_eeprom(joybus.eeprom_bytes());
+    saved_joybus.rtc.configure(joybus.rtc.present);
     if(!pak_current){
         saved_joybus.configure_pak_mask(joybus.inserted_paks());
         saved_joybus.configure_rumble_mask(joybus.inserted_rumble_paks());
@@ -593,6 +604,14 @@ bool Machine::restore(const std::vector<uint8_t>& data) {
         std::array<uint64_t,4> flags{};for(auto& value:flags)value=take();
         if(!saved_flash.restore_flags(flags))return false;
     }else if(flash.enabled){saved_flash.data.fill(0xff);saved_flash.reset();}
+    if(rtc_current){
+        std::copy_n(data.begin()+position,saved_joybus.rtc.ram.size(),saved_joybus.rtc.ram.begin());
+        position+=saved_joybus.rtc.ram.size();
+        const auto status=take(),clocks=take();
+        if((status!=0 && status!=0x80) || clocks>=CartridgeRtc::clocks_per_second ||
+           !saved_joybus.rtc.valid_time())return false;
+        saved_joybus.rtc.status=uint8_t(status);saved_joybus.rtc.clocks=clocks;
+    }
     position=memory_position;
     // Validate first; rejected states leave the active machine untouched.
     hidden=std::move(saved_hidden);joybus=saved_joybus;flash=std::move(saved_flash);
