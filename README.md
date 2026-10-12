@@ -898,6 +898,10 @@ MIT License - See [LICENSE](LICENSE) file.
 
 ## Branch reconciliation
 
+Active NES, GB, GBA, SNES and N64 work uses separate
+[console worktree lanes](docs/EMULATOR-LANES.md) and console-scoped branches.
+Each lane merges through a PR after local verification; CI/CD remains disabled.
+
 The older README refresh has been reconciled with current implementation and
 executed evidence. Its outdated four-core, missing-file-channel and missing-
 netplay status was superseded. See the [branch integration record](docs/BRANCH-INTEGRATION.md).

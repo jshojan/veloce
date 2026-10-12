@@ -3,6 +3,7 @@
 # Build directories
 build/
 cmake-build-*/
+/.worktrees/
 
 # tests/roms-src (SH-3b): upstream clones-at-SHA are refetched by build.py,
 # never committed; versions.json is regenerated from the toolchain image by
