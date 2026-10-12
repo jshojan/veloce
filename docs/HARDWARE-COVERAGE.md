@@ -4335,3 +4335,12 @@ all 2,048 aligned accessory addresses and three motor phases. S035 preserves
 motor state for rollback; a virtual SDL controller gate checks per-port output
 and stopping after reassignment. Physical accessory timing and real controller
 feedback are unmeasured. The fixed N64 score remains **50% (10/20)**.
+
+## N64 cartridge SRAM corpus (0.66.0)
+
+An [original MIPS cartridge](../tests/roms-src/n64/cartridge_sram/README.md)
+grades 2,048 PI SRAM DMA cases / 24,576 guest register words and 131,072 final
+save bytes across 32 KiB and 96 KiB media. Component and frontend gates check
+aligned direct I/O, known native IDs, 32/96 KiB cross-session `.sav` reload,
+S036 rollback and malformed-state/save rejection. Physical PI timing, address
+mirroring and FlashRAM remain pending. N64 stays **50% (10/20)**.

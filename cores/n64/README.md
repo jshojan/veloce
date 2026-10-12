@@ -4107,3 +4107,17 @@ The virtual SDL gate checks routing; real controller output and electrical
 timing remain unmeasured. The private Super Mario 64 lobby checkpoint still
 passes dialogue dismissal and movement into the raised hall. N64 remains
 **50% (10/20)**.
+
+## Cartridge SRAM PI DMA and saves (0.66.0)
+
+The [original MIPS cartridge](../../tests/roms-src/n64/cartridge_sram/README.md)
+writes and reads all 32 KiB and 96 KiB SRAM blocks through guest PI DMA. The
+host checks **2,048 cases / 24,576 actual register words** and all **131,072
+saved bytes**, with an executed wrong-register ROM and damaged-file controls.
+The core selects SRAM for known native cartridge IDs or an original homebrew
+marker; an existing 32/96 KiB save can select it for an unknown native ID.
+Frontend `.sav` files reload across sessions, reset retains SRAM, and S036
+snapshots include the media for rollback. Direct aligned 32-bit SRAM I/O is
+also supported. Physical PI timing, out-of-extent mirroring, odd/unaligned
+DMA, FlashRAM, retail save APIs and full-title playability remain unverified.
+The fixed N64 delivery score remains **50% (10/20)**.
