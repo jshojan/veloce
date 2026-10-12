@@ -81,11 +81,14 @@ python3 tests/n64_performance.py /path/to/game.z64 \
 ```
 
 The script records source/binary hashes, individual observations, median
-throughput and complete-state equivalence in
+throughput, every paired speedup, the median paired speedup, the number of
+faster pairs, and complete-state equivalence in
 `build/artifacts/performance/n64/report.json`. It alternates run order and
 rejects differences in complete native states, emulated attempts, audio counts
-or frame counts. Optional `--min-speedup` is a local acceptance threshold;
-absolute FPS is not a portable test gate.
+or frame counts. On Linux, `--cpu-affinity N` pins both probe processes to an
+allowed CPU and records the mask used. Optional `--min-speedup` grades the
+median **paired** ratio, so a ratio of independent medians cannot pass while
+most pairs regress. Absolute FPS is not a portable test gate.
 
 The CPU continuation gate covers scalar and batched execution, timer wraparound,
 external interrupts on branch/delay boundaries, Wired/Random combinations,
