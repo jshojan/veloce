@@ -15,9 +15,12 @@ def expected(case):
     step,(format_code,source,maximum,negative,lod)=case
     assert 0<=step<=255 and maximum in (1,3)
     if lod:
-        level=min(step.bit_length()-1,maximum) if step else 0
-        first=level
-        second=level+(1 if step else 0)
+        units=step*32-(1 if negative and step else 0)
+        magnify=units<32
+        level=(units>>5).bit_length()-1 if not magnify else 0
+        distant=level>=maximum if not magnify else False
+        first=min(level,maximum)
+        second=first+(0 if magnify or distant else 1)
     else:first,second=0,1
     texel0,_=decode(TILE_WORDS[first],format_code)
     texel1,opacity=decode(TILE_WORDS[second],format_code)

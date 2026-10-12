@@ -4098,17 +4098,18 @@ clamping at the primitive's maximum. The
 grades **8,192 cases / 106,496 actual framebuffer and DP/MI register words**
 across RGBA16, IA16, two maximum levels, LOD on/off and RDRAM/XBUS delivery.
 Five source tiles have distinct values; executed wrong-tile, wrong-LOD and
-wrong-maximum-level ROMs are rejected. Fractional and nonhorizontal gradients,
-perspective, LOD fractions and general mipmap filtering remain unsupported.
+wrong-maximum-level ROMs are rejected. This cartridge does not grade
+fractional or nonhorizontal gradients, perspective, LOD fractions or general
+mipmap filtering.
 
 N64 0.77.0 supplies the exact affine LOD fraction to two-cycle RGB and alpha
 combiner multipliers. The [original LOD-fraction cartridge](../../tests/roms-src/n64/rdp_lod_fraction/README.md)
 grades **360 cases / 4,680 actual framebuffer and DP/MI register words** across
 1–15 texels-per-pixel S gradients in both directions, RGBA16/IA16,
 RDRAM/XBUS delivery, and RGB-only, alpha-only and combined fraction muxes.
-Executed wrong-fraction and wrong-tile ROMs are rejected. Fractions at a capped
-level, nonzero minimum level, fractional/T/Y gradients, perspective,
-detail, sharpen and full mipmap filtering remain unfinished. N64 stays
+Executed wrong-fraction and wrong-tile ROMs are rejected. This cartridge does
+not grade capped fractions, nonzero minimum level, fractional/T/Y gradients,
+perspective, detail, sharpen or full mipmap filtering. N64 stays
 **50% (10/20)** of the fixed delivery checklist.
 
 N64 0.78.0 derives affine LOD level and fraction from the largest S/T gradient
@@ -4117,9 +4118,21 @@ grades **524,280 cases / 6,815,640 actual framebuffer and DP/MI register
 words** over every nonzero four-tuple of 0–15 integer texels per pixel, both
 common signs, RGBA16/IA16 and RDRAM/XBUS delivery. Executed wrong-T, wrong-Y,
 wrong-fraction, wrong-tile and wrong-capture ROMs are rejected. This is an
-affine vertical-edge profile; fractional gradients, independent signs,
-perspective and full mipmap filtering remain unfinished. N64 stays
+affine vertical-edge profile; this cartridge does not grade fractional
+gradients, independent signs, perspective or full mipmap filtering. N64 stays
 **50% (10/20)**.
+
+N64 0.79.0 adds affine **1/32-texel** LOD steps and corrects the signed-delta
+and coarsest-level boundaries. Negative deltas lose one subtexel unit; the
+coarsest mip level uses the same tile in both cycles with fraction 255. The
+[original subtexel cartridge](../../tests/roms-src/n64/rdp_lod_subtexel/README.md)
+grades **49,152 cases / 638,976 actual framebuffer and DP/MI register words**
+across every 0–511 subtexel gradient on four axes, both signs, three maximum
+levels, RGBA16/IA16 and RDRAM/XBUS delivery. Existing integer-gradient
+oracles were corrected and rerun. Mixed fractional gradients, perspective,
+detail/sharpen and full mipmap filtering remain unfinished. This model follows
+published RDP behavior; physical hardware capture is still needed for direct
+silicon validation. N64 stays **50% (10/20)**.
 
 An A pulse now loads Bob-omb Battlefield. Guest RAM places Mario near
 **(-6525, 0, 6431)** with a course terrain and camera. A 120-field neutral
