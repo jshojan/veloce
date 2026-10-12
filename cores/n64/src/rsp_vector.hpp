@@ -87,8 +87,10 @@ private:
     }
     bool lane_math(uint32_t ins){
         const unsigned fn=ins&63,vt=(ins>>16)&31,vs=(ins>>11)&31,vd=(ins>>6)&31,e=(ins>>21)&15;
-        RspSimd::Words left{},right{};
-        for(unsigned i=0;i<8;++i){const unsigned selected=e<2?i:e<4?(i&6)|(e&1):e<8?(i&4)|(e&3):e&7;left[i]=lane(vs,i);right[i]=lane(vt,selected);}
+        RspSimd::Words left=RspSimd::load_words(registers[vs]),right{};
+        if(e>=8)right.fill(uint16_t(lane(vt,e&7)));
+        else if(e<2)right=RspSimd::load_words(registers[vt]);
+        else for(unsigned i=0;i<8;++i){const unsigned selected=e<4?(i&6)|(e&1):(i&4)|(e&3);right[i]=lane(vt,selected);}
         RspSimd::Words accelerated;
         if(simd_enabled && RspSimd::alu(fn,left,right,accumulator,flags,accelerated)){
             for(unsigned i=0;i<8;++i)set_lane(vd,i,accelerated[i]);
@@ -111,8 +113,10 @@ private:
         const unsigned fn=ins&63,vt=(ins>>16)&31,vs=(ins>>11)&31,vd=(ins>>6)&31,e=(ins>>21)&15;
         if(fn==29){for(unsigned i=0;i<8;++i)set_lane(vd,i,e>=8 && e<=10?uint16_t(accumulator[i]>>(16*(10-e))):0);return true;}
         if(fn>=16)return false;
-        RspSimd::Words left{},right{};
-        for(unsigned i=0;i<8;++i){const unsigned selected=e<2?i:e<4?(i&6)|(e&1):e<8?(i&4)|(e&3):e&7;left[i]=lane(vs,i);right[i]=lane(vt,selected);}
+        RspSimd::Words left=RspSimd::load_words(registers[vs]),right{};
+        if(e>=8)right.fill(uint16_t(lane(vt,e&7)));
+        else if(e<2)right=RspSimd::load_words(registers[vt]);
+        else for(unsigned i=0;i<8;++i){const unsigned selected=e<4?(i&6)|(e&1):(i&4)|(e&3);right[i]=lane(vt,selected);}
         RspSimd::Words accelerated;
         if(simd_enabled && RspSimd::multiply(fn,left,right,accumulator,accelerated)){
             for(unsigned i=0;i<8;++i)set_lane(vd,i,accelerated[i]);

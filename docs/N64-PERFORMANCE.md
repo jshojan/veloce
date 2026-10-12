@@ -473,3 +473,28 @@ attempt and audio counts. The ignored local reports are at
 `build/artifacts/performance/n64-simple-tile-coordinates/` in the N64 lane.
 SM64 remains below the 60-field real-time target; the N64 delivery checklist
 remains **50% (10/20)**.
+
+## RSP vector register byte-order loads (0.102.0)
+
+A 60-field private SM64 course continuation executed about 38.2 million RSP
+instructions, including 13.2 million vector arithmetic instructions. The
+vector math path now loads all eight big-endian register lanes with one SSE2
+load and byte swap when available. The portable scalar path remains available;
+element selection, destination aliasing, raw accumulators and flags retain the
+same behavior. A direct oracle checks **524,288 decoded lane words** across
+65,536 deterministic register patterns, and the accelerated and forced-scalar
+continuation gates pass. The full original RSP multiply cartridge grades
+**917,504 guest cases** from its actual register-output file with zero
+mismatches; the original accumulator-edge cartridge grades another **294,912
+guest cases**, also with zero mismatches.
+The N64 production-plugin TCP netplay gate passes with the updated plugin.
+
+Five alternating, CPU-pinned 60-field SM64 course-checkpoint pairs measured
+**18.52 to 19.11 VI fields/second** by median time, a **3.2%** gain; four of
+five pairs were faster. Three 300-field pairs measured **20.18 to 20.54 VI
+fields/second**, a **1.8%** gain; two of three pairs were faster. Complete
+native states, CPU attempts and audio counts matched in every pair. Local
+ignored reports are at `build/artifacts/performance/n64-rsp-simd-load-{short,long}/`
+in the N64 lane. Host load affects the absolute rates, so the paired results
+are the relevant comparison. SM64 remains below 60 fields/second and the N64
+delivery checklist remains **50% (10/20)**.
