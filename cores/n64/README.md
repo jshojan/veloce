@@ -4576,3 +4576,15 @@ same RSP instruction slot. An independent file oracle grades **512 cases /
 wrong-instruction ROM and a malformed capture. This verifies functional
 rewrite visibility for both paths; physical bus/DMA timing and the full IMEM
 address domain remain ungraded. N64 remains **50% (10/20)**.
+
+## Exact RDP coverage derivative table (0.95.0)
+
+The renderer now looks up coverage count and the first covered sample in a
+compile-time table of all 256 eight-bit masks. The independent coverage oracle
+checks every mask, 134,217,728 edge pairs and 655,360 mixed row/range masks.
+The original two-cycle filter and shaded-texture cartridges pass. Five paired,
+CPU-pinned 300-field Super Mario 64 course-checkpoint runs measured **1.9%**
+median paired throughput gain, with all five pairs faster and byte-identical
+complete native states. Median throughput was **18.52 to 19.00 VI fields per
+second** across those runs. See [performance details](../../docs/N64-PERFORMANCE.md).
+This remains below the 60-field real-time target; **N64 remains 50% (10/20)**.

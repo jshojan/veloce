@@ -368,3 +368,17 @@ sample counts. Ignored reports are at
 the N64 lane. Original RSP acceleration ROMs, the native-state netplay gate
 and production TCP netplay pass with the optimized plugin. Performance remains
 below the 60-field target; **N64 remains 50% (10/20)**.
+
+## Table-driven RDP coverage derivatives (0.95.0)
+
+Every eight-bit RDP coverage mask maps to a compile-time packed count and first
+covered sample. The independent coverage oracle checks all 256 masks and more
+than 134 million edge pairs. Original two-cycle filter and shaded-texture
+cartridges pass. Five alternating, CPU-pinned 300-field Super Mario 64
+course-checkpoint pairs measured a **1.9% median paired speedup**, with all
+five pairs faster. Median throughput was **18.52 to 19.00 VI fields/second**
+by run time. Every complete native state and work count matched byte for byte.
+The ignored local report is at
+`build/artifacts/performance/n64-coverage-table-final/report.json` in the N64
+lane. This is a small improvement; the game is still choppy and below the
+60-field real-time target. **N64 remains 50% (10/20)**.

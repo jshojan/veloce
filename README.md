@@ -113,6 +113,8 @@ An optional [N64-only host CPU build](docs/N64-PERFORMANCE.md#optional-host-cpu-
 
 The [original RSP IMEM rewrite cartridge](tests/roms-src/n64/rsp_imem_rewrite/README.md) grades **512 cases / 1,536 actual register words** after CPU stores and SP DMA rewrite the same instruction slot. The file oracle rejects an executed wrong-instruction cartridge and malformed output. This checks functional instruction-cache visibility; wider IMEM address coverage and physical timing remain pending. **N64 stays 50% (10/20)**.
 
+N64 0.95.0 uses an exact 256-entry RDP coverage derivative table. Five CPU-pinned, paired 300-field Super Mario 64 course-checkpoint runs measured a **1.9% median paired throughput gain (18.52 to 19.00 VI fields/second)**, with all five pairs faster and byte-identical complete states. The independent coverage oracle and original two-cycle rendering cartridges pass. [Performance details](docs/N64-PERFORMANCE.md). Play remains below real time; **N64 stays 50% (10/20)**.
+
 ### 3DS ARM11 instruction coverage
 
 The 3DS plugin implements the following ARMv6 instruction subsets. Each linked
