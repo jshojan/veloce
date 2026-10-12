@@ -431,3 +431,25 @@ matched byte for byte. The ignored local report is at
 `build/artifacts/performance/n64-rgba16-triangle-filter/report.json` in the
 N64 lane. This remains well below the 60-field real-time target, and N64
 remains **50% (10/20)** on the delivery checklist.
+
+## Contiguous RSP vector-memory transfers (0.100.0)
+
+For RSP vector loads and stores whose bytes stay inside both DMEM and the
+selected vector register, the core now copies the contiguous range directly.
+Transfers that cross the 4 KiB DMEM wrap or the 16-byte vector boundary still
+use the per-byte mapping. This changes host work only; the guest instruction,
+register and memory results remain the same.
+
+The original load and store cartridges each grade **786,432 guest cases**;
+together their independent file oracles check **45,613,056 actual captured
+words** across all twelve forms, every element and low alignment, and byte
+pattern seeds near both ordinary and wrapped DMEM addresses. Both full
+corpora and the RSP vector component test pass. Three alternating, CPU-pinned
+300-field SM64 course-checkpoint pairs measured **17.62 to 18.13 VI
+fields/second** by median time, a **2.9% throughput gain**; two of three
+pairs were faster, while all complete native states, CPU attempt counts and
+audio counts matched byte for byte. A separate five-pair 60-field run favored
+the change in all five pairs. The ignored local report is at
+`build/artifacts/performance/n64-rsp-vector-copy/report.json` in the N64 lane.
+SM64 remains below the 60-field real-time target and the N64 delivery
+checklist remains **50% (10/20)**.

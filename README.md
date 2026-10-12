@@ -165,6 +165,8 @@ N64 0.98.0 selects PAL or NTSC VI/AI crystal timing from the normalized cartridg
 
 N64 0.99.0 adds an exact RGBA16 triangular-filter route for the dominant SM64 texture mode. An independent component oracle checks **67,108,864 corner-pair/fraction cases**, and original one-cycle triangle texture, two-cycle filter and shaded-texture ROMs pass. Three CPU-pinned, paired 300-field SM64 course-checkpoint runs measured **18.94 to 19.35 VI fields/second**, with all three pairs faster and byte-identical complete states. [Performance details](docs/N64-PERFORMANCE.md#exact-rgba16-triangular-filter-route-0990). The game remains below real time; **N64 stays 50% (10/20)**.
 
+N64 0.100.0 copies contiguous RSP vector-memory bytes directly while retaining the per-byte path at DMEM and vector boundaries. The two original load/store ROMs pass **1,572,864 guest cases / 45,613,056 captured words**. Three CPU-pinned, paired 300-field SM64 course-checkpoint runs measured **17.62 to 18.13 VI fields/second** by median time, a 2.9% gain, with byte-identical complete states. The lower absolute rate than the prior report reflects a separate host-load sample; comparisons within each paired run show the change. [Performance details](docs/N64-PERFORMANCE.md#contiguous-rsp-vector-memory-transfers-01000). SM64 remains below real time; **N64 stays 50% (10/20)**.
+
 A cross-platform, plugin-based emulator framework built for speedrunners and TAS creators.
 
 *Veloce* - Italian for "fast"
