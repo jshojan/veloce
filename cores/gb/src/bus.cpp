@@ -16,6 +16,14 @@ Bus::Bus() {
 
 Bus::~Bus() = default;
 
+bool Bus::stop_speed_switch() {
+    write(0xFF04, 0);
+    if (!m_cgb_mode || !(m_key1 & 1)) return false;
+    m_double_speed = !m_double_speed;
+    m_key1 = m_double_speed ? 0x80 : 0;
+    return true;
+}
+
 uint8_t Bus::read(uint16_t address) {
     // ROM Bank 0 (0x0000-0x3FFF)
     if (address < 0x4000) {
@@ -630,6 +638,7 @@ void Bus::load_state(const uint8_t*& data, size_t& remaining) {
 
     // CGB registers
     m_key1 = *data++; remaining--;
+    m_double_speed = m_cgb_mode && (m_key1 & 0x80);
     m_vbk = *data++; remaining--;
     m_svbk = *data++; remaining--;
 

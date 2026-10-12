@@ -386,17 +386,20 @@ void GBPlugin::run_gb_frame(const emu::InputState& input) {
     // GB: 70224 T-cycles per frame (154 scanlines * 456 T-cycles)
     // CPU operates in M-cycles where 1 M-cycle = 4 T-cycles
     constexpr int T_CYCLES_PER_FRAME = 70224;
-    int t_cycles_run = 0;
+    int display_cycles_run = 0;
 
-    while (t_cycles_run < T_CYCLES_PER_FRAME) {
+    while (display_cycles_run < T_CYCLES_PER_FRAME) {
         // CPU step returns M-cycles
         // Note: The CPU's read/write methods now tick the bus (timer, serial, OAM DMA)
         // during each memory access for cycle-accurate timing.
+        const bool double_speed = m_bus->is_double_speed();
         int m_cycles = m_cpu->step();
-        int t_cycles = m_cycles * 4;  // Convert to T-cycles
+        // LCD and audio remain at the normal dot rate when the CGB CPU doubles.
+        // A STOP transition accounts for its pause at the speed before STOP.
+        int t_cycles = m_cycles * (double_speed ? 2 : 4);
 
         m_total_cycles += m_cycles;
-        t_cycles_run += t_cycles;
+        display_cycles_run += t_cycles;
 
         // Timer, serial, and OAM DMA are now stepped during memory accesses
         // via bus.tick_m_cycle() called from CPU read/write.

@@ -236,6 +236,13 @@ add_test(
 set_tests_properties(gb_register_probe PROPERTIES LABELS "accuracy;fast;owned"
     REQUIRED_FILES $<TARGET_FILE:veloce>)
 
+add_test(NAME gb_cgb_speed_switch COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/gb/cgb_speed_switch/run.py
+    --emulator $<TARGET_FILE:veloce>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/gb_cgb_speed_switch)
+set_tests_properties(gb_cgb_speed_switch PROPERTIES LABELS "accuracy;fast;owned"
+    TIMEOUT 60 REQUIRED_FILES $<TARGET_FILE:veloce>)
+
 add_test(NAME gb_alu_exhaustive COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/roms-src/gb/alu_exhaustive/run.py
     --emulator $<TARGET_FILE:veloce> --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/gb_alu)

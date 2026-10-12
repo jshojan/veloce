@@ -281,8 +281,8 @@ int LR35902::step() {
 
         // STOP
         case 0x10:
-            fetch();  // Skip next byte
-            // TODO: Handle double-speed mode switch for CGB
+            ++m_pc;  // Consume the padding byte without a second bus cycle.
+            if (m_bus.stop_speed_switch()) cycles += 2050;
             break;
 
         // LD DE, nn
