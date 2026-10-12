@@ -32,7 +32,12 @@ int main(){
     {auto bad=combine;bad.combine=(bad.combine&~(7ull<<15));check(!bad.independent_two_cycle(true));}
     {auto bad=combine;bad.combine=(bad.combine&~(31ull<<32))|(13ull<<32);check(!bad.independent_two_cycle(true));}
     {auto bad=combine;bad.combine=(bad.combine&~(7ull<<18));check(!bad.independent_two_cycle(true));}
-    {auto bad=combine;bad.combine=(bad.combine&~(7ull<<6))|(1ull<<6);check(!bad.independent_two_cycle(true));}
+    {auto routed=combine;routed.combine=(routed.combine&~(7ull<<6))|(1ull<<6);
+     check(routed.independent_two_cycle(true) && !routed.independent_two_cycle(false));}
+    {auto routed=combine;routed.combine=(routed.combine&~(31ull<<32))|(8ull<<32);
+     check(routed.independent_two_cycle(true) && !routed.independent_two_cycle(false));}
+    {auto routed=combine;routed.combine=(routed.combine&~(31ull<<32))|(9ull<<32);
+     check(!routed.independent_two_cycle(true) && routed.independent_two_cycle(true,false,true) && routed.uses_texel1_cycle1());}
 
     // BL0 fogs the combiner pixel with stepped shade alpha. With blending
     // disabled, BL1's source zero must still receive that fogged pixel.

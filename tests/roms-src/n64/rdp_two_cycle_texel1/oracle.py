@@ -2,7 +2,7 @@
 
 
 def expected(case):
-    raw, (format_code, size, source), s, t = case
+    raw, (format_code, size, source, factor), s, t = case
     assert size == 2 and (s, t) == (7, 23)
 
     def decode(word):
@@ -12,12 +12,16 @@ def expected(case):
             return [value * 8 + value // 4 for value in channels], 255 if word & 1 else 0
         return [word >> 8] * 3, word & 255
 
-    texel0, _ = decode(raw)
+    texel0, alpha0 = decode(raw)
     texel1, opacity = decode(raw ^ 0xffff)
-    # CC0 forwards primitive-tile TEXEL0. CC1 interpolates COMBINED toward
-    # TEXEL1 from the following tile, with primitive alpha fixed at 64/256.
-    combined = [((texel0[lane] - texel1[lane]) * 64 +
-                 texel1[lane] * 256 + 128) // 256
+    # The TEXEL0_ALPHA variant makes CC0 forward primitive RGB and uses
+    # TEXEL0 as the cycle-one base. Others forward TEXEL0 from CC0 and use
+    # TEXEL1 from the following tile as the base.
+    coefficient = {8: alpha0, 9: opacity, 10: 64}[factor]
+    first = [100, 150, 200] if factor == 8 else texel0
+    base = texel0 if factor == 8 else texel1
+    combined = [((first[lane] - base[lane]) * coefficient +
+                 base[lane] * 256 + 128) // 256
                 for lane in range(3)]
     if opacity == 255:
         blended = combined

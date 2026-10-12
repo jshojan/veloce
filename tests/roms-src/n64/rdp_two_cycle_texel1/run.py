@@ -16,7 +16,7 @@ def expected(rom,short=False):
 
 def evaluate(path,rom,short=False):
     count=sum(1 for _ in cases(short))
-    require(count==(24 if short else 262144),"corpus domain changed")
+    require(count==(72 if short else 786432),"corpus domain changed")
     words=13
     width=16
     report=dict(status="error",suite=SUITE,expected_cases=count,observed_cases=0,graded_cases=0,mismatches=0,examples=[],rom_sha256=hashlib.sha256(rom).hexdigest(),result_file=str(path))
@@ -65,6 +65,9 @@ def main():
     badrom=build(short=True,wrong_tile1=True)
     bad,_=grade("wrong-tile1",badrom,True)
     require(bad["status"]=="fail" and bad["mismatches"]>0,"tile1 mutant escaped")
+    badrom=build(short=True,wrong_factor=True)
+    bad,_=grade("wrong-factor",badrom,True)
+    require(bad["status"]=="fail" and bad["mismatches"]>0,"alpha-factor mutant escaped")
     content=path.read_text();row=next(line for line in content.splitlines() if line.startswith("REG r="))
     words=13
     width=16
@@ -74,6 +77,6 @@ def main():
     count=sum(1 for _ in cases(True))
     for name,broken in (("missing-row",content.replace(row+"\n","",1)),("bad-row",content.replace(row,"REG r=bad",1)),("wrong-domain",content.replace(f"cases={count} words={words}",f"cases={count+1} words={words}",1)),("false-pass",content.replace("END observations_complete","END 0/0")),("missing-trailer",content[:content.index("#VELOCE end ")]),("unterminated",content.rstrip("\n")),("trailing",content+"extra\n")):
         bad,_=grade(name,short,True,broken);require(bad["status"]=="error",name+" accepted")
-    print(f"N64 {SUITE}: PASS {baseline['graded_cases']}/{baseline['expected_cases']} rows; executed and tile1 mutants, {words} field and 7 stream controls rejected")
+    print(f"N64 {SUITE}: PASS {baseline['graded_cases']}/{baseline['expected_cases']} rows; executed, tile1 and alpha-factor mutants, {words} field and 7 stream controls rejected")
     return 0
 if __name__=="__main__":sys.exit(main())
