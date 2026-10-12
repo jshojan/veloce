@@ -59,6 +59,8 @@ A third [original shaded-texture cartridge](tests/roms-src/n64/rdp_two_cycle_sha
 
 The private [Bob-omb Battlefield continuation](tests/n64_retail_course_entry.py) now branches from the same walking checkpoint for **300 VI fields** of neutral and sustained stick input. Guest RAM and local frames show Mario settling near (-5767, 128, 5808) in the control and moving to about (-2020, 0, 3407) with stick input, without RSP/DP stops. This remains bounded course movement; N64 stays **50% (10/20)**.
 
+N64 0.72.0 samples cycle-one TEXEL1 from the tile after the primitive tile when LOD is disabled. The [original two-tile cartridge](tests/roms-src/n64/rdp_two_cycle_texel1/README.md) grades **262,144 guest cases / 3,407,872 actual framebuffer and DP/MI register words** across RGBA16 and IA16, with RDRAM and XBUS command delivery. Its independent oracle rejects an executed wrong-second-tile ROM. Point sampling, fixed primitive alpha and no LOD define this finite profile; wider graphics and full-title playability remain pending. N64 stays **50% (10/20)**.
+
 ### 3DS ARM11 instruction coverage
 
 The 3DS plugin implements the following ARMv6 instruction subsets. Each linked
