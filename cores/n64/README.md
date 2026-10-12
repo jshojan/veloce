@@ -4602,3 +4602,13 @@ fields/second)**, with all five pairs faster and byte identical complete
 native states. Combiner routing, math, triangle texture and machine component
 gates pass. [Performance details](../../docs/N64-PERFORMANCE.md#predecoded-rdp-combiner-cycles-0960).
 Play remains below real time; **N64 stays 50% (10/20)**.
+
+## Reused triangle draw invariants (0.97.0)
+
+Second-tile selection and texture conversion coefficients and weights now
+come from the draw setup instead of each shaded pixel. Three CPU-pinned,
+paired 300-field SM64 course-checkpoint runs measured a **1.0% median paired
+gain (19.00 to 19.14 VI fields/second)**, with two of three pairs faster and
+byte-identical complete states. The original two-cycle filter cartridge and
+affected component gates pass. [Performance details](../../docs/N64-PERFORMANCE.md#reused-draw-invariants-0970).
+Play remains below real time; **N64 stays 50% (10/20)**.
