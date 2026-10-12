@@ -4664,3 +4664,17 @@ Three paired 300-field runs measured **19.45 to 19.79 VI fields/second**, two
 of three faster. Complete native states match byte for byte. See
 [performance details](../../docs/N64-PERFORMANCE.md#simple-rdp-tile-coordinates-01010).
 SM64 remains below real time; **N64 stays 50% (10/20)**.
+
+## RSP vector register byte-order loads (0.102.0)
+
+Vector arithmetic now decodes eight big-endian register lanes with an SSE2
+load and byte swap on supported hosts; other hosts use the scalar loader.
+The direct byte-order oracle checks **524,288 decoded lane words**, and the
+accelerated and forced-scalar vector continuation gates pass. Original RSP
+multiply and accumulator-edge cartridges grade **1,212,416 guest cases** from
+actual register files with zero mismatches. Five paired
+60-field private SM64 checkpoint runs measured **18.52 to 19.11 VI
+fields/second** by median time, four of five faster; three 300-field runs
+measured **20.18 to 20.54 fields/second**, two of three faster. Every complete
+native state matched byte for byte. See [performance details](../../docs/N64-PERFORMANCE.md#rsp-vector-register-byte-order-loads-01020).
+SM64 remains below real time; **N64 stays 50% (10/20)**.

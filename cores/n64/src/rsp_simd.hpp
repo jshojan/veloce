@@ -13,6 +13,17 @@ namespace n64 {
 struct RspSimd {
     using Words=std::array<uint16_t,8>;
     static constexpr bool available=VELOCE_RSP_SSE2;
+    static Words load_words(const std::array<uint8_t,16>& bytes){
+        Words result{};
+#if VELOCE_RSP_SSE2
+        const auto packed=_mm_loadu_si128(reinterpret_cast<const __m128i*>(bytes.data()));
+        const auto swapped=_mm_or_si128(_mm_slli_epi16(packed,8),_mm_srli_epi16(packed,8));
+        _mm_storeu_si128(reinterpret_cast<__m128i*>(result.data()),swapped);
+#else
+        for(unsigned i=0;i<8;++i)result[i]=uint16_t(unsigned(bytes[2*i])*256+bytes[2*i+1]);
+#endif
+        return result;
+    }
 #if VELOCE_RSP_SSE2
 private:
     static __m128i load(const Words& v){return _mm_loadu_si128(reinterpret_cast<const __m128i*>(v.data()));}
