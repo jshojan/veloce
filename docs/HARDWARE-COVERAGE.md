@@ -4344,3 +4344,14 @@ save bytes across 32 KiB and 96 KiB media. Component and frontend gates check
 aligned direct I/O, known native IDs, 32/96 KiB cross-session `.sav` reload,
 S036 rollback and malformed-state/save rejection. Physical PI timing, address
 mirroring and FlashRAM remain pending. N64 stays **50% (10/20)**.
+
+## N64 cartridge FlashRAM corpus (0.67.0)
+
+An [original MIPS cartridge](../tests/roms-src/n64/cartridge_flash/README.md)
+grades 1,024 guest PI FlashRAM page cases / 20,480 register words and all
+131,072 final save bytes. Component and frontend gates check both silicon IDs,
+old-model address mapping, all eight 16 KiB sector erases, chip erase, native
+media selection, cross-session `.sav` reload, S037 rollback and malformed-state
+or save rejection. This is a functional settled transfer profile; physical PI
+timing, busy behavior, retail save APIs and full-title playability remain
+unverified. N64 stays **50% (10/20)**.

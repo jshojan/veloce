@@ -20,7 +20,7 @@ class Plugin : public emu::IEmulatorPlugin, public emu::INetplayCapable,
 public:
     emu::EmulatorInfo get_info() override {
         static const char* extensions[] = {".z64", ".v64", ".n64", nullptr};
-        return {"N64", "0.66.0", "Veloce", "Experimental N64 core with MIPS III, CP0, RSP, partial RDP, SI/PIF controller polling, per-port Controller or Rumble Paks, 4/16 Kbit EEPROM and 32/96 KiB SRAM saves. Retail course entry, FlashRAM, complete hardware and physical timing remain pending.",
+        return {"N64", "0.67.0", "Veloce", "Experimental N64 core with MIPS III, CP0, RSP, partial RDP, SI/PIF controller polling, per-port Controller or Rumble Paks, 4/16 Kbit EEPROM, 32/96 KiB SRAM and functional 128 KiB FlashRAM saves. Retail course entry, complete hardware and physical timing remain pending.",
                 extensions, 60.0, 93750000, 320, 240};
     }
     const emu::ControllerLayoutInfo* get_controller_layout() override {
@@ -54,15 +54,25 @@ public:
     void set_frame_scheduling(emu::FrameScheduling mode) override {machine.frame_scheduling=mode;}
     void unload_rom() override { machine.rom.clear(); machine.crc = 0; machine.identity = 0; machine.entry = 0; machine.boot_mode=Machine::BootMode::Homebrew; machine.reset(); }
     bool is_rom_loaded() const override { return !machine.rom.empty(); }
-    bool has_battery_save() const override { return is_rom_loaded() && (machine.joybus.has_eeprom() || !machine.sram.empty()); }
+    bool has_battery_save() const override { return is_rom_loaded() && (machine.joybus.has_eeprom() || !machine.sram.empty() || machine.flash.enabled); }
     std::vector<uint8_t> get_battery_save_data() const override {
         if(!has_battery_save())return {};
+        if(machine.flash.enabled)return {machine.flash.data.begin(),machine.flash.data.end()};
         if(!machine.sram.empty())return machine.sram;
         const auto& eeprom=machine.joybus.eeprom_data();
         return {eeprom.begin(),eeprom.begin()+machine.joybus.eeprom_bytes()};
     }
     bool set_battery_save_data(const std::vector<uint8_t>& data) override {
         if(!is_rom_loaded())return false;
+        if(machine.boot_mode==Machine::BootMode::Native6102 && !machine.flash.enabled &&
+           machine.sram.empty() && data.size()==FlashRam::bytes){
+            machine.flash.configure(true);
+            machine.joybus.configure_eeprom(0);
+        }
+        if(machine.flash.enabled){
+            if(data.size()!=FlashRam::bytes)return false;
+            std::copy(data.begin(),data.end(),machine.flash.data.begin());return true;
+        }
         // Existing saves can identify a native board absent from the ID table.
         if(machine.boot_mode==Machine::BootMode::Native6102 && machine.sram.empty() &&
            (data.size()==32*1024 || data.size()==96*1024)){
@@ -185,7 +195,7 @@ public:
         std::memcpy(buffer,state_scratch.data(),state_scratch.size());return state_scratch.size();
     }
     bool load_state_fast(const uint8_t* buffer,size_t size) override {
-        if(!is_loaded() || !buffer || size<8 || size>Machine::rumble_state_size+96*1024+8)return false;
+        if(!is_loaded() || !buffer || size<8 || size>Machine::flash_state_size)return false;
         return machine.restore(std::vector<uint8_t>(buffer,buffer+size));
     }
     uint64_t get_state_hash() const override {

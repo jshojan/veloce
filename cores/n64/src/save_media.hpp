@@ -6,6 +6,18 @@
 #include <string_view>
 
 namespace n64 {
+// 128 KiB FlashRAM IDs and known older Macronix model hints from ares' media
+// database. -1 means no FlashRAM; unknown models use the byte-indexed profile.
+inline int native_flash_model(const uint8_t* rom) {
+    static constexpr std::array<std::string_view,20> ids={
+        "NCC","NCV","NDA","NAF","NJF","NKJ","NZS","NM6","NCK","NMQ",
+        "NPN","NPF","NPO","CP2","NP3","NRH","NSQ","NT9","NW4","NDP"};
+    static constexpr std::array<std::string_view,8> old={
+        "NCC","NAF","NJF","NZS","NM6","NCK","NPN","NPF"};
+    const std::string_view id{reinterpret_cast<const char*>(rom+0x3b),3};
+    if(std::find(ids.begin(),ids.end(),id)==ids.end())return -1;
+    return std::find(old.begin(),old.end(),id)!=old.end()?1:0;
+}
 // Cartridge IDs with parallel-interface SRAM in ares' Nintendo 64 media
 // database. The 96 KiB Dezaemon 3D board is kept separate from 32 KiB media.
 // https://github.com/ares-emulator/ares/blob/master/mia/medium/nintendo-64.cpp

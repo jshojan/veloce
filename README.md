@@ -41,6 +41,8 @@ N64 0.65.0 adds per-port Rumble Pak accessory commands, SDL controller feedback 
 
 N64 0.66.0 adds 32 KiB and 96 KiB cartridge SRAM via PI DMA, direct aligned I/O, frontend save persistence and S036 rollback. Its [original MIPS cartridge](tests/roms-src/n64/cartridge_sram/README.md) grades **2,048 guest DMA cases / 24,576 register words** and **131,072 saved bytes**, with executed wrong-register and damaged-file controls. Known native SRAM IDs select the right media; existing saves can identify unknown native boards. FlashRAM and physical PI timing remain pending. N64 stays **50% (10/20)**.
 
+N64 0.67.0 adds functional 128 KiB FlashRAM page programming, silicon ID, sector and chip erase, PI DMA, frontend `.sav` persistence and S037 rollback. Its [original MIPS cartridge](tests/roms-src/n64/cartridge_flash/README.md) grades **1,024 guest page cases / 20,480 register words** and **131,072 saved bytes**, with an executed wrong-register control and damaged-file rejection. Known native IDs select both Macronix models; existing 128 KiB saves can identify unknown native boards. Physical timing, busy status and retail save APIs remain unverified. N64 stays **50% (10/20)**.
+
 ### 3DS ARM11 instruction coverage
 
 The 3DS plugin implements the following ARMv6 instruction subsets. Each linked
