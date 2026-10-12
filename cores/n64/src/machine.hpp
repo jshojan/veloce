@@ -74,7 +74,8 @@ public:
     static constexpr size_t pak_state_size=current_state_size+PifJoybus::PakStorage{}.size()+8;
     static constexpr size_t rumble_state_size=pak_state_size+8;
     static constexpr size_t flash_state_size=rumble_state_size+FlashRam::bytes+128+32;
-    size_t state_size() const {return flash.enabled?flash_state_size:!sram.empty()?rumble_state_size+sram.size()+8:joybus.has_rumble_state()?rumble_state_size:joybus.has_pak_state()?pak_state_size:current_state_size;}
+    static constexpr size_t rtc_state_size=flash_state_size+32+16;
+    size_t state_size() const {return joybus.rtc.present?rtc_state_size:flash.enabled?flash_state_size:!sram.empty()?rumble_state_size+sram.size()+8:joybus.has_rumble_state()?rumble_state_size:joybus.has_pak_state()?pak_state_size:current_state_size;}
     uint64_t rsp_phase=0;
     static constexpr size_t rsp_state_size=304;
     AudioInterface audio_interface;

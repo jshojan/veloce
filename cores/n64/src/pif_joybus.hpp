@@ -1,6 +1,7 @@
 #pragma once
 #include "emu/input_types.hpp"
 #include "emu/n64_input.hpp"
+#include "cartridge_rtc.hpp"
 #include <algorithm>
 #include <array>
 #include <cstddef>
@@ -17,6 +18,7 @@ public:
     using State=std::array<uint64_t,5>;
     using Eeprom=std::array<uint8_t,2048>;
     using PakStorage=std::array<uint8_t,4*32768>;
+    CartridgeRtc rtc;
     PifJoybus(){erase_eeprom();format_paks();reset();}
     void reset(){channels.fill(64);}
     void configure_pak_mask(uint8_t mask){
@@ -115,6 +117,21 @@ public:
             if(!tx || reply+rx>63){ram[at+1]|=64;continue;}
             const unsigned command=ram[at+2];
             if(port==4){
+                if(command==6 || command==7 || command==8){
+                    if(!rtc.present){ram[at+1]|=128;continue;}
+                    if(command==6){
+                        if(tx!=1 || rx!=3){ram[at+1]|=64;continue;}
+                        ram[reply]=0;ram[reply+1]=0x10;ram[reply+2]=rtc.status;continue;
+                    }
+                    if(command==7){
+                        if(tx!=2 || rx!=9 || !rtc.read(ram[at+3],ram.data()+reply)){
+                            ram[at+1]|=64;continue;}
+                        ram[reply+8]=rtc.status;continue;
+                    }
+                    if(tx!=10 || rx!=1 || !rtc.write(ram[at+3],ram.data()+at+4)){
+                        ram[at+1]|=64;continue;}
+                    ram[reply]=rtc.status;continue;
+                }
                 if(!has_eeprom()){ram[at+1]|=128;continue;}
                 if(command==0 || command==255){
                     if(tx!=1 || rx!=3){ram[at+1]|=64;continue;}

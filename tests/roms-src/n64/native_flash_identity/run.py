@@ -28,12 +28,13 @@ def grade(path):
                 line = stream.readline()
                 match = re.fullmatch(
                     r'REG case=([A-Za-z0-9-]+) r14=([0-9a-f]{8}) '
-                    r'r15=([0-9a-f]{8}) battery_bytes=131072\n', line)
+                    r'r15=([0-9a-f]{8}) battery_bytes=(\d+)\n', line)
                 if not match or match.group(1) != label:
                     raise ValueError(f'malformed register row {label}')
                 model = '00c2001e' if label in OLD else '00c2001d'
                 mismatches += (match.group(2) != '11118001' or
-                               match.group(3) != model)
+                               match.group(3) != model or
+                               int(match.group(4)) != (131112 if label == 'NAF' else 131072))
             if stream.readline() != 'END observations_complete\n' or stream.read():
                 raise ValueError('terminator or trailing data')
         return {'status': 'pass' if mismatches == 0 else 'fail',

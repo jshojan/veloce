@@ -4362,3 +4362,14 @@ swapped ROM formats: 22 guest cases / 44 register words, plus an executed
 wrong-register control and damaged-file rejection. Each case selects erased
 128 KiB media. Full native retail save behavior remains unverified; N64 stays
 **50% (10/20)**.
+
+## N64 cartridge RTC Joybus corpus (0.68.0)
+
+The [original NAF RTC cartridge](../tests/roms-src/n64/cartridge_rtc/README.md)
+captures 13 guest Joybus reply bytes for status, block-2 write and block-2
+read, with an independent file oracle and an executed wrong-register control.
+Component and frontend tests cover leap-day rollover, stop and lock bits,
+S038 rollback, cross-session and offline clock persistence, malformed saves
+and 128 KiB FlashRAM save import. Fresh clocks begin at 2000-01-01 UTC;
+physical oscillator drift, serial timing, 64DD RTC and full retail behavior
+remain unverified. N64 stays **50% (10/20)**.

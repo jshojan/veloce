@@ -45,6 +45,8 @@ N64 0.67.0 adds functional 128 KiB FlashRAM page programming, silicon ID, sector
 
 A second [original native FlashRAM identity cartridge](tests/roms-src/n64/native_flash_identity/README.md) executes silicon-ID PI DMA reads for all 20 known native IDs and both swapped ROM formats. The independent file oracle grades **22 guest cases / 44 actual register words**, with an executed wrong-register control and damaged-file rejection. Each case selects erased 128 KiB media; eight use the older Macronix ID. Physical timing and retail save APIs remain pending. N64 stays **50% (10/20)**.
 
+N64 0.68.0 adds functional cartridge RTC Joybus status, block reads and writes for the native `NAF` board, S038 rollback, and offline clock persistence beside its 128 KiB FlashRAM. The [original RTC cartridge](tests/roms-src/n64/cartridge_rtc/README.md) grades **13 actual guest Joybus reply bytes** from a register file, with an executed wrong-register control and damaged-file rejection. Leap-day rollover, stop and write-lock controls, cross-session reload, malformed saves and legacy FlashRAM import have component/frontend gates. Fresh clocks start at 2000-01-01 UTC; oscillator drift, physical timing, 64DD RTC and full retail behavior remain pending. N64 stays **50% (10/20)**.
+
 ### 3DS ARM11 instruction coverage
 
 The 3DS plugin implements the following ARMv6 instruction subsets. Each linked

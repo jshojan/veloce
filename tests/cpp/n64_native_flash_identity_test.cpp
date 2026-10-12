@@ -40,8 +40,9 @@ int main(int argc,char** argv){
         core.fresh_load(rom);
         require(core.plugin->has_battery_save(),"native Flash battery save absent");
         const auto battery=core.plugin->get_battery_save_data();
-        require(battery.size()==128*1024 &&
-                std::all_of(battery.begin(),battery.end(),[](uint8_t byte){return byte==255;}),
+        const size_t expected=label=="NAF"?128*1024+40:128*1024;
+        require(battery.size()==expected &&
+                std::all_of(battery.begin(),battery.begin()+128*1024,[](uint8_t byte){return byte==255;}),
                 "native Flash was not selected or erased");
         Sink sink;
         require(core.plugin->set_test_sink(&sink),"native Flash guest sink");

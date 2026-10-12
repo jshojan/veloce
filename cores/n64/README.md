@@ -4144,3 +4144,17 @@ damaged result file. Every native case selects erased 128 KiB battery media;
 eight IDs report the older Macronix model. This extends native board selection
 evidence without completing physical timing or retail save APIs. **N64 remains
 50% (10/20).**
+
+## Cartridge Joybus RTC and persistent calendar (0.68.0)
+
+The native `NAF` board now responds to Joybus RTC status, block reads and
+block writes while retaining its 128 KiB FlashRAM. The
+[original MIPS RTC cartridge](../../tests/roms-src/n64/cartridge_rtc/README.md)
+captures **13 actual guest reply bytes** in a file; an independent oracle
+rejects an executed wrong-register ROM and a damaged file. Component tests
+cover stop and write-lock controls, BCD date validation, leap-day rollover and
+S038 rollback. The frontend persists the clock in a 40-byte trailer after the
+FlashRAM `.sav`, advances it by elapsed host time on reload, and accepts legacy
+raw 128 KiB FlashRAM saves. Fresh cartridges start at 2000-01-01 UTC for
+deterministic replay. Oscillator drift, physical serial timing, 64DD RTC and
+retail title behavior remain unverified. **N64 stays 50% (10/20).**

@@ -21955,6 +21955,17 @@
       "source_type": "original",
       "suite": "cartridge_flash"
     },
+    "n64/cartridge_rtc/cartridge_rtc.z64": {
+      "build_command": "python3 tests/roms-src/n64/cartridge_rtc/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "1f6838a6e62f5467d99c3e62684748a6a518006fe195f18388892712f1e885ca",
+      "source_repo": "tests/roms-src/n64/cartridge_rtc/build.py",
+      "source_sha": "3fdbe2636312fa5502f33fc020e5186a84c9b26158b7c056c50a0ca007258849",
+      "source_type": "original",
+      "suite": "cartridge_rtc"
+    },
     "n64/cartridge_sram/cartridge_sram.z64": {
       "build_command": "python3 tests/roms-src/n64/cartridge_sram/build.py",
       "console": "n64",
