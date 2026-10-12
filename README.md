@@ -103,6 +103,8 @@ N64 player one now reads the analog stick from a sole unassigned controller, mat
 
 N64 0.92.0 speeds up exact RDP perspective division with a portable floor-shift identity. The independent exhaustive divider oracle passes **4,294,967,296 ST/W pairs** and **524,288** saturation encodings; the original perspective texture ROM grades **1,572,864 guest cases / 20,447,232 actual framebuffer and register words**. Five paired production-build SM64 checkpoint runs measured **3.2% more VI-field throughput (16.65 to 17.19 fields/second)** with identical complete states, CPU attempts and audio counts. A retrained optional PGO build added **3.8%** over ordinary 0.92.0. Performance remains below real time; **N64 remains 50% (10/20)**.
 
+N64 0.93.0 adds exact fast paths for two common RDP cycle-one selector patterns. An independent routing oracle passes **525,312 nine-bit source cases**; the original shaded-texture cartridge grades **262,144 guest cases / 3,407,872 actual framebuffer and register words** and rejects an executed wrong capture. Five paired production-build SM64 checkpoint runs measured **3.1% more throughput (17.97 to 18.54 VI fields/second)** with identical complete states, CPU attempts and audio counts. A freshly trained optional PGO build reaches **18.99 fields/second** in a separate five-pair run. Performance remains below real time; **N64 remains 50% (10/20)**.
+
 ### 3DS ARM11 instruction coverage
 
 The 3DS plugin implements the following ARMv6 instruction subsets. Each linked

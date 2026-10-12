@@ -33,6 +33,32 @@ struct RdpCombiner {
     };
     struct Result {std::array<uint32_t,3> rgb_fixed{};Color combined{},clamped{};};
     Result evaluate(unsigned n,const Sources& s) const {
+        constexpr uint64_t cycle_one_mask=(15ull<<37)|(15ull<<24)|(31ull<<32)|(7ull<<6)|
+            (7ull<<21)|(7ull<<3)|(7ull<<18)|7ull;
+        if(n==1 && (combine&cycle_one_mask)==(0x127ffffffff838ull&cycle_one_mask)){
+            // Cycle one passes the previous combined color through unchanged.
+            Result result;
+            for(unsigned lane=0;lane<3;++lane){
+                result.rgb_fixed[lane]=rgb_equation(0,0,0,s.combined[lane]);
+                result.combined[lane]=result.rgb_fixed[lane]>>8;
+                result.clamped[lane]=clamp(result.combined[lane]);
+            }
+            result.combined[3]=alpha_equation(0,0,0,s.combined[3]);
+            result.clamped[3]=clamp(result.combined[3]);
+            return result;
+        }
+        if(n==1 && (combine&cycle_one_mask)==(0x127e24fffff9fcull&cycle_one_mask)){
+            // Cycle one multiplies TEXEL0 RGB by SHADE RGB; alpha is SHADE.
+            Result result;
+            for(unsigned lane=0;lane<3;++lane){
+                result.rgb_fixed[lane]=rgb_equation(s.texel0[lane],0,s.shade[lane],0);
+                result.combined[lane]=result.rgb_fixed[lane]>>8;
+                result.clamped[lane]=clamp(result.combined[lane]);
+            }
+            result.combined[3]=alpha_equation(0,0,0,s.shade[3]);
+            result.clamped[3]=clamp(result.combined[3]);
+            return result;
+        }
         const auto mux=cycle(n);Result result;
         for(unsigned lane=0;lane<3;++lane){
             const unsigned a=rgb_source(0,mux.rgb_a,lane,s),b=rgb_source(1,mux.rgb_b,lane,s);
