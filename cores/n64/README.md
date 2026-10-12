@@ -1,6 +1,6 @@
 # Experimental Nintendo 64 core plugin
 
-Current N64 retail evidence: [Private Super Mario 64 course-title continuation](#private-super-mario-64-course-title-continuation-2026-10-11). Earlier increment reports are historical.
+Current N64 retail evidence: [Private Super Mario 64 course-entry continuation](#private-super-mario-64-course-entry-continuation-2026-10-11). Earlier increment reports are historical.
 
 <!-- completion:start -->
 ## Completion percentage
@@ -13,13 +13,13 @@ These percentages count the 20 explicit delivery milestones in [the completion l
 
 Nintendo 64 delivered milestones: Guest sound produces audio samples, Native digital controller/keypad registers consume frontend input, Guest graphics produce rendered video, Parse a native cartridge/executable format (boot scored separately), Native local multiplayer/link input routing, Actual production-plugin TCP peers pass original guest oracle and whole-state comparison, Repository-owned ROM source and reproducible archived image, Separate core plugin and ABI entry points, Actual guest register-file output independently graded on the host, with negative controls, Complete states for the implemented profile and deterministic replay.
 
-Remaining: Cached SI/PIF reads refresh digital and signed-byte analog input. The original 65,536-coordinate corpus grades 1,048,576 actual words; frontend selected-stick mapping, neutral dead zone and canonical input recording are verified. Functional one-cycle E4/E5 rectangles share the existing triangle pixel pipeline; A six-billion-attempt Start/A probe reaches Mario, the lives/star HUD and Lakitu tutorial in the courtyard without a terminal CPU exception or RSP/DP stop. A shared private checkpoint now verifies courtyard analog walking, jumping and punching through RAM and neutral controls; 180 legacy quantum movie frames and six seek boundaries match full states. New native sessions advance to VI field boundaries; an original 5,160-case file oracle and 121 native VI movie frames verify scheduling and replay. Legacy states keep the old budget. Exact physical timing and practical normal-speed play remain unverified. A private SM64 US courtyard-to-castle continuation now verifies Lakitu dialogue, A dismissal, the castle door pull and lobby terrain/camera transition through guest RAM, with neutral controls and a local framebuffer. Main-level progression and full-title playability remain unverified. All twelve signed/unsigned register/immediate integer trap instructions are implemented; the original 15,728,640-case corpus grades 188,743,680 actual RAM/CP0 words. Twenty-eight doubleword integer/LWU families now enforce User/Supervisor mode restrictions; the original 5,768,792-case mapped guest corpus grades 69,225,504 RAM/CP0 words, with executed NOP rejection and native rollback. Nine wide integer memory families now verify Kernel32 address formation across 4,718,592 original guest cases / 56,623,104 RAM/CP0 words, with extended-address/alignment controls and native rollback. CP0 BadVAddr/PRId/CacheErr software write protection now has an original 12,582,912-case cartridge / 150,994,944 actual RAM/register words, with hardware exception seeding, wrong-read rejection and native rollback. Config fixed/writable fields and actual K0 cache/bypass reads now have an original 16,777,216-case cartridge / 201,326,592 actual RAM/register words, with EP/BE defaults held and clock-field preservation controls. Status writable/reserved/TS write rules now have an original 4,194,304-case cartridge / 50,331,648 actual RAM/register words, with EXL held for safe readback and unconstrained component controls. TagLo/TagHi/PErr field writes now have an original 12,582,912-case cartridge / 150,994,944 actual RAM/register words and all physical-tag values in defined functional CACHE consumer controls. Complete CPU/CP0/devices, physical FPU/RSP timing, complete RDP/audio, two-cycle pixels and texture LOD, random dithering/noise and CI8 alpha thresholds, physical analog calibration/accessories/presence detection, CIC/other save media/Joybus and physical SI timing remain. Functional 4 Kbit EEPROM read/write and frontend battery persistence pass an original 16,512-case cartridge / 33,024 guest register words. Functional 16 Kbit EEPROM read/write and 2,048-byte persistence pass an original 66,048-case cartridge / 132,096 guest register words, with cross-process reload, malformed-file and executed-mutant controls. The original synthetic native-header cartridge now grades guest SI EEPROM identity for all 23 known 16 Kbit game IDs, four 4 Kbit controls and both byte-swapped formats, writing 30 guest $t2 register rows to an artifact file. The original absent-accessory cartridge now grades 2,048 guest Joybus read/write packets and 16,384 register words across four ports, with an executed wrong-register control; configurable 32 KiB Controller Paks on four ports now pass an original 12,540-packet guest SI corpus / 100,320 register words, validated fresh-Pak system pages and synthetic one-page notes on four ports, plus 131,072 final Pak bytes, plus S034 rollback and cross-session persistence gates. Unknown native 16 Kbit game IDs still need an existing 2,048-byte save or explicit media selection. Production two-player TCP rollback and four virtual digital/analog PIF ports are verified for the implemented profile. Ordinary frontend local multiplayer is independently graded through SDL virtual pads, the default input plugin and original guest SI RAM replies: 194 cases, all 24 device assignments, 14 controls on four ports and signed stick endpoints/dead zone. Extra players now have independent saved button/key/axis profiles relative to assigned devices: 3,026 real guest cases / 18,156 RAM words, with wrong-map rejection and remapped four-port native movies. Saved per-player analog axis/polarity/dead-zone/range profiles now have 4,035 ordinary frontend guest cases / 24,210 RAM words, with remapped movies and malformed-file rejection. Physical USB/Bluetooth validation, keyboard stick remapping, advanced stick shaping and full native accessories remain.
+Remaining: Cached SI/PIF reads refresh digital and signed-byte analog input. The original 65,536-coordinate corpus grades 1,048,576 actual words; frontend selected-stick mapping, neutral dead zone and canonical input recording are verified. Functional one-cycle E4/E5 rectangles share the existing triangle pixel pipeline; A six-billion-attempt Start/A probe reaches Mario, the lives/star HUD and Lakitu tutorial in the courtyard without a terminal CPU exception or RSP/DP stop. A shared private checkpoint now verifies courtyard analog walking, jumping and punching through RAM and neutral controls; 180 legacy quantum movie frames and six seek boundaries match full states. New native sessions advance to VI field boundaries; an original 5,160-case file oracle and 121 native VI movie frames verify scheduling and replay. Legacy states keep the old budget. Exact physical timing and practical normal-speed play remain unverified. A private SM64 US courtyard-to-castle continuation now verifies Lakitu dialogue, A dismissal, the castle door pull and lobby terrain/camera transition through guest RAM, with neutral controls and a local framebuffer. A private SM64 US route now enters Bob-omb Battlefield, dismisses its opening dialogue and verifies bounded analog walking; full-title playability remains unverified. All twelve signed/unsigned register/immediate integer trap instructions are implemented; the original 15,728,640-case corpus grades 188,743,680 actual RAM/CP0 words. Twenty-eight doubleword integer/LWU families now enforce User/Supervisor mode restrictions; the original 5,768,792-case mapped guest corpus grades 69,225,504 RAM/CP0 words, with executed NOP rejection and native rollback. Nine wide integer memory families now verify Kernel32 address formation across 4,718,592 original guest cases / 56,623,104 RAM/CP0 words, with extended-address/alignment controls and native rollback. CP0 BadVAddr/PRId/CacheErr software write protection now has an original 12,582,912-case cartridge / 150,994,944 actual RAM/register words, with hardware exception seeding, wrong-read rejection and native rollback. Config fixed/writable fields and actual K0 cache/bypass reads now have an original 16,777,216-case cartridge / 201,326,592 actual RAM/register words, with EP/BE defaults held and clock-field preservation controls. Status writable/reserved/TS write rules now have an original 4,194,304-case cartridge / 50,331,648 actual RAM/register words, with EXL held for safe readback and unconstrained component controls. TagLo/TagHi/PErr field writes now have an original 12,582,912-case cartridge / 150,994,944 actual RAM/register words and all physical-tag values in defined functional CACHE consumer controls. Complete CPU/CP0/devices, physical FPU/RSP timing, complete RDP/audio, general two-cycle pixels and texture LOD, random dithering/noise and CI8 alpha thresholds, physical analog calibration/accessories/presence detection, CIC/other save media/Joybus and physical SI timing remain. Functional 4 Kbit EEPROM read/write and frontend battery persistence pass an original 16,512-case cartridge / 33,024 guest register words. Functional 16 Kbit EEPROM read/write and 2,048-byte persistence pass an original 66,048-case cartridge / 132,096 guest register words, with cross-process reload, malformed-file and executed-mutant controls. The original synthetic native-header cartridge now grades guest SI EEPROM identity for all 23 known 16 Kbit game IDs, four 4 Kbit controls and both byte-swapped formats, writing 30 guest $t2 register rows to an artifact file. The original absent-accessory cartridge now grades 2,048 guest Joybus read/write packets and 16,384 register words across four ports, with an executed wrong-register control; configurable 32 KiB Controller Paks on four ports now pass an original 12,540-packet guest SI corpus / 100,320 register words, validated fresh-Pak system pages and synthetic one-page notes on four ports, plus 131,072 final Pak bytes, plus S034 rollback and cross-session persistence gates. Unknown native 16 Kbit game IDs still need an existing 2,048-byte save or explicit media selection. Production two-player TCP rollback and four virtual digital/analog PIF ports are verified for the implemented profile. Ordinary frontend local multiplayer is independently graded through SDL virtual pads, the default input plugin and original guest SI RAM replies: 194 cases, all 24 device assignments, 14 controls on four ports and signed stick endpoints/dead zone. Extra players now have independent saved button/key/axis profiles relative to assigned devices: 3,026 real guest cases / 18,156 RAM words, with wrong-map rejection and remapped four-port native movies. Saved per-player analog axis/polarity/dead-zone/range profiles now have 4,035 ordinary frontend guest cases / 24,210 RAM words, with remapped movies and malformed-file rejection. Physical USB/Bluetooth validation, keyboard stick remapping, advanced stick shaping and full native accessories remain.
 <!-- completion:end -->
 
 `n64_plugin` builds `n64.so`/`n64.dll`/`n64.dylib` and implements emulator ABI v2.
 The frontend discovers it alongside the other core plugins. It executes original
 MIPS III integer homebrew ROMs with 64-bit GPRs, big-endian memory, delay slots,
-HI/LO, and basic CP0 exception context. An experimental NTSC CIC-6102 handoff accepts recognized native cartridges. The private SM64 US route reaches the Bob-omb Battlefield Course 1 title card; selecting it exposes an unsupported two-cycle RDP triangle. Native PIF/IPL boot, course gameplay and full-title playability remain unverified.
+HI/LO, and basic CP0 exception context. An experimental NTSC CIC-6102 handoff accepts recognized native cartridges. The private SM64 US route enters Bob-omb Battlefield and verifies bounded movement after its opening dialogue. Native PIF/IPL boot, complete course gameplay and full-title playability remain unverified.
 Full-core completion is unknown; the available corpus measures defined results
 on selected operands, not a percentage of N64 hardware implemented.
 
@@ -4002,11 +4002,11 @@ python3 tests/n64_retail_painting_room.py /path/to/private/sm64-us.z64 \
 ```
 
 The room is a verified navigation checkpoint. The following continuation
-tests the painting warp and course title; course gameplay, save-file behavior
-and full-title playability remain unverified. The fixed N64 delivery checklist
-remains **50% (10/20)**.
+tests the painting warp and bounded course movement; complete course gameplay,
+save-file behavior and full-title playability remain unverified. The fixed N64
+delivery checklist remains **50% (10/20)**.
 
-## Private Super Mario 64 course-title continuation (2026-10-11)
+## Private Super Mario 64 course-entry continuation (2026-10-11)
 
 From the painting-room checkpoint above, a short diagonal route, a jump onto
 the raised platform and a final jump into the painting produce
@@ -4015,27 +4015,36 @@ Bob-omb Battlefield — Big Bob-omb on the Summit**. A 240-field neutral
 continuation holds the title card. The action value follows the game's
 [published action definitions](https://github.com/n64decomp/sm64/blob/master/include/sm64.h).
 
-An A pulse selects the course, but rendering then stops on RDP word
-`CF000146013D012B`. The captured 22-word packet is a textured, shaded depth
-triangle with cycle type 1 (two-cycle). The production RDP currently supports
-one-cycle triangle pixels and explicitly blocks this mode. The RSP is not
-blocked; the selected-course framebuffer is blank. This identifies a specific
-graphics implementation gap before Bob-omb Battlefield gameplay can be
-verified.
+Previously, selecting this course stopped on RDP word `CF000146013D012B`, a
+22-word textured, shaded depth triangle with cycle type 1. N64 0.69.0 adds a
+bounded two-cycle path: cycle-zero TEXEL0/SHADE combination with COMBINED
+feedback, first-cycle fog blending, and second-cycle framebuffer blending and
+depth decisions. Other two-cycle sources and blender profiles still reject.
+The [original synthetic DP packet test](../../tests/cpp/n64_rdp_two_cycle_test.cpp)
+checks 65,536 combiner feedback values,
+65,536 fogged pixels and framebuffer writes through actual DP dispatch.
 
-The [private course-title grader](../../tests/n64_retail_course_title.py)
-checks guest positions and actions, the neutral title control, the selected
-packet and DP stop reason. It fingerprints its local inputs, states and frame
-captures without storing the ROM or captures in tracked source files.
+An A pulse now loads Bob-omb Battlefield. Guest RAM places Mario near
+**(-6525, 0, 6431)** with a course terrain and camera. A 120-field neutral
+control leaves the opening dialogue and position unchanged; repeated A presses
+dismiss the dialogue. Stick input then moves Mario to approximately
+**(-5803, 128, 5784)** with `ACT_WALKING` (`04000440`). The local framebuffer
+shows the course and Mario on its stone path; RSP and DP do not stop along
+this bounded route.
+
+The [private course-entry grader](../../tests/n64_retail_course_entry.py)
+checks guest positions, actions, terrain and camera, both neutral controls and
+course walking. It fingerprints local inputs, states and frame captures
+without storing the ROM or captures in tracked source files.
 
 ```sh
-python3 tests/n64_retail_course_title.py /path/to/private/sm64-us.z64 \
+python3 tests/n64_retail_course_entry.py /path/to/private/sm64-us.z64 \
   --checkpoint build/artifacts/retail/painting-room/painting_room.state
 ```
 
-The Course 1 title card is verified; course gameplay, save-file behavior and
-full-title playability remain unverified. The N64 delivery checklist remains
-**50% (10/20)**.
+Bounded Course 1 entry and movement are verified; complete course gameplay,
+save-file behavior and full-title playability remain unverified. The N64
+delivery checklist remains **50% (10/20)**.
 
 ## Functional 4 Kbit cartridge EEPROM (0.58.0)
 

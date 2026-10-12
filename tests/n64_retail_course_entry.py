@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Capture private SM64 US Bob-omb course selection and its current DP stop."""
+"""Grade private SM64 US entry and walking in Bob-omb Battlefield."""
 import argparse
 import hashlib
 import json
@@ -21,19 +21,17 @@ def main():
     parser.add_argument('--checkpoint', type=Path, required=True,
                         help='Private Bob-omb painting-room state at VI field 74640')
     parser.add_argument('--artifacts', type=Path,
-                        default=ROOT / 'build/artifacts/retail/course-title')
+                        default=ROOT / 'build/artifacts/retail/course-entry-graded')
     parser.add_argument('--probe', type=Path,
                         default=ROOT / 'build/bin/retail_core_probe')
     parser.add_argument('--inspector', type=Path,
                         default=ROOT / 'build/bin/n64_state_inspect')
-    parser.add_argument('--trace', type=Path,
-                        default=ROOT / 'build/bin/n64_boot_trace')
     parser.add_argument('--core', type=Path,
                         default=ROOT / 'build/bin/cores/n64.so')
     args = parser.parse_args()
     args.artifacts.mkdir(parents=True, exist_ok=True)
     sources = {str(path.resolve()): digest(path) for path in
-               (args.rom, args.checkpoint, args.probe, args.inspector, args.trace,
+               (args.rom, args.checkpoint, args.probe, args.inspector,
                 args.core, Path(__file__), ROOT / 'tests/n64_retail_castle_entry.py')}
     require(sources[str(args.rom.resolve())] == ROM_SHA,
             'this guest layout applies only to SM64 US')
@@ -95,47 +93,42 @@ def main():
             observations['course_title']['position'],
             'neutral control dismissed the course title')
 
-    # A separate probe follows selection because inspect() rightly rejects a
-    # blocked display processor. This captures the current implementation gap.
-    script = args.artifacts / 'select.input'
-    script.write_text('75480 0000c001\n75482 0000c000\n')
-    state = args.artifacts / 'select.state'
-    capture = args.artifacts / 'select.ppm'
-    command = [str(args.probe.resolve()), str(args.core.resolve()),
-               str(args.rom.resolve()), '180', str(capture.resolve()),
-               str(script.resolve()), '--scheduling', 'video-field',
-               '--capture-every', '180', '--load-state', str(still.resolve()),
-               '--save-state', str(state.resolve())]
-    result = subprocess.run(command, capture_output=True, text=True, timeout=300)
-    require(result.returncode == 0, result.stdout + result.stderr or 'select failed')
-    probe = json.loads(result.stdout)
-    require(probe['loaded'] and probe['frames'] == 75660 and
-            probe['state_written'] and probe['capture_written'],
-            'course selection probe incomplete')
-    diagnostic = subprocess.run([str(args.trace.resolve()), str(args.rom.resolve()),
-                                 '1', '-', '--load-state', str(state.resolve())],
-                                capture_output=True, text=True, timeout=30)
-    require(diagnostic.returncode == 0, diagnostic.stdout + diagnostic.stderr)
-    stop = json.loads(diagnostic.stdout)
-    require(stop['dp_blocked'] and not stop['rsp_blocked'] and
-            stop['dp_blocked_reason'] == 1 and
-            stop['dp_blocked_word'] == 'cf000146013d012b' and
-            stop['dp_packet_count'] == stop['dp_packet_needed'] == 22 and
-            ((int(stop['dp_other_mode'], 16) >> 52) & 3) == 1,
-            'expected two-cycle DP stop changed; regrade course selection')
-    records['select'] = {'input_sha256': digest(script),
-                         'state_sha256': digest(state),
-                         'capture_sha256': digest(capture),
-                         'attempts': probe['executed_attempts']}
+    selected = run('select', still, 180,
+                   [(75480, 0x0000c001), (75482, 0x0000c000)])
+    x, y, z = observations['select']['position']
+    require(observations['select']['action'] == 0x0c400201 and
+            observations['select']['terrain'] != start['terrain'] and
+            observations['select']['terrain'] != 0 and
+            observations['select']['camera'] != 0 and
+            -6550 < x < -6500 and y == 0.0 and 6400 < z < 6460,
+            'Bob-omb Battlefield did not load with Mario spawned')
+    intro = run('intro_no_a', selected, 120, [(75660, 0x0000c000)])
+    require(observations['intro_no_a']['position'] ==
+            observations['select']['position'] and
+            observations['intro_no_a']['action'] == observations['select']['action'],
+            'neutral control dismissed the course introduction')
+    presses = [(q + offset, value) for q in range(75780, 76051, 30)
+               for offset, value in ((0, 0x0000c001), (2, 0x0000c000))]
+    dismissed = run('dismiss_intro', intro, 300, presses)
+    require(observations['dismiss_intro']['action'] !=
+            observations['intro_no_a']['action'],
+            'A pulses did not dismiss the course introduction')
+    run('walk', dismissed, 120, [(76080, 0x5000c000)])
+    x, y, z = observations['walk']['position']
+    require(observations['walk']['action'] == 0x04000440 and
+            -5850 < x < -5750 and y == 128.0 and 5700 < z < 5850 and
+            observations['walk']['terrain'] == observations['select']['terrain'],
+            'Mario did not walk in Bob-omb Battlefield')
     require(all(digest(Path(path)) == value for path, value in sources.items()),
             'ROM, checkpoint, source or executable changed during capture')
-    report = {'status': 'course-title-pass-selection-blocked',
+    report = {'status': 'bob-omb-battlefield-walk-pass',
               'private_rom_sha256': ROM_SHA, 'sources_sha256': sources,
-              'observations': observations, 'selection_stop': stop,
-              'artifacts': records, 'controls': ['title_no_a'],
-              'course_gameplay_verified': False, 'full_title_playability': False}
+              'observations': observations, 'artifacts': records,
+              'controls': ['title_no_a', 'intro_no_a'],
+              'bounded_course_gameplay_verified': True,
+              'full_title_playability': False}
     (args.artifacts / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
-    print('Private SM64 course title PASS; selecting Course 1 blocks on a two-cycle DP triangle')
+    print('Private SM64 Bob-omb Battlefield PASS: course load, intro controls and walking')
 
 
 if __name__ == '__main__':

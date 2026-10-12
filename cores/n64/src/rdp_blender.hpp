@@ -2,7 +2,8 @@
 #include "rdp_coverage.hpp"
 #include "rdp_depth.hpp"
 namespace n64 {
-// One-cycle color/depth decisions with an optional ordered alpha seed.
+// One-cycle color/depth decisions, plus two-cycle fog then framebuffer blend,
+// with an optional ordered alpha seed.
 // The caller applies final RGB dithering after these decisions.
 // Memory RGB is a retained latch; disabling image reads only replaces its alpha.
 struct RdpBlender {
@@ -19,6 +20,22 @@ struct RdpBlender {
         return force?(sum>>5)&255:divide(((a&~3u)+(b&~3u)+4)*512|((sum>>2)&2047));
     }
     struct DepthInput {unsigned z=0;uint16_t word=0;unsigned hidden=0;};
+    static bool fog_two_cycle_supported(uint64_t mode){
+        return ((mode>>30)&3)==3 && ((mode>>26)&3)==2 &&
+               ((mode>>22)&3)==0 && ((mode>>18)&3)==0;
+    }
+    Result pixel_two_cycle(uint64_t mode,Color color,unsigned shade_alpha,uint32_t memory,unsigned count,unsigned cvbit,unsigned delta_z,const DepthInput* depth=nullptr,unsigned alpha_dither=0){
+        // BL0 fogs the combiner result with stepped shade alpha. In BL1,
+        // source zero is the first-cycle blended RGB, not the combiner RGB.
+        const unsigned alpha=std::min(255u,shade_alpha+alpha_dither);
+        const Color fog_color=unpack(fog);
+        for(unsigned lane=0;lane<3;++lane)
+            color[lane]=equation(fog_color[lane],color[lane],alpha>>3,(alpha^255)>>3,true);
+        const uint64_t first_mux=(3ull<<30)|(3ull<<26)|(3ull<<22)|(3ull<<18);
+        const uint64_t second_mux=(3ull<<28)|(3ull<<24)|(3ull<<20)|(3ull<<16);
+        const uint64_t selected=(mode&~first_mux)|((mode&second_mux)<<2);
+        return pixel(selected,color,shade_alpha,memory,count,cvbit,delta_z,depth,alpha_dither);
+    }
     Result pixel(uint64_t mode,Color color,unsigned shade_alpha,uint32_t memory,unsigned count,unsigned cvbit,unsigned delta_z,const DepthInput* depth=nullptr,unsigned alpha_dither=0){
         Result out;
         const unsigned memory_coverage=(mode&64)?(memory>>5)&7:7;
