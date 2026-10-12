@@ -4795,8 +4795,10 @@ pass **2,621,440 cases / 56,098,816 captured words** with zero mismatches.
 Native-state and production TCP netplay pass.
 
 Five paired 60-field SM64 runs measured a **3.9% median paired gain**, all
-faster; five 300-field runs measured **2.4%**, three faster. A trained local
-build improved on the previous trained core by **2.2%** in five 300-field
-pairs, four faster. Complete native states matched in every pair. See
+faster; five 300-field runs measured **2.4%**, three faster. An isolated
+trained candidate improved on the previous trained core by **2.2%** in five
+300-field pairs, four faster. The exact installed 0.108.0 plugin measured
+**1.0% median paired gain** in a separate five-pair 300-field run, three
+faster; its short run was mixed. Complete native states matched. See
 [performance details](../../docs/N64-PERFORMANCE.md#fixed-size-rsp-vector-transfers-01080).
 SM64 remains below real time; **N64 stays 50% (10/20)**.

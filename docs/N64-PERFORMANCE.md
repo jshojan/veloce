@@ -728,11 +728,20 @@ and production two-peer TCP netplay gates passed with the candidate plugin.
 Five CPU-pinned 60-field SM64 pairs on matched native Release builds measured
 a **3.9% median paired gain**, all five faster. A five-pair 300-field
 confirmation measured **2.4%**, three faster; an earlier three-pair long run
-was mixed. After local GCC PGO training, five 60-field pairs against the prior
-host-trained 0.107.0 plugin measured **1.3%**, three faster, and five
+was mixed. After GCC PGO training in an isolated N64-only build, five
+60-field pairs against the prior host-trained 0.107.0 plugin measured
+**1.3%**, three faster, and five
 300-field pairs measured **2.2%**, four faster (**22.73 to 23.25 VI
 fields/second** by median wall time). Every comparison ended in byte-identical
 complete native states with matching CPU attempts and audio counts. Ignored
 reports are at `build/artifacts/performance/n64-transfer-{fixed-short,fixed-long,fixed-confirmation,pgo-vs-tuned-short,pgo-vs-tuned-long}/`.
+The exact installed Veloce 0.108.0 plugin was then rebuilt with fresh native
+PGO data. Its five 60-field pairs against the prior installed 0.107.0 plugin
+were mixed (**0.996× median paired throughput**, one faster); five 300-field
+pairs measured **1.010×**, three faster, with identical complete states.
+Absolute throughput varied across runs, so this post-install sample does not
+establish a clear additional local speedup. The installed 0.108.0 plugin
+passed native-state and production TCP netplay. Ignored post-install reports
+are `build/artifacts/performance/n64-local-pgo-108/{short,long}/`.
 The improvement is still far short of 60 VI fields/second; **N64 stays
 50% (10/20)**.
