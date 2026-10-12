@@ -30,19 +30,30 @@ private:
         const bool textured=triangle.texture && texture && tmem;
         const bool two_cycle=((mode>>52)&3)==1;
         const bool lod_enabled=mode&(1ull<<48);
+        const bool sharpen=mode&(1ull<<49),detail=mode&(1ull<<50);
         // Bounded two-cycle LOD: exact 1/32-texel S/T and integer W gradients.
         // d/dEdge drives interpolation; LOD uses the independent d/dY.
         // Perspective uses post-division adjacent coordinates per pixel.
         unsigned first_tile=triangle.tile,second_tile=(triangle.tile+1)&7,lod_fraction=0;
         const auto select_lod=[&](unsigned units,unsigned& first,unsigned& second,unsigned& fraction){
-            const bool magnify=units<32;
+            const bool overflow=units>=16384;
+            const bool magnify=!overflow && units<32;
             unsigned level=0;
-            for(unsigned value=units>>5;value>1;value>>=1)++level;
-            const bool distant=!triangle.level || (!magnify && level>=triangle.level);
-            fraction=distant?255u:magnify?0u:((units<<3)>>level)&255u;
-            if(level>triangle.level)level=triangle.level;
-            first=(triangle.tile+level)&7;
-            second=(first+(!magnify&&!distant?1u:0u))&7;
+            for(unsigned value=(units>>5)&255;value>1;value>>=1)++level;
+            const bool distant=overflow || !triangle.level || (!magnify && ((units&0x6000) || level>=triangle.level));
+            if(overflow)fraction=255;
+            else if(magnify){
+                const unsigned minimum=combiner.minimum_lod();
+                fraction=(sharpen || detail)?((units<minimum?minimum:units)<<3)|(sharpen?256u:0u):distant?255u:0u;
+            }else fraction=(!sharpen && !detail && distant)?255u:((units<<3)>>level)&255u;
+            if(distant)level=triangle.level;
+            if(detail){
+                first=(triangle.tile+level+(!magnify?1u:0u))&7;
+                second=(triangle.tile+level+(!distant&&!magnify?2u:1u))&7;
+            }else{
+                first=(triangle.tile+level)&7;
+                second=(first+(!distant && (!magnify || sharpen)?1u:0u))&7;
+            }
         };
         if(lod_enabled){
             const bool perspective=mode&(1ull<<51);
@@ -62,11 +73,10 @@ private:
                 const uint64_t absolute=uint64_t(gradient<0?-gradient:gradient);
                 if((!perspective && gradient) || absolute%unit || absolute/unit>255*32)return 1;
             }
-            if(!textured || !two_cycle ||
-               (combiner.uses_lod_fraction() && combiner.minimum_lod()))return 1;
+            if(!textured || !two_cycle)return 1;
             if(!(mode&(1ull<<51)))select_lod(lod_units,first_tile,second_tile,lod_fraction);
         }
-        const uint64_t sampling=textured?((63ull<<42)|(1ull<<51)|(1ull<<48)):(blender?(2047ull<<41):0);
+        const uint64_t sampling=textured?((63ull<<42)|(1ull<<51)|(1ull<<48)|(lod_enabled?(3ull<<49):0)):(blender?(2047ull<<41):0);
         const uint64_t dither=(3ull<<38)|(3ull<<36);
         const bool depth_mode=mode&48,primitive_mode=mode&4;
         if(primitive_mode && !primitive)return 1;
