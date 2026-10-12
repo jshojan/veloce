@@ -101,6 +101,8 @@ N64 0.91.0 adds an optional local GCC [profile-guided N64 plugin build](docs/N64
 
 N64 player one now reads the analog stick from a sole unassigned controller, matching the existing out-of-the-box digital button fallback. Assigned secondary pads stay isolated, and two eligible unassigned pads require an explicit choice. SDL virtual-pad hotplug tests exercise the default input plugin and routing. This input fix does not change the N64 core milestone score: **50% (10/20)**.
 
+N64 0.92.0 speeds up exact RDP perspective division with a portable floor-shift identity. The independent exhaustive divider oracle passes **4,294,967,296 ST/W pairs** and **524,288** saturation encodings; the original perspective texture ROM grades **1,572,864 guest cases / 20,447,232 actual framebuffer and register words**. Five paired production-build SM64 checkpoint runs measured **3.2% more VI-field throughput (16.65 to 17.19 fields/second)** with identical complete states, CPU attempts and audio counts. A retrained optional PGO build added **3.8%** over ordinary 0.92.0. Performance remains below real time; **N64 remains 50% (10/20)**.
+
 ### 3DS ARM11 instruction coverage
 
 The 3DS plugin implements the following ARMv6 instruction subsets. Each linked

@@ -21,7 +21,12 @@ struct RdpTextureDivider {
 private:
     struct Reciprocal {unsigned shift=0,value=0;};
     static int32_t signed16(uint16_t raw){return raw<32768?int32_t(raw):int32_t(raw)-65536;}
-    static int64_t floor_shift(int64_t value,unsigned shift){const int64_t divisor=int64_t(1)<<shift;return value/divisor-(value%divisor<0);}
+    static int64_t floor_shift(int64_t value,unsigned shift){
+        // For negative values, -1-value is nonnegative even at INT64_MIN.
+        // This computes floor(value / 2^shift) without signed division or a
+        // platform-dependent right shift of a negative integer.
+        return value>=0 ? value>>shift : -1-((-1-value)>>shift);
+    }
     static unsigned point(unsigned segment){return segment==6?14979:(1048576+(64+segment)/2)/(64+segment);}
     static const std::array<Reciprocal,32768>& table(){
         static const auto entries=[](){std::array<Reciprocal,32768> result{};
