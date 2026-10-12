@@ -176,9 +176,6 @@ unsigned Machine::skip_inactive_clocks(unsigned maximum) {
     const bool rtc=joybus.rtc.present && !(joybus.rtc.status&0x80);
     if(rtc)count=std::min(count,CartridgeRtc::clocks_per_second-1-joybus.rtc.clocks);
     if(!count)return 0;
-#ifdef VELOCE_N64_PROFILE
-    N64ProfileTimer profile_timer{n64_profile.active_ns};
-#endif
     const uint64_t rsp_total=rsp_phase+count*2,rsp_ticks=rsp_total/3;
     rsp_phase=rsp_total%3;
     if(dp_interface.pipeline){
@@ -210,6 +207,9 @@ unsigned Machine::advance_active_rsp_clocks(unsigned maximum) {
     const bool rtc=joybus.rtc.present && !(joybus.rtc.status&0x80);
     if(rtc)count=std::min(count,CartridgeRtc::clocks_per_second-1-joybus.rtc.clocks);
     if(!count)return 0;
+#ifdef VELOCE_N64_PROFILE
+    N64ProfileTimer profile_timer{n64_profile.active_ns};
+#endif
     const bool rsp_irq=(cpu.state.cp0[12]&0x401)==0x401 && (mi_mask&33);
     unsigned advanced=0;
     do{

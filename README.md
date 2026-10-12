@@ -175,6 +175,8 @@ N64 0.103.0 adds an opt-in [execution profile](docs/N64-PERFORMANCE.md#opt-in-n6
 
 N64 0.104.0 handles literal RSP NOPs without general scalar decode while preserving PC, delay, single-step and diagnostic state. The component gate checks all **1,024 instruction addresses**; the original scalar ALU ROM passes **704,512 guest register cases**. Nine paired 60-field SM64 checkpoint runs measured **19.05 to 19.40 VI fields/second** by median time, seven faster, with byte-identical complete states; three 300-field pairs measured **18.78 to 19.64 fields/second**, two faster. [Performance details](docs/N64-PERFORMANCE.md#exact-rsp-nop-fast-path-01040). Play remains below real time; **N64 stays 50% (10/20)**.
 
+N64 0.104.1 corrects the optional [active-RSP profile timer](docs/N64-PERFORMANCE.md#opt-in-n64-execution-profile-01030). In 0.103.0–0.104.0 profiling builds, `active_ms` was mislabeled inactive-clock time. A corrected 60-field SM64 profile measured **2.12 seconds** in active-RSP batches and **0.99 seconds** in RDP draws; these categories overlap. Guest execution remains state-identical and **N64 stays 50% (10/20)**.
+
 A cross-platform, plugin-based emulator framework built for speedrunners and TAS creators.
 
 *Veloce* - Italian for "fast"
