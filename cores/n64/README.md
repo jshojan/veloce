@@ -4727,3 +4727,20 @@ multiply, accumulator, comparison and integer ROM suites all pass, as does
 the production TCP netplay gate.
 See [performance details](../../docs/N64-PERFORMANCE.md#rsp-vector-register-byte-order-stores-01050).
 SM64 remains below real time; **N64 stays 50% (10/20)**.
+
+## Active-RSP empty-clock skipping (0.106.0)
+
+The active-RSP idle batch advances directly to each RSP/DP tick. Its 2:3
+clock phase, nominal CPU clock count and VI/AI/output/RTC boundaries remain
+unchanged. SP BREAK and DP FullSync can still stop a batch at the tick that
+raises their interrupt. The 128-state idle-clock gate compares full machine
+states with unbatched execution; the DP gate checks **40,960 ticks** across
+settled, queued, frozen, blocked and RSP-written streams.
+The original DP register ROM and production TCP netplay gate pass.
+
+Nine CPU-pinned 60-field SM64 checkpoint pairs measured **19.16 to 19.76
+VI fields/second** by median time, a **2.6%** median paired gain, seven
+faster. Three 300-field pairs measured **20.06 to 20.46 fields/second**, a
+**2.8%** median paired gain, two faster. Complete native states, CPU
+attempts and audio counts matched in every pair. See [performance details](../../docs/N64-PERFORMANCE.md#active-rsp-empty-clock-skipping-01060).
+SM64 remains below real time; **N64 stays 50% (10/20)**.

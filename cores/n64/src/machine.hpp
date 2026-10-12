@@ -96,6 +96,7 @@ private:
     unsigned skip_inactive_clocks(unsigned maximum);
     unsigned advance_active_rsp_clocks(unsigned maximum);
     void tick_rsp_dp();
+    void tick_rsp_dp_due();
     static bool physical(uint64_t address, uint32_t& result);
     bool write_pi(unsigned reg,uint32_t value);
     bool write_ri(unsigned reg,uint32_t value);
