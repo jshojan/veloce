@@ -382,3 +382,17 @@ The ignored local report is at
 `build/artifacts/performance/n64-coverage-table-final/report.json` in the N64
 lane. This is a small improvement; the game is still choppy and below the
 60-field real-time target. **N64 remains 50% (10/20)**.
+
+## Predecoded RDP combiner cycles (0.96.0)
+
+The triangle renderer now decodes both RDP combiner cycles once per draw and
+passes them to the pixel evaluator. This preserves the existing source routing
+and common selector arithmetic while avoiding repeated cycle field extraction
+for every shaded pixel. Five alternating, CPU pinned 60-field Super Mario 64
+course checkpoint pairs measured a **1.1% median paired speedup**, with all
+five pairs faster. Median throughput was **18.59 to 18.80 VI fields/second**;
+every pair had byte identical complete native states and identical CPU attempt
+and audio sample counts. The local ignored report is at
+`build/artifacts/performance/n64-predecoded-cycle/report.json` in the N64 lane.
+Combiner routing, math, triangle texture and machine component gates pass. Play remains below the 60-field
+real-time target. **N64 remains 50% (10/20)**.

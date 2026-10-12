@@ -33,6 +33,9 @@ struct RdpCombiner {
     };
     struct Result {std::array<uint32_t,3> rgb_fixed{};Color combined{},clamped{};};
     Result evaluate(unsigned n,const Sources& s) const {
+        return evaluate(n,s,cycle(n));
+    }
+    Result evaluate(unsigned n,const Sources& s,const Cycle& mux) const {
         constexpr uint64_t cycle_one_mask=(15ull<<37)|(15ull<<24)|(31ull<<32)|(7ull<<6)|
             (7ull<<21)|(7ull<<3)|(7ull<<18)|7ull;
         if(n==1 && (combine&cycle_one_mask)==(0x127ffffffff838ull&cycle_one_mask)){
@@ -59,7 +62,7 @@ struct RdpCombiner {
             result.clamped[3]=clamp(result.combined[3]);
             return result;
         }
-        const auto mux=cycle(n);Result result;
+        Result result;
         for(unsigned lane=0;lane<3;++lane){
             const unsigned a=rgb_source(0,mux.rgb_a,lane,s),b=rgb_source(1,mux.rgb_b,lane,s);
             const unsigned c=rgb_source(2,mux.rgb_c,lane,s),d=rgb_source(3,mux.rgb_d,lane,s);

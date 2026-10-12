@@ -157,6 +157,8 @@ See the [original netplay probe](tests/roms-src/switch/netplay_probe/README.md).
 Switch is **30%** of the delivery checklist.
 <!-- completion:end -->
 
+N64 0.96.0 decodes RDP combiner cycles once per triangle draw. Five CPU-pinned, paired 60-field Super Mario 64 course-checkpoint runs measured **1.1% median paired throughput gain (18.59 to 18.80 VI fields/second)**, with all five pairs faster and byte-identical complete native states. Combiner routing, math, triangle texture and machine component gates pass. [Performance details](docs/N64-PERFORMANCE.md#predecoded-rdp-combiner-cycles-0960). Play remains below real time; **N64 stays 50% (10/20)**.
+
 A cross-platform, plugin-based emulator framework built for speedrunners and TAS creators.
 
 *Veloce* - Italian for "fast"
