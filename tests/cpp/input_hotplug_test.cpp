@@ -166,6 +166,22 @@ int main() {
         require(input.get_binding(emu::VirtualButton::Z)->code==SDL_SCANCODE_C &&
                 input.get_binding(emu::VirtualButton::CUp)->code==SDL_SCANCODE_I &&
                 !input.get_binding(emu::VirtualButton::Select), "N64 keyboard defaults wrong");
+        require(SDL_JoystickSetVirtualAxis(joystick,0,-32768)==0 &&
+                SDL_JoystickSetVirtualAxis(joystick,1,32767)==0,SDL_GetError());
+        pump(input);
+        require(input.get_active_controller()==-1 && input.encode_controller_input(0,0)==0xc000,
+                "two unassigned pads supplied an ambiguous primary stick");
+        require(SDL_JoystickDetachVirtual(second)==0,SDL_GetError());
+        pump(input);
+        require(input.get_active_controller()==-1 && input.encode_controller_input(0,0)==0xb0b0c000,
+                "sole unassigned pad did not supply N64 primary stick");
+        second=attach();pump(input);
+        require(input.encode_controller_input(0,0)==0xc000,
+                "second unassigned pad did not restore analog ambiguity");
+        input.set_controller_for_port(1,1);pump(input);
+        require(input.encode_controller_input(0,0)==0xb0b0c000 && input.encode_controller_input(1,0)==0xc000,
+                "secondary assignment did not isolate sole remaining primary pad");
+        input.set_controller_for_port(1,-1);pump(input);
         input.set_active_controller(0);
         require(SDL_JoystickSetVirtualAxis(joystick,0,-32768)==0 &&
                 SDL_JoystickSetVirtualAxis(joystick,1,32767)==0,SDL_GetError());

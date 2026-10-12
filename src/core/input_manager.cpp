@@ -540,7 +540,21 @@ const InputManager::StickProfile* InputManager::get_stick_profile(int port) cons
 uint32_t InputManager::encode_controller_input(int controller, uint32_t buttons) const {
     if (m_current_platform != "N64") return buttons;
     if (m_input_capture_mode || controller<0 || controller>=4) return 0;
-    const int device = get_controller_for_port(controller);
+    int device = get_controller_for_port(controller);
+    bool automatic_primary = false;
+    if (controller==0 && device<0) {
+        // Primary digital defaults already accept an unassigned pad. Use its
+        // stick too when there is exactly one eligible source; never borrow a
+        // pad owned by another port or guess between two unassigned pads.
+        int candidate=-1;
+        for (int i=0;i<get_connected_controller_count();++i) {
+            if (is_secondary_controller(m_controllers[i].instance_id)) continue;
+            if (candidate>=0) { candidate=-1;break; }
+            candidate=i;
+        }
+        device=candidate;
+        automatic_primary=device>=0;
+    }
     int x=0,y=0;
     if (device>=0) {
         const auto& profile=m_stick_profiles[controller];
@@ -550,7 +564,8 @@ uint32_t InputManager::encode_controller_input(int controller, uint32_t buttons)
             return n64_input::quantize(profile.inverted[index]?-value:value,profile.deadzone,profile.range);
         };
         x=sample(0);y=sample(1);
-    } else if (controller==0) {
+    }
+    if (controller==0 && (device<0 || (automatic_primary && x==0 && y==0))) {
         // T/F/G/H do not overlap the default N64 digital bindings.
         x=80*(int(is_key_pressed(SDL_SCANCODE_H))-int(is_key_pressed(SDL_SCANCODE_F)));
         y=80*(int(is_key_pressed(SDL_SCANCODE_T))-int(is_key_pressed(SDL_SCANCODE_G)));

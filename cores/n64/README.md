@@ -4499,3 +4499,15 @@ This is an opt-in local build setting; profiles and private ROM data remain
 outside Git. See the [commands and verification](../../docs/N64-PERFORMANCE.md).
 Original register ROMs, netplay and private course continuation pass with the
 trained plugin. Performance remains below real time. **N64 remains 50% (10/20).**
+
+## Unassigned N64 controller stick
+
+When player one has no assigned controller, a single connected pad that is not
+assigned to players two through four supplies the N64 analog stick as well as
+the existing digital button defaults. The saved player-one stick profile still
+controls its axes, inversion, dead zone and range. A centered pad leaves the
+T/F/G/H keyboard stick available. Two eligible unassigned pads do not select
+an arbitrary analog source; assign one to player one or another port. An
+explicit player-one assignment remains authoritative. The SDL virtual-pad
+hotplug test covers a sole pad, two ambiguous pads, secondary ownership and
+the default input plugin. The fixed N64 checklist remains **50% (10/20)**.

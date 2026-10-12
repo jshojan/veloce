@@ -99,6 +99,8 @@ N64 0.90.0 checks new SP/DP interrupts only after active RSP/DP ticks in cached-
 
 N64 0.91.0 adds an optional local GCC [profile-guided N64 plugin build](docs/N64-PERFORMANCE.md). Five paired SM64 checkpoint runs measured **5.6% more throughput (16.83 to 17.77 VI fields/second)** than a normal 0.90.0 release build, with identical complete states, CPU attempts and audio counts. The trained plugin passes original register ROMs, netplay and private course movement. Generated profiles and private ROM data stay local. Performance remains below real time; **N64 remains 50% (10/20)**.
 
+N64 player one now reads the analog stick from a sole unassigned controller, matching the existing out-of-the-box digital button fallback. Assigned secondary pads stay isolated, and two eligible unassigned pads require an explicit choice. SDL virtual-pad hotplug tests exercise the default input plugin and routing. This input fix does not change the N64 core milestone score: **50% (10/20)**.
+
 ### 3DS ARM11 instruction coverage
 
 The 3DS plugin implements the following ARMv6 instruction subsets. Each linked
