@@ -31,6 +31,8 @@ N64 0.59.0 adds functional 16 Kbit EEPROM reads and writes across all 256 blocks
 
 N64 0.60.0 selects 16 Kbit EEPROM for [23 documented native cartridge IDs](tests/roms-src/n64/native_save_identity/README.md). A repository-built native ROM grades the guest's SI/PIF identity response for those IDs, four 4 Kbit controls and both swapped ROM formats, and writes all 30 guest `$t2` values to `build/artifacts/owned/n64_native_save_identity/registers.txt`. Unknown 16 Kbit IDs still require an existing 2,048-byte save or explicit media selection. Super Mario 64 course entry remains unverified. N64 stays **50% (10/20)**.
 
+N64 0.61.0 adds correct absent-controller-accessory replies for Joybus read/write commands. Its [original MIPS cartridge](tests/roms-src/n64/accessory_absent/README.md) captures **2,048 guest SI packets / 16,384 actual register words** across all four ports, with an independent file oracle and an executed wrong-register control. Controller Pak insertion, storage and persistence remain unfinished; N64 stays **50% (10/20)**.
+
 ### 3DS ARM11 instruction coverage
 
 The 3DS plugin implements the following ARMv6 instruction subsets. Each linked

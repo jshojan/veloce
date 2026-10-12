@@ -4,6 +4,12 @@
 #define check(...) do { if(!(__VA_ARGS__)){std::cerr<<"Joybus observation mismatch at line "<<__LINE__<<"\n";std::exit(1);} } while(false)
 static uint32_t frontend(unsigned raw){constexpr unsigned bits[]={0,1,20,6,8,9,10,11,4,5,21,22,23,24};uint32_t out=0;for(unsigned n=0;n<14;++n)if(raw&(1u<<n))out+=1u<<bits[n];return out;}
 static unsigned wire(unsigned raw){constexpr unsigned bits[]={15,14,13,12,11,10,9,8,5,4,3,2,1,0};unsigned out=0;for(unsigned n=0;n<14;++n)if(raw&(1u<<n))out+=1u<<bits[n];return out;}
+static uint8_t accessory_crc(const uint8_t* data){
+ constexpr uint8_t table[]={0x89,0x86,0x43,0xe3,0xb3,0x9b,0x8f,0x85};
+ uint8_t crc=0;
+ for(unsigned n=0;n<32;++n){const uint8_t x=crc^data[n];crc=0;for(unsigned bit=0;bit<8;++bit)if(x&(0x80u>>bit))crc^=table[bit];}
+ return crc;
+}
 int main(){uint64_t reads=0,lengths=0,controls=0;
  n64::PifJoybus pif;n64::PifJoybus::Ram ram{};ram.fill(0xaa);for(unsigned port=0;port<4;++port){const unsigned at=port*8;ram[at]=255;ram[at+1]=1;ram[at+2]=4;ram[at+3]=1;}ram[32]=254;ram[63]=1;
  const auto before=ram;pif.format(ram);auto formatted=before;formatted[63]=0;check(ram==formatted && pif.snapshot()==n64::PifJoybus::State{1,9,17,25,64});
@@ -28,14 +34,32 @@ int main(){uint64_t reads=0,lengths=0,controls=0;
  for(unsigned flags=0;flags<256;++flags){n64::PifJoybus test;auto packet=formatted;packet[63]=1;test.format(packet);const auto layout=test.snapshot();packet.fill(0xaa);packet[0]=254;packet[63]=uint8_t(flags);const auto original=packet;test.format(packet);check(test.snapshot()==(flags&1?n64::PifJoybus::State{64,64,64,64,64}:layout));auto want=original;if(flags&1)want[63]&=254;check(packet==want);++controls;}
  // Full command byte/receive-length domains, including malformed and cartridge channel.
  for(unsigned channel=0;channel<5;++channel)for(unsigned command=0;command<256;++command)for(unsigned rx=0;rx<64;++rx){n64::PifJoybus test;n64::PifJoybus::Ram packet{};packet.fill(0xaa);for(unsigned n=0;n<channel;++n)packet[n]=0;packet[channel]=1;packet[channel+1]=uint8_t(rx|192);packet[channel+2]=uint8_t(command);if(channel+3+rx<63)packet[channel+3+rx]=254;packet[63]=1;test.format(packet);const auto unpolled=packet;test.poll(packet,{});
-  const bool fits=channel+3+rx<=63,recognized=channel<4 && (command==0 || command==1 || command==255),valid=recognized && rx==(command==1?4u:3u);
+  const bool fits=channel+3+rx<=63,recognized=channel<4 && (command==0 || command==1 || command==2 || command==3 || command==255),valid=recognized && command!=2 && command!=3 && rx==(command==1?4u:3u);
   const unsigned expected=rx|(!fits?64:!recognized?128:!valid?64:0);check(packet[channel+1]==expected);
   for(unsigned n=0;n<63;++n){if(n==channel+1)continue;const unsigned value=valid && n>=channel+3 && n<channel+3+rx?(command==1?0:n==channel+3?5:n==channel+5?2:0):unpolled[n];check(packet[n]==value);}check(packet[63]==0);++lengths;
+ }
+ // An absent accessory responds to valid reads and writes with an inverted
+ // data CRC. Host reference uses libdragon's byte transform; the core uses a
+ // bitwise polynomial. Exercise every port and all 256 payload seeds.
+ uint64_t no_pak=0;
+ for(unsigned port=0;port<4;++port)for(unsigned seed=0;seed<256;++seed)for(unsigned command=2;command<=3;++command){
+  n64::PifJoybus device;n64::PifJoybus::Ram packet{};packet.fill(0xaa);
+  for(unsigned n=0;n<port;++n)packet[n]=0;
+  const unsigned tx=command==2?3:35,rx=command==2?33:1,reply=port+2+tx;
+  packet[port]=uint8_t(tx);packet[port+1]=uint8_t(rx);packet[port+2]=uint8_t(command);
+  packet[port+3]=uint8_t(seed);packet[port+4]=uint8_t(seed*73);
+  for(unsigned n=0;n<32 && command==3;++n)packet[port+5+n]=uint8_t(seed*17+n*53);
+  const auto input=packet;
+  packet[reply+rx]=254;packet[63]=1;device.format(packet);device.poll(packet,{});
+  check(packet[port+1]==rx);
+  if(command==2){for(unsigned n=0;n<32;++n)check(packet[reply+n]==0);check(packet[reply+32]==0xff);}
+  else check(packet[reply]==uint8_t(accessory_crc(input.data()+port+5)^0xff));
+  ++no_pak;
  }
  // Tx skip/reset flags preserve responses; received error flags clear on a fresh poll.
  for(unsigned flag:{64u,128u,192u}){auto packet=formatted;packet[1]=uint8_t(flag|1);packet[2]=196;const auto original=packet;pif.poll(packet,{});check(packet[2]==original[2] && packet[4]==original[4]);}
  // Reformat changes offsets, and disabled/reset channels do not retain prior packets.
  ram.fill(0xaa);ram[0]=253;ram[1]=0;ram[2]=255;ram[3]=1;ram[4]=4;ram[5]=1;ram[10]=254;ram[63]=1;pif.format(ram);check(pif.snapshot()==n64::PifJoybus::State{65,64,3,64,64});pif.poll(ram,{0,0,64,0});check(ram[6]==16 && ram[7]==0 && !ram[8] && !ram[9]);
  const auto state=pif.snapshot();for(const auto bad:{n64::PifJoybus::State{62,64,64,64,64},n64::PifJoybus::State{0,0,64,64,64},n64::PifJoybus::State{3,2,64,64,64},n64::PifJoybus::State{66,64,64,64,64}}){check(!pif.restore(bad) && pif.snapshot()==state);}pif.reset();check(pif.snapshot()==n64::PifJoybus::State{64,64,64,64,64});
- std::cout<<analog<<" cached analog reads; "<<reads<<" cached digital reads; "<<lengths<<" command/length/channel captures; "<<controls<<" control flags; formatting, skip/reset and atomic state rejection PASS\n";
+ std::cout<<analog<<" cached analog reads; "<<reads<<" cached digital reads; "<<lengths<<" command/length/channel captures; "<<no_pak<<" absent-pak CRC replies; "<<controls<<" control flags; formatting, skip/reset and atomic state rejection PASS\n";
 }

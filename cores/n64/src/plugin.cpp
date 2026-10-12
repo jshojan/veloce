@@ -9,7 +9,7 @@ class Plugin : public emu::IEmulatorPlugin, public emu::INetplayCapable, public 
 public:
     emu::EmulatorInfo get_info() override {
         static const char* extensions[] = {".z64", ".v64", ".n64", nullptr};
-        return {"N64", "0.60.0", "Veloce", "Experimental N64 core with MIPS III, CP0, RSP, partial RDP, SI/PIF controller polling, functional 4/16 Kbit cartridge EEPROM, native 16 Kbit ID selection and frontend battery persistence. Retail course entry, complete hardware and physical timing remain pending.",
+        return {"N64", "0.61.0", "Veloce", "Experimental N64 core with MIPS III, CP0, RSP, partial RDP, SI/PIF controller polling and absent-accessory CRC replies, functional 4/16 Kbit cartridge EEPROM, native 16 Kbit ID selection and frontend battery persistence. Retail course entry, Controller Pak storage, complete hardware and physical timing remain pending.",
                 extensions, 60.0, 93750000, 320, 240};
     }
     const emu::ControllerLayoutInfo* get_controller_layout() override {

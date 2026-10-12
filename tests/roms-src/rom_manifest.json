@@ -21900,6 +21900,17 @@
       "source_type": "original",
       "suite": "shift_registers"
     },
+    "n64/accessory_absent/accessory_absent.z64": {
+      "build_command": "python3 tests/roms-src/n64/accessory_absent/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "e1fc2bcac6e8e487f185dd513bca70b9db9212b289ec2768a90e0f77f0e6a091",
+      "source_repo": "tests/roms-src/n64/accessory_absent/build.py",
+      "source_sha": "3651e89396a25bb7ebb86186a99013648b48b79f9e225411b33496dbf2232074",
+      "source_type": "original",
+      "suite": "accessory_absent"
+    },
     "n64/ai_fifo/ai_fifo.z64": {
       "build_command": "python3 tests/roms-src/n64/ai_fifo/build.py",
       "console": "n64",
