@@ -4423,3 +4423,21 @@ ROMs and cache rollback tests pass. See the
 [benchmark and reproduction instructions](../../docs/N64-PERFORMANCE.md).
 Host acceleration diagnostics are excluded from save/netplay state.
 **N64 remains 50% (10/20).**
+
+## RSP host vector acceleration (0.86.0)
+
+SSE2 builds accelerate twelve multiply/accumulate and twelve ALU/merge
+operations. Other hosts and remaining operations retain the scalar path.
+Input capture preserves element selection and destination aliasing; the raw
+48-bit accumulator, saturation, carry/borrow and comparison flags retain their
+native values. Backend choice is excluded from save and rollback state.
+
+Three paired SM64 checkpoint runs measured **10.8% more throughput** than
+0.85.0, from **12.61 to 13.98 VI fields/second**, with identical complete states.
+The declared scalar comparison corpus covers 2,359,296 seeded continuations
+across 36 instruction families. Six original ROM subsets independently grade
+4,240 cases and 77,328 actual register words, with executed faulty captures
+rejected. The scalar fallback smoke gate and hardware arithmetic fixtures pass.
+See the [benchmark and verification details](../../docs/N64-PERFORMANCE.md).
+Performance remains below real time; software RDP rendering and full-title
+playability remain unfinished. **N64 remains 50% (10/20).**

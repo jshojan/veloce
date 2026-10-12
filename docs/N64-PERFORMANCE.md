@@ -32,6 +32,41 @@ It is a core benchmark and does not measure GUI/GPU presentation. Results vary
 with host and game scene. This run remains below real time: RSP execution and
 software RDP rendering still need performance work.
 
+## RSP vector acceleration (0.86.0)
+
+Builds targeting SSE2 now accelerate twelve vector multiply/accumulate and
+twelve ALU/merge operations. The scalar path remains available on other hosts
+and for the remaining operations. Source operands are captured before writes
+so destination aliasing and element selection retain native behavior. Raw
+48-bit accumulators, signed saturation, carry/borrow flags and all serialized
+state are preserved. Backend selection is host-only and is not serialized.
+
+Three alternating 60-field pairs compared 0.85.0 against 0.86.0 from the same
+private SM64 walking checkpoint:
+
+| Core | Median fields/second | Median wall seconds for 60 fields |
+|---|---:|---:|
+| 0.85.0, scalar vector arithmetic | 12.61 | 4.76 |
+| 0.86.0, SSE2 vector arithmetic | 13.98 | 4.29 |
+
+The measured improvement was **1.11x (10.8%)**, with identical complete native
+states, CPU attempts and audio counts. This scene remains below real time.
+
+The acceleration gate compares **2,359,296** complete vector/accumulator/flag/
+scalar/DMEM continuations against the retained scalar path. All 65,536 seed values are
+covered for 36 instruction families; seeds cycle through sixteen element
+selections and four alias arrangements. This is a declared seed corpus, not
+every possible operand tuple.
+A forced scalar build also passes its 2,304-case fallback smoke gate. Six bounded
+original ROM subsets grade **4,240 cases / 77,328 actual register words** through
+independent file oracles and reject six executed capture mutants. Existing
+hardware multiply, compare and ALU fixtures, netplay and the private course
+continuation pass.
+
+```sh
+ctest --test-dir build -R '^n64_rsp_(simd_test|scalar_fallback_test|acceleration_roms)$' --output-on-failure
+```
+
 ## Reproduce with local game data
 
 Keep a copy of the previous core before rebuilding. The benchmark accepts
