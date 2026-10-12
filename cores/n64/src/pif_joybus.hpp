@@ -9,7 +9,8 @@ namespace n64 {
 // Packet formatting latches five channel offsets. SI reads communicate through
 // that layout with current input; clearing the format bit does not disable it.
 // This functional profile has four controllers with signed-byte analog input
-// and a cartridge EEPROM. Paks and physical timing are not modeled.
+// and a cartridge EEPROM. An absent accessory answers pak probes with the
+// hardware's inverted data CRC. Inserted paks and physical timing are pending.
 class PifJoybus {
 public:
     using Ram=std::array<uint8_t,64>;
@@ -62,6 +63,18 @@ public:
                 }
                 ram[at+1]|=128;continue;
             }
+            if(command==2 || command==3){
+                if(tx!=(command==2?3u:35u) || rx!=(command==2?33u:1u)){
+                    ram[at+1]|=64;continue;
+                }
+                if(command==2){
+                    std::fill_n(ram.begin()+reply,32,0);
+                    ram[reply+32]=uint8_t(accessory_data_crc(ram.data()+reply)^0xff);
+                } else {
+                    ram[reply]=uint8_t(accessory_data_crc(ram.data()+at+5)^0xff);
+                }
+                continue;
+            }
             if(command!=0 && command!=255 && command!=1){ram[at+1]|=128;continue;}
             if(tx!=1 || rx!=(command==1?4u:3u)){ram[at+1]|=64;continue;}
             if(command!=1){ram[reply]=5;ram[reply+1]=0;ram[reply+2]=2;continue;}
@@ -77,6 +90,21 @@ public:
         channels=state;return true;
     }
 private:
+    static uint8_t accessory_data_crc(const uint8_t* data){
+        uint8_t crc=0;
+        for(unsigned byte=0;byte<32;++byte)
+            for(int bit=7;bit>=0;--bit){
+                const bool carry=crc&0x80;
+                crc=uint8_t((crc<<1)|((data[byte]>>bit)&1));
+                if(carry)crc^=0x85;
+            }
+        for(unsigned bit=0;bit<8;++bit){
+            const bool carry=crc&0x80;
+            crc=uint8_t(crc<<1);
+            if(carry)crc^=0x85;
+        }
+        return crc;
+    }
     State channels{};
     Eeprom eeprom{};
     size_t eeprom_size=0;

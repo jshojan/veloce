@@ -1216,6 +1216,10 @@ add_test(NAME n64_native_save_identity_test COMMAND n64_native_save_identity_tes
     $<TARGET_FILE:n64_plugin> ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/native_save_identity/native_save_identity.z64
     ${CMAKE_BINARY_DIR}/artifacts/owned/n64_native_save_identity/registers.txt)
 set_tests_properties(n64_native_save_identity_test PROPERTIES LABELS "integration;accuracy;owned;save" TIMEOUT 90)
+add_test(NAME n64_accessory_absent COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/accessory_absent/run.py --emulator $<TARGET_FILE:veloce>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_accessory_absent)
+set_tests_properties(n64_accessory_absent PROPERTIES LABELS "integration;accuracy;owned;controller" TIMEOUT 120)
 add_test(NAME n64_controller_cached_reads COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/controller_cached_reads/run.py --emulator $<TARGET_FILE:veloce>
     --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_controller_cached_reads)

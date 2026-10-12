@@ -4293,3 +4293,13 @@ coverage remains in the original 4/16 Kbit cartridges. The 30 captured guest
 `build/artifacts/owned/n64_native_save_identity/registers.txt`. Unknown native IDs
 still require a 2,048-byte save or explicit media selection for 16 Kbit.
 N64 remains **50% (10/20)**.
+
+## N64 absent controller accessory protocol (0.61.0)
+
+The [original no-Pak cartridge](../tests/roms-src/n64/accessory_absent/README.md)
+executes 2,048 guest SI accessory reads and writes over all four controller
+ports and 256 address/payload seeds. The file oracle grades all 16,384 actual
+guest register words, including complete 64-byte reply packets, and rejects
+an executed wrong-register image. An independent component check covers valid
+packet CRC and malformed lengths. Controller Pak insertion, storage and
+persistence remain pending. N64 remains **50% (10/20)**.
