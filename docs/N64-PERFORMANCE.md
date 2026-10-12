@@ -453,3 +453,23 @@ the change in all five pairs. The ignored local report is at
 `build/artifacts/performance/n64-rsp-vector-copy/report.json` in the N64 lane.
 SM64 remains below the 60-field real-time target and the N64 delivery
 checklist remains **50% (10/20)**.
+
+## Simple RDP tile coordinates (0.101.0)
+
+The private SM64 course checkpoint made 6,167,745 texture-coordinate samples;
+all used zero S/T shift and origin, no mirror, and four to six mask bits. For
+tiles with those properties and up to eight mask bits, the triangle renderer
+prepares clamp and wrap data once per draw and uses a direct coordinate path.
+Other tile formats keep the general path. An independent coordinate oracle
+checks **3,145,728** S/T sample pairs over every 16-bit coordinate, four mask
+widths, three high bounds and all clamp combinations, plus fallback checks.
+
+Five alternating, CPU-pinned 60-field SM64 course-checkpoint pairs measured
+**19.21 to 19.76 VI fields/second** by median time, a **2.9%** gain; all five
+pairs favored the change. Three 300-field pairs measured **19.45 to 19.79 VI
+fields/second**, a **1.8%** gain by median time; two of three pairs were faster.
+Every pair produced byte-identical complete native states and matching CPU
+attempt and audio counts. The ignored local reports are at
+`build/artifacts/performance/n64-simple-tile-coordinates/` in the N64 lane.
+SM64 remains below the 60-field real-time target; the N64 delivery checklist
+remains **50% (10/20)**.

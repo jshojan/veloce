@@ -103,6 +103,8 @@ private:
         const unsigned k5=conversion?conversion->coefficient(5):0;
         const auto conversion_weights=conversion?conversion->weights():std::array<int64_t,4>{};
         const auto palette=(mode&(1ull<<47))?((mode&(1ull<<46))?RdpTexelQuad::Palette::ia:RdpTexelQuad::Palette::rgba):RdpTexelQuad::Palette::none;
+        std::array<RdpTextureCoordinates::SimpleTile,8> simple_tiles{};
+        if(textured)for(unsigned tile=0;tile<8;++tile)simple_tiles[tile]=RdpTextureCoordinates::prepare_simple(texture->tiles[tile]);
         // Preflight every complete row so functional bounds rejection is atomic.
         for(unsigned y=bounds.first;y<=bounds.last;++y){const auto row=RdpTriangleSpan::row(triangle,bounds,y);if(row.valid){const uint64_t end=uint64_t(y)*width+row.last+1;
             if(uint64_t(origin)+end*bytes>ram.size() || (depth_mode && uint64_t(depth_image)+end*2>ram.size()))return 5;}}
@@ -151,8 +153,11 @@ private:
                         }
                         select_lod(units,pixel_first_tile,pixel_second_tile,sources.lod);
                     }
-                    const auto fetch=[&](const RdpTexture::Tile& tile)->RdpCombiner::Color{
-                        const auto sample=RdpTextureCoordinates::sample(tile,RdpTextureDivider::saturate(divided.s),RdpTextureDivider::saturate(divided.t));
+                    const auto fetch=[&](unsigned tile_index)->RdpCombiner::Color{
+                        const auto& tile=texture->tiles[tile_index];
+                        const auto s=RdpTextureDivider::saturate(divided.s),t=RdpTextureDivider::saturate(divided.t);
+                        const auto sample=simple_tiles[tile_index].valid?
+                            RdpTextureCoordinates::sample_simple(simple_tiles[tile_index],s,t):RdpTextureCoordinates::sample(tile,s,t);
                         if((mode&(1ull<<45)) || (mode&(1ull<<47))){
                             const auto quad=RdpTexelQuad::read(*tmem,tile,sample,palette,!(mode&(1ull<<45)));
                             RdpTextureFilter::Options options;options.s=sample.s.fraction;options.t=sample.t.fraction;
@@ -170,9 +175,9 @@ private:
                         }
                         RdpTextureFilter::Quad quad{};quad.fill(texel);return RdpTextureFilter::convert_weights(quad,{},conversion_weights);
                     };
-                    sources.texel0=fetch(texture->tiles[pixel_first_tile]);
+                    sources.texel0=fetch(pixel_first_tile);
                     if(fetch_second)
-                        sources.texel1=fetch(texture->tiles[pixel_second_tile]);
+                        sources.texel1=fetch(pixel_second_tile);
                 }
                 if(two_cycle)sources.combined=combiner.evaluate(0,sources,cycle_zero).combined;
                 auto color=combiner.evaluate(1,sources,cycle_one).clamped;

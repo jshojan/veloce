@@ -4650,3 +4650,17 @@ gate also passes. Three CPU-pinned, paired 300-field SM64 course-checkpoint
 runs measured **17.62 to 18.13 VI fields/second** by median time, with
 byte-identical complete states. See [performance details](../../docs/N64-PERFORMANCE.md#contiguous-rsp-vector-memory-transfers-01000).
 SM64 remains below real time; **N64 stays 50% (10/20)**.
+
+## Simple RDP tile coordinates (0.101.0)
+
+The triangle renderer now prepares common zero-shift, zero-origin, nonmirrored
+tile coordinates once per draw and samples S/T with a direct exact clamp/wrap
+path. The independent coordinate oracle checks **3,145,728** fast-path S/T
+pairs across the full signed 16-bit input range; unsupported tiles use the
+existing general path. Original textured-triangle and two-cycle filter
+cartridges pass. Five paired 60-field private SM64 course-checkpoint runs
+measured **19.21 to 19.76 VI fields/second** by median time, all five faster.
+Three paired 300-field runs measured **19.45 to 19.79 VI fields/second**, two
+of three faster. Complete native states match byte for byte. See
+[performance details](../../docs/N64-PERFORMANCE.md#simple-rdp-tile-coordinates-01010).
+SM64 remains below real time; **N64 stays 50% (10/20)**.
