@@ -60,6 +60,8 @@ public:
     SpInterface sp_interface;
     RspScalar rsp;
     DpInterface dp_interface;
+    // Host-only regression switch; excluded from native save and netplay state.
+    bool fast_dp_clock_enabled=true;
     static constexpr size_t dp_state_size=152;
     static constexpr size_t vector_state_size=536;
     static constexpr size_t accumulator_state_size=64;

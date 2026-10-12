@@ -134,3 +134,31 @@ ctest --test-dir build -R '^n64_rdp_(rgba16_simd_test|quad_scalar_fallback_test|
 
 **N64 remains 50% (10/20)**; full-title playability, physical timing and further
 performance work remain pending. CI/CD remains disabled.
+
+## Settled DP clock acceleration (0.88.0)
+
+After each RSP step, a settled DP command stream now advances the same 24-bit
+clock and pipeline-busy counters directly. Command fetch, queued START/END,
+partial packets, freezes, faults and RSP writes keep the normal DP tick. A
+host-only switch selects the original path for differential testing and is
+excluded from save and netplay state.
+
+Five alternating 60-field private SM64 checkpoint pairs against 0.87.0 measured
+**2.9% more throughput**, from **14.07 to 14.47 VI fields/second** on this
+machine. All ten complete native states matched byte for byte; every run
+executed 94,022,500 CPU attempts and observed 48,140 stereo sample pairs.
+The result is still below the 60-field real-time target. Raw observations and
+source hashes are in `build/artifacts/performance/n64-dp-idle-final/report.json`.
+
+A differential gate checks 40,960 individual DP clocks across settled,
+queued, frozen, blocked and RSP-written streams, plus 128 complete machine
+states. The original DP register ROM and its host assertions, prior inactive
+clock boundary gate, production netplay and private SM64 course continuation
+also pass.
+
+```sh
+ctest --test-dir build -R '^n64_(dp_test|dp_idle_clock_test|idle_clock_test)$' --output-on-failure
+```
+
+**N64 remains 50% (10/20)**. Full-title playability, physical timing and
+further performance work remain pending. CI/CD remains disabled.

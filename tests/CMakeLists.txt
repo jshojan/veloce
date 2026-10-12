@@ -2093,3 +2093,9 @@ target_include_directories(n64_rdp_quad_scalar_fallback_test PRIVATE ${CMAKE_SOU
 target_compile_definitions(n64_rdp_quad_scalar_fallback_test PRIVATE VELOCE_RDP_DISABLE_SIMD=1)
 add_test(NAME n64_rdp_quad_scalar_fallback_test COMMAND n64_rdp_quad_scalar_fallback_test)
 set_tests_properties(n64_rdp_rgba16_simd_test n64_rdp_quad_scalar_fallback_test PROPERTIES LABELS "unit;accuracy" TIMEOUT 180)
+
+add_executable(n64_dp_idle_clock_test cpp/n64_dp_idle_clock_test.cpp
+    ${CMAKE_SOURCE_DIR}/cores/n64/src/machine.cpp ${CMAKE_SOURCE_DIR}/cores/n64/src/vr4300.cpp)
+target_include_directories(n64_dp_idle_clock_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src ${CMAKE_SOURCE_DIR}/include)
+add_test(NAME n64_dp_idle_clock_test COMMAND n64_dp_idle_clock_test)
+set_tests_properties(n64_dp_idle_clock_test PROPERTIES LABELS "unit;accuracy;performance" TIMEOUT 180)
