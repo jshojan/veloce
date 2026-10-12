@@ -59,8 +59,8 @@ struct RdpCombiner {
             && alpha(m.alpha_c) && (m.alpha_c==7 || (alpha(m.alpha_a) && alpha(m.alpha_b))) && alpha(m.alpha_d);
     }
     // Two-cycle profile with primitive-tile TEXEL0, next-tile TEXEL1 and
-    // combined-color feedback. LOD, key and noise remain separate work.
-    bool independent_two_cycle(bool texel0=false,bool coefficients=false,bool texel1=false) const {
+    // combined-color feedback. The caller may supply an exact LOD fraction.
+    bool independent_two_cycle(bool texel0=false,bool coefficients=false,bool texel1=false,bool lod=false) const {
         const auto supported=[&](unsigned n,bool combined,bool sample0,bool sample1){
             const auto m=cycle(n);
             const auto rgb=[&](unsigned v){return (combined && v==0) || (sample0 && v==1) || (sample1 && v==2) || v==3 || v==4 || v==5 || v>=8;};
@@ -72,15 +72,19 @@ struct RdpCombiner {
                 (sample0 && (m.rgb_c==1 || m.rgb_c==8)) ||
                 (sample1 && (m.rgb_c==2 || m.rgb_c==9)) ||
                 m.rgb_c==3 || m.rgb_c==4 || m.rgb_c==5 ||
-                m.rgb_c==10 || m.rgb_c==11 || m.rgb_c==12 ||
+                m.rgb_c==10 || m.rgb_c==11 || m.rgb_c==12 || (lod && m.rgb_c==13) ||
                 m.rgb_c==14 || m.rgb_c>=16;
             return factor && (m.rgb_c>=16 ||
                 ((rgb(m.rgb_a) || m.rgb_a==6) && rgb_b(m.rgb_b))) &&
-                add(m.rgb_d) && m.alpha_c!=0 && alpha(m.alpha_c) &&
+                add(m.rgb_d) && (m.alpha_c==0 ? lod : alpha(m.alpha_c)) &&
                 (m.alpha_c==7 || (alpha(m.alpha_a) && alpha(m.alpha_b))) &&
                 alpha(m.alpha_d);
         };
         return supported(0,false,texel0,false) && supported(1,true,texel0,texel1);
+    }
+    bool uses_lod_fraction() const {
+        for(unsigned n=0;n<2;++n){const auto m=cycle(n);if(m.rgb_c==13 || m.alpha_c==0)return true;}
+        return false;
     }
     bool uses_texel1_cycle1() const {
         const auto m=cycle(1);

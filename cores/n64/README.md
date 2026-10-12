@@ -4101,6 +4101,16 @@ Five source tiles have distinct values; executed wrong-tile, wrong-LOD and
 wrong-maximum-level ROMs are rejected. Fractional and nonhorizontal gradients,
 perspective, LOD fractions and general mipmap filtering remain unsupported.
 
+N64 0.77.0 supplies the exact affine LOD fraction to two-cycle RGB and alpha
+combiner multipliers. The [original LOD-fraction cartridge](../../tests/roms-src/n64/rdp_lod_fraction/README.md)
+grades **360 cases / 4,680 actual framebuffer and DP/MI register words** across
+1–15 texels-per-pixel S gradients in both directions, RGBA16/IA16,
+RDRAM/XBUS delivery, and RGB-only, alpha-only and combined fraction muxes.
+Executed wrong-fraction and wrong-tile ROMs are rejected. Fractions at a capped
+level, nonzero minimum level, fractional/T/Y gradients, perspective,
+detail, sharpen and full mipmap filtering remain unfinished. N64 stays
+**50% (10/20)** of the fixed delivery checklist.
+
 An A pulse now loads Bob-omb Battlefield. Guest RAM places Mario near
 **(-6525, 0, 6431)** with a course terrain and camera. A 120-field neutral
 control leaves the opening dialogue and position unchanged; repeated A presses
