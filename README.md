@@ -171,6 +171,8 @@ N64 0.101.0 prepares common RDP tile coordinates once per draw and uses an exact
 
 N64 0.102.0 decodes eight RSP vector lanes with one SSE2 byte-order load on supported hosts, with a portable scalar path. A direct oracle checks **524,288 decoded lane words**. Five paired 60-field SM64 checkpoint runs measured **18.52 to 19.11 VI fields/second** by median time, four faster; three 300-field pairs measured **20.18 to 20.54 fields/second**, two faster. Complete native states matched in every pair. [Performance details](docs/N64-PERFORMANCE.md#rsp-vector-register-byte-order-loads-01020). Play remains below real time; **N64 stays 50% (10/20)**.
 
+N64 0.103.0 adds an opt-in [execution profile](docs/N64-PERFORMANCE.md#opt-in-n64-execution-profile-01030) that reports CPU/idle clocks, RSP instructions and RDP draw time from local game checkpoints. A 60-field SM64 course continuation recorded **38,237,541 completed RSP instructions** and **27,192 RDP draws**; the profiled and ordinary plugins produced byte-identical complete states. Normal builds compile out the profiler. This is a diagnostic tool, not a speed gain; **N64 stays 50% (10/20)**.
+
 A cross-platform, plugin-based emulator framework built for speedrunners and TAS creators.
 
 *Veloce* - Italian for "fast"

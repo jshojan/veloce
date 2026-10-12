@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstring>
 #include "emu/input_types.hpp"
+#include "n64_profile.hpp"
 
 namespace n64 {
 static uint32_t crc32(const uint8_t* data, size_t size) {
@@ -125,16 +126,34 @@ void Machine::run_frontend_frame() {
             const bool interruptible=(cpu.state.cp0[12]&7)==1;
             do{
                 const unsigned skipped=skip_inactive_clocks(idle-advanced);
-                if(skipped)advanced+=skipped;
-                else if(const unsigned active=advance_active_rsp_clocks(idle-advanced))advanced+=active;
-                else{clock();++advanced;}
+                if(skipped){advanced+=skipped;
+#ifdef VELOCE_N64_PROFILE
+                    n64_profile.inactive_clocks+=skipped;
+#endif
+                }else if(const unsigned active=advance_active_rsp_clocks(idle-advanced)){
+                    advanced+=active;
+#ifdef VELOCE_N64_PROFILE
+                    n64_profile.active_clocks+=active;
+#endif
+                }else{clock();++advanced;
+#ifdef VELOCE_N64_PROFILE
+                    ++n64_profile.ordinary_clocks;
+#endif
+                }
                 pending=interrupt_pending();
                 if(interruptible && (cpu.state.cp0[12]&(uint64_t(pending)<<8)))break;
                 if(field_mode && (video_interface.fields!=field ||
                    (attempt+advanced>=startup_budget && !video_interface.active())))break;
             }while(advanced<idle && !done && !yielded);
             cpu.complete_cached_idle(advanced,pending);attempt+=advanced;
-        }else{cpu.step();++attempt;}
+#ifdef VELOCE_N64_PROFILE
+            n64_profile.idle_clocks+=advanced;
+#endif
+        }else{cpu.step();++attempt;
+#ifdef VELOCE_N64_PROFILE
+            ++n64_profile.cpu_steps;
+#endif
+        }
         if(field_mode && (video_interface.fields!=field ||
             (attempt>=startup_budget && !video_interface.active())))break;
     }
@@ -157,6 +176,9 @@ unsigned Machine::skip_inactive_clocks(unsigned maximum) {
     const bool rtc=joybus.rtc.present && !(joybus.rtc.status&0x80);
     if(rtc)count=std::min(count,CartridgeRtc::clocks_per_second-1-joybus.rtc.clocks);
     if(!count)return 0;
+#ifdef VELOCE_N64_PROFILE
+    N64ProfileTimer profile_timer{n64_profile.active_ns};
+#endif
     const uint64_t rsp_total=rsp_phase+count*2,rsp_ticks=rsp_total/3;
     rsp_phase=rsp_total%3;
     if(dp_interface.pipeline){
@@ -210,7 +232,12 @@ unsigned Machine::advance_active_rsp_clocks(unsigned maximum) {
 }
 void Machine::tick_rsp_dp() {
     rsp_phase+=2;if(rsp_phase>=3){
-        rsp_phase-=3;rsp.step(sp_interface,dp_interface,sp,ram);
+        rsp_phase-=3;
+#ifdef VELOCE_N64_PROFILE
+        if(rsp.step(sp_interface,dp_interface,sp,ram))++n64_profile.rsp_steps;
+#else
+        rsp.step(sp_interface,dp_interface,sp,ram);
+#endif
         // A settled command stream only advances the nominal pipeline
         // counters. RSP writes above can start a new stream on this tick.
         if(fast_dp_clock_enabled && dp_interface.current==dp_interface.active_end &&

@@ -9,6 +9,7 @@
 #include "rdp_framebuffer.hpp"
 #include "rdp_primitive_depth.hpp"
 #include "rdp_dither.hpp"
+#include "n64_profile.hpp"
 namespace n64 {
 // Functional one-cycle RGBA16/RGBA32 and bounded two-cycle fog/pass feedback:
 // optional blending/AA/alpha-coverage decisions.
@@ -105,6 +106,10 @@ private:
         const auto palette=(mode&(1ull<<47))?((mode&(1ull<<46))?RdpTexelQuad::Palette::ia:RdpTexelQuad::Palette::rgba):RdpTexelQuad::Palette::none;
         std::array<RdpTextureCoordinates::SimpleTile,8> simple_tiles{};
         if(textured)for(unsigned tile=0;tile<8;++tile)simple_tiles[tile]=RdpTextureCoordinates::prepare_simple(texture->tiles[tile]);
+#ifdef VELOCE_N64_PROFILE
+        ++n64_profile.rdp_draws;
+        N64ProfileTimer profile_timer{n64_profile.rdp_ns};
+#endif
         // Preflight every complete row so functional bounds rejection is atomic.
         for(unsigned y=bounds.first;y<=bounds.last;++y){const auto row=RdpTriangleSpan::row(triangle,bounds,y);if(row.valid){const uint64_t end=uint64_t(y)*width+row.last+1;
             if(uint64_t(origin)+end*bytes>ram.size() || (depth_mode && uint64_t(depth_image)+end*2>ram.size()))return 5;}}
