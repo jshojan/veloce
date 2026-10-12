@@ -1,7 +1,7 @@
 #include "pif_joybus.hpp"
 #include <cstdlib>
 #include <iostream>
-static void check(bool ok){if(!ok){std::cerr<<"Joybus observation mismatch\n";std::exit(1);}}
+#define check(...) do { if(!(__VA_ARGS__)){std::cerr<<"Joybus observation mismatch at line "<<__LINE__<<"\n";std::exit(1);} } while(false)
 static uint32_t frontend(unsigned raw){constexpr unsigned bits[]={0,1,20,6,8,9,10,11,4,5,21,22,23,24};uint32_t out=0;for(unsigned n=0;n<14;++n)if(raw&(1u<<n))out+=1u<<bits[n];return out;}
 static unsigned wire(unsigned raw){constexpr unsigned bits[]={15,14,13,12,11,10,9,8,5,4,3,2,1,0};unsigned out=0;for(unsigned n=0;n<14;++n)if(raw&(1u<<n))out+=1u<<bits[n];return out;}
 int main(){uint64_t reads=0,lengths=0,controls=0;

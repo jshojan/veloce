@@ -68,7 +68,7 @@ public:
     static constexpr size_t tmem_state_size=4096,controller_state_size=24,packet_state_size=200,conversion_state_size=8,blender_state_size=24;
     static constexpr size_t primitive_depth_state_size=8,joybus_state_size=40;
     static constexpr size_t hidden_state_size=ram_size/8+16;
-    static constexpr size_t current_state_size=704+ram_size+8192+75888+304+dp_state_size+vector_state_size+accumulator_state_size+combiner_state_size+depth_image_state_size+divider_state_size+texture_state_size+tmem_state_size+controller_state_size+packet_state_size+conversion_state_size+blender_state_size+hidden_state_size+primitive_depth_state_size+joybus_state_size;
+    static constexpr size_t current_state_size=704+ram_size+8192+75888+304+dp_state_size+vector_state_size+accumulator_state_size+combiner_state_size+depth_image_state_size+divider_state_size+texture_state_size+tmem_state_size+controller_state_size+packet_state_size+conversion_state_size+blender_state_size+hidden_state_size+primitive_depth_state_size+joybus_state_size+PifJoybus::Eeprom{}.size();
     uint64_t rsp_phase=0;
     static constexpr size_t rsp_state_size=304;
     AudioInterface audio_interface;

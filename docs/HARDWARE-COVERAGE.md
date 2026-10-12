@@ -4258,3 +4258,16 @@ camera pointers. The final private capture shows Mario inside the castle;
 states, frames and the commercial ROM stay ignored locally. The route has no
 terminal CPU/RSP/DP stop. Main-level progression and full-title playability
 remain unverified, so N64 remains **50% (10/20)** of the fixed delivery list.
+
+## N64 functional 4 Kbit EEPROM (0.58.0)
+
+The cartridge Joybus channel now implements 4 Kbit EEPROM identification and
+eight-byte read/write commands. The [original guest corpus](../tests/roms-src/n64/eeprom_4k/README.md)
+grades **16,512 actual SI/PIF cases / 33,024 register-file words**: blank reads
+from every block, 256 writes and immediate reads per block, and a final read
+of all 64 blocks after the whole device has changed. A fresh frontend process
+reloads the exact 512 saved bytes, a malformed file is rejected, and an
+executed wrong-read cartridge fails the host oracle. S032 states preserve the
+EEPROM across rollback; older states import erased storage. Busy timing,
+16 Kbit EEPROM, other save media, RTC and accessories remain unverified, so the
+N64 checklist stays **50% (10/20)**.

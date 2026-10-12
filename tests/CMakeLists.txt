@@ -46,6 +46,10 @@ add_test(NAME n64_controller_serial COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/controller_serial/run.py --emulator $<TARGET_FILE:veloce>
     --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_controller)
 set_tests_properties(n64_controller_serial PROPERTIES LABELS "accuracy;owned" TIMEOUT 180)
+add_test(NAME n64_eeprom_4k COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/eeprom_4k/run.py --emulator $<TARGET_FILE:veloce>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_eeprom_4k)
+set_tests_properties(n64_eeprom_4k PROPERTIES LABELS "accuracy;owned;save" TIMEOUT 180)
 
 add_test(NAME n64_interrupts COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/interrupts/run.py --emulator $<TARGET_FILE:veloce>
@@ -1182,6 +1186,17 @@ add_executable(n64_pif_joybus_test cpp/n64_pif_joybus_test.cpp)
 target_include_directories(n64_pif_joybus_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src ${CMAKE_SOURCE_DIR}/include)
 add_test(NAME n64_pif_joybus_test COMMAND n64_pif_joybus_test)
 set_tests_properties(n64_pif_joybus_test PROPERTIES LABELS "unit;accuracy" TIMEOUT 90)
+add_executable(n64_eeprom_joybus_test cpp/n64_eeprom_joybus_test.cpp)
+target_include_directories(n64_eeprom_joybus_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src ${CMAKE_SOURCE_DIR}/include)
+add_test(NAME n64_eeprom_joybus_test COMMAND n64_eeprom_joybus_test)
+set_tests_properties(n64_eeprom_joybus_test PROPERTIES LABELS "unit;accuracy;save" TIMEOUT 60)
+add_executable(n64_eeprom_checkpoint_test cpp/n64_eeprom_checkpoint_test.cpp)
+target_include_directories(n64_eeprom_checkpoint_test PRIVATE ${CMAKE_SOURCE_DIR}/include ${SDL2_INCLUDE_DIRS})
+target_link_libraries(n64_eeprom_checkpoint_test PRIVATE ${SDL2_LIBRARIES})
+add_dependencies(n64_eeprom_checkpoint_test n64_plugin)
+add_test(NAME n64_eeprom_checkpoint_test COMMAND n64_eeprom_checkpoint_test
+    $<TARGET_FILE:n64_plugin> ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/eeprom_4k/eeprom_4k.z64)
+set_tests_properties(n64_eeprom_checkpoint_test PROPERTIES LABELS "integration;netplay;accuracy;owned;save" TIMEOUT 90)
 add_test(NAME n64_controller_cached_reads COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/controller_cached_reads/run.py --emulator $<TARGET_FILE:veloce>
     --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_controller_cached_reads)

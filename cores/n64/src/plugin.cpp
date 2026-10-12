@@ -1,4 +1,5 @@
 #include "machine.hpp"
+#include <algorithm>
 #include <array>
 #include <cstring>
 #include "emu/netplay_plugin.hpp"
@@ -8,7 +9,7 @@ class Plugin : public emu::IEmulatorPlugin, public emu::INetplayCapable, public 
 public:
     emu::EmulatorInfo get_info() override {
         static const char* extensions[] = {".z64", ".v64", ".n64", nullptr};
-        return {"N64", "0.57.0", "Veloce", "Experimental integer core with CP0 TagLo/TagHi/PErr fields, Status writable/reserved/TS fields and CP0 Config fixed/writable fields and CP0 BadVAddr/PRId/CacheErr write protection and Kernel32 wide integer address formation and doubleword integer and LWU User/Supervisor mode restrictions and CP0 physical-address read/write Watch exceptions and disabled COP2 unusable exception priority and linked word/doubleword loads and conditional stores and twelve signed/unsigned register/immediate trap instructions and TLB translation, FPU register/memory transfers and controls/branches, conversions and S/D arithmetic/comparisons, primary caches, shared hidden CPU/DMA RDRAM and uncached MI EBUS metadata, settled PI/SI/SP, SP scalar execution and vector transfers/multiply/accumulate/comparison/integer-ALU/reciprocal/square-root/move/clipping, shared DP controls with complete packet framing and partial-command states, RDP raw fill/color-depth clears and shared hidden RDP fill/framebuffer coverage and rejected color-write history and functional one-cycle E4/E5 texture rectangles and RGBA16/RGBA32 shade/primitive/environment and affine/perspective textured/color-converted pixels with ordered RGB/alpha dithering and one-cycle interpolated/primitive depth comparison/update and SetPrimDepth state and blending/AA/alpha-coverage decisions and fog/blend state and SetConvert state, scissoring and sync and combiner/color and tile/texture-image state and functional TMEM block/tile/palette transfers and copy-cycle rectangle/triangle bank transfers with raw alpha comparison and hidden byte-write metadata and RI/MI/RDRAM device controls and CIC-6102 IPL3 handoff; retail boot/playability, RSP/RDP graphics, RSP audio microcode, exact timing and physical analog calibration pending; functional AI PCM and unfiltered VI framebuffer output; persistent SI/PIF command layouts and digital and signed-byte analog input polling on every read DMA.",
+        return {"N64", "0.58.0", "Veloce", "Experimental N64 core with MIPS III, CP0, RSP, partial RDP, SI/PIF controller polling, and functional 4 Kbit cartridge EEPROM with frontend battery persistence. Retail course entry, complete hardware and physical timing remain pending.",
                 extensions, 60.0, 93750000, 320, 240};
     }
     const emu::ControllerLayoutInfo* get_controller_layout() override {
@@ -37,6 +38,19 @@ public:
     void set_frame_scheduling(emu::FrameScheduling mode) override {machine.frame_scheduling=mode;}
     void unload_rom() override { machine.rom.clear(); machine.crc = 0; machine.identity = 0; machine.entry = 0; machine.boot_mode=Machine::BootMode::Homebrew; machine.reset(); }
     bool is_rom_loaded() const override { return !machine.rom.empty(); }
+    bool has_battery_save() const override { return is_rom_loaded() && machine.joybus.has_eeprom(); }
+    std::vector<uint8_t> get_battery_save_data() const override {
+        if(!has_battery_save())return {};
+        const auto& eeprom=machine.joybus.eeprom_data();
+        return {eeprom.begin(),eeprom.end()};
+    }
+    bool set_battery_save_data(const std::vector<uint8_t>& data) override {
+        if(!has_battery_save() || data.size()!=n64::PifJoybus::Eeprom{}.size())return false;
+        n64::PifJoybus::Eeprom content{};
+        std::copy(data.begin(),data.end(),content.begin());
+        machine.joybus.set_eeprom(content);
+        return true;
+    }
     uint32_t get_rom_crc32() const override { return machine.crc; }
     void reset() override { machine.reset(); }
     void run_frame(const emu::InputState& input) override {
