@@ -15,7 +15,10 @@ from build import build
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[3]
 SUITE = "rsp_imem_rewrite"
-CASES = 2560
+IMMEDIATES = 65536
+SLOTS = 1024
+SWEEP_START = 2 * IMMEDIATES
+CASES = SWEEP_START + 2 * SLOTS
 WORDS = 4
 
 
@@ -31,7 +34,7 @@ def run(emulator, image, result):
     env.update(HEADLESS="1", FRAMES="10000", VELOCE_TEST_OUT=str(result.resolve()),
                VELOCE_TEST_EXIT="1")
     completed = subprocess.run([str(emulator.resolve()), str(image.resolve())], cwd=ROOT,
-                               env=env, capture_output=True, text=True, timeout=30)
+                               env=env, capture_output=True, text=True, timeout=120)
     require(completed.returncode == 0, completed.stdout + completed.stderr)
     result.with_suffix(".log").write_text(completed.stdout + completed.stderr)
 
@@ -43,17 +46,18 @@ def evaluate(path, rom):
         f"#VELOCE 1 core=N64 rom_crc32={zlib.crc32(rom):08x} channels=v64debug",
         f"VELOCE 1 n64 {SUITE}", f"BEGIN data cases={CASES} words={WORDS}"],
         "wrong ROM identity or declared domain")
-    mismatches = []
+    mismatches = {"cpu-store": 0, "sp-dma": 0}
     for index, line in enumerate(lines[3:3 + CASES]):
         require(re.fullmatch(r"REG r=[0-9a-f]{32}", line) is not None,
                 f"malformed register row {index}")
         actual = tuple(int(line[6 + offset:14 + offset], 16) for offset in (0, 8, 16, 24))
-        value = (index & 255) if index < 512 else ((index - 512) & 255)
-        slot = 0 if index < 512 else (index - 512) & 1023
-        expected = (value, 0x24020000 | value, 3, (slot * 4 + 12) & 4092)
+        value = (index & 65535) if index < SWEEP_START else ((index - SWEEP_START) & 255)
+        slot = 0 if index < SWEEP_START else (index - SWEEP_START) & 1023
+        mode = "cpu-store" if (index < IMMEDIATES or SWEEP_START <= index < SWEEP_START + SLOTS) else "sp-dma"
+        expected = (value | (0xffff0000 if value & 0x8000 else 0),
+                    0x24020000 | value, 3, (slot * 4 + 12) & 4092)
         if actual != expected:
-            mismatches.append({"mode": "cpu-store" if (index < 256 or 512 <= index < 1536) else "sp-dma",
-                               "slot": slot, "value": value, "expected": expected, "actual": actual})
+            mismatches[mode] += 1
     require(lines[3 + CASES:5 + CASES] == [
         f"LOG complete cases={CASES}", "END observations_complete"],
         "missing or false completion marker")
@@ -76,7 +80,7 @@ def main():
     image.write_bytes(original)
     result = args.artifacts / "control.result"
     run(args.emulator, image, result)
-    require(not evaluate(result, original), "RSP IMEM control register mismatch")
+    require(sum(evaluate(result, original).values()) == 0, "RSP IMEM control register mismatch")
 
     mutant = build(wrong_instruction=True)
     image = args.artifacts / "executed-mutant.z64"
@@ -84,7 +88,7 @@ def main():
     result = args.artifacts / "executed-mutant.result"
     run(args.emulator, image, result)
     wrong = evaluate(result, mutant)
-    require(len(wrong) == CASES, "executed wrong-instruction ROM escaped oracle")
+    require(sum(wrong.values()) == CASES, "executed wrong-instruction ROM escaped oracle")
 
     disarmed = build(no_dma=True)
     image = args.artifacts / "disarmed-dma.z64"
@@ -92,8 +96,8 @@ def main():
     result = args.artifacts / "disarmed-dma.result"
     run(args.emulator, image, result)
     skipped = evaluate(result, disarmed)
-    dma_mismatches = sum(row["mode"] == "sp-dma" for row in skipped)
-    require(len(skipped) == dma_mismatches == 1279,
+    dma_mismatches = skipped["sp-dma"]
+    require(skipped == {"cpu-store": 0, "sp-dma": IMMEDIATES - 1 + SLOTS},
             "disarmed SP DMA escaped oracle or changed CPU-store rows")
 
     control = (args.artifacts / "control.result").read_text()
@@ -109,9 +113,11 @@ def main():
 
     report = {"suite": SUITE, "status": "pass", "cases": CASES,
               "actual_register_words": CASES * WORDS,
-              "cpu_store_cases": 1280, "sp_dma_cases": 1280,
-              "imem_aligned_slots_per_path": 1024,
-              "executed_mutant_mismatches": len(wrong),
+              "cpu_store_cases": IMMEDIATES + SLOTS,
+              "sp_dma_cases": IMMEDIATES + SLOTS,
+              "immediate_encodings_per_path": IMMEDIATES,
+              "imem_aligned_slots_per_path": SLOTS,
+              "executed_mutant_mismatches": sum(wrong.values()),
               "disarmed_dma_mismatches": dma_mismatches,
               "rom_sha256": hashlib.sha256(original).hexdigest()}
     (args.artifacts / "report.json").write_text(json.dumps(report, indent=2) + "\n")

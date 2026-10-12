@@ -31,8 +31,8 @@ def build(wrong_instruction=False, no_dma=False):
     p.i(9, 0, 18, 0)       # Mode 0 CPU store, mode 1 SP DMA.
     p.puts("header")
     p.mark("mode")
-    p.i(9, 0, 16, 0)       # Immediate byte.
-    p.i(9, 0, 17, 256)
+    p.i(9, 0, 16, 0)       # Complete 16-bit ADDIU immediate domain.
+    p.i(15, 0, 17, 1)      # 65,536 cases per rewrite path.
     p.mark("sample")
     p.i(15, 0, 8, 0x2402)  # RSP ADDIU r2,r0,imm.
     p.r(37, 8, 16, 8)
@@ -192,9 +192,9 @@ def build(wrong_instruction=False, no_dma=False):
     p.branch(1, 6, 1, "hex_loop")
     p.r(8, rs=31)
     p.word(0)
-    p.string("header", "VELOCE 1 n64 rsp_imem_rewrite\nBEGIN data cases=2560 words=4\n")
+    p.string("header", "VELOCE 1 n64 rsp_imem_rewrite\nBEGIN data cases=133120 words=4\n")
     p.string("row", "REG r=")
-    p.string("done", "LOG complete cases=2560\nEND observations_complete\n")
+    p.string("done", "LOG complete cases=133120\nEND observations_complete\n")
     while p.pc & 3:
         p.data.append(0)
     p.resolve()
