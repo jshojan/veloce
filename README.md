@@ -75,6 +75,8 @@ N64 0.78.0 selects the affine LOD level and fraction from the largest S/T gradie
 
 N64 0.79.0 adds affine 1/32-texel LOD gradients and corrects signed-delta and coarsest-level behavior. The [original subtexel cartridge](tests/roms-src/n64/rdp_lod_subtexel/README.md) grades **49,152 cases / 638,976 actual framebuffer and DP/MI register words** across all 0–511 subtexel steps on four axes, both signs, three maximum levels, RGBA16/IA16 and RDRAM/XBUS delivery. Earlier integer-gradient oracles were corrected and rerun. Mixed fractional gradients, perspective, detail/sharpen and full mipmap filtering remain pending; direct physical-hardware comparison is also pending. N64 stays **50% (10/20)**.
 
+N64 0.80.0 calculates affine LOD from screen-X/Y texture gradients independently of triangle-edge interpolation. The [original edge-gradient cartridge](tests/roms-src/n64/rdp_lod_edge_gradient/README.md) grades **165,760 cases / 2,154,880 actual framebuffer and DP/MI register words** across mixed 1/32-texel vectors, 16 independent sign masks, two edge arrangements, RGBA16/IA16 and RDRAM/XBUS delivery. A changed-edge control preserves observations while executed wrong-T, wrong-Y, wrong-sign, wrong-fraction and wrong-tile ROMs are rejected. Perspective LOD, detail/sharpen, non-solid edge-interpolation observations and full mipmap filtering remain pending; N64 stays **50% (10/20)**.
+
 ### 3DS ARM11 instruction coverage
 
 The 3DS plugin implements the following ARMv6 instruction subsets. Each linked
