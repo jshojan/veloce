@@ -213,12 +213,18 @@ unsigned Machine::advance_active_rsp_clocks(unsigned maximum) {
     const bool rsp_irq=(cpu.state.cp0[12]&0x401)==0x401 && (mi_mask&33);
     unsigned advanced=0;
     do{
-        tick_rsp_dp();
-        ++advanced;
+        // The 2:3 phase ratio has one nominal clock with no RSP/DP tick
+        // whenever phase starts at zero. Skip that clock, but retain its
+        // phase and clock count if the batch ends before the next tick.
+        const unsigned until_tick=rsp_phase==0?2u:1u;
+        if(until_tick>count-advanced){rsp_phase=2;advanced=unsigned(count);break;}
+        rsp_phase=rsp_phase==1?0:1;
+        advanced+=until_tick;
+        tick_rsp_dp_due();
         // Only SP and DP can raise a new interrupt before the next device
         // event, and they can do so only on an RSP/DP clock.
-        if(rsp_irq && rsp_phase!=2 &&
-           ((sp_interface.interrupt && (mi_mask&1)) || (dp_interrupt && (mi_mask&32))))break;
+        if(rsp_irq && ((sp_interface.interrupt && (mi_mask&1)) ||
+                       (dp_interrupt && (mi_mask&32))))break;
     }while(advanced<count);
     const uint64_t crystal_total=crystal_phase+uint64_t(advanced)*crystal_rate;
     crystal_phase=crystal_total%cpu_rate;
@@ -233,22 +239,25 @@ unsigned Machine::advance_active_rsp_clocks(unsigned maximum) {
 void Machine::tick_rsp_dp() {
     rsp_phase+=2;if(rsp_phase>=3){
         rsp_phase-=3;
-#ifdef VELOCE_N64_PROFILE
-        if(rsp.step(sp_interface,dp_interface,sp,ram))++n64_profile.rsp_steps;
-#else
-        rsp.step(sp_interface,dp_interface,sp,ram);
-#endif
-        // A settled command stream only advances the nominal pipeline
-        // counters. RSP writes above can start a new stream on this tick.
-        if(fast_dp_clock_enabled && dp_interface.current==dp_interface.active_end &&
-           !(dp_interface.start_valid && dp_interface.end_valid) &&
-           !dp_interface.packet.ready()){
-            if(dp_interface.pipeline){
-                dp_interface.clock=(dp_interface.clock+1)&0xffffff;
-                dp_interface.pipe_busy=(dp_interface.pipe_busy+1)&0xffffff;
-            }
-        }else dp_interface.tick(ram,sp,dp_interrupt,&hidden);
+        tick_rsp_dp_due();
     }
+}
+void Machine::tick_rsp_dp_due() {
+#ifdef VELOCE_N64_PROFILE
+    if(rsp.step(sp_interface,dp_interface,sp,ram))++n64_profile.rsp_steps;
+#else
+    rsp.step(sp_interface,dp_interface,sp,ram);
+#endif
+    // A settled command stream only advances the nominal pipeline
+    // counters. RSP writes above can start a new stream on this tick.
+    if(fast_dp_clock_enabled && dp_interface.current==dp_interface.active_end &&
+       !(dp_interface.start_valid && dp_interface.end_valid) &&
+       !dp_interface.packet.ready()){
+        if(dp_interface.pipeline){
+            dp_interface.clock=(dp_interface.clock+1)&0xffffff;
+            dp_interface.pipe_busy=(dp_interface.pipe_busy+1)&0xffffff;
+        }
+    }else dp_interface.tick(ram,sp,dp_interrupt,&hidden);
 }
 void Machine::clock() {
     // One nominal CPU clock per interpreter attempt: physical CPI is unmodeled.

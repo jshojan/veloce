@@ -584,3 +584,28 @@ edges, comparison pairs and edges, and integer pairs and edges. The production
 N64 TCP netplay gate passes with the optimized plugin.
 These measurements cover one bounded course scene; normal-speed SM64 play
 remains unverified. **N64 stays 50% (10/20)**.
+
+## Active-RSP empty-clock skipping (0.106.0)
+
+The active-RSP idle batch previously called its RSP/DP tick helper for every
+nominal CPU clock, including clocks on which the 2:3 phase ratio produces no
+RSP/DP tick. It now advances directly to the next tick and records the same
+nominal clock count and phase. A batch that ends on an empty clock retains
+that phase; SP BREAK and DP FullSync still stop at the exact tick that raises
+an interrupt. VI, AI, output-sample and RTC events stay on the ordinary clock
+path at their original boundaries. The native state format is unchanged.
+
+The idle-clock component gate compares **128 complete machine continuations**
+against both uncached and unbatched execution across all three RSP phases,
+VI/AI/RTC events, SP BREAK and DP FullSync. The DP gate checks **40,960 ticks**
+across settled, queued, frozen, blocked and RSP-written streams, plus 128
+complete states. The original DP register ROM and production two-peer TCP
+netplay gate pass. Nine alternating CPU-pinned 60-field private SM64
+course-checkpoint pairs measured **19.16 to 19.76 VI fields/second** by
+median time, a **2.6%** median paired gain; seven of nine pairs were faster.
+Three CPU-pinned 300-field pairs measured **20.06 to 20.46 fields/second**,
+a **2.8%** median paired gain; two of three pairs were faster. Complete native
+states, CPU attempts and audio counts matched in every pair. Ignored local
+reports are `build/artifacts/performance/n64-rsp-phase-{confirmation,long}/`.
+The speedup varies with host load and does not reach the 60-field real-time
+target. **N64 stays 50% (10/20)**.

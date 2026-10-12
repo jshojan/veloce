@@ -179,6 +179,8 @@ N64 0.104.1 corrects the optional [active-RSP profile timer](docs/N64-PERFORMANC
 
 N64 0.105.0 writes accelerated RSP vector results with one SSE2 byte-order store. The SIMD/scalar component gate passes **2,359,296 vector continuations**, six original RSP register-output ROM suites pass, and the production TCP netplay gate passes. Five paired 60-field SM64 course-checkpoint runs measured **19.14 to 19.65 VI fields/second** by median time, a **2.7%** gain, with all five pairs faster; three CPU-pinned 300-field pairs measured **19.50 to 19.96 fields/second**, a **2.4%** gain, with two faster. Complete states matched byte for byte. [Performance details](docs/N64-PERFORMANCE.md#rsp-vector-register-byte-order-stores-01050). SM64 remains below real time; **N64 stays 50% (10/20)**.
 
+N64 0.106.0 skips nominal clocks with no RSP/DP tick inside active-RSP idle batches while keeping their phase and device-event boundaries exact. The 128-state idle-clock and 40,960-tick DP component gates, original DP register ROM and production TCP netplay gate pass. Nine CPU-pinned 60-field SM64 pairs measured **19.16 to 19.76 VI fields/second** by median time, a **2.6%** median paired gain, with seven faster; three 300-field pairs measured **20.06 to 20.46 fields/second**, a **2.8%** median paired gain, with two faster. Complete states matched in every pair. [Performance details](docs/N64-PERFORMANCE.md#active-rsp-empty-clock-skipping-01060). SM64 remains below real time; **N64 stays 50% (10/20)**.
+
 A cross-platform, plugin-based emulator framework built for speedrunners and TAS creators.
 
 *Veloce* - Italian for "fast"
