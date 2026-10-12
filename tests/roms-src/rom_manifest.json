@@ -22274,6 +22274,17 @@
       "source_type": "original",
       "suite": "muldiv64"
     },
+    "n64/native_save_identity/native_save_identity.z64": {
+      "build_command": "python3 tests/roms-src/n64/native_save_identity/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "acc490cb29120318504a193e6630360ccaa456b7513d6055e7983171d4dbaabf",
+      "source_repo": "tests/roms-src/n64/native_save_identity/build.py",
+      "source_sha": "897a579b91b264b86eb816724edc07154317b285555d9f6741b5c576e91baaec",
+      "source_type": "original",
+      "suite": "native_save_identity"
+    },
     "n64/pi_dma/pi_dma.z64": {
       "build_command": "python3 tests/roms-src/n64/pi_dma/build.py",
       "console": "n64",

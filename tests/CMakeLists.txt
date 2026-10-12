@@ -1208,6 +1208,13 @@ set_tests_properties(n64_eeprom_checkpoint_test PROPERTIES LABELS "integration;n
 add_test(NAME n64_eeprom_16k_checkpoint_test COMMAND n64_eeprom_checkpoint_test
     $<TARGET_FILE:n64_plugin> ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/eeprom_16k/eeprom_16k.z64 2048)
 set_tests_properties(n64_eeprom_16k_checkpoint_test PROPERTIES LABELS "integration;netplay;accuracy;owned;save" TIMEOUT 90)
+add_executable(n64_native_save_identity_test cpp/n64_native_save_identity_test.cpp)
+target_include_directories(n64_native_save_identity_test PRIVATE ${CMAKE_SOURCE_DIR}/include ${SDL2_INCLUDE_DIRS})
+target_link_libraries(n64_native_save_identity_test PRIVATE ${SDL2_LIBRARIES})
+add_dependencies(n64_native_save_identity_test n64_plugin)
+add_test(NAME n64_native_save_identity_test COMMAND n64_native_save_identity_test
+    $<TARGET_FILE:n64_plugin> ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/native_save_identity/native_save_identity.z64)
+set_tests_properties(n64_native_save_identity_test PROPERTIES LABELS "integration;accuracy;owned;save" TIMEOUT 90)
 add_test(NAME n64_controller_cached_reads COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/controller_cached_reads/run.py --emulator $<TARGET_FILE:veloce>
     --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_controller_cached_reads)
