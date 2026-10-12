@@ -101,3 +101,36 @@ ctest --test-dir build -R '^n64_(cached_idle|idle_clock)_test$' --output-on-fail
 
 N64 stays **50% (10/20)** of the delivery checklist. The frontend and all core
 completion documentation use the same ledger. CI/CD remains disabled.
+
+## RGBA16 texture quad acceleration (0.87.0)
+
+Unpaletted RGBA16 quad fetches gather the same four TMEM halfwords and expand
+all four RGBA colors with SSE2. Row wrapping, odd-row bank swapping and coupled
+neighbor coordinates retain their scalar behavior. Other formats, palettes and
+hosts without SSE2 use the retained scalar path. No emulated state changes.
+
+Five alternating 60-field pairs against 0.86.0 measured **3.9% more throughput**:
+
+| Core | Median VI fields/second |
+|---|---:|
+| 0.86.0 | 13.35 |
+| 0.87.0 | 13.88 |
+
+All ten runs produced identical complete native states, 94,022,500 CPU attempts
+and 48,140 stereo sample pairs. Results and hashes are in
+`build/artifacts/performance/n64-rgba16-final/report.json`. These are local core
+throughput measurements; performance remains below the 60-field NTSC target.
+
+The independent expansion-table test checks all 65,536 packed colors in each
+of four corners (262,144 colors). Existing independent quad oracles exercise
+all formats, palettes, TMEM bases/line strides and coupled row carries; executed
+faulty implementations are rejected. The same oracle passes with SIMD disabled.
+The original two-cycle filtering ROM, private SM64 course continuation and
+production netplay regression also pass.
+
+```sh
+ctest --test-dir build -R '^n64_rdp_(rgba16_simd_test|quad_scalar_fallback_test|texel_quad_test|texel_quad_mutants|two_cycle_filter)$' --output-on-failure
+```
+
+**N64 remains 50% (10/20)**; full-title playability, physical timing and further
+performance work remain pending. CI/CD remains disabled.

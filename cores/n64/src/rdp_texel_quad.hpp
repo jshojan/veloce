@@ -1,6 +1,7 @@
 #pragma once
 #include "rdp_texture_coordinates.hpp"
 #include "rdp_texture_filter.hpp"
+#include "rdp_rgba16_simd.hpp"
 namespace n64 {
 // Coupled cycle fetch over canonical TMEM. Coordinates are already shifted,
 // clamped and masked; fractions determine palette/chroma lane remapping.
@@ -9,6 +10,28 @@ struct RdpTexelQuad {
     using Quad=RdpTextureFilter::Quad;
     enum class Palette {none,rgba,ia};
     static Quad read(const RdpTmem& memory,const RdpTexture::Tile& tile,
+                     const RdpTextureCoordinates::Sample& sample,
+                     Palette palette=Palette::none,bool nearest=false){
+        if constexpr(RdpRgba16Simd::available){
+            if(palette==Palette::none && tile.format()==0 && tile.size()==2){
+                const uint32_t row0=uint32_t(sample.t.texel)&255;
+                const int32_t row1=int32_t(row0)+(sample.t.neighbor-sample.t.texel);
+                const uint32_t base0=tile.address()+tile.line()*row0;
+                const uint32_t base1=tile.address()+tile.line()*uint32_t(row1);
+                // Tile bases/strides are eight-byte units; the gather uses
+                // halfword units, odd-row bank swapping and 4 KiB wrapping.
+                const auto half=[&](uint32_t base,int32_t row,int32_t s){
+                    return uint16_t(RdpTexelFetch::half(memory,((base*4+uint32_t(s))^((row&1)?2u:0u))&2047));
+                };
+                const std::array<uint16_t,4> words={half(base0,int32_t(row0),sample.s.texel),
+                    half(base0,int32_t(row0),sample.s.neighbor),half(base1,row1,sample.s.texel),
+                    half(base1,row1,sample.s.neighbor)};
+                Quad colors;RdpRgba16Simd::decode(words,colors);return colors;
+            }
+        }
+        return read_scalar(memory,tile,sample,palette,nearest);
+    }
+    static Quad read_scalar(const RdpTmem& memory,const RdpTexture::Tile& tile,
                      const RdpTextureCoordinates::Sample& sample,
                      Palette palette=Palette::none,bool nearest=false){
         const uint32_t row0=uint32_t(sample.t.texel)&255;
