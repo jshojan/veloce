@@ -1,6 +1,6 @@
 # Experimental Nintendo 64 core plugin
 
-Current N64 retail evidence: [Private Super Mario 64 painting-room continuation](#private-super-mario-64-painting-room-continuation-2026-10-11). Earlier increment reports are historical.
+Current N64 retail evidence: [Private Super Mario 64 course-title continuation](#private-super-mario-64-course-title-continuation-2026-10-11). Earlier increment reports are historical.
 
 <!-- completion:start -->
 ## Completion percentage
@@ -19,7 +19,7 @@ Remaining: Cached SI/PIF reads refresh digital and signed-byte analog input. The
 `n64_plugin` builds `n64.so`/`n64.dll`/`n64.dylib` and implements emulator ABI v2.
 The frontend discovers it alongside the other core plugins. It executes original
 MIPS III integer homebrew ROMs with 64-bit GPRs, big-endian memory, delay slots,
-HI/LO, and basic CP0 exception context. An experimental NTSC CIC-6102 handoff accepts recognized native cartridges. The private SM64 US route reaches the zero-star door and Bob-omb painting room; native PIF/IPL boot, course entry and full-title playability remain unverified.
+HI/LO, and basic CP0 exception context. An experimental NTSC CIC-6102 handoff accepts recognized native cartridges. The private SM64 US route reaches the Bob-omb Battlefield Course 1 title card; selecting it exposes an unsupported two-cycle RDP triangle. Native PIF/IPL boot, course gameplay and full-title playability remain unverified.
 Full-core completion is unknown; the available corpus measures defined results
 on selected operands, not a percentage of N64 hardware implemented.
 
@@ -4001,9 +4001,41 @@ python3 tests/n64_retail_painting_room.py /path/to/private/sm64-us.z64 \
   --checkpoint build/artifacts/retail/castle-entry/middle-yp.state
 ```
 
-The room is a verified navigation checkpoint. The painting warp, course
-playability, save-file behavior and full-title playability remain unverified.
-The fixed N64 delivery checklist remains **50% (10/20)**.
+The room is a verified navigation checkpoint. The following continuation
+tests the painting warp and course title; course gameplay, save-file behavior
+and full-title playability remain unverified. The fixed N64 delivery checklist
+remains **50% (10/20)**.
+
+## Private Super Mario 64 course-title continuation (2026-10-11)
+
+From the painting-room checkpoint above, a short diagonal route, a jump onto
+the raised platform and a final jump into the painting produce
+`ACT_DISAPPEARED` (`00001300`). The local framebuffer then shows **Course 1:
+Bob-omb Battlefield — Big Bob-omb on the Summit**. A 240-field neutral
+continuation holds the title card. The action value follows the game's
+[published action definitions](https://github.com/n64decomp/sm64/blob/master/include/sm64.h).
+
+An A pulse selects the course, but rendering then stops on RDP word
+`CF000146013D012B`. The captured 22-word packet is a textured, shaded depth
+triangle with cycle type 1 (two-cycle). The production RDP currently supports
+one-cycle triangle pixels and explicitly blocks this mode. The RSP is not
+blocked; the selected-course framebuffer is blank. This identifies a specific
+graphics implementation gap before Bob-omb Battlefield gameplay can be
+verified.
+
+The [private course-title grader](../../tests/n64_retail_course_title.py)
+checks guest positions and actions, the neutral title control, the selected
+packet and DP stop reason. It fingerprints its local inputs, states and frame
+captures without storing the ROM or captures in tracked source files.
+
+```sh
+python3 tests/n64_retail_course_title.py /path/to/private/sm64-us.z64 \
+  --checkpoint build/artifacts/retail/painting-room/painting_room.state
+```
+
+The Course 1 title card is verified; course gameplay, save-file behavior and
+full-title playability remain unverified. The N64 delivery checklist remains
+**50% (10/20)**.
 
 ## Functional 4 Kbit cartridge EEPROM (0.58.0)
 
