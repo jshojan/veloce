@@ -4404,3 +4404,22 @@ DP command sources. Executed mode, minimum, maximum, sign, perspective, tile,
 fraction and capture mutants are rejected. Solid source tiles and point
 sampling bound this profile; arbitrary fractional derivatives, non-solid
 mipmap filtering and physical timing remain pending. **N64 remains 50% (10/20).**
+
+## Cached idle and inactive-clock acceleration (0.85.0)
+
+The core accelerates a cached kernel idle branch/NOP pair and groups inactive
+CPU/device clocks up to their next event. Count, Compare, Random, delay slots,
+cache behavior and IRQ boundaries retain the functional model's results.
+Three paired private SM64 runs measured **1.56x throughput**, from **8.17 to
+12.75 VI fields per second**, with byte-identical complete states after 60
+fields. This remains below real time; RSP interpretation and software RDP
+rendering need further performance work.
+
+The CPU continuation gate covers cached and uncached execution, cache
+invalidation, privilege faults, timer wraparound, Wired/Random and external
+interrupt boundaries. Another gate compares 128 complete machine continuations
+across VI, AI, RSP, DP and RTC activity. Original interrupt and VI scheduling
+ROMs and cache rollback tests pass. See the
+[benchmark and reproduction instructions](../../docs/N64-PERFORMANCE.md).
+Host acceleration diagnostics are excluded from save/netplay state.
+**N64 remains 50% (10/20).**

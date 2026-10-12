@@ -20,6 +20,10 @@ public:
     explicit VR4300(Memory& memory) : memory(memory) {}
     void reset(uint64_t entry);
     void step();
+    // For the machine's idle loop only: advance each bus clock before completion,
+    // and stop at the first external interrupt or frontend scheduling boundary.
+    unsigned cached_idle_budget(unsigned maximum) const;
+    void complete_cached_idle(unsigned attempts,uint8_t pending);
     CpuState state;
     PrimaryCaches caches;
     Tlb tlb;
@@ -29,6 +33,9 @@ public:
     uint64_t access_address=0;
     unsigned access_bytes=0;
     bool access_store=false;
+    // Host-only execution diagnostics; excluded from save and rollback state.
+    bool cached_idle_enabled=true;
+    uint64_t cached_idle_steps=0;
 private:
     Memory& memory;
     void exception(unsigned code, uint64_t fault_pc, bool delay, uint64_t bad_address = 0,bool refill = false,bool extended = false);

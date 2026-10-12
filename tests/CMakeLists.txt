@@ -634,6 +634,17 @@ add_test(NAME n64_fpu_controls_test COMMAND n64_fpu_controls_test
     ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/fpu_controls/fpu_controls.z64)
 set_tests_properties(n64_fpu_controls_test PROPERTIES LABELS "unit;accuracy;owned" TIMEOUT 180)
 
+add_executable(n64_cached_idle_test cpp/n64_cached_idle_test.cpp
+    ${CMAKE_SOURCE_DIR}/cores/n64/src/vr4300.cpp)
+target_include_directories(n64_cached_idle_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src)
+add_test(NAME n64_cached_idle_test COMMAND n64_cached_idle_test)
+set_tests_properties(n64_cached_idle_test PROPERTIES LABELS "unit;accuracy;performance")
+add_executable(n64_idle_clock_test cpp/n64_idle_clock_test.cpp
+    ${CMAKE_SOURCE_DIR}/cores/n64/src/machine.cpp ${CMAKE_SOURCE_DIR}/cores/n64/src/vr4300.cpp)
+target_include_directories(n64_idle_clock_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src ${CMAKE_SOURCE_DIR}/include)
+add_test(NAME n64_idle_clock_test COMMAND n64_idle_clock_test)
+set_tests_properties(n64_idle_clock_test PROPERTIES LABELS "unit;accuracy;performance" TIMEOUT 90)
+
 add_executable(n64_tlb_test cpp/n64_tlb_test.cpp
     ${CMAKE_SOURCE_DIR}/cores/n64/src/machine.cpp ${CMAKE_SOURCE_DIR}/cores/n64/src/vr4300.cpp)
 target_include_directories(n64_tlb_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src ${CMAKE_SOURCE_DIR}/include)
