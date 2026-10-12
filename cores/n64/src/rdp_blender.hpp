@@ -21,13 +21,14 @@ struct RdpBlender {
     }
     struct DepthInput {unsigned z=0;uint16_t word=0;unsigned hidden=0;};
     static bool fog_two_cycle_supported(uint64_t mode){
-        return ((mode>>30)&3)==3 && ((mode>>26)&3)==2 &&
+        const unsigned fog_alpha=unsigned(mode>>26)&3;
+        return ((mode>>30)&3)==3 && (fog_alpha==1 || fog_alpha==2) &&
                ((mode>>22)&3)==0 && ((mode>>18)&3)==0;
     }
     Result pixel_two_cycle(uint64_t mode,Color color,unsigned shade_alpha,uint32_t memory,unsigned count,unsigned cvbit,unsigned delta_z,const DepthInput* depth=nullptr,unsigned alpha_dither=0){
-        // BL0 fogs the combiner result with stepped shade alpha. In BL1,
+        // BL0 fogs the combiner result with shade or fog-register alpha. In BL1,
         // source zero is the first-cycle blended RGB, not the combiner RGB.
-        const unsigned alpha=std::min(255u,shade_alpha+alpha_dither);
+        const unsigned alpha=((mode>>26)&3)==1?(fog&255):std::min(255u,shade_alpha+alpha_dither);
         const Color fog_color=unpack(fog);
         for(unsigned lane=0;lane<3;++lane)
             color[lane]=equation(fog_color[lane],color[lane],alpha>>3,(alpha^255)>>3,true);

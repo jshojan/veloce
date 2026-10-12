@@ -10,7 +10,7 @@ def expected(case):
     seed, opacity = divmod(raw, 256)
     primitive = (seed, seed ^ 255, seed * 17 % 256, opacity)
     shade_alpha = seed ^ 127
-    fog = channels(0x17c96b83)
+    fog = channels(0x17c96b00 | seed)
     blend = channels(0xe143297f)
     memory = bytearray([0x5a] * 80)
     # Original fixed triangle covers this explicit quarter-pixel point grid.
@@ -27,12 +27,13 @@ def expected(case):
             count = len(covered)
             if (0, 0) not in covered:
                 continue
-            a, b = shade_alpha // 8, (255 - shade_alpha) // 8
+            fog_alpha = shade_alpha if profile < 2 else fog[3]
+            a, b = fog_alpha // 8, (255 - fog_alpha) // 8
             fogged = [((fog[lane] * a + primitive[lane] * (b + 1)) // 32) % 256
                       for lane in range(3)]
-            second_alpha = opacity if profile == 0 else shade_alpha
-            second_color = (0x5a, 0x5a, 0x5a) if profile == 0 else blend
-            if profile == 0 and opacity == 255:
+            second_alpha = opacity if profile % 2 == 0 else shade_alpha
+            second_color = (0x5a, 0x5a, 0x5a) if profile % 2 == 0 else blend
+            if profile % 2 == 0 and opacity == 255:
                 rgb = fogged
             else:
                 a, b = second_alpha // 8, (255 - second_alpha) // 8
