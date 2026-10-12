@@ -55,16 +55,113 @@ def oracle_address_crc(offset):
 
 def oracle_cases():
     for port in range(4):
-        yield port, 0, 0
+        yield port, 0, 0, 'status'
+        for block in range(40):
+            yield port, block, 2, 'fresh'
+        note_blocks = tuple(range(40, 48)) + (8, 16, 24)
+        for block in note_blocks:
+            yield port, block, 3, 'note'
+        for block in note_blocks:
+            yield port, block, 2, 'note'
         for block in range(1024):
-            yield port, block, 3
-            yield port, block, 2
+            yield port, block, 3, 'bulk'
+            yield port, block, 2, 'bulk'
         for block in range(1024):
-            yield port, block, 2
+            yield port, block, 2, 'bulk'
+
+
+def fresh_pak(port):
+    pak = bytearray(32768)
+    for sector in (1, 3, 4, 6):
+        at = sector * 32
+        pak[at + 1] = 0x21 + port
+        pak[at + 4:at + 8] = b'VLO' + bytes((0x30 + port,))
+        pak[at + 8:at + 12] = b'PAK' + bytes((0x31 + port,))
+        pak[at + 0x19:at + 0x1b] = b'\x01\x01'
+        words = [int.from_bytes(pak[at + i:at + i + 2], 'big')
+                 for i in range(0, 28, 2)]
+        pak[at + 28:at + 30] = (sum(words) & 0xffff).to_bytes(2, 'big')
+        pak[at + 30:at + 32] = (sum((~word) & 0xffff for word in words) & 0xffff).to_bytes(2, 'big')
+    for page in (1, 2):
+        for slot in range(5, 128):
+            pak[page * 256 + slot * 2 + 1] = 3
+        pak[page * 256 + 1] = (123 * 3) & 255
+    return pak
+
+
+def oracle_note_data(port, block):
+    if 40 <= block <= 47:
+        return bytes((7 * block + 19 * lane + 23 * port) % 256 for lane in range(32))
+    if block == 8 or block == 16:
+        data = bytearray(32)
+        for slot in range(5, 16):
+            data[slot * 2 + 1] = 3
+        data[11] = 1
+        data[1] = (sum(data[slot * 2 + 1] for slot in range(5, 16)) + 3 * 112) % 256
+        return bytes(data)
+    if block == 24:
+        data = bytearray(32)
+        data[0:3] = b'VLO'
+        data[3] = ord('E')
+        data[4:6] = b'PK'
+        data[7] = 5
+        data[8:10] = b'\x02\x03'
+        data[12] = 0x1a
+        data[16:20] = bytes(0x1a + ord(letter) - ord('A') for letter in 'TEST')
+        return bytes(data)
+    raise ValueError(block)
+
+
+def validate_fresh_system(system):
+    # Libdragon's validate_mempak path checks four header copies and at least
+    # one valid inode table; also require both tables and 123 free pages.
+    require(len(system) == 1280, 'incomplete fresh Pak system area')
+    headers = [system[sector * 32:(sector + 1) * 32] for sector in (1, 3, 4, 6)]
+    require(all(header[:16] == headers[0][:16] for header in headers),
+            'Pak header copies disagree')
+    for header in headers:
+        checksum = sum(int.from_bytes(header[i:i + 2], 'big')
+                       for i in range(0, 28, 2)) & 0xffff
+        stored = int.from_bytes(header[28:30], 'big')
+        inverted = int.from_bytes(header[30:32], 'big')
+        require(stored == checksum and (stored + inverted) & 0xffff == 0xfff2,
+                'Pak header checksum invalid')
+        require(header[0x19] == 1 and header[0x1a] == 1,
+                'Pak device ID or bank count invalid')
+    for page in (1, 2):
+        inode = system[page * 256:(page + 1) * 256]
+        entries = [inode[slot * 2 + 1] for slot in range(5, 128)]
+        require(all(value == 3 for value in entries) and
+                inode[1] == sum(entries) & 255,
+                'Pak inode table is not a valid empty 123-page filesystem')
+    require(all(value == 0 for value in system[3 * 256:]),
+            'unexpected note-directory bytes in fresh Pak')
+
+
+def validate_note(port, observed):
+    require(set(observed) == set(range(40, 48)) | {8, 16, 24},
+            'incomplete guest note readback')
+    for block in (8, 16):
+        inode = fresh_pak(port)[(block // 8) * 256:(block // 8 + 1) * 256]
+        inode[:32] = observed[block]
+        links = [inode[slot * 2 + 1] for slot in range(5, 128)]
+        require(inode[1] == sum(links) & 255 and links[0] == 1 and
+                all(link == 3 for link in links[1:]),
+                'one-page note inode chain or free-space count invalid')
+    note = observed[24]
+    require(note[0:3] == b'VLO' and note[3] == 0x45 and
+            note[4:6] == b'PK' and int.from_bytes(note[6:8], 'big') == 5 and
+            note[8:10] == b'\x02\x03' and note[12] == 0x1a and
+            note[16:20] == bytes(0x1a + ord(letter) - ord('A') for letter in 'TEST'),
+            'note directory entry invalid')
+    for block in range(40, 48):
+        require(observed[block] == oracle_note_data(port, block),
+                'guest note data page mismatch')
 
 
 def expected_rows():
-    for port, block, command in oracle_cases():
+    media = [fresh_pak(port) for port in range(4)]
+    for port, block, command, phase in oracle_cases():
         data = bytearray([0xaa] * 64)
         data[:port] = bytes(port)
         tx, rx = {0: (1, 3), 2: (3, 33), 3: (35, 1)}[command]
@@ -73,19 +170,21 @@ def expected_rows():
             address = block * 32 + oracle_address_crc(block * 32)
             data[port + 3:port + 5] = address.to_bytes(2, 'big')
         if command == 3:
-            data[port + 5:port + 37] = oracle_payload(port, block)
+            content = oracle_note_data(port, block) if phase == 'note' else oracle_payload(port, block)
+            data[port + 5:port + 37] = content
+            media[port][block * 32:(block + 1) * 32] = content
         reply = port + 2 + tx
         if command == 0:
             data[reply:reply + 3] = bytes((5, 0, 3))
         elif command == 2:
-            content = oracle_payload(port, block)
+            content = media[port][block * 32:(block + 1) * 32]
             data[reply:reply + 32] = content
             data[reply + 32] = data_crc(content)
         else:
-            data[reply] = data_crc(oracle_payload(port, block))
+            data[reply] = data_crc(content)
         data[reply + rx] = 254
         data[63] = 0
-        yield bytes(data)
+        yield bytes(data), (port, block, reply, phase) if phase in ('fresh', 'note') and command == 2 else None
 
 
 def expected_banks():
@@ -98,14 +197,22 @@ def evaluate(registers, banks, image):
                   graded_cases=0, mismatches=0, examples=[],
                   rom_sha256=hashlib.sha256(image).hexdigest())
     try:
+        fresh_system = [bytearray(1280) for _ in range(4)]
+        notes = [{} for _ in range(4)]
         with registers.open(encoding='ascii') as stream:
             require(stream.readline() == f'VELOCE 1 n64 {SUITE}\n', 'wrong suite')
             require(stream.readline() == f'BEGIN pak cases={CASES} words=8\n', 'wrong domain')
-            for index, want in enumerate(expected_rows()):
+            for index, (want, fresh) in enumerate(expected_rows()):
                 line = stream.readline()
                 require(re.fullmatch(r'REG r=[0-9a-f]{128}\n', line),
                         f'malformed guest register row {index}')
                 got = bytes.fromhex(line[6:134])
+                if fresh:
+                    port, block, reply, phase = fresh
+                    if phase == 'fresh':
+                        fresh_system[port][block * 32:(block + 1) * 32] = got[reply:reply + 32]
+                    else:
+                        notes[port][block] = got[reply:reply + 32]
                 report['graded_cases'] += 1
                 if got != want:
                     report['mismatches'] += 1
@@ -115,12 +222,27 @@ def evaluate(registers, banks, image):
             require(stream.readline() == f'LOG complete cases={CASES}\n', 'missing count')
             require(stream.readline() == 'END observations_complete\n', 'missing terminator')
             require(not stream.read(), 'trailing register data')
+        try:
+            for system in fresh_system:
+                validate_fresh_system(system)
+            report['formatted_paks'] = 4
+        except ValueError as error:
+            report['formatted_paks'] = 0
+            report['format_error'] = str(error)
+        try:
+            for port, note in enumerate(notes):
+                validate_note(port, note)
+            report['notes'] = 4
+        except ValueError as error:
+            report['notes'] = 0
+            report['note_error'] = str(error)
         actual_banks = banks.read_bytes()
         expected = expected_banks()
         report['pak_bytes'] = len(actual_banks)
         report['pak_mismatches'] = sum(a != b for a, b in zip(actual_banks, expected))
         require(len(actual_banks) == len(expected), 'wrong final Pak image extent')
-        report['status'] = 'fail' if report['mismatches'] or report['pak_mismatches'] else 'pass'
+        report['status'] = ('fail' if report['mismatches'] or report['pak_mismatches'] or
+                            report['formatted_paks'] != 4 or report['notes'] != 4 else 'pass')
     except (OSError, UnicodeError, ValueError) as error:
         report['detail'] = str(error)
     return report
