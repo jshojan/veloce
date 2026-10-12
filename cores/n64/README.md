@@ -4388,3 +4388,19 @@ are rejected. This bounds the verified profile to exact 1/32-texel S/T and
 integer W derivatives with solid source tiles; arbitrary fractional gradients,
 non-solid mipmap filtering, detail/sharpen and physical timing remain pending.
 **N64 remains 50% (10/20).**
+
+## Detail and sharpen texture LOD (0.84.0)
+
+The two-cycle RDP path accepts detail and sharpen modes with LOD enabled.
+Detail shifts the tile pair for minification; sharpening selects the next
+texture during magnification and supplies a signed nine-bit LOD multiplier.
+SetPrimColor's five-bit minimum-LOD field clamps magnification fractions.
+Distant and division-overflow cases retain their separate fraction rules.
+The [original detail/sharpen cartridge](../../tests/roms-src/n64/rdp_lod_detail_sharpen/README.md)
+grades **433,152 cases / 5,630,976 actual framebuffer and DP/MI register words**
+across every mode and minimum field, both gradient signs, three maximum levels,
+47 gradient magnitudes, affine/perspective/zero-W profiles, RGBA16/IA16 and both
+DP command sources. Executed mode, minimum, maximum, sign, perspective, tile,
+fraction and capture mutants are rejected. Solid source tiles and point
+sampling bound this profile; arbitrary fractional derivatives, non-solid
+mipmap filtering and physical timing remain pending. **N64 remains 50% (10/20).**
