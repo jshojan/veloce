@@ -109,6 +109,8 @@ N64 0.93.0 adds exact fast paths for two common RDP cycle-one selector patterns.
 
 N64 0.94.0 caches fetched RSP instruction words until CPU stores or SP DMA change IMEM. Five paired 300-field SM64 course-checkpoint runs measured **3.3% more throughput (18.39 to 19.00 VI fields/second)** than ordinary 0.93.0, with identical complete states, CPU attempts and audio counts. The RSP unit and original acceleration ROM gates, private course continuation and production netplay pass. [Performance details](docs/N64-PERFORMANCE.md). Performance remains below real time; **N64 remains 50% (10/20)**.
 
+An optional [N64-only host CPU build](docs/N64-PERFORMANCE.md#optional-host-cpu-optimization) applies `-march=native` on local GCC/Clang builds. Nine CPU-pinned SM64 course-checkpoint pairs measured **17.35 to 18.27 VI fields/second** by median time, with identical complete states and work counts; individual runs varied. Original RSP ROMs and production netplay pass. The portable build remains the default, performance remains below real time, and **N64 stays 50% (10/20)**.
+
 ### 3DS ARM11 instruction coverage
 
 The 3DS plugin implements the following ARMv6 instruction subsets. Each linked

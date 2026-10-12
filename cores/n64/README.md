@@ -4555,3 +4555,14 @@ original acceleration ROM, private course movement and production netplay
 gates pass. Raw measurements are local in
 `build/artifacts/performance/n64-rsp-imem-cache-graded/`. Performance remains
 below real time; **N64 remains 50% (10/20)**.
+
+## Optional host CPU build
+
+For a local GCC or Clang build, `-DVELOCE_N64_NATIVE_OPTIMIZE=ON` enables
+CPU-specific code generation for the N64 plugin only. The portable default
+remains `OFF`. Nine CPU-pinned private SM64 course-checkpoint pairs measured
+**17.35 to 18.27 VI fields/second** by median time, with identical complete
+states and work counts. Individual runs varied, and the result remains far
+below 60 fields/second. Original RSP ROMs and production netplay pass. See
+[the build command and measurements](../../docs/N64-PERFORMANCE.md#optional-host-cpu-optimization).
+The checklist remains **50% (10/20)**.

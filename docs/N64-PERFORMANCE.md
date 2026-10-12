@@ -337,3 +337,31 @@ counts and audio counts matched. Raw results are in ignored
 unit suite, original RSP acceleration ROM corpus, private course continuation
 and production netplay pass. The core remains below the 60-field real-time
 target and **N64 remains 50% (10/20)**.
+
+## Optional host CPU optimization
+
+`VELOCE_N64_NATIVE_OPTIMIZE=ON` applies `-march=native` only to the N64 plugin
+when building locally with GCC or Clang. The default is `OFF`, so normal
+packages remain portable. A plugin built with this setting may use CPU
+instructions unavailable on another machine; build it where Veloce will run.
+The option changes host code generation only, not native state or plugin ABI.
+
+```sh
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+  -DVELOCE_N64_NATIVE_OPTIMIZE=ON
+cmake --build build --target n64_plugin -j4
+```
+
+Nine alternating, CPU-pinned 60-field SM64 course-checkpoint pairs on this
+machine measured median throughput of **17.35 fields/second** for the portable
+release plugin and **18.27 fields/second** for the N64-only native build, a
+**5.3%** median-time improvement. Eight of nine individual pairs favored the
+native build. Host-load variation was visible; an unpinned five-pair run was
+inconclusive. Three longer 300-field pairs measured **18.47 to 18.99
+fields/second** by median time, with mixed individual pair results. Every pair
+had byte-identical complete native states and identical CPU attempt and audio
+sample counts. Ignored reports are at
+`build/artifacts/performance/n64-native-option-{pinned,long}/report.json` in
+the N64 lane. Original RSP acceleration ROMs, the native-state netplay gate
+and production TCP netplay pass with the optimized plugin. Performance remains
+below the 60-field target; **N64 remains 50% (10/20)**.
