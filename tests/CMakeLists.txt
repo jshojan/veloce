@@ -1128,6 +1128,11 @@ add_executable(n64_rdp_depth_pipeline_test cpp/n64_rdp_depth_pipeline_test.cpp)
 target_include_directories(n64_rdp_depth_pipeline_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src)
 add_test(NAME n64_rdp_depth_pipeline_test COMMAND n64_rdp_depth_pipeline_test)
 set_tests_properties(n64_rdp_depth_pipeline_test PROPERTIES LABELS "unit;accuracy" TIMEOUT 180)
+
+add_executable(n64_rdp_two_cycle_test cpp/n64_rdp_two_cycle_test.cpp)
+target_include_directories(n64_rdp_two_cycle_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src)
+add_test(NAME n64_rdp_two_cycle_test COMMAND n64_rdp_two_cycle_test)
+set_tests_properties(n64_rdp_two_cycle_test PROPERTIES LABELS "unit;accuracy")
 add_test(NAME n64_rdp_depth_pipeline_mutants COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/n64_rdp_depth_pipeline_mutants.py --compiler ${CMAKE_CXX_COMPILER}
     --artifacts ${CMAKE_BINARY_DIR}/artifacts/component/n64_rdp_depth_pipeline)
