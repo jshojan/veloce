@@ -108,6 +108,14 @@ int main(){
         const unsigned at=64+position*4;
         check(ram[at]==96 && ram[at+1]==96 && ram[at+2]==96);
     }
+    // Pixel LOD is admitted only for constant STW magnification in two cycles;
+    // a nonzero S gradient must reject before touching the framebuffer.
+    const auto preserved=ram;
+    auto gradient=packet;gradient.words[13]|=1ull<<48;
+    check(n64::RdpTriangleShade::draw(gradient,dp.color_image,dp.other_mode|(1ull<<48),dp.scissor,
+          dp.combiner,ram,&dp.texture,&dp.tmem,&dp.conversion,&dp.blender)==1 && ram==preserved);
+    check(n64::RdpTriangleShade::draw(packet,dp.color_image,dp.other_mode|(1ull<<48)|(1ull<<51),dp.scissor,
+          dp.combiner,ram,&dp.texture,&dp.tmem,&dp.conversion,&dp.blender)==1 && ram==preserved);
     std::cout<<values<<" combiner feedback values, "<<fog_cases
              <<" shade-fog pixels and "<<fog_register_cases
              <<" fog-register pixels and "<<pass_cases

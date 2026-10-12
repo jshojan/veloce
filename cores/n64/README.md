@@ -4080,6 +4080,17 @@ Wrong-tile, point-sampling and wrong-mid-texel ROMs are rejected by its
 independent file oracle. Tile neighborhoods are fixed; general texture pairs,
 perspective/LOD and complete RDP behavior remain ungraded.
 
+N64 0.75.0 adds the constant-coordinate magnification case for two-cycle texture
+LOD selection. With LOD enabled and detail/sharpen off, both cycles select the
+primitive tile; the no-LOD comparison selects the following tile in cycle one.
+The [original LOD cartridge](../../tests/roms-src/n64/rdp_lod_magnify/README.md)
+grades **524,288 cases / 6,815,744 actual framebuffer and DP/MI register
+words** over every 16-bit RGBA16 and IA16 source pattern, both mode settings
+and RDRAM/XBUS delivery. Executed wrong-LOD and wrong-tile ROMs are rejected;
+a component gate verifies that nonzero STW gradients reject atomically. This
+does not yet implement variable LOD, mipmap chains, fractions, detail/sharpen,
+perspective LOD or physical timing.
+
 An A pulse now loads Bob-omb Battlefield. Guest RAM places Mario near
 **(-6525, 0, 6431)** with a course terrain and camera. A 120-field neutral
 control leaves the opening dialogue and position unchanged; repeated A presses
