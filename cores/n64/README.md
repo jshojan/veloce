@@ -4678,3 +4678,13 @@ fields/second** by median time, four of five faster; three 300-field runs
 measured **20.18 to 20.54 fields/second**, two of three faster. Every complete
 native state matched byte for byte. See [performance details](../../docs/N64-PERFORMANCE.md#rsp-vector-register-byte-order-loads-01020).
 SM64 remains below real time; **N64 stays 50% (10/20)**.
+
+## Opt-in execution profile (0.103.0)
+
+An N64-only build option, `-DVELOCE_N64_PROFILE=ON`, now prints host-only
+CPU, idle-clock, RSP instruction and RDP draw counts plus active-RSP and RDP
+timings. A private 60-field SM64 course continuation measured **38,237,541
+completed RSP instructions** and **27,192 RDP draws**. The ordinary build
+compiles out instrumentation; a paired profile/ordinary run matched complete
+native state, CPU attempts and audio counts. See [reproduction and limits](../../docs/N64-PERFORMANCE.md#opt-in-n64-execution-profile-01030).
+This adds diagnostic evidence, not emulator speed. **N64 stays 50% (10/20)**.

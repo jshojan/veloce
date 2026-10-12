@@ -498,3 +498,35 @@ ignored reports are at `build/artifacts/performance/n64-rsp-simd-load-{short,lon
 in the N64 lane. Host load affects the absolute rates, so the paired results
 are the relevant comparison. SM64 remains below 60 fields/second and the N64
 delivery checklist remains **50% (10/20)**.
+
+## Opt-in N64 execution profile (0.103.0)
+
+Set `VELOCE_N64_PROFILE=ON` in a separate N64-only Release build to print
+host execution counts and stage timings when the plugin unloads. The normal
+build defaults to `OFF` and compiles out the counters and timers. Profile
+data is host-only and is not serialized in native states or netplay packets.
+
+```sh
+cmake -S cores/n64 -B build/n64-profile -DCMAKE_BUILD_TYPE=Release -DVELOCE_N64_PROFILE=ON
+cmake --build build/n64-profile -j
+build/bin/retail_core_probe build/n64-profile/bin/cores/n64.so /path/to/game.z64 \
+  60 - - --scheduling video-field --load-state /path/to/walking.state \
+  --save-state build/artifacts/performance/n64-profile.state
+```
+
+The plugin prints one `N64_PROFILE` line to stderr with CPU steps, idle-clock
+categories, completed RSP instructions, RDP draw calls, active-RSP batch time
+and RDP draw time. The two time categories can overlap and should not be
+added. Instrumentation affects speed, so compare performance with the normal
+plugin using the paired benchmark above.
+
+One private 60-field SM64 course continuation measured **11,704,904 CPU
+steps**, **82,317,597 cached-idle clocks** (53,344,712 active-RSP and
+28,888,785 inactive, plus 84,100 ordinary event clocks), **38,237,541
+completed RSP instructions**, and **27,192 RDP draw calls**. The profiling
+build recorded 0.80 seconds in active-RSP batches and 1.03 seconds in RDP
+draws on that host-load sample. A paired 60-field run with the ordinary and
+profiled plugins produced byte-identical complete native states and matching
+CPU attempt and audio counts. The normal plugin's production TCP netplay gate
+passes. This is diagnosis of a bounded course scene;
+SM64 remains below real time and **N64 stays 50% (10/20)**.
