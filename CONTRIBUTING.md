@@ -33,9 +33,13 @@ git switch -c snes/fix-window-clipping # branch:  <system>/<short-desc>
 git add -A && git commit -m "fix(snes): ..."
 git push -u origin snes/fix-window-clipping
 gh pr create --fill                    # open the PR
-# after review/CI:
+# after local verification and review:
 gh pr merge --squash --delete-branch
 ```
+
+For concurrent NES, GB, GBA, SNES and N64 work, use the persistent
+[console worktree lanes](docs/EMULATOR-LANES.md). Each lane keeps its own active
+branch and build directory; the root checkout is the integration view.
 
 Branch naming: `nes/…`, `snes/…`, `gb/…`, `gba/…`, `tests/…`, `docs/…`,
 `chore/…`. Commit messages follow Conventional Commits
@@ -52,17 +56,11 @@ When an agent (or a multi-agent workflow) makes changes:
 - Use the `gh` CLI to manage work: `gh pr create`, `gh pr status`, `gh pr view`,
   `gh pr checks`, `gh pr merge`.
 
-## CI
+## Verification while CI/CD is disabled
 
-The workflows in `.github/workflows/` (`accuracy.yml`, `rom-toolchain.yml`) run only
-on a **self-hosted** runner (`runs-on: [self-hosted, linux]`). The project does not
-use GitHub-hosted runners, so that no paid runner minutes are ever used. Until a local
-runner is registered, the workflows stay disabled or their jobs just queue.
-
-Before merging a PR, run the gates locally:
-
-- the fast gates: `ctest --test-dir build -L fast`
-- the accuracy suite for every console the PR touches:
-  `cores/<c>/tests/run_tests.sh --json`, compared against the previous scorecard
+There are no GitHub workflow files, and GitHub Actions is disabled. Run the
+relevant core's original register-output ROMs, component tests and production
+integration gates locally before merging. Record the commands and results in
+the PR. Keep private retail ROMs, checkpoints and generated profiles out of git.
 
 See [TESTING.md](TESTING.md) for how the suites and the accuracy scorecard work.
