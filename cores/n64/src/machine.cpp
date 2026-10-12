@@ -103,12 +103,61 @@ void Machine::run_frontend_frame() {
     // the largest supported stable VI period (512 lines * 4096 VI clocks).
     constexpr unsigned startup_budget=1562500,field_budget=6250000;
     const unsigned budget=field_mode?field_budget:100000;
-    for(unsigned attempt=0;attempt<budget && !done && !yielded;++attempt){
-        cpu.step();
+    for(unsigned attempt=0;attempt<budget && !done && !yielded;){
+        unsigned maximum=std::min(2048u,budget-attempt);
+        if(field_mode && !video_interface.active() && attempt<startup_budget)
+            maximum=std::min(maximum,startup_budget-attempt);
+        const unsigned idle=cpu.instruction_valid &&
+            (cpu.instruction_word==0 || cpu.instruction_word==0x1000ffffu)?
+            cpu.cached_idle_budget(maximum):0;
+        if(idle){
+            unsigned advanced=0;uint8_t pending=0;
+            const bool interruptible=(cpu.state.cp0[12]&7)==1;
+            do{
+                const unsigned skipped=skip_inactive_clocks(idle-advanced);
+                if(skipped)advanced+=skipped;
+                else{clock();++advanced;}
+                pending=interrupt_pending();
+                if(interruptible && (cpu.state.cp0[12]&(uint64_t(pending)<<8)))break;
+                if(field_mode && (video_interface.fields!=field ||
+                   (attempt+advanced>=startup_budget && !video_interface.active())))break;
+            }while(advanced<idle && !done && !yielded);
+            cpu.complete_cached_idle(advanced,pending);attempt+=advanced;
+        }else{cpu.step();++attempt;}
         if(field_mode && (video_interface.fields!=field ||
-            (attempt+1>=startup_budget && !video_interface.active())))break;
+            (attempt>=startup_budget && !video_interface.active())))break;
     }
     ++frames;
+}
+unsigned Machine::skip_inactive_clocks(unsigned maximum) {
+    // With RSP halted and no DP command ready, stop before the next VI line,
+    // AI fetch, output sample or RTC second. Those event clocks use clock().
+    if(!(sp_interface.status&1) || dp_interface.current!=dp_interface.active_end ||
+       (dp_interface.start_valid && dp_interface.end_valid) || dp_interface.packet.ready())return 0;
+    constexpr uint64_t cpu_rate=93750000,crystal_rate=48681818;
+    uint64_t count=maximum;
+    const auto before_crystal_event=[&](uint64_t ticks){
+        count=std::min(count,(ticks*cpu_rate-1-crystal_phase)/crystal_rate);
+    };
+    if(video_interface.active())before_crystal_event(video_interface.period()-video_interface.phase);
+    if(audio_interface.bitrate)before_crystal_event(audio_interface.dacrate+1-audio_interface.phase);
+    count=std::min(count,(cpu_rate-1-output_phase)/48000);
+    const bool rtc=joybus.rtc.present && !(joybus.rtc.status&0x80);
+    if(rtc)count=std::min(count,CartridgeRtc::clocks_per_second-1-joybus.rtc.clocks);
+    if(!count)return 0;
+    const uint64_t rsp_total=rsp_phase+count*2,rsp_ticks=rsp_total/3;
+    rsp_phase=rsp_total%3;
+    if(dp_interface.pipeline){
+        dp_interface.clock=uint32_t(dp_interface.clock+rsp_ticks)&0xffffff;
+        dp_interface.pipe_busy=uint32_t(dp_interface.pipe_busy+rsp_ticks)&0xffffff;
+    }
+    const uint64_t crystal_total=crystal_phase+count*crystal_rate,ticks=crystal_total/cpu_rate;
+    crystal_phase=crystal_total%cpu_rate;
+    if(video_interface.active())video_interface.phase+=uint32_t(ticks);
+    if(audio_interface.bitrate)audio_interface.phase+=uint32_t(ticks);
+    output_phase+=count*48000;
+    if(rtc)joybus.rtc.clocks+=count;
+    return unsigned(count);
 }
 void Machine::clock() {
     // One nominal CPU clock per interpreter attempt: physical CPI is unmodeled.

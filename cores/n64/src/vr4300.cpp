@@ -22,7 +22,7 @@ static void multiply_doubleword(uint64_t a, uint64_t b, uint64_t& lo, uint64_t& 
     hi = p11 + (p01 >> 32) + (p10 >> 32) + (middle >> 32);
 }
 void VR4300::reset(uint64_t entry) {
-    state = {};caches.reset();tlb.reset();exception_taken=instruction_valid=false;instruction_word=0;access_address=0;access_bytes=0;access_store=false;
+    state = {};caches.reset();tlb.reset();exception_taken=instruction_valid=false;instruction_word=0;access_address=0;access_bytes=0;access_store=false;cached_idle_steps=0;
     state.pc = entry;
     state.next_pc = entry + 4;
     // Explicit homebrew entry in kernel mode with interrupts off. Not a PIF/IPL reset.
@@ -93,6 +93,78 @@ bool VR4300::watch(uint32_t physical,bool store,uint64_t pc,bool delay) {
        (uint32_t(s.cp0[18])&~7u)==(physical&~7u)) {exception(23,pc,delay);return false;}
     return true;
 }
+// A hot native idle pair is BEQ $zero,$zero,-1 followed by NOP. Only bypass
+// decode/translation when both words are already in the same valid I-cache
+// line in a direct cached kernel segment. Clocks and interrupts still run
+// through the normal instruction boundary before this function is called.
+static bool cached_idle_pair(const VR4300& cpu,uint64_t pc,bool delay) {
+    if(!cpu.cached_idle_enabled)return false;
+    const auto& s=cpu.state;
+    const uint64_t base=delay?pc-4:pc;
+    const uint32_t low=uint32_t(base),status=uint32_t(s.cp0[12]);
+    if((low&3) || low<0x80000000u || low>=0xa0000000u || base!=(0xffffffff00000000ull|low) ||
+       (low&31)>24 || (s.cp0[16]&7)==2 || (!(status&6) && (status&24)) ||
+       s.next_pc!=(delay?base:base+4))return false;
+    const auto& line=cpu.caches.instruction[(low>>5)&511];
+    if(!(line.flags&1) || line.page!=((low&0x1fffffffu)>>12))return false;
+    const unsigned offset=low&31;
+    const auto word=[&](unsigned at){return (uint32_t(line.data[at])<<24)|
+        (uint32_t(line.data[at+1])<<16)|(uint32_t(line.data[at+2])<<8)|line.data[at+3];};
+    if(word(offset)!=0x1000ffffu || word(offset+4)!=0)return false;
+    return true;
+}
+static bool cached_idle_step(VR4300& cpu,uint64_t pc,bool delay) {
+    if(!cached_idle_pair(cpu,pc,delay))return false;
+    auto& s=cpu.state;const uint64_t base=delay?pc-4:pc;
+    cpu.instruction_word=delay?0:0x1000ffffu;cpu.instruction_valid=true;
+    cpu.access_address=pc;cpu.access_bytes=4;
+    s.pc=delay?base:base+4;s.next_pc=delay?base+4:base;s.delay_slot=!delay;
+    s.gpr[0]=0;++cpu.cached_idle_steps;
+    return true;
+}
+unsigned VR4300::cached_idle_budget(unsigned maximum) const {
+    const auto& s=state;
+    if(!maximum || (s.cp0[9]>>32) || (s.cp0[11]>>32) ||
+       !cached_idle_pair(*this,s.pc,s.delay_slot))return 0;
+    if((s.cp0[12]&7)==1){
+        const uint64_t pending=(s.cp0[13]&0x8300)|(uint64_t(memory.interrupt_pending()&0x7c)<<8);
+        if(s.cp0[12]&pending&0xff00)return 0;
+        if(s.cp0[12]&0x8000){
+            const uint32_t distance=uint32_t(s.cp0[11])-uint32_t(s.cp0[9]);
+            if(distance){const uint64_t before=uint64_t(distance)*2-(s.instructions&1)-1;
+                if(before<maximum)maximum=unsigned(before);}
+        }
+    }
+    return maximum;
+}
+void VR4300::complete_cached_idle(unsigned attempts,uint8_t pending) {
+    if(!attempts)return;
+    auto& s=state;
+    const uint64_t base=s.delay_slot?s.pc-4:s.pc;
+    const bool last_delay=s.delay_slot^bool((attempts-1)&1);
+    const uint64_t last_pc=base+(last_delay?4:0);
+    const unsigned count_ticks=attempts/2+unsigned((s.instructions&1) && (attempts&1));
+    const uint32_t distance=uint32_t(s.cp0[11])-uint32_t(s.cp0[9]);
+    s.instructions+=attempts;
+    s.cp0[9]=uint32_t(s.cp0[9]+count_ticks);
+    if(distance && distance<=count_ticks)s.cp0[13]|=0x8000;
+    const unsigned wired=unsigned(s.cp0[6])&31,random=unsigned(s.cp0[1])&31;
+    const unsigned until_wrap=random>wired?random-wired:0;
+    const unsigned next_random=attempts<=until_wrap?random-attempts:
+        31-((attempts-until_wrap-1)%(32-wired));
+    s.cp0[1]=(s.cp0[1]&32)|next_random;
+    s.cp0[13]=(s.cp0[13]&~0x7c00ull)|(uint64_t(pending&0x7c)<<8);
+    exception_taken=instruction_valid=false;instruction_word=0;access_address=0;access_bytes=0;access_store=false;
+    if((s.cp0[12]&7)==1 && (s.cp0[12]&s.cp0[13]&0xff00)){
+        if(attempts>1)s.gpr[0]=0;
+        cached_idle_steps+=attempts-1;
+        exception(0,last_pc,last_delay);return;
+    }
+    s.pc=last_delay?base:base+4;s.next_pc=last_delay?base+4:base;s.delay_slot=!last_delay;
+    s.gpr[0]=0;cached_idle_steps+=attempts;
+    instruction_valid=true;instruction_word=last_delay?0:0x1000ffffu;
+    access_address=last_pc;access_bytes=4;
+}
 void VR4300::step() {
     exception_taken=instruction_valid=false;instruction_word=0;access_address=0;access_bytes=0;access_store=false;
     auto& s = state;
@@ -112,6 +184,7 @@ void VR4300::step() {
     if ((s.cp0[12] & 7) == 1 && (s.cp0[12] & s.cp0[13] & 0xff00)) {
         exception(0, pc, delay); return;
     }
+    if(cached_idle_step(*this,pc,delay))return;
     uint64_t fetched = 0;
     if(!read(pc,4,fetched,true,pc,delay,pc))return;
     const uint32_t ins = uint32_t(fetched);instruction_word=ins;instruction_valid=true;

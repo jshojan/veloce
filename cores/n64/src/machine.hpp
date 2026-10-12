@@ -85,6 +85,7 @@ public:
     uint64_t crystal_phase=0,output_phase=0,audio_head=0,audio_count=0,audio_dropped=0;
     void process_pif();
 private:
+    unsigned skip_inactive_clocks(unsigned maximum);
     static bool physical(uint64_t address, uint32_t& result);
     bool write_pi(unsigned reg,uint32_t value);
     bool write_ri(unsigned reg,uint32_t value);
