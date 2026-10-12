@@ -9,7 +9,7 @@ class Plugin : public emu::IEmulatorPlugin, public emu::INetplayCapable, public 
 public:
     emu::EmulatorInfo get_info() override {
         static const char* extensions[] = {".z64", ".v64", ".n64", nullptr};
-        return {"N64", "0.58.0", "Veloce", "Experimental N64 core with MIPS III, CP0, RSP, partial RDP, SI/PIF controller polling, and functional 4 Kbit cartridge EEPROM with frontend battery persistence. Retail course entry, complete hardware and physical timing remain pending.",
+        return {"N64", "0.59.0", "Veloce", "Experimental N64 core with MIPS III, CP0, RSP, partial RDP, SI/PIF controller polling, and functional 4/16 Kbit cartridge EEPROM with frontend battery persistence. Retail course entry, complete hardware and physical timing remain pending.",
                 extensions, 60.0, 93750000, 320, 240};
     }
     const emu::ControllerLayoutInfo* get_controller_layout() override {
@@ -42,11 +42,17 @@ public:
     std::vector<uint8_t> get_battery_save_data() const override {
         if(!has_battery_save())return {};
         const auto& eeprom=machine.joybus.eeprom_data();
-        return {eeprom.begin(),eeprom.end()};
+        return {eeprom.begin(),eeprom.begin()+machine.joybus.eeprom_bytes()};
     }
     bool set_battery_save_data(const std::vector<uint8_t>& data) override {
-        if(!has_battery_save() || data.size()!=n64::PifJoybus::Eeprom{}.size())return false;
-        n64::PifJoybus::Eeprom content{};
+        // A native cartridge with an existing 16 Kbit save supplies its media
+        // size before the first guest SI command. New native images still use
+        // the conservative 6102/4 Kbit profile until cartridge metadata exists.
+        if(machine.boot_mode==Machine::BootMode::Native6102 &&
+           machine.joybus.eeprom_bytes()==512 && data.size()==2048)
+            machine.joybus.configure_eeprom(2048);
+        if(!has_battery_save() || data.size()!=machine.joybus.eeprom_bytes())return false;
+        auto content=machine.joybus.eeprom_data();
         std::copy(data.begin(),data.end(),content.begin());
         machine.joybus.set_eeprom(content);
         return true;

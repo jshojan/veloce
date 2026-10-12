@@ -22054,6 +22054,17 @@
       "source_type": "original",
       "suite": "dp_registers"
     },
+    "n64/eeprom_16k/eeprom_16k.z64": {
+      "build_command": "python3 tests/roms-src/n64/eeprom_16k/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "a6e9ad2a6a5adaefd956837b47112144ba8400d5434498a2f550fb658eee8fe5",
+      "source_repo": "tests/roms-src/n64/eeprom_16k/build.py",
+      "source_sha": "a826bfabf15fce6da6d99c0a17b45c516ffc1a7dc6659e4c81338d020d1ac223",
+      "source_type": "original",
+      "suite": "eeprom_16k"
+    },
     "n64/eeprom_4k/eeprom_4k.z64": {
       "build_command": "python3 tests/roms-src/n64/eeprom_4k/build.py",
       "console": "n64",

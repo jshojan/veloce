@@ -73,25 +73,25 @@ int main(int argc,char** argv) {
     require(m.restore(saved) && s.fcr31==0x183ffff && m.save(replay) && replay==saved,"control state exact restore");
     for(unsigned bit=0;bit<64;++bit) {
         if(bit<32 && (bit<=17 || bit==23 || bit==24))continue;
-        auto bad=saved;bad[bad.size()-1056177-bit/8]|=uint8_t(1u<<(bit%8));
+        auto bad=saved;bad[bad.size()-1057721-bit/8]|=uint8_t(1u<<(bit%8));
         require(!m.restore(bad) && m.save(replay) && replay==saved,"reserved scalar state rejection atomicity");
     }
-    auto old=saved;old.resize(old.size()-1056184);old[6]='0';old[7]='9';
+    auto old=saved;old.resize(old.size()-1057728);old[6]='0';old[7]='9';
     require(m.restore(old) && s.fcr31==0 && s.gpr[1]==0x1234,"S009 neutral control conversion");
-    auto converted=saved;std::fill(converted.end()-1056184,converted.end()-1056176,0);
-    std::fill(converted.end()-1054440,converted.end()-1054432,0); // Legacy state starts the new RSP clock phase at zero.
-    std::fill(converted.end()-1054432,converted.end()-n64::Machine::hidden_state_size-560,0);
-    converted[converted.size()-1054432+7*8+7]=1; // Reset DP pipeline state.
+    auto converted=saved;std::fill(converted.end()-1057728,converted.end()-1057720,0);
+    std::fill(converted.end()-1055984,converted.end()-1055976,0); // Legacy state starts the new RSP clock phase at zero.
+    std::fill(converted.end()-1055976,converted.end()-n64::Machine::hidden_state_size-2104,0);
+    converted[converted.size()-1055976+7*8+7]=1; // Reset DP pipeline state.
     // Old states recover hidden metadata from the saved ordinary RAM, and
     // cannot recover RDP history. Independently construct that new suffix.
-    const size_t hidden_at=converted.size()-n64::Machine::hidden_state_size-560;
+    const size_t hidden_at=converted.size()-n64::Machine::hidden_state_size-2104;
     for(size_t n=0;n<n64::Machine::ram_size/8;++n){unsigned bits=0;
         for(unsigned k=0;k<4;++k)if(m.ram[n*8+k*2+1]&1)bits|=3u<<(k*2);
         converted[hidden_at+n]=uint8_t(bits);
     }
-    std::fill(converted.end()-576,converted.end()-568,0);
-    std::fill(converted.end()-568,converted.end()-560,255);
-    std::fill(converted.end()-560,converted.end()-552,0);
+    std::fill(converted.end()-2120,converted.end()-2112,0);
+    std::fill(converted.end()-2112,converted.end()-2104,255);
+    std::fill(converted.end()-2104,converted.end()-2096,0);
     require(m.save(replay) && replay==converted,"S009 preserves pending AI/host phases and all existing fields");
     // Resume a pending control exception identically after restore.
     require(m.restore(saved),"pending FCR31 restore");instruction(m,0x44c1f800);s.gpr[1]=0x21080;
