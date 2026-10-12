@@ -2084,3 +2084,12 @@ add_test(NAME ctr_exclusive_memory COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/roms-src/3ds/exclusive_memory/run.py --emulator $<TARGET_FILE:veloce> --core $<TARGET_FILE:ctr_plugin>
     --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/ctr_exclusive)
 set_tests_properties(ctr_exclusive_memory PROPERTIES LABELS "accuracy;owned;integration" TIMEOUT 1200)
+
+add_executable(n64_rdp_rgba16_simd_test cpp/n64_rdp_rgba16_simd_test.cpp)
+target_include_directories(n64_rdp_rgba16_simd_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src)
+add_test(NAME n64_rdp_rgba16_simd_test COMMAND n64_rdp_rgba16_simd_test)
+add_executable(n64_rdp_quad_scalar_fallback_test cpp/n64_rdp_texel_quad_test.cpp)
+target_include_directories(n64_rdp_quad_scalar_fallback_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src)
+target_compile_definitions(n64_rdp_quad_scalar_fallback_test PRIVATE VELOCE_RDP_DISABLE_SIMD=1)
+add_test(NAME n64_rdp_quad_scalar_fallback_test COMMAND n64_rdp_quad_scalar_fallback_test)
+set_tests_properties(n64_rdp_rgba16_simd_test n64_rdp_quad_scalar_fallback_test PROPERTIES LABELS "unit;accuracy" TIMEOUT 180)

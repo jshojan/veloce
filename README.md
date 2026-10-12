@@ -89,6 +89,8 @@ N64 0.85.0 accelerates cached idle loops and inactive device clocks while preser
 
 N64 0.86.0 adds SSE2 RSP multiply/accumulate and ALU/merge acceleration with a retained scalar path. The [paired benchmark](docs/N64-PERFORMANCE.md) measured **10.8% more throughput (12.61 to 13.98 VI fields/second)** than 0.85.0 on this machine, with identical complete states in three private SM64 pairs. The scalar comparison covers **2,359,296 seeded continuations**; six original ROM subsets grade **4,240 cases / 77,328 actual register words** and reject executed mutants. Hardware arithmetic fixtures, portable fallback, netplay and the private course continuation pass. N64 remains below real time and **50% (10/20)**; software RDP performance and full-title playability remain unfinished.
 
+N64 0.87.0 accelerates unpaletted RGBA16 quad decoding with SSE2 and retains the scalar fallback. Five [paired SM64 checkpoint runs](docs/N64-PERFORMANCE.md) measured **3.9% more throughput (13.35 to 13.88 VI fields/second)** than 0.86.0, with identical complete states, CPU attempts and audio counts. Exhaustive packed-color decoding, independent texture-addressing and forced-fallback oracles, executed mutants, original two-cycle rendering, private course movement and netplay pass. Performance remains below real time; **N64 remains 50% (10/20)**.
+
 ### 3DS ARM11 instruction coverage
 
 The 3DS plugin implements the following ARMv6 instruction subsets. Each linked

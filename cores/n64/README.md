@@ -4441,3 +4441,15 @@ rejected. The scalar fallback smoke gate and hardware arithmetic fixtures pass.
 See the [benchmark and verification details](../../docs/N64-PERFORMANCE.md).
 Performance remains below real time; software RDP rendering and full-title
 playability remain unfinished. **N64 remains 50% (10/20).**
+
+## RGBA16 quad acceleration (0.87.0)
+
+SSE2 expands the four unpaletted RGBA16 texture colors together while retaining
+TMEM row/bank addressing. Other formats, palettes and hosts use the scalar path.
+Five paired private SM64 checkpoint runs measured **3.9% more throughput** than
+0.86.0 (**13.35 to 13.88 VI fields/second**), with identical complete states.
+All packed colors in every corner, independent texture-addressing oracles,
+forced scalar fallback and executed mutants pass. Original two-cycle filtering,
+private course continuation and production netplay regressions also pass.
+See the [benchmark details](../../docs/N64-PERFORMANCE.md).
+Performance remains below real time. **N64 remains 50% (10/20).**
