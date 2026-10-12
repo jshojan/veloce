@@ -4281,3 +4281,13 @@ malformed data rejection and an executed wrong-read mutant. S033 state and
 plugin tests check rollback and S032 import. This is bounded functional save
 media coverage; busy timing, other save types and automatic 16 Kbit selection
 for new native cartridges remain incomplete. N64 remains **50% (10/20)**.
+
+## N64 native EEPROM media identity (0.60.0)
+
+The [original synthetic native-header ROM](../tests/roms-src/n64/native_save_identity/README.md)
+executes guest SI/PIF cartridge-status requests for 23 known 16 Kbit IDs,
+four 4 Kbit controls and two byte-swapped formats. The production gate grades
+all 30 guest identity responses and selected battery sizes. Full EEPROM data
+coverage remains in the original 4/16 Kbit cartridges. Unknown native IDs
+still require a 2,048-byte save or explicit media selection for 16 Kbit.
+N64 remains **50% (10/20)**.

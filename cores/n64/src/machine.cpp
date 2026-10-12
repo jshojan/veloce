@@ -1,4 +1,5 @@
 #include "machine.hpp"
+#include "save_media.hpp"
 #include <algorithm>
 #include <cstring>
 #include "emu/input_types.hpp"
@@ -48,8 +49,9 @@ bool Machine::load(const uint8_t* data, size_t size) {
     size_t eeprom_bytes=0;
     if(mode==BootMode::Homebrew && !std::memcmp(rom.data()+0x3c,"E16K",4))
         eeprom_bytes=2048;
-    else if(mode==BootMode::Native6102 ||
-            (mode==BootMode::Homebrew && !std::memcmp(rom.data()+0x3c,"E4K1",4)))
+    else if(mode==BootMode::Native6102)
+        eeprom_bytes=native_eeprom_bytes(rom.data());
+    else if(mode==BootMode::Homebrew && !std::memcmp(rom.data()+0x3c,"E4K1",4))
         eeprom_bytes=512;
     joybus.configure_eeprom(eeprom_bytes);
     reset();

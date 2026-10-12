@@ -27,7 +27,9 @@ Twenty-eight doubleword integer/LWU families now enforce User/Supervisor mode re
 
 N64 0.58.0 adds functional 4 Kbit cartridge EEPROM reads, writes, frontend battery persistence and S032 rollback state. Its [original EEPROM cartridge](tests/roms-src/n64/eeprom_4k/README.md) passes **16,512 guest cases / 33,024 actual register words**, including all 64 block addresses, 256 payload patterns per block, a cross-process save reload, malformed-save rejection and an executed wrong-read control. This is partial save-media coverage; N64 remains **50% (10/20)**. Super Mario 64 course entry and full-title playability remain unverified.
 
-N64 0.59.0 adds functional 16 Kbit EEPROM reads and writes across all 256 blocks. The [original 16 Kbit cartridge](tests/roms-src/n64/eeprom_16k/README.md) grades **66,048 guest cases / 132,096 register words**, with 2,048-byte cross-process persistence, S033 rollback, S032 import, malformed-save rejection and an executed wrong-read control. New native 16 Kbit carts still need media metadata; course entry remains unverified. N64 stays **50% (10/20)**.
+N64 0.59.0 adds functional 16 Kbit EEPROM reads and writes across all 256 blocks. The [original 16 Kbit cartridge](tests/roms-src/n64/eeprom_16k/README.md) grades **66,048 guest cases / 132,096 register words**, with 2,048-byte cross-process persistence, S033 rollback, S032 import, malformed-save rejection and an executed wrong-read control. N64 stays **50% (10/20)**.
+
+N64 0.60.0 selects 16 Kbit EEPROM for [23 documented native cartridge IDs](tests/roms-src/n64/native_save_identity/README.md). A repository-built native ROM grades the guest's SI/PIF identity response for those IDs, four 4 Kbit controls and both swapped ROM formats. Unknown 16 Kbit IDs still require an existing 2,048-byte save or explicit media selection. Super Mario 64 course entry remains unverified. N64 stays **50% (10/20)**.
 
 ### 3DS ARM11 instruction coverage
 

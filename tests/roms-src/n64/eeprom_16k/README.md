@@ -21,7 +21,7 @@ and new-cartridge erasure. S033 states store all 2,048 bytes plus the selected m
 first 512 bytes and erases the remainder. Busy timing and other save media
 remain outside this profile. Recognized native 6102 cartridges default to
 4 Kbit; an existing 2,048-byte save selects 16 Kbit before guest execution.
-New native 16 Kbit cartridges still need cartridge metadata or a user setting.
+Known native 16 Kbit IDs now select the larger media; unknown IDs still need a pre-existing save or user setting.
 
 ```sh
 python3 tests/roms-src/build.py n64/eeprom_16k --original-only --check
