@@ -22565,9 +22565,9 @@
       "console": "n64",
       "license": "MIT",
       "rom_variant": "veloce",
-      "sha256": "698749ed3a8122e48b8dbc6fcda2b571585d703a8c7652254e67f8ab50b09c00",
+      "sha256": "8ead8ce8ec4e458a16fca41d067dd392cb6733e9feeae7bd597ca7aa8b6ff008",
       "source_repo": "tests/roms-src/n64/rdp_two_cycle_fog/build.py",
-      "source_sha": "b747a4b18b59d3a3dd198a700c5ad7d9b7d7f6d06ff50e59881eca6356d1b80d",
+      "source_sha": "e1233d1b4d497f6690623d63e5db3dfe12c6f13d2725fdedcc0b0883201a2b3e",
       "source_type": "original",
       "suite": "rdp_two_cycle_fog"
     },

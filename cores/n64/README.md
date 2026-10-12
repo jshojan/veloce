@@ -4022,12 +4022,18 @@ feedback, first-cycle fog blending, and second-cycle framebuffer blending and
 depth decisions. Other two-cycle sources and blender profiles still reject.
 The [original synthetic DP packet test](../../tests/cpp/n64_rdp_two_cycle_test.cpp)
 checks 65,536 combiner feedback values,
-65,536 fogged pixels and framebuffer writes through actual DP dispatch.
+65,536 shade-fog and 65,536 fog-register-alpha pixels, plus framebuffer writes
+through actual DP dispatch.
 The [original two-cycle cartridge](../../tests/roms-src/n64/rdp_two_cycle_fog/README.md)
-grades **262,144 guest cases / 3,407,872 actual framebuffer and DP/MI
+grades **524,288 guest cases / 6,815,744 actual framebuffer and DP/MI
 register words** from a file. It sweeps all 8-bit primitive seed/alpha pairs,
-two second-cycle blend profiles and RDRAM/XBUS command paths. An independent
-oracle, executed wrong-capture ROM and damaged-stream controls pass.
+both shade-alpha and fog-register-alpha first-cycle modes, two second-cycle
+blend profiles and RDRAM/XBUS command paths. An independent oracle, executed
+wrong-capture and wrong-fog-alpha-selector ROMs, and damaged-stream controls
+pass. N64 0.70.0 implements the
+fog-register-alpha selector described by the
+[Nintendo render-mode documentation](https://ultra64.ca/files/documentation/online-manuals/man/n64man/gdp/gDPSetRenderMode.html);
+general two-cycle blender modes remain unsupported.
 The [original textured two-cycle cartridge](../../tests/roms-src/n64/rdp_two_cycle_texture/README.md)
 grades another **262,144 guest cases / 3,407,872 actual framebuffer and DP/MI
 register words**. It loads every 16-bit RGBA16 and IA16 TEXEL0 pattern through

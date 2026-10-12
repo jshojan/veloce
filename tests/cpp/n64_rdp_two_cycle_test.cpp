@@ -47,6 +47,19 @@ int main(){
     }
     check(n64::RdpBlender::fog_two_cycle_supported(mux));
     check(!n64::RdpBlender::fog_two_cycle_supported(mux^(1ull<<30)));
+    const uint64_t fog_alpha_mux=(mux&~(3ull<<26))|(1ull<<26);
+    check(n64::RdpBlender::fog_two_cycle_supported(fog_alpha_mux));
+    check(!n64::RdpBlender::fog_two_cycle_supported(mux&~(3ull<<26)));
+    unsigned fog_register_cases=0;
+    for(unsigned fog_alpha=0;fog_alpha<256;++fog_alpha)for(unsigned pixel=0;pixel<256;++pixel){
+        n64::RdpBlender blender;blender.fog=0x60402000|fog_alpha;
+        n64::RdpBlender::Color color={pixel,pixel,pixel,255};
+        const auto result=blender.pixel_two_cycle(fog_alpha_mux,color,0,0x123456e0,8,1,1);
+        const unsigned a=fog_alpha/8,b=(255-fog_alpha)/8;
+        const unsigned expected=(0x60*a+pixel*(b+1))/32;
+        check(result.write && result.rgb[0]==expected);
+        ++fog_register_cases;
+    }
     // An original synthetic native packet exercises actual DP dispatch and
     // framebuffer writes: textured, shaded, depth-gradient triangle in the
     // supported two-cycle fog profile. Depth compare is disabled here.
@@ -77,6 +90,7 @@ int main(){
         const unsigned at=64+position*4;
         check(ram[at]==96 && ram[at+1]==96 && ram[at+2]==96);
     }
-    std::cout<<values<<" combiner feedback values and "<<fog_cases
-             <<" fogged pixels; synthetic DP framebuffer PASS\n";
+    std::cout<<values<<" combiner feedback values, "<<fog_cases
+             <<" shade-fog pixels and "<<fog_register_cases
+             <<" fog-register pixels; synthetic DP framebuffer PASS\n";
 }
