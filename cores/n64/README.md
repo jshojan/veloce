@@ -4612,3 +4612,17 @@ gain (19.00 to 19.14 VI fields/second)**, with two of three pairs faster and
 byte-identical complete states. The original two-cycle filter cartridge and
 affected component gates pass. [Performance details](../../docs/N64-PERFORMANCE.md#reused-draw-invariants-0970).
 Play remains below real time; **N64 stays 50% (10/20)**.
+
+## PAL video and audio crystal profile (0.98.0)
+
+The normalized cartridge country byte now selects the PAL 49,656,530 Hz or
+NTSC 48,681,818 Hz VI/AI crystal while the nominal CPU clock remains
+93,750,000 Hz. PAL loads advertise 50 nominal fields per second and use a
+50 Hz blank-VI startup interval. Region selection survives reset and all three
+ROM byte orders; native states carry a region bit and reject old PAL states
+that used the NTSC clock. The original [VI field cartridge](../../tests/roms-src/n64/vi_field_schedule/README.md)
+now grades **10,320 actual field and guest CURRENT records / 92,880 output
+words** across NTSC and PAL. An executed NTSC-country control fails every PAL
+clock case. A separate component gate checks 66 region/byte-order loads;
+machine, NTSC audio and VI tests pass. PAL retail CIC handoff, MPAL, physical
+timing and full-title playability remain unverified. **N64 stays 50% (10/20)**.

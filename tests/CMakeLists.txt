@@ -1767,6 +1767,12 @@ add_test(NAME n64_vi_field_schedule COMMAND ${Python3_EXECUTABLE}
     --capture $<TARGET_FILE:n64_field_schedule_capture> --core $<TARGET_FILE:n64_plugin>
     --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_vi_field_schedule)
 set_tests_properties(n64_vi_field_schedule PROPERTIES LABELS "integration;owned" TIMEOUT 800)
+add_executable(n64_region_profile_test cpp/n64_region_profile_test.cpp
+    ${CMAKE_SOURCE_DIR}/cores/n64/src/machine.cpp ${CMAKE_SOURCE_DIR}/cores/n64/src/vr4300.cpp)
+target_include_directories(n64_region_profile_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src ${CMAKE_SOURCE_DIR}/include)
+add_test(NAME n64_region_profile_test COMMAND n64_region_profile_test
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/vi_field_schedule/vi_field_schedule.z64)
+set_tests_properties(n64_region_profile_test PROPERTIES LABELS "unit;accuracy;owned" TIMEOUT 60)
 
 add_executable(n64_integer_trap_test cpp/n64_integer_trap_test.cpp
     ${CMAKE_SOURCE_DIR}/cores/n64/src/vr4300.cpp)

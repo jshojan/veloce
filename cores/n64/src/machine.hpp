@@ -38,6 +38,10 @@ public:
     uint32_t crc = 0;
     uint64_t identity = 0, frames = 0;
     uint64_t entry = 0;
+    // Derived from the normalized cartridge header; native states carry a
+    // region marker and never reinterpret an old NTSC-clocked PAL checkpoint.
+    bool pal_region = false;
+    uint64_t video_crystal_rate = 48681818;
     bool done = false, yielded = false;
     emu::FrameScheduling frame_scheduling=emu::FrameScheduling::InstructionQuantum;
     std::array<uint8_t, 64> pif{};

@@ -11,6 +11,9 @@ int main(int argc,char** argv){try{
     emulator_test::LoadedCore core(argv[1],rom);auto* scheduling=dynamic_cast<emu::IFrameScheduling*>(core.plugin);
     require(scheduling && scheduling->get_frame_scheduling()==emu::FrameScheduling::VideoField,"native startup must default to VI fields");
     n64::Machine initial;require(initial.load(rom.data(),rom.size()),"original cartridge load");
+    const bool pal=rom.at(0x3e)=='P';
+    require(initial.pal_region==pal && initial.video_crystal_rate==(pal?49656530u:48681818u) &&
+            core.plugin->get_info().native_fps==(pal?50.0:60.0),"cartridge region and nominal frontend rate");
     for(unsigned n=0;n<10;++n)initial.cpu.step();
     require(initial.video_interface.active() && !initial.video_interface.phase && initial.cpu.state.instructions==10,"original guest configured VI");
     std::ofstream out(argv[3]);require(bool(out),"output file");out<<"{\"suite\":\"n64-vi-field-schedule\",\"cases\":5160,\"words\":19,\"rom_crc32\":"<<core.plugin->get_rom_crc32()<<"}\n";
@@ -41,12 +44,17 @@ int main(int argc,char** argv){try{
     // S029 always resumes the exact old quantum regardless of native boot mode.
     std::vector<uint8_t> saved,replay;require(core.plugin->save_state(saved),"mode save");
     require(saved.size()==9529672 && saved[6]=='3' && saved[7]=='3',"S033 exact ABI capacity");
-    for(unsigned bit=0;bit<64;++bit){if(bit==0 || bit==8 || bit==16)continue;auto bad=saved;bad[639-bit/8]|=uint8_t(1u<<(bit%8));require(!core.plugin->load_state(bad) && core.plugin->save_state(replay) && replay==saved,"reserved schedule flag atomic rejection");}
+    for(unsigned bit=0;bit<64;++bit){if(bit==0 || bit==8 || bit==9 || bit==16)continue;auto bad=saved;bad[639-bit/8]|=uint8_t(1u<<(bit%8));require(!core.plugin->load_state(bad) && core.plugin->save_state(replay) && replay==saved,"reserved schedule flag atomic rejection");}
+    {auto bad=saved;bad[638]^=2;require(!core.plugin->load_state(bad) && core.plugin->save_state(replay) && replay==saved,"cross-region state marker atomic rejection");}
     scheduling->set_frame_scheduling(emu::FrameScheduling::InstructionQuantum);require(core.plugin->load_state(saved) && scheduling->get_frame_scheduling()==emu::FrameScheduling::VideoField,"field schedule restore");
-    auto old=saved;old.resize(old.size()-2056);old[6]='2';old[7]='9';old[638]=0;require(core.plugin->load_state(old) && scheduling->get_frame_scheduling()==emu::FrameScheduling::InstructionQuantum,"S029 exact legacy scheduling");
-    const auto before=core.plugin->get_cycle_count();core.plugin->run_frame({});require(core.plugin->get_cycle_count()-before==100000,"actual imported quantum budget");
-    core.plugin->reset();require(scheduling->get_frame_scheduling()==emu::FrameScheduling::InstructionQuantum,"legacy movie reset must preserve schedule");
-    const auto reset_start=core.plugin->get_cycle_count();core.plugin->run_frame({});require(core.plugin->get_cycle_count()-reset_start==100000,"actual legacy reset budget");
+    auto old=saved;old.resize(old.size()-2056);old[6]='2';old[7]='9';old[638]=0;
+    if(pal)require(!core.plugin->load_state(old) && core.plugin->save_state(replay) && replay==saved,"old NTSC-clocked PAL state rejection");
+    else{
+        require(core.plugin->load_state(old) && scheduling->get_frame_scheduling()==emu::FrameScheduling::InstructionQuantum,"S029 exact legacy scheduling");
+        const auto before=core.plugin->get_cycle_count();core.plugin->run_frame({});require(core.plugin->get_cycle_count()-before==100000,"actual imported quantum budget");
+        core.plugin->reset();require(scheduling->get_frame_scheduling()==emu::FrameScheduling::InstructionQuantum,"legacy movie reset must preserve schedule");
+        const auto reset_start=core.plugin->get_cycle_count();core.plugin->run_frame({});require(core.plugin->get_cycle_count()-reset_start==100000,"actual legacy reset budget");
+    }
     core.fresh_load(rom);scheduling=dynamic_cast<emu::IFrameScheduling*>(core.plugin);
     require(scheduling && scheduling->get_frame_scheduling()==emu::FrameScheduling::VideoField,"new native session selects VI after legacy reset");
     // Actual ordinary and rollback execution have identical complete states.
@@ -54,7 +62,7 @@ int main(int argc,char** argv){try{
     require(core.plugin->load_state(saved),"rollback start");core.netplay().run_frame_netplay_n({7,0,0,0});require(emulator_test::snapshot(core.netplay())==replay,"VI ordinary/rollback state equality");
     // Unconfigured VI is bounded while native startup still executes normally.
     initial.video_interface.reset();initial.frame_scheduling=emu::FrameScheduling::VideoField;
-    initial.save(saved);require(core.plugin->load_state(saved),"blank start");const auto blank=core.plugin->get_cycle_count();core.plugin->run_frame({});require(core.plugin->get_cycle_count()-blank==1562500,"blank VI startup budget");
+    initial.save(saved);require(core.plugin->load_state(saved),"blank start");const auto blank=core.plugin->get_cycle_count();core.plugin->run_frame({});require(core.plugin->get_cycle_count()-blank==(pal?1875000u:1562500u),"blank VI startup budget");
     // Largest stable register combination must reach its field ending rather
     // than the safety cap. An intentionally saturated diagnostic counter must
     // still return within the documented cap.
@@ -62,7 +70,7 @@ int main(int argc,char** argv){try{
     initial.video_interface.write(6,1023);initial.video_interface.write(0,2);initial.crystal_phase=0;
     initial.save(saved);require(core.plugin->load_state(saved),"largest field start");const auto maximum=core.plugin->get_cycle_count();core.plugin->run_frame({});
     require(core.plugin->save_state(saved) && be(saved,saved.size()-1056696+17*8)==1,"largest stable field boundary");
-    const uint64_t wanted=(uint64_t(512)*4096*93750000+48681817)/48681818;
+    const uint64_t wanted=(uint64_t(512)*4096*93750000+initial.video_crystal_rate-1)/initial.video_crystal_rate;
     require(core.plugin->get_cycle_count()-maximum==wanted,"largest field rational clock duration");
     initial.video_interface.fields=~uint64_t(0);initial.save(saved);require(core.plugin->load_state(saved),"saturated start");const auto bounded=core.plugin->get_cycle_count();core.plugin->run_frame({});require(core.plugin->get_cycle_count()-bounded==6250000,"saturated-counter safety cap");
     for(unsigned offset:{4u,12u}){
@@ -71,7 +79,7 @@ int main(int argc,char** argv){try{
         const uint32_t store=(43u<<26)|(30u<<21)|offset;
         for(unsigned byte=0;byte<4;++byte)initial.sp[0x68+byte]=uint8_t(store>>(24-byte*8));
         initial.save(saved);require(core.plugin->load_state(saved),"debug completion start");const auto before_debug=core.plugin->get_cycle_count();core.plugin->run_frame({});
-        require(core.plugin->get_cycle_count()-before_debug==1 && core.plugin->save_state(saved) && be(saved,offset==4?32:632)==(offset==4?1:257),"native debug done/yield boundary");
+        require(core.plugin->get_cycle_count()-before_debug==1 && core.plugin->save_state(saved) && be(saved,offset==4?32:632)==(offset==4?1u:(pal?769u:257u)),"native debug done/yield boundary");
     }
     std::cout<<"5160 actual VI boundaries, guest CURRENT RAM, S030 mode/61 rejection controls, S029 budget and native reset, ordinary/rollback and blank startup PASS\n";return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}
