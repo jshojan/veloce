@@ -4465,3 +4465,15 @@ states, CPU attempts and audio counts. Differential clocks, the original DP
 register ROM, netplay and private course movement pass. See the
 [benchmark and tests](../../docs/N64-PERFORMANCE.md). Performance remains below
 real time. **N64 remains 50% (10/20).**
+
+## Active RSP idle-clock batching (0.89.0)
+
+During cached CPU idle loops, the core executes every active RSP and DP tick
+while advancing quiet VI, AI, output-sample and cartridge RTC phases in batches
+that stop before their next event or a new SP/DP interrupt. A reference path
+checks 128 complete machine continuations across device boundaries. Five paired
+private SM64 checkpoint runs measured **9.5% more throughput** than 0.88.0,
+from **14.36 to 15.73 VI fields/second**, with identical complete states,
+CPU attempts and audio counts. Original timing and register ROMs, netplay and
+private course movement pass. See [performance details](../../docs/N64-PERFORMANCE.md).
+Performance remains below real time. **N64 remains 50% (10/20).**

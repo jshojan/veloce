@@ -62,6 +62,8 @@ public:
     DpInterface dp_interface;
     // Host-only regression switch; excluded from native save and netplay state.
     bool fast_dp_clock_enabled=true;
+    bool active_rsp_batch_enabled=true; // Host-only; excluded from native state.
+    uint64_t active_rsp_batched_clocks=0;
     static constexpr size_t dp_state_size=152;
     static constexpr size_t vector_state_size=536;
     static constexpr size_t accumulator_state_size=64;
@@ -88,6 +90,8 @@ public:
     void process_pif();
 private:
     unsigned skip_inactive_clocks(unsigned maximum);
+    unsigned advance_active_rsp_clocks(unsigned maximum);
+    void tick_rsp_dp();
     static bool physical(uint64_t address, uint32_t& result);
     bool write_pi(unsigned reg,uint32_t value);
     bool write_ri(unsigned reg,uint32_t value);
