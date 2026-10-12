@@ -50,7 +50,12 @@ int main(){
     // every nine-bit source pair against the independent equation above,
     // including special negative encodings and clamp boundaries.
     n64::RdpCombiner::Sources common{};
-    n64::RdpCombiner pass,multiply;
+    n64::RdpCombiner pass,multiply,first_cycle;
+    first_cycle.combine=0x127ffffffff838ull;
+    check(n64::RdpCombiner::texel_shade_cycle(first_cycle.cycle(0)));
+    first_cycle.combine^=1ull<<52;
+    check(!n64::RdpCombiner::texel_shade_cycle(first_cycle.cycle(0)));
+    first_cycle.combine^=1ull<<52;
     for(unsigned variant=0;variant<2;++variant){
         pass.combine=variant?0x127ffffffff238ull:0x127ffffffff838ull;
         multiply.combine=variant?(0x127e24fffff9fcull^(1ull<<52)):0x127e24fffff9fcull;
@@ -67,12 +72,15 @@ int main(){
             for(unsigned shade=0;shade<512;++shade){
                 for(unsigned lane=0;lane<4;++lane)common.shade[lane]=(shade+lane*37)&511;
                 const auto multiplied=multiply.evaluate(1,common);
+                const auto first=n64::RdpCombiner::texel_shade_combined(common);
+                check(first==first_cycle.evaluate(0,common).combined);
                 const unsigned a=equation(0,0,0,common.shade[3])/256;
                 for(unsigned lane=0;lane<3;++lane){
                     const unsigned rgb=equation(common.texel0[lane],0,common.shade[lane],0);
                     check(multiplied.rgb_fixed[lane]==rgb && multiplied.combined[lane]==rgb/256 && multiplied.clamped[lane]==clamp(rgb/256));
+                    check(first[lane]==rgb/256);
                 }
-                check(multiplied.combined[3]==a && multiplied.clamped[3]==clamp(a));
+                check(multiplied.combined[3]==a && multiplied.clamped[3]==clamp(a) && first[3]==a);
             }
         }
     }

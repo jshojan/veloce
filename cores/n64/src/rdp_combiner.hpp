@@ -31,6 +31,17 @@ struct RdpCombiner {
         Color combined{},texel0{},texel1{},shade{},key_center{},key_scale{};
         unsigned noise=0,k4=0,k5=0,lod=0;
     };
+    static bool texel_shade_cycle(const Cycle& mux){
+        return mux.rgb_a==1 && mux.rgb_b==15 && mux.rgb_c==4 && mux.rgb_d==7 &&
+               mux.alpha_a==7 && mux.alpha_b==7 && mux.alpha_c==7 && mux.alpha_d==4;
+    }
+    static Color texel_shade_combined(const Sources& sources){
+        Color result{};
+        for(unsigned lane=0;lane<3;++lane)
+            result[lane]=rgb_equation(sources.texel0[lane],0,sources.shade[lane],0)>>8;
+        result[3]=alpha_equation(0,0,0,sources.shade[3]);
+        return result;
+    }
     struct Result {std::array<uint32_t,3> rgb_fixed{};Color combined{},clamped{};};
     Result evaluate(unsigned n,const Sources& s) const {
         return evaluate(n,s,cycle(n));

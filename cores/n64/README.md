@@ -4744,3 +4744,20 @@ faster. Three 300-field pairs measured **20.06 to 20.46 fields/second**, a
 **2.8%** median paired gain, two faster. Complete native states, CPU
 attempts and audio counts matched in every pair. See [performance details](../../docs/N64-PERFORMANCE.md#active-rsp-empty-clock-skipping-01060).
 SM64 remains below real time; **N64 stays 50% (10/20)**.
+
+## Direct first-cycle TEXEL0 × SHADE combining (0.107.0)
+
+The renderer selects an exact first-cycle evaluator once per draw when its
+predecoded combiner selectors multiply TEXEL0 RGB by SHADE RGB and pass SHADE
+alpha. Other selector sets use the general evaluator. The independent
+combiner oracle passes **525,312 common-profile source cases**, including
+the full nine-bit source range. The original shaded, textured two-cycle ROM
+passes **262,144 guest framebuffer and DP/MI register cases**.
+The production two-peer TCP netplay gate passes with the updated plugin.
+
+Nine CPU-pinned 60-field SM64 course-checkpoint pairs measured a **2.3%**
+median paired gain, six of nine faster. Three CPU-pinned 300-field
+confirmation pairs measured a **1.4%** gain, all three faster. Complete
+native states, CPU attempts and audio counts matched in every pair.
+See [performance details](../../docs/N64-PERFORMANCE.md#direct-first-cycle-texel-shade-combining-01070).
+SM64 remains below real time; **N64 stays 50% (10/20)**.

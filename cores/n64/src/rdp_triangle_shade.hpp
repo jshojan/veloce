@@ -99,6 +99,7 @@ private:
         if(!bounds.valid)return 0;
         if(depth_mode && (depth_image&7))return 4;
         const auto cycle_zero=combiner.cycle(0),cycle_one=combiner.cycle(1);
+        const bool fast_cycle_zero=two_cycle && RdpCombiner::texel_shade_cycle(cycle_zero);
         const bool fetch_second=textured && two_cycle && combiner.uses_texel1_cycle1();
         const unsigned k4=conversion?conversion->coefficient(4):0;
         const unsigned k5=conversion?conversion->coefficient(5):0;
@@ -184,7 +185,8 @@ private:
                     if(fetch_second)
                         sources.texel1=fetch(pixel_second_tile);
                 }
-                if(two_cycle)sources.combined=combiner.evaluate(0,sources,cycle_zero).combined;
+                if(two_cycle)sources.combined=fast_cycle_zero?
+                    RdpCombiner::texel_shade_combined(sources):combiner.evaluate(0,sources,cycle_zero).combined;
                 auto color=combiner.evaluate(1,sources,cycle_one).clamped;
                 const size_t at=origin+(size_t(y)*width+x)*bytes;
                 if(blender){const uint32_t memory=bytes==2?RdpFramebuffer::read16(ram.data()+at,hidden->halfword(at)):(uint32_t(ram[at])<<24)|(uint32_t(ram[at+1])<<16)|(uint32_t(ram[at+2])<<8)|ram[at+3];

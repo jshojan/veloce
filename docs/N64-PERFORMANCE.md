@@ -609,3 +609,27 @@ states, CPU attempts and audio counts matched in every pair. Ignored local
 reports are `build/artifacts/performance/n64-rsp-phase-{confirmation,long}/`.
 The speedup varies with host load and does not reach the 60-field real-time
 target. **N64 stays 50% (10/20)**.
+
+## Direct first-cycle TEXEL0 × SHADE combining (0.107.0)
+
+In a profiled 60-field private SM64 course continuation, one textured
+two-cycle combiner mode covered **3,381,990 rasterized pixels**. Its first
+cycle multiplies TEXEL0 RGB by SHADE RGB and passes SHADE alpha; its second
+cycle passes COMBINED. The renderer now recognizes those first-cycle
+selectors once per draw and computes the exact combined values directly.
+Other selector sets retain general routing. The native state format and
+guest command stream are unchanged.
+
+The independent component oracle checks **525,312 common-profile nine-bit
+source cases** against its equation. The original shaded, textured two-cycle
+ROM grades **262,144 guest cases / 3,407,872 captured framebuffer and DP/MI
+register words** with zero mismatches. The production two-peer TCP netplay
+gate passes with the updated plugin. Nine CPU-pinned 60-field private SM64
+checkpoint pairs measured a **2.3% median paired throughput gain**, with
+six of nine pairs faster and byte-identical complete native states. Three
+CPU-pinned 300-field confirmation pairs measured a **1.4% median paired
+gain**, all three faster. An earlier three-pair long sample had substantial
+host-load variation, so use the confirmation result for the long run.
+CPU attempt and audio counts matched in every pair. Ignored local reports
+are `build/artifacts/performance/n64-cycle-zero-{trial,confirmation,long,long-confirmation}/`.
+SM64 remains below 60 VI fields/second; **N64 stays 50% (10/20)**.
