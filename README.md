@@ -167,6 +167,8 @@ N64 0.99.0 adds an exact RGBA16 triangular-filter route for the dominant SM64 te
 
 N64 0.100.0 copies contiguous RSP vector-memory bytes directly while retaining the per-byte path at DMEM and vector boundaries. The two original load/store ROMs pass **1,572,864 guest cases / 45,613,056 captured words**. Three CPU-pinned, paired 300-field SM64 course-checkpoint runs measured **17.62 to 18.13 VI fields/second** by median time, a 2.9% gain, with byte-identical complete states. The lower absolute rate than the prior report reflects a separate host-load sample; comparisons within each paired run show the change. [Performance details](docs/N64-PERFORMANCE.md#contiguous-rsp-vector-memory-transfers-01000). SM64 remains below real time; **N64 stays 50% (10/20)**.
 
+N64 0.101.0 prepares common RDP tile coordinates once per draw and uses an exact direct clamp/wrap path. An independent oracle checks **3,145,728** S/T pairs. Five paired 60-field SM64 checkpoint runs measured **19.21 to 19.76 VI fields/second** by median time, all five faster; three 300-field pairs measured **19.45 to 19.79 fields/second**, two faster. Complete native states matched in every pair. [Performance details](docs/N64-PERFORMANCE.md#simple-rdp-tile-coordinates-01010). Play remains below real time; **N64 stays 50% (10/20)**.
+
 A cross-platform, plugin-based emulator framework built for speedrunners and TAS creators.
 
 *Veloce* - Italian for "fast"

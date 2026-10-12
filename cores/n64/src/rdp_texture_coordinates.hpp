@@ -8,6 +8,20 @@ namespace n64 {
 struct RdpTextureCoordinates {
     struct Axis {int32_t texel=0,neighbor=0;unsigned fraction=0;};
     struct Sample {Axis s,t;};
+    struct SimpleAxis {unsigned high=0,mask=0;bool clamp=false;};
+    struct SimpleTile {SimpleAxis s,t;bool valid=false;};
+    // Zero shift/low, nonmirrored tiles with <=8 mask bits cover the common
+    // RGBA16 game path. Both axes wrap their neighbor to zero at this width.
+    static SimpleTile prepare_simple(const RdpTexture::Tile& tile){
+        const unsigned sm=tile.mask(false),tm=tile.mask(true);
+        if(tile.shift(false) || tile.shift(true) || tile.low(false) || tile.low(true) ||
+           tile.mirror(false) || tile.mirror(true) || !sm || !tm || sm>8 || tm>8)return {};
+        return {{tile.high(false),(1u<<sm)-1,bool(tile.clamp(false))},
+                {tile.high(true),(1u<<tm)-1,bool(tile.clamp(true))},true};
+    }
+    static Sample sample_simple(const SimpleTile& tile,uint16_t s,uint16_t t){
+        return {simple_axis(tile.s,s),simple_axis(tile.t,t)};
+    }
     static Axis axis(const RdpTexture::Tile& tile,bool t,uint16_t raw){
         const unsigned shift=tile.shift(t),low=tile.low(t),high=tile.high(t);
         int32_t coordinate;
@@ -40,6 +54,18 @@ struct RdpTextureCoordinates {
     }
     static Sample sample(const RdpTexture::Tile& tile,uint16_t s,uint16_t t){return {axis(tile,false,s),axis(tile,true,t)};}
 private:
+    static Axis simple_axis(const SimpleAxis& setup,uint16_t raw){
+        const int32_t coordinate=signed16(raw);
+        Axis result;result.fraction=raw&31;
+        int32_t texel;
+        if(setup.clamp && coordinate>=int32_t(setup.high*8)){
+            texel=int32_t((setup.high>>2)&1023);result.fraction=0;
+        }else if(setup.clamp && coordinate<0){texel=0;result.fraction=0;}
+        else texel=divide(coordinate,32);
+        result.texel=int32_t(uint32_t(texel)&setup.mask);
+        result.neighbor=int32_t((uint32_t(result.texel)+1)&setup.mask);
+        return result;
+    }
     static int32_t signed16(uint16_t raw){return raw>=32768?int32_t(raw)-65536:int32_t(raw);}
     static int32_t divide(int32_t value,unsigned divisor){return value>=0?value/int32_t(divisor):-int32_t((uint32_t(-value)+divisor-1)/divisor);}
 };

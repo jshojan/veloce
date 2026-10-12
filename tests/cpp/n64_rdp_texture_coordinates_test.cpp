@@ -55,10 +55,33 @@ int main(){
         const auto s=oracle(uint16_t(raw),shifts,7,117,false,masks,true,false),t=oracle(uint16_t(raw^0xa55a),shiftt,13,221,true,maskt,false,true);
         check(got.s.texel==s.texel && got.s.neighbor==s.neighbor && got.s.fraction==s.fraction && got.t.texel==t.texel && got.t.neighbor==t.neighbor && got.t.fraction==t.fraction);++pairs;
     }
+    uint64_t simple=0;
+    for(unsigned mask:{4u,5u,6u,8u})for(unsigned high:{0u,63u,4095u})for(unsigned flags=0;flags<4;++flags){
+        const bool clamp_s=flags&1,clamp_t=flags&2;
+        auto tile=descriptor(false,0,0,high,clamp_s,mask,false);
+        tile.descriptor|=uint64_t(mask)<<14|uint64_t(clamp_t)<<19;
+        tile.bounds|=uint64_t(high);
+        const auto setup=n64::RdpTextureCoordinates::prepare_simple(tile);
+        check(setup.valid);
+        for(unsigned raw=0;raw<65536;++raw){
+            const auto got=n64::RdpTextureCoordinates::sample_simple(setup,uint16_t(raw),uint16_t(raw^0xa55a));
+            const auto s=oracle(uint16_t(raw),0,0,high,clamp_s,mask,false,false);
+            const auto t=oracle(uint16_t(raw^0xa55a),0,0,high,clamp_t,mask,false,true);
+            check(got.s.texel==s.texel && got.s.neighbor==s.neighbor && got.s.fraction==s.fraction && got.t.texel==t.texel && got.t.neighbor==t.neighbor && got.t.fraction==t.fraction);
+            ++simple;
+        }
+    }
+    for(auto tile:{descriptor(false,1,0,63,false,5,false),descriptor(false,0,1,63,false,5,false),
+                   descriptor(false,0,0,63,false,0,false),descriptor(false,0,0,63,false,9,false),
+                   descriptor(false,0,0,63,false,5,true)}){
+        tile.descriptor|=uint64_t(5)<<14;
+        tile.bounds|=uint64_t(63);
+        check(!n64::RdpTextureCoordinates::prepare_simple(tile).valid);
+    }
     // Explicit unequal S/T wrap and mirror endpoint goldens.
     auto tile=descriptor(false,0,0,4095,false,10,false);
     check(n64::RdpTextureCoordinates::axis(tile,false,32736).neighbor==0);
     tile=descriptor(true,0,0,4095,false,10,false);
     check(n64::RdpTextureCoordinates::axis(tile,true,32736).neighbor==768);
-    std::cout<<domain<<" coordinate/shift/mask/flag captures; "<<bounds<<" bound-pair captures; "<<pairs<<" paired-axis captures; wrap goldens PASS\n";
+    std::cout<<domain<<" coordinate/shift/mask/flag captures; "<<bounds<<" bound-pair captures; "<<pairs<<" paired-axis captures; "<<simple<<" simple-tile captures; wrap goldens PASS\n";
 }
