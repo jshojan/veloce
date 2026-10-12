@@ -30,7 +30,7 @@ static void reference(Bank& bank,Memory& mem,bool store,unsigned kind,unsigned e
  else if(kind==10)for(unsigned i=0;i<16;++i)mem[(aligned+(a%8+i)%16)%4096]=before[vt][(e+i)%16];
  else for(unsigned i=0;i<16;++i){const unsigned reg=vt/8*8+(i/2+16-aligned/2%8+e/2)%8;mem[(aligned+(a+i)%16)%4096]=before[reg][(i+aligned)%16];}
 }
-static void opcode(n64::Machine& m,uint32_t ins){for(unsigned b=0;b<4;++b)m.sp[4096+b]=uint8_t(ins>>(24-b*8));m.sp_interface.pc=0;m.sp_interface.status=0;m.rsp.next_pc=4;m.rsp.delay_slot=false;}
+static void opcode(n64::Machine& m,uint32_t ins){for(unsigned b=0;b<4;++b)m.sp[4096+b]=uint8_t(ins>>(24-b*8));m.sp_interface.invalidate_imem();m.sp_interface.pc=0;m.sp_interface.status=0;m.rsp.next_pc=4;m.rsp.delay_slot=false;}
 static void step(n64::Machine& m){require(m.rsp.step(m.sp_interface,m.dp_interface,m.sp,m.ram),"supported vector instruction blocked");}
 int main(int argc,char** argv){try{
  require(argc==2,"original ROM required");std::ifstream file(argv[1],std::ios::binary);std::vector<uint8_t> rom{std::istreambuf_iterator<char>(file),{}};n64::Machine m;require(m.load(rom.data(),rom.size()),"ROM load");auto& r=m.rsp;auto& v=r.vectors;

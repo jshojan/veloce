@@ -105,6 +105,8 @@ N64 0.92.0 speeds up exact RDP perspective division with a portable floor-shift 
 
 N64 0.93.0 adds exact fast paths for two common RDP cycle-one selector patterns. An independent routing oracle passes **525,312 nine-bit source cases**; the original shaded-texture cartridge grades **262,144 guest cases / 3,407,872 actual framebuffer and register words** and rejects an executed wrong capture. Five paired production-build SM64 checkpoint runs measured **3.1% more throughput (17.97 to 18.54 VI fields/second)** with identical complete states, CPU attempts and audio counts. A freshly trained optional PGO build reaches **18.99 fields/second** in a separate five-pair run. Performance remains below real time; **N64 remains 50% (10/20)**.
 
+N64 0.94.0 caches fetched RSP instruction words until CPU stores or SP DMA change IMEM. Five paired 300-field SM64 course-checkpoint runs measured **3.3% more throughput (18.39 to 19.00 VI fields/second)** than ordinary 0.93.0, with identical complete states, CPU attempts and audio counts. The RSP unit and original acceleration ROM gates, private course continuation and production netplay pass. [Performance details](docs/N64-PERFORMANCE.md). Performance remains below real time; **N64 remains 50% (10/20)**.
+
 ### 3DS ARM11 instruction coverage
 
 The 3DS plugin implements the following ARMv6 instruction subsets. Each linked

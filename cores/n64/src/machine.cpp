@@ -355,6 +355,7 @@ bool Machine::write(uint64_t address, unsigned bytes, uint64_t value) {
         if(!(test?hidden.ebus_write(p,bytes,value):hidden.ordinary_write(p,bytes,value)))return false;
     }
     for (unsigned i = 0; i < bytes; ++i) destination[i] = uint8_t(value >> (8 * (bytes - 1 - i)));
+    if(p>=0x04001000 && p<0x04002000)sp_interface.invalidate_imem();
     return true;
 }
 bool Machine::write_ri(unsigned reg,uint32_t value) {
@@ -425,6 +426,7 @@ bool Machine::write_masked(uint64_t address, unsigned bytes, uint64_t value, uin
     }
     for (unsigned i = 0; i < bytes; ++i)
         if (mask & (1u << i)) destination[i] = uint8_t(value >> (8 * (bytes - 1 - i)));
+    if(p>=0x04001000 && p<0x04002000)sp_interface.invalidate_imem();
     return true;
 }
 static void append(std::vector<uint8_t>& data, uint64_t value) {

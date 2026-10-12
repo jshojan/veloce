@@ -27,6 +27,7 @@ static void prepare(Machine& m,unsigned seed){
         m.sp_interface.status=0;m.rsp_phase=1;
         const uint32_t mtc0=0x40824800;
         for(unsigned i=0;i<4;++i)m.sp[4096+i]=uint8_t(mtc0>>(24-8*i));
+        m.sp_interface.invalidate_imem();
         m.rsp.gpr[2]=0x108;
         break;
     }

@@ -4542,3 +4542,16 @@ in its paired run, 4.3% above ordinary 0.93.0. The private course continuation,
 production netplay and trained-plugin RDP checkpoint pass. See
 [benchmark details](../../docs/N64-PERFORMANCE.md). Performance
 remains below real time; the fixed N64 checklist remains **50% (10/20)**.
+
+## Cached RSP instruction fetch (0.94.0)
+
+The RSP keeps a host-only fetched instruction word for each IMEM slot. CPU IMEM
+stores and SP DMA into IMEM invalidate cached words; reset and state restore
+start with a fresh cache. The native state format and guest-visible timing are
+unchanged. Five paired 300-field SM64 course-checkpoint runs measured **3.3%
+more throughput (18.39 to 19.00 VI fields/second)** than ordinary 0.93.0,
+with identical complete states, CPU attempts and audio counts. RSP instruction,
+original acceleration ROM, private course movement and production netplay
+gates pass. Raw measurements are local in
+`build/artifacts/performance/n64-rsp-imem-cache-graded/`. Performance remains
+below real time; **N64 remains 50% (10/20)**.
