@@ -4761,3 +4761,16 @@ confirmation pairs measured a **1.4%** gain, all three faster. Complete
 native states, CPU attempts and audio counts matched in every pair.
 See [performance details](../../docs/N64-PERFORMANCE.md#direct-first-cycle-texel-shade-combining-01070).
 SM64 remains below real time; **N64 stays 50% (10/20)**.
+
+## Host-trained local Veloce build (October 2026)
+
+The local N64 plugin was rebuilt with host CPU optimization and GCC PGO
+trained on a 300-field private SM64 course continuation. Against the previous
+local Release plugin, five CPU-pinned 60-field pairs showed a **6.5% median
+paired gain** (all faster); three 300-field pairs showed **10.4%** (all faster).
+Complete states, CPU attempts and audio counts matched. The original RSP
+acceleration and shaded texture ROMs, native-state netplay, and production TCP
+netplay passed. The plugin remains host-specific and local; normal builds use
+the portable default. See [performance details](../../docs/N64-PERFORMANCE.md#host-trained-local-veloce-build-october-2026).
+Measured throughput remains about **23 VI fields/second** for this course
+continuation, below real time. **N64 stays 50% (10/20)**.

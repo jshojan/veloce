@@ -183,6 +183,8 @@ N64 0.106.0 skips nominal clocks with no RSP/DP tick inside active-RSP idle batc
 
 N64 0.107.0 evaluates the common first-cycle TEXEL0 × SHADE combiner directly. The original shaded, textured two-cycle ROM passes **262,144 guest framebuffer and DP/MI register cases**; the independent component oracle passes **525,312 common-profile source cases**, and production TCP netplay passes. Nine CPU-pinned 60-field SM64 pairs measured a **2.3% median paired gain**, six faster; three 300-field confirmation pairs measured a **1.4% median paired gain**, all faster. Complete native states match in every pair. [Performance details](docs/N64-PERFORMANCE.md#direct-first-cycle-texel-shade-combining-01070). SM64 remains below real time; **N64 stays 50% (10/20)**.
 
+A host-trained local build of the same N64 0.107.0 plugin now uses native CPU optimization and GCC PGO. Five short SM64 checkpoint pairs measured a **6.5% median paired gain**, and three longer pairs measured **10.4%**; complete native states matched throughout. Original RSP and shaded texture register ROMs and production TCP netplay pass. The portable repository default is unchanged. The trained local plugin reaches about **23 VI fields/second** in this bounded scene, still below real time. [Build and measurements](docs/N64-PERFORMANCE.md#host-trained-local-veloce-build-october-2026). **N64 stays 50% (10/20)**.
+
 A cross-platform, plugin-based emulator framework built for speedrunners and TAS creators.
 
 *Veloce* - Italian for "fast"

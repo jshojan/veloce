@@ -662,3 +662,22 @@ The measured course remains around **19–20 VI fields/second** on this host,
 below the 60-field target. Future work should measure the RSP/DP execution
 path and textured drawing with longer paired runs before retaining a change.
 **N64 stays 50% (10/20)**.
+
+## Host-trained local Veloce build (October 2026)
+
+The local `build/bin/cores/n64.so` was rebuilt from 0.107.0 with
+`VELOCE_N64_NATIVE_OPTIMIZE=ON` and GCC PGO trained on a 300-field private
+SM64 course continuation. This is a host-specific build; the repository's
+portable default and plugin source remain unchanged. The training profile and
+plugin copies stay in ignored `build/artifacts/performance/n64-local-pgo/`.
+
+Five alternating CPU-pinned 60-field pairs against the previous local Release
+plugin measured **19.96 to 20.85 VI fields/second** by median wall time, a
+**6.5% median paired gain**, all five faster. Three 300-field pairs measured
+**20.64 to 22.88 fields/second**, a **10.4% median paired gain**, all three
+faster. Complete native states, CPU attempts and audio counts matched in every
+pair. The original RSP acceleration and shaded two-cycle RDP ROMs, native-state
+netplay, and production two-peer TCP netplay passed with the trained plugin.
+The benchmark includes ROM/state loading and state writing, so these numbers
+are not a GUI frame-rate measurement. Full-speed play still needs substantial
+CPU, RSP and software RDP work; **N64 stays 50% (10/20)**.
