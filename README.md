@@ -77,6 +77,8 @@ N64 0.79.0 adds affine 1/32-texel LOD gradients and corrects signed-delta and co
 
 N64 0.80.0 calculates affine LOD from screen-X/Y texture gradients independently of triangle-edge interpolation. The [original edge-gradient cartridge](tests/roms-src/n64/rdp_lod_edge_gradient/README.md) grades **165,760 cases / 2,154,880 actual framebuffer and DP/MI register words** across mixed 1/32-texel vectors, 16 independent sign masks, two edge arrangements, RGBA16/IA16 and RDRAM/XBUS delivery. A changed-edge control preserves observations while executed wrong-T, wrong-Y, wrong-sign, wrong-fraction and wrong-tile ROMs are rejected. Perspective LOD, detail/sharpen, non-solid edge-interpolation observations and full mipmap filtering remain pending; N64 stays **50% (10/20)**.
 
+N64 0.81.0 computes two-cycle LOD from adjacent perspective-divided texture coordinates per pixel for constant-W triangles. The [original perspective-LOD cartridge](tests/roms-src/n64/rdp_lod_perspective/README.md) grades **147,456 cases / 1,916,928 actual framebuffer and DP/MI register words** across 0–255 subtexel input gradients on four axes, both signs, six W values, three maximum levels, RGBA16/IA16 and RDRAM/XBUS delivery. Non-power-of-two W values exercise within-triangle LOD variation; executed wrong-W, wrong-T, wrong-Y, wrong-fraction and wrong-tile ROMs are rejected. Varying W, perspective overflow, mixed derivatives, detail/sharpen and full mipmap filtering remain pending; N64 stays **50% (10/20)**.
+
 ### 3DS ARM11 instruction coverage
 
 The 3DS plugin implements the following ARMv6 instruction subsets. Each linked

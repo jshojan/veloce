@@ -30,10 +30,20 @@ private:
         const bool textured=triangle.texture && texture && tmem;
         const bool two_cycle=((mode>>52)&3)==1;
         const bool lod_enabled=mode&(1ull<<48);
-        // Bounded affine LOD: exact 1/32-texel S/T gradients on both axes.
+        // Bounded two-cycle LOD: exact 1/32-texel S/T gradients and constant W.
         // d/dEdge drives interpolation; LOD uses the independent d/dY.
-        // Perspective, detail and sharpen remain outside this profile.
+        // Perspective uses post-division adjacent coordinates per pixel.
         unsigned first_tile=triangle.tile,second_tile=(triangle.tile+1)&7,lod_fraction=0;
+        const auto select_lod=[&](unsigned units,unsigned& first,unsigned& second,unsigned& fraction){
+            const bool magnify=units<32;
+            unsigned level=0;
+            for(unsigned value=units>>5;value>1;value>>=1)++level;
+            const bool distant=!triangle.level || (!magnify && level>=triangle.level);
+            fraction=distant?255u:magnify?0u:((units<<3)>>level)&255u;
+            if(level>triangle.level)level=triangle.level;
+            first=(triangle.tile+level)&7;
+            second=(first+(!magnify&&!distant?1u:0u))&7;
+        };
         if(lod_enabled){
             const bool simple_gradient=!triangle.tex[1][2] && !triangle.tex[2][2] &&
                 !triangle.tex[3][2];
@@ -48,19 +58,9 @@ private:
                 const unsigned units=unsigned(absolute/unit)-(gradient<0?1u:0u);
                 if(units>lod_units)lod_units=units;
             }
-            if(!textured || !two_cycle || !simple_gradient || (mode&(1ull<<51)))return 1;
-            const bool magnify=lod_units<32;
-            const unsigned steps=lod_units>>5;
-            unsigned level=0;
-            for(unsigned value=steps;value>1;value>>=1)++level;
-            const bool distant=!triangle.level || (!magnify && level>=triangle.level);
-            if(combiner.uses_lod_fraction()){
-                if(combiner.minimum_lod())return 1;
-                lod_fraction=distant?255u:magnify?0u:((lod_units<<3)>>level)&255u;
-            }
-            if(level>triangle.level)level=triangle.level;
-            first_tile=(triangle.tile+level)&7;
-            second_tile=(first_tile+(!magnify&&!distant?1u:0u))&7;
+            if(!textured || !two_cycle || !simple_gradient ||
+               (combiner.uses_lod_fraction() && combiner.minimum_lod()))return 1;
+            if(!(mode&(1ull<<51)))select_lod(lod_units,first_tile,second_tile,lod_fraction);
         }
         const uint64_t sampling=textured?((63ull<<42)|(1ull<<51)|(1ull<<48)):(blender?(2047ull<<41):0);
         const uint64_t dither=(3ull<<38)|(3ull<<36);
@@ -99,12 +99,38 @@ private:
                 // Legacy direct calls without it retain the non-AA store gate.
                 if(!blender && !(mask&128))continue;
                 RdpTriangleAttributes::Pixel pixel;RdpTriangleAttributes::pixel(attributes,x,mask,pixel);
+                unsigned pixel_first_tile=first_tile,pixel_second_tile=second_tile;
                 RdpCombiner::Sources sources;
                 sources.lod=lod_fraction;
                 if(conversion){sources.k4=conversion->coefficient(4);sources.k5=conversion->coefficient(5);}
                 for(unsigned lane=0;lane<4;++lane)sources.shade[lane]=pixel.rgba[lane];
                 if(textured){
                     const auto divided=RdpTextureDivider::divide(uint16_t(pixel.stw[0]),uint16_t(pixel.stw[1]),uint16_t(pixel.stw[2]),mode&(1ull<<51));
+                    if(lod_enabled && (mode&(1ull<<51))){
+                        const auto neighbor=[&](uint32_t ds,uint32_t dt){
+                            return RdpTextureDivider::divide(uint16_t((pixel.raw[4]+ds)>>16),
+                                uint16_t((pixel.raw[5]+dt)>>16),uint16_t(pixel.stw[2]),true);
+                        };
+                        const auto right=neighbor(attributes.dx[4],attributes.dx[5]);
+                        const auto below=neighbor(triangle.tex[3][0],triangle.tex[3][1]);
+                        const auto distance=[](uint32_t current,uint32_t next){
+                            const int32_t a=int32_t(current&131071)-((current&65536)?131072:0);
+                            const int32_t b=int32_t(next&131071)-((next&65536)?131072:0);
+                            const int32_t delta=b-a;
+                            return unsigned(delta<0?-delta-1:delta);
+                        };
+                        const bool overflow=(divided.s|divided.t|right.s|right.t|below.s|below.t)&0x60000;
+                        unsigned units=overflow?16384u:0u;
+                        if(!overflow){
+                            for(unsigned axis=0;axis<2;++axis){
+                                const auto& pair=axis?below:right;
+                                const unsigned ds=distance(divided.s,pair.s),dt=distance(divided.t,pair.t);
+                                if(ds>units)units=ds;
+                                if(dt>units)units=dt;
+                            }
+                        }
+                        select_lod(units,pixel_first_tile,pixel_second_tile,sources.lod);
+                    }
                     const auto fetch=[&](const RdpTexture::Tile& tile)->RdpCombiner::Color{
                         const auto sample=RdpTextureCoordinates::sample(tile,RdpTextureDivider::saturate(divided.s),RdpTextureDivider::saturate(divided.t));
                         if((mode&(1ull<<45)) || (mode&(1ull<<47))){
@@ -120,9 +146,9 @@ private:
                         }
                         RdpTextureFilter::Quad quad{};quad.fill(texel);return RdpTextureFilter::convert_weights(quad,{},conversion->weights());
                     };
-                    sources.texel0=fetch(texture->tiles[first_tile]);
+                    sources.texel0=fetch(texture->tiles[pixel_first_tile]);
                     if(two_cycle && combiner.uses_texel1_cycle1())
-                        sources.texel1=fetch(texture->tiles[second_tile]);
+                        sources.texel1=fetch(texture->tiles[pixel_second_tile]);
                 }
                 if(two_cycle)sources.combined=combiner.evaluate(0,sources).combined;
                 auto color=combiner.evaluate(1,sources).clamped;
