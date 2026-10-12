@@ -4570,12 +4570,14 @@ The checklist remains **50% (10/20)**.
 ## Original RSP IMEM rewrite cartridge
 
 The [repository-built cartridge](../../tests/roms-src/n64/rsp_imem_rewrite/README.md)
-executes every 8-bit ADDIU immediate at slot zero, then primes and rewrites
-all **1,024 aligned IMEM slots** by CPU stores and SP DMA. An independent file
-oracle grades **2,560 cases / 10,240 actual DMEM, IMEM, SP status and SP PC
-words**, including execution across the bank wrap. It rejects all 2,560 rows
-from an executed wrong-instruction ROM, 1,279 DMA rows from a disarmed-DMA ROM
-and a malformed capture. Functional rewrite visibility now covers the entire
+executes all **65,536 ADDIU immediate encodings** at slot zero through both
+rewrite paths, then primes and rewrites all **1,024 aligned IMEM slots** by CPU
+stores and SP DMA. An independent file
+oracle grades **133,120 cases / 532,480 actual DMEM, IMEM, SP status and SP PC
+words**, including signed immediate boundaries and execution across the bank
+wrap. It rejects all 133,120 rows from an executed wrong-instruction ROM,
+66,559 DMA rows from a disarmed-DMA ROM, and a malformed capture. Functional
+rewrite visibility now covers the entire
 aligned IMEM address domain; physical bus/DMA and pipeline timing remain
 ungraded. N64 remains **50% (10/20)**.
 
