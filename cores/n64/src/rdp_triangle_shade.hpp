@@ -97,6 +97,7 @@ private:
         const auto bounds=RdpTriangleSpan::bounds(triangle,scissor);
         if(!bounds.valid)return 0;
         if(depth_mode && (depth_image&7))return 4;
+        const auto cycle_zero=combiner.cycle(0),cycle_one=combiner.cycle(1);
         // Preflight every complete row so functional bounds rejection is atomic.
         for(unsigned y=bounds.first;y<=bounds.last;++y){const auto row=RdpTriangleSpan::row(triangle,bounds,y);if(row.valid){const uint64_t end=uint64_t(y)*width+row.last+1;
             if(uint64_t(origin)+end*bytes>ram.size() || (depth_mode && uint64_t(depth_image)+end*2>ram.size()))return 5;}}
@@ -164,8 +165,8 @@ private:
                     if(two_cycle && combiner.uses_texel1_cycle1())
                         sources.texel1=fetch(texture->tiles[pixel_second_tile]);
                 }
-                if(two_cycle)sources.combined=combiner.evaluate(0,sources).combined;
-                auto color=combiner.evaluate(1,sources).clamped;
+                if(two_cycle)sources.combined=combiner.evaluate(0,sources,cycle_zero).combined;
+                auto color=combiner.evaluate(1,sources,cycle_one).clamped;
                 const size_t at=origin+(size_t(y)*width+x)*bytes;
                 if(blender){const uint32_t memory=bytes==2?RdpFramebuffer::read16(ram.data()+at,hidden->halfword(at)):(uint32_t(ram[at])<<24)|(uint32_t(ram[at+1])<<16)|(uint32_t(ram[at+2])<<8)|ram[at+3];
                     const size_t za=depth_image+(size_t(y)*width+x)*2;

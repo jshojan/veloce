@@ -4592,3 +4592,13 @@ median paired throughput gain, with all five pairs faster and byte-identical
 complete native states. Median throughput was **18.52 to 19.00 VI fields per
 second** across those runs. See [performance details](../../docs/N64-PERFORMANCE.md).
 This remains below the 60-field real-time target; **N64 remains 50% (10/20)**.
+
+## Predecoded RDP combiner cycles (0.96.0)
+
+Triangle draws decode both combiner cycles once, then reuse the selectors for
+each shaded pixel. Five CPU pinned, paired 60-field SM64 course checkpoint
+runs measured **1.1% median paired throughput gain (18.59 to 18.80 VI
+fields/second)**, with all five pairs faster and byte identical complete
+native states. Combiner routing, math, triangle texture and machine component
+gates pass. [Performance details](../../docs/N64-PERFORMANCE.md#predecoded-rdp-combiner-cycles-0960).
+Play remains below real time; **N64 stays 50% (10/20)**.
