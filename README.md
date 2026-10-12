@@ -49,6 +49,8 @@ N64 0.68.0 adds functional cartridge RTC Joybus status, block reads and writes f
 
 N64 0.69.0 adds a bounded two-cycle RDP fog profile used by the private Bob-omb Battlefield course-entry regression. The [original two-cycle cartridge](tests/roms-src/n64/rdp_two_cycle_fog/README.md) grades **262,144 guest cases / 3,407,872 actual framebuffer and DP/MI register words** from a file, including both RDRAM and XBUS command paths. Its independent oracle, executed wrong-capture ROM and damaged-stream controls pass. General two-cycle graphics, complete course gameplay and full-title playability remain pending; N64 stays **50% (10/20)**.
 
+The companion [original textured two-cycle cartridge](tests/roms-src/n64/rdp_two_cycle_texture/README.md) grades another **262,144 guest cases / 3,407,872 actual framebuffer and DP/MI register words**. It loads every 16-bit RGBA16 and IA16 TEXEL0 pattern into TMEM, forwards it through cycle-one COMBINED, and checks framebuffer blending under RDRAM and XBUS delivery. The finite corpus uses point sampling and zero fog factor; general textured two-cycle behavior remains pending. N64 stays **50% (10/20)**.
+
 ### 3DS ARM11 instruction coverage
 
 The 3DS plugin implements the following ARMv6 instruction subsets. Each linked

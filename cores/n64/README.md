@@ -4028,6 +4028,12 @@ grades **262,144 guest cases / 3,407,872 actual framebuffer and DP/MI
 register words** from a file. It sweeps all 8-bit primitive seed/alpha pairs,
 two second-cycle blend profiles and RDRAM/XBUS command paths. An independent
 oracle, executed wrong-capture ROM and damaged-stream controls pass.
+The [original textured two-cycle cartridge](../../tests/roms-src/n64/rdp_two_cycle_texture/README.md)
+grades another **262,144 guest cases / 3,407,872 actual framebuffer and DP/MI
+register words**. It loads every 16-bit RGBA16 and IA16 TEXEL0 pattern through
+TMEM, passes cycle-zero TEXEL0 to cycle-one COMBINED, and checks framebuffer
+blending under both RDRAM and XBUS command delivery. Its first fog factor is
+zero; textured shading, filtering and nonzero fog together remain ungraded.
 
 An A pulse now loads Bob-omb Battlefield. Guest RAM places Mario near
 **(-6525, 0, 6431)** with a course terrain and camera. A 120-field neutral

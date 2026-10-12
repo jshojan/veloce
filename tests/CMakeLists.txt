@@ -1069,6 +1069,10 @@ add_test(NAME n64_rdp_two_cycle_fog COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/rdp_two_cycle_fog/run.py --emulator $<TARGET_FILE:veloce>
     --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_rdp_two_cycle_fog)
 set_tests_properties(n64_rdp_two_cycle_fog PROPERTIES LABELS "accuracy;owned" TIMEOUT 700)
+add_test(NAME n64_rdp_two_cycle_texture COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/rdp_two_cycle_texture/run.py --emulator $<TARGET_FILE:veloce>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_rdp_two_cycle_texture)
+set_tests_properties(n64_rdp_two_cycle_texture PROPERTIES LABELS "accuracy;owned" TIMEOUT 700)
 add_test(NAME n64_rdp_blender_checkpoint_test COMMAND n64_rdp_packet_plugin_test
     $<TARGET_FILE:n64_plugin> ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/rdp_one_cycle_blend/rdp_one_cycle_blend.z64 blender)
 set_tests_properties(n64_rdp_blender_checkpoint_test PROPERTIES LABELS "integration;netplay;accuracy;owned" TIMEOUT 60)
