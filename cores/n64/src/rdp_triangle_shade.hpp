@@ -10,7 +10,7 @@
 #include "rdp_primitive_depth.hpp"
 #include "rdp_dither.hpp"
 namespace n64 {
-// Functional one-cycle RGBA16/RGBA32 and bounded two-cycle fog feedback:
+// Functional one-cycle RGBA16/RGBA32 and bounded two-cycle fog/pass feedback:
 // optional blending/AA/alpha-coverage decisions.
 // Interpolated/primitive Z, ordered RGB/alpha dither; no key or prior-pixel feedback. Affine/perspective
 // texture sampling supports cycle-zero filtering/passthrough, color conversion and
@@ -38,7 +38,7 @@ private:
         const uint64_t ignored=blender?((3ull<<54)|(15ull<<32)|(1ull<<15)):0;
         const uint64_t allowed=ignored|dither|0xffff0000ull|0x340ull|sampling|(blender?0x7cbdull:0)|(two_cycle?(1ull<<52):0);
         if((mode&~allowed) || (blender?!RdpDither::supported(rgb_dither,alpha_dither):(mode&dither)!=dither) || (!blender && ((mode>>30)&3)) ||
-           (two_cycle?(!blender || !RdpBlender::fog_two_cycle_supported(mode) || !combiner.independent_two_cycle(textured,conversion!=nullptr)):
+           (two_cycle?(!blender || !(RdpBlender::fog_two_cycle_supported(mode) || RdpBlender::pass_two_cycle_supported(mode)) || !combiner.independent_two_cycle(textured,conversion!=nullptr)):
                       !combiner.independent_one_cycle(textured,conversion!=nullptr)) ||
            (textured && !(mode&(1ull<<43)) && !conversion))return 1;
         const unsigned size=unsigned(image>>51)&3,bytes=size==2?2:4;

@@ -2,7 +2,7 @@
 #include "rdp_coverage.hpp"
 #include "rdp_depth.hpp"
 namespace n64 {
-// One-cycle color/depth decisions, plus two-cycle fog then framebuffer blend,
+// One-cycle color/depth decisions, plus two-cycle fog/pass then framebuffer blend,
 // with an optional ordered alpha seed.
 // The caller applies final RGB dithering after these decisions.
 // Memory RGB is a retained latch; disabling image reads only replaces its alpha.
@@ -25,13 +25,19 @@ struct RdpBlender {
         return ((mode>>30)&3)==3 && (fog_alpha==1 || fog_alpha==2) &&
                ((mode>>22)&3)==0 && ((mode>>18)&3)==0;
     }
+    static bool pass_two_cycle_supported(uint64_t mode){
+        return ((mode>>30)&3)==0 && ((mode>>26)&3)==3 &&
+               ((mode>>22)&3)==0 && ((mode>>18)&3)==2;
+    }
     Result pixel_two_cycle(uint64_t mode,Color color,unsigned shade_alpha,uint32_t memory,unsigned count,unsigned cvbit,unsigned delta_z,const DepthInput* depth=nullptr,unsigned alpha_dither=0){
-        // BL0 fogs the combiner result with shade or fog-register alpha. In BL1,
-        // source zero is the first-cycle blended RGB, not the combiner RGB.
-        const unsigned alpha=((mode>>26)&3)==1?(fog&255):std::min(255u,shade_alpha+alpha_dither);
-        const Color fog_color=unpack(fog);
-        for(unsigned lane=0;lane<3;++lane)
-            color[lane]=equation(fog_color[lane],color[lane],alpha>>3,(alpha^255)>>3,true);
+        // BL0 receives the second combiner result. It either fogs or passes
+        // that RGB; BL1 source zero receives the BL0 result.
+        if(!pass_two_cycle_supported(mode)){
+            const unsigned alpha=((mode>>26)&3)==1?(fog&255):std::min(255u,shade_alpha+alpha_dither);
+            const Color fog_color=unpack(fog);
+            for(unsigned lane=0;lane<3;++lane)
+                color[lane]=equation(fog_color[lane],color[lane],alpha>>3,(alpha^255)>>3,true);
+        }
         const uint64_t first_mux=(3ull<<30)|(3ull<<26)|(3ull<<22)|(3ull<<18);
         const uint64_t second_mux=(3ull<<28)|(3ull<<24)|(3ull<<20)|(3ull<<16);
         const uint64_t selected=(mode&~first_mux)|((mode&second_mux)<<2);
