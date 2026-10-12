@@ -18,7 +18,7 @@ class Plugin : public emu::IEmulatorPlugin, public emu::INetplayCapable,
 public:
     emu::EmulatorInfo get_info() override {
         static const char* extensions[] = {".z64", ".v64", ".n64", nullptr};
-        return {"N64", "0.62.0", "Veloce", "Experimental N64 core with MIPS III, CP0, RSP, partial RDP, SI/PIF controller polling, 32 KiB Controller Paks on four ports, functional 4/16 Kbit cartridge EEPROM and frontend save persistence. Retail course entry, other save media, complete hardware and physical timing remain pending.",
+        return {"N64", "0.63.0", "Veloce", "Experimental N64 core with MIPS III, CP0, RSP, partial RDP, SI/PIF controller polling, 32 KiB Controller Paks on four ports, functional 4/16 Kbit cartridge EEPROM and frontend save persistence. Retail course entry, other save media, complete hardware and physical timing remain pending.",
                 extensions, 60.0, 93750000, 320, 240};
     }
     const emu::ControllerLayoutInfo* get_controller_layout() override {

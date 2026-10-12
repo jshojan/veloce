@@ -1236,6 +1236,15 @@ add_test(NAME n64_controller_pak_frontend_test COMMAND n64_controller_pak_fronte
     $<TARGET_FILE:n64_plugin> ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/accessory_absent/accessory_absent.z64
     ${CMAKE_BINARY_DIR}/artifacts/owned/n64_controller_pak_frontend)
 set_tests_properties(n64_controller_pak_frontend_test PROPERTIES LABELS "integration;accuracy;controller;save" TIMEOUT 90)
+add_executable(n64_controller_pak_capture cpp/n64_controller_pak_capture.cpp)
+target_include_directories(n64_controller_pak_capture PRIVATE ${CMAKE_SOURCE_DIR}/include ${SDL2_INCLUDE_DIRS})
+target_link_libraries(n64_controller_pak_capture PRIVATE ${SDL2_LIBRARIES})
+add_dependencies(n64_controller_pak_capture n64_plugin)
+add_test(NAME n64_controller_pak COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/controller_pak/run.py
+    --capture $<TARGET_FILE:n64_controller_pak_capture> --plugin $<TARGET_FILE:n64_plugin>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_controller_pak)
+set_tests_properties(n64_controller_pak PROPERTIES LABELS "integration;accuracy;owned;controller;save" TIMEOUT 360)
 add_test(NAME n64_accessory_absent COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/accessory_absent/run.py --emulator $<TARGET_FILE:veloce>
     --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_accessory_absent)

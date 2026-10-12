@@ -4314,3 +4314,13 @@ preserve Pak bytes and insertion status; the production frontend writes one
 gates. Fresh media formatting is deterministic. Original guest filesystem use,
 other accessories, additional save media and physical serial timing remain
 unverified. The fixed N64 delivery score remains **50% (10/20)**.
+
+## N64 original Controller Pak guest corpus (0.63.0)
+
+The [repository-built MIPS cartridge](../tests/roms-src/n64/controller_pak/README.md)
+grades 12,292 full SI reply packets / 98,336 guest register words across
+four ports and 4,096 blocks, followed by 131,072 final Pak bytes. The harness
+rejects an executed wrong-register image and three malformed files. This is
+guest-path evidence for the functional Pak storage profile; filesystem use by
+retail games and physical timing remain unverified. The fixed N64 score is
+**50% (10/20)**.
