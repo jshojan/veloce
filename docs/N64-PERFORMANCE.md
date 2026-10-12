@@ -705,3 +705,34 @@ Veloce build. The ignored comparison report is
 Further RSP work can use the vector arithmetic and transfer distribution as
 a target, but must show a gain against the trained build over longer runs.
 **N64 stays 50% (10/20)**.
+
+## Fixed-size RSP vector transfers (0.108.0)
+
+The common contiguous LBV/LSV/LLV/LDV and SBV/SSV/SLV/SDV paths now select
+constant 1-, 2-, 4-, or 8-byte copies. This lets the host compiler emit
+fixed-width loads and stores instead of a variable-length `memcpy` call.
+LQV/SQV retain their variable count; register or DMEM boundary cases retain
+the byte-mapped path. The guest instruction stream, save format and timing
+model are unchanged.
+
+A 60-field private SM64 course trace counted **3,603,708 vector loads** and
+**2,417,335 vector stores**. The 8-byte form contributed **1,215,522 loads**
+and **868,965 stores**; the 2-byte form contributed **827,648 loads** and
+**1,010,720 stores**. The vector component gate passed **3,145,728
+memory/address/element cases** and **1,048,576 payload/element move pairs**.
+Three original register-output ROMs graded **2,621,440 guest cases /
+56,098,816 captured 64-bit words** with zero mismatches: all twelve load
+forms, all twelve store forms and scalar/vector transfers. The native-state
+and production two-peer TCP netplay gates passed with the candidate plugin.
+
+Five CPU-pinned 60-field SM64 pairs on matched native Release builds measured
+a **3.9% median paired gain**, all five faster. A five-pair 300-field
+confirmation measured **2.4%**, three faster; an earlier three-pair long run
+was mixed. After local GCC PGO training, five 60-field pairs against the prior
+host-trained 0.107.0 plugin measured **1.3%**, three faster, and five
+300-field pairs measured **2.2%**, four faster (**22.73 to 23.25 VI
+fields/second** by median wall time). Every comparison ended in byte-identical
+complete native states with matching CPU attempts and audio counts. Ignored
+reports are at `build/artifacts/performance/n64-transfer-{fixed-short,fixed-long,fixed-confirmation,pgo-vs-tuned-short,pgo-vs-tuned-long}/`.
+The improvement is still far short of 60 VI fields/second; **N64 stays
+50% (10/20)**.
