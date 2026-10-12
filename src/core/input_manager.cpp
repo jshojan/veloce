@@ -42,6 +42,7 @@ bool InputManager::initialize() {
 }
 
 void InputManager::shutdown() {
+    stop_all_rumble();
     for (auto& controller : m_controllers) {
         if (controller.controller) {
             SDL_GameControllerClose(controller.controller);
@@ -321,6 +322,7 @@ void InputManager::open_controller(int device_index) {
 void InputManager::close_controller(int instance_id) {
     for (auto it = m_controllers.begin(); it != m_controllers.end(); ++it) {
         if (it->instance_id == instance_id) {
+            SDL_GameControllerRumble(it->controller,0,0,0);
             std::cout << "Controller disconnected: " << it->name << std::endl;
             const int removed = static_cast<int>(it - m_controllers.begin());
             SDL_GameControllerClose(it->controller);
@@ -436,6 +438,7 @@ int InputManager::get_controller_for_port(int port) const {
 
 void InputManager::set_controller_for_port(int port,int index) {
     if (port<0 || port>=4) return;
+    stop_all_rumble();
     const bool connected=index>=0 && index<get_connected_controller_count();
     const int instance=connected ? m_controllers[index].instance_id : -1;
     if (connected) {
@@ -450,6 +453,18 @@ void InputManager::set_controller_for_port(int port,int index) {
     if (port==0) m_active_controller=connected ? index : -1;
     m_button_state=0;
     m_port_buttons.fill(0);
+}
+
+void InputManager::set_rumble_for_port(int port,bool enabled) {
+    const int index=get_controller_for_port(port);
+    if(index<0 || index>=get_connected_controller_count())return;
+    SDL_GameControllerRumble(m_controllers[index].controller,
+        enabled?0xffff:0,enabled?0xffff:0,enabled?100:0);
+}
+
+void InputManager::stop_all_rumble() {
+    for(const auto& pad:m_controllers)
+        if(pad.controller)SDL_GameControllerRumble(pad.controller,0,0,0);
 }
 
 void InputManager::restore_port_assignments(const std::string& connected_guid) {

@@ -4326,3 +4326,12 @@ tables, the note directory, 122 free pages per Pak and note data from guest read
 The harness rejects an executed wrong-register image and three malformed
 files. Retail game filesystem APIs and physical timing remain unverified.
 The fixed N64 score is **50% (10/20)**.
+
+## N64 Rumble Pak guest corpus (0.65.0)
+
+The [original cartridge](../tests/roms-src/n64/rumble_pak/README.md) grades
+24,596 complete guest SI packets / 196,768 register words across four ports,
+all 2,048 aligned accessory addresses and three motor phases. S035 preserves
+motor state for rollback; a virtual SDL controller gate checks per-port output
+and stopping after reassignment. Physical accessory timing and real controller
+feedback are unmeasured. The fixed N64 score remains **50% (10/20)**.

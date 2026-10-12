@@ -165,6 +165,14 @@ target_compile_definitions(input_hotplug_test PRIVATE SDL_MAIN_HANDLED)
 add_test(NAME input_hotplug_test COMMAND input_hotplug_test)
 set_tests_properties(input_hotplug_test PROPERTIES LABELS "integration;fast;controllers"
     TIMEOUT 30 SKIP_RETURN_CODE 77)
+add_executable(n64_rumble_frontend_test cpp/n64_rumble_frontend_test.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/input_manager.cpp)
+target_include_directories(n64_rumble_frontend_test PRIVATE ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/src ${SDL2_INCLUDE_DIRS})
+target_link_libraries(n64_rumble_frontend_test PRIVATE ${SDL2_LIBRARIES} nlohmann_json::nlohmann_json input_default)
+target_compile_definitions(n64_rumble_frontend_test PRIVATE SDL_MAIN_HANDLED)
+add_test(NAME n64_rumble_frontend_test COMMAND n64_rumble_frontend_test)
+set_tests_properties(n64_rumble_frontend_test PROPERTIES LABELS "integration;fast;controllers" TIMEOUT 30 SKIP_RETURN_CODE 77)
 
 set(VELOCE_TESTS_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 
@@ -1220,6 +1228,16 @@ add_executable(n64_controller_pak_joybus_test cpp/n64_controller_pak_joybus_test
 target_include_directories(n64_controller_pak_joybus_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src ${CMAKE_SOURCE_DIR}/include)
 add_test(NAME n64_controller_pak_joybus_test COMMAND n64_controller_pak_joybus_test)
 set_tests_properties(n64_controller_pak_joybus_test PROPERTIES LABELS "unit;accuracy;controller;save" TIMEOUT 90)
+add_executable(n64_rumble_joybus_test cpp/n64_rumble_joybus_test.cpp)
+target_include_directories(n64_rumble_joybus_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src ${CMAKE_SOURCE_DIR}/include)
+add_test(NAME n64_rumble_joybus_test COMMAND n64_rumble_joybus_test)
+set_tests_properties(n64_rumble_joybus_test PROPERTIES LABELS "unit;accuracy;controller" TIMEOUT 90)
+add_executable(n64_rumble_state_test cpp/n64_rumble_state_test.cpp
+    ${CMAKE_SOURCE_DIR}/cores/n64/src/machine.cpp ${CMAKE_SOURCE_DIR}/cores/n64/src/vr4300.cpp)
+target_include_directories(n64_rumble_state_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src ${CMAKE_SOURCE_DIR}/include)
+add_test(NAME n64_rumble_state_test COMMAND n64_rumble_state_test
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/accessory_absent/accessory_absent.z64)
+set_tests_properties(n64_rumble_state_test PROPERTIES LABELS "unit;accuracy;controller;netplay" TIMEOUT 90)
 add_executable(n64_controller_pak_state_test cpp/n64_controller_pak_state_test.cpp
     ${CMAKE_SOURCE_DIR}/cores/n64/src/machine.cpp ${CMAKE_SOURCE_DIR}/cores/n64/src/vr4300.cpp)
 target_include_directories(n64_controller_pak_state_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src ${CMAKE_SOURCE_DIR}/include)
@@ -1245,6 +1263,15 @@ add_test(NAME n64_controller_pak COMMAND ${Python3_EXECUTABLE}
     --capture $<TARGET_FILE:n64_controller_pak_capture> --plugin $<TARGET_FILE:n64_plugin>
     --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_controller_pak)
 set_tests_properties(n64_controller_pak PROPERTIES LABELS "integration;accuracy;owned;controller;save" TIMEOUT 360)
+add_executable(n64_rumble_pak_capture cpp/n64_rumble_pak_capture.cpp)
+target_include_directories(n64_rumble_pak_capture PRIVATE ${CMAKE_SOURCE_DIR}/include ${SDL2_INCLUDE_DIRS})
+target_link_libraries(n64_rumble_pak_capture PRIVATE ${SDL2_LIBRARIES})
+add_dependencies(n64_rumble_pak_capture n64_plugin)
+add_test(NAME n64_rumble_pak COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/rumble_pak/run.py
+    --capture $<TARGET_FILE:n64_rumble_pak_capture> --plugin $<TARGET_FILE:n64_plugin>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_rumble_pak)
+set_tests_properties(n64_rumble_pak PROPERTIES LABELS "integration;accuracy;owned;controller" TIMEOUT 360)
 add_test(NAME n64_accessory_absent COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/accessory_absent/run.py --emulator $<TARGET_FILE:veloce>
     --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_accessory_absent)

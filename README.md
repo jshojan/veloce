@@ -37,6 +37,8 @@ N64 0.62.0 adds configurable 32 KiB Controller Paks on four ports, addressed Joy
 
 N64 0.64.0 extends the [original Controller Pak MIPS cartridge](tests/roms-src/n64/controller_pak/README.md) to read each fresh Pak’s five system pages, create and read back a synthetic one-page note on each port, then sweep all 4,096 storage blocks. The host checks four copied ID headers, their checksums, both inode tables, the note directory and data chain from guest SI replies. It grades **12,540 guest packets / 100,320 register words** and the final **131,072 Pak bytes**. An executed wrong-register ROM and damaged files are rejected. Retail game filesystem APIs and physical serial timing remain unverified; N64 stays **50% (10/20)**.
 
+N64 0.65.0 adds per-port Rumble Pak accessory commands, SDL controller feedback and S035 motor rollback. An [original MIPS cartridge](tests/roms-src/n64/rumble_pak/README.md) grades **24,596 complete SI packets / 196,768 guest register words** across four ports and all 2,048 aligned accessory addresses in three motor phases. An executed wrong-register ROM, malformed files, virtual SDL feedback routing and state import/rollback are checked. Physical N64 hardware and controller feedback remain unverified; N64 stays **50% (10/20)**.
+
 ### 3DS ARM11 instruction coverage
 
 The 3DS plugin implements the following ARMv6 instruction subsets. Each linked

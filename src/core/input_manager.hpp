@@ -77,6 +77,8 @@ public:
     // Secondary ports own a connection; -1 disconnects the port.
     void set_controller_for_port(int port, int controller_index);
     int get_controller_for_port(int port) const;
+    void set_rumble_for_port(int port,bool enabled);
+    void stop_all_rumble();
 
     // Input binding configuration
     void set_binding(VirtualButton button, const InputBinding& binding, int port = 0);
