@@ -95,6 +95,8 @@ N64 0.88.0 accelerates settled DP clock accounting after RSP steps. Five [paired
 
 N64 0.89.0 batches quiet device clocks while executing every active RSP and DP tick during cached CPU idle. Five [paired SM64 checkpoint runs](docs/N64-PERFORMANCE.md) measured **9.5% more throughput (14.36 to 15.73 VI fields/second)** than 0.88.0, with identical complete states, CPU attempts and audio counts. The differential gate compares **128 full machine continuations** against both unbatched and ordinary CPU execution; original timing/register ROMs, netplay and private course movement pass. Performance remains below real time; **N64 remains 50% (10/20)**.
 
+N64 0.90.0 checks new SP/DP interrupts only after active RSP/DP ticks in cached-idle batches. Five [paired SM64 checkpoint runs](docs/N64-PERFORMANCE.md) measured **4.0% more throughput (16.46 to 17.12 VI fields/second)** than 0.89.0, with identical complete states, CPU attempts and audio counts. The **128-state differential gate** exercises RSP BREAK and DP FullSync interrupts; original interrupt ROMs, netplay and private course movement pass. Performance remains below real time; **N64 remains 50% (10/20)**.
+
 ### 3DS ARM11 instruction coverage
 
 The 3DS plugin implements the following ARMv6 instruction subsets. Each linked

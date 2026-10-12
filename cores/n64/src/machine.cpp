@@ -181,7 +181,10 @@ unsigned Machine::advance_active_rsp_clocks(unsigned maximum) {
     do{
         tick_rsp_dp();
         ++advanced;
-        if(rsp_irq && (cpu.state.cp0[12]&(uint64_t(interrupt_pending())<<8)))break;
+        // Only SP and DP can raise a new interrupt before the next device
+        // event, and they can do so only on an RSP/DP clock.
+        if(rsp_irq && rsp_phase!=2 &&
+           ((sp_interface.interrupt && (mi_mask&1)) || (dp_interrupt && (mi_mask&32))))break;
     }while(advanced<count);
     const uint64_t crystal_total=crystal_phase+uint64_t(advanced)*crystal_rate;
     crystal_phase=crystal_total%cpu_rate;

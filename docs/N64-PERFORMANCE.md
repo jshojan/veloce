@@ -191,3 +191,31 @@ ctest --test-dir build -R '^n64_(idle_clock_test|vi_field_schedule|interrupts|rs
 
 **N64 remains 50% (10/20)**; full-title playability, physical timing and further
 performance work remain pending. CI/CD remains disabled.
+
+## Active RSP interrupt polling (0.90.0)
+
+The active-RSP idle batch now checks SP and DP interrupt levels only after a
+nominal RSP/DP tick. VI, AI, SI and PI cannot change before the next device
+boundary in that batch; initial pending levels are checked before batching.
+The ordinary clock still processes every device event, and the full CPU
+interrupt check runs at each batch boundary.
+
+Five alternating 60-field private SM64 checkpoint pairs against 0.89.0 measured
+**4.0% more throughput**, from **16.46 to 17.12 VI fields/second** on this
+machine. All ten complete native states matched byte for byte, with 94,022,500
+CPU attempts and 48,140 audio sample pairs each. Raw observations and hashes
+are in `build/artifacts/performance/n64-rsp-irq-final/report.json`.
+Performance remains below the 60-field real-time target.
+
+The 128-case complete-machine gate compares the optimized path against both
+unbatched idle clocks and per-instruction CPU execution. It includes actual
+RSP BREAK and DP FullSync interrupt continuations, as well as VI, AI, RTC,
+output-sample and timer boundaries. Original interrupt register ROMs,
+production netplay and private SM64 course continuation pass.
+
+```sh
+ctest --test-dir build -R '^n64_(idle_clock_test|interrupts)$' --output-on-failure
+```
+
+**N64 remains 50% (10/20)**. Full-title playability, physical timing and
+further performance work remain pending. CI/CD remains disabled.
