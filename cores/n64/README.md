@@ -1,6 +1,6 @@
 # Experimental Nintendo 64 core plugin
 
-Current N64 retail evidence: [Extended Mario intro and timed captures](#extended-mario-intro-and-timed-retail-captures). Earlier increment reports are historical.
+Current N64 retail evidence: [Private Super Mario 64 painting-room continuation](#private-super-mario-64-painting-room-continuation-2026-10-11). Earlier increment reports are historical.
 
 <!-- completion:start -->
 ## Completion percentage
@@ -19,7 +19,7 @@ Remaining: Cached SI/PIF reads refresh digital and signed-byte analog input. The
 `n64_plugin` builds `n64.so`/`n64.dll`/`n64.dylib` and implements emulator ABI v2.
 The frontend discovers it alongside the other core plugins. It executes original
 MIPS III integer homebrew ROMs with 64-bit GPRs, big-endian memory, delay slots,
-HI/LO, and basic CP0 exception context. An experimental NTSC CIC-6102 handoff accepts recognized native cartridges. The private SM64 US route reaches the castle lobby and main hall; native PIF/IPL boot, course entry and full-title playability remain unverified.
+HI/LO, and basic CP0 exception context. An experimental NTSC CIC-6102 handoff accepts recognized native cartridges. The private SM64 US route reaches the zero-star door and Bob-omb painting room; native PIF/IPL boot, course entry and full-title playability remain unverified.
 Full-core completion is unknown; the available corpus measures defined results
 on selected operands, not a percentage of N64 hardware implemented.
 
@@ -3977,6 +3977,32 @@ python3 tests/n64_retail_lobby.py /path/to/private/sm64-us.z64 \
 ```
 
 Course entry, Super Mario 64 save-file behavior and full-title playability remain unverified.
+The fixed N64 delivery checklist remains **50% (10/20)**.
+
+## Private Super Mario 64 painting-room continuation (2026-10-11)
+
+From a private ground-floor checkpoint at VI field 74040, a 600-field stick
+route reaches the left zero-star door and enters the Bob-omb painting room.
+Guest RAM records `ACT_PUSHING_DOOR` (`00001321`) at approximately
+**(-3087, 205, -815)**, close to the door's position in the game's
+[published collision data](https://github.com/n64decomp/sm64/blob/master/levels/castle_inside/areas/1/collision.inc.c).
+The final state places Mario at **(-3423, 205, -793)** inside the room; its
+local framebuffer shows the Bob-omb painting. A matched 80-field neutral
+control leaves Mario at the door approach and does not enter the room.
+
+The [private painting-room grader](../../tests/n64_retail_painting_room.py)
+checks guest position, action and camera state, executes the neutral control,
+and fingerprints the ROM, source, executable, checkpoint, inputs, states and
+captured frames. The ROM and all generated artifacts stay outside tracked
+source files.
+
+```sh
+python3 tests/n64_retail_painting_room.py /path/to/private/sm64-us.z64 \
+  --checkpoint build/artifacts/retail/castle-entry/middle-yp.state
+```
+
+The room is a verified navigation checkpoint. The painting warp, course
+playability, save-file behavior and full-title playability remain unverified.
 The fixed N64 delivery checklist remains **50% (10/20)**.
 
 ## Functional 4 Kbit cartridge EEPROM (0.58.0)
