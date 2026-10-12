@@ -32,6 +32,7 @@ static void prepare(Machine& m,unsigned scenario,bool field){
             m.sp_interface.status=64;
             m.mi_mask|=1;
             m.sp[4096]=0;m.sp[4097]=0;m.sp[4098]=0;m.sp[4099]=13;
+            m.sp_interface.invalidate_imem();
         }
     }
     if(scenario&8){

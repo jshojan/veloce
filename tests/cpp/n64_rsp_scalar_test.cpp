@@ -7,7 +7,7 @@ static void require(bool ok,const char* m){if(!ok)throw std::runtime_error(m);}
 static int64_t signed32(uint32_t x){return x<0x80000000u?int64_t(x):int64_t(x)-0x100000000ll;}
 static uint32_t arithmetic(unsigned op,uint32_t a,uint32_t imm){const int64_t signed_imm=imm<32768?imm:int64_t(imm)-65536;
  switch(op){case 8:case 9:return uint32_t(uint64_t(a)+uint64_t(signed_imm));case 10:return signed32(a)<signed_imm;case 11:return uint64_t(a)<(signed_imm<0?uint64_t(signed_imm+0x100000000ll):uint64_t(signed_imm));case 12:return a&imm;case 13:return a|imm;case 14:return a^imm;default:return imm*65536;}}
-static void opcode(n64::Machine& m,uint32_t ins,uint32_t pc=0){for(unsigned n=0;n<4;++n)m.sp[4096+((pc+n)&4095)]=uint8_t(ins>>(24-n*8));m.sp_interface.pc=pc;m.rsp.redirect(pc);m.sp_interface.status=0;}
+static void opcode(n64::Machine& m,uint32_t ins,uint32_t pc=0){for(unsigned n=0;n<4;++n)m.sp[4096+((pc+n)&4095)]=uint8_t(ins>>(24-n*8));m.sp_interface.invalidate_imem();m.sp_interface.pc=pc;m.rsp.redirect(pc);m.sp_interface.status=0;}
 static void step(n64::Machine& m){require(m.rsp.step(m.sp_interface,m.dp_interface,m.sp,m.ram),"scalar instruction blocked");}
 int main(int argc,char** argv){try{
  require(argc==2,"ROM required");std::ifstream f(argv[1],std::ios::binary);std::vector<uint8_t> rom{std::istreambuf_iterator<char>(f),{}};n64::Machine m;require(m.load(rom.data(),rom.size()),"ROM load");auto& r=m.rsp;auto& sp=m.sp_interface;
@@ -48,7 +48,7 @@ int main(int argc,char** argv){try{
   const uint32_t target=uint32_t(int64_t(pc)+4+(imm<32768?int64_t(imm):int64_t(imm)-65536)*4)&4092;step(m);
   require(sp.pc==((pc+4)&4095) && r.next_pc==(taken?target:(pc+8)&4095) && r.delay_slot,"all PC slots/conditions/displacement endpoints");
   if(kind>=6)require(r.gpr[31]==((pc+8)&4095),"unconditional REGIMM link");
-  for(unsigned n=0;n<4;++n)m.sp[4096+((sp.pc+n)&4095)]=uint8_t(13>>(24-n*8));
+  for(unsigned n=0;n<4;++n)m.sp[4096+((sp.pc+n)&4095)]=uint8_t(13>>(24-n*8));m.sp_interface.invalidate_imem();
   step(m);require(sp.pc==(taken?target:(pc+8)&4095) && sp.status==3,"BREAK in taken/untaken delay slot");++branches;
  }
  for(unsigned pc=0;pc<4096;pc+=4)for(unsigned rd=0;rd<32;++rd){
@@ -68,6 +68,16 @@ int main(int argc,char** argv){try{
  for(unsigned n=0;n<8;++n)m.sp[n]=uint8_t(n*17+91);
  opcode(m,0x40821800);r.gpr[2]=7;step(m);for(unsigned n=0;n<8;++n)require(m.ram[0x700000+n]==uint8_t(n*17+91),"MTC0 starts real shared DMA into RAM");
  opcode(m,0x40822000);r.gpr[2]=0x400;step(m);require(sp.status==128,"MTC0 status signal command");
+ // CPU stores and SP DMA both replace a previously executed IMEM word.
+ m.reset();opcode(m,0);step(m);
+ require(m.write(n64::sign32(0xa4001000),4,13),"CPU IMEM write");sp.pc=0;sp.status=0;r.redirect(0);step(m);
+ require(sp.status==3,"CPU IMEM write invalidates instruction cache");
+ m.ram[0x100]=0;m.ram[0x101]=0;m.ram[0x102]=0;m.ram[0x103]=0;
+ require(m.write(n64::sign32(0xa4040000),4,0x1000) && m.write(n64::sign32(0xa4040004),4,0x100) &&
+         m.write(n64::sign32(0xa4040008),4,7),"DMA to IMEM");
+ sp.pc=0;sp.status=0;r.redirect(0);step(m);require(sp.pc==4 && sp.status==0,"DMA IMEM write invalidates instruction cache");
+ require(m.write_masked(n64::sign32(0xa4001000),4,13,15),"CPU masked IMEM write");
+ sp.pc=0;sp.status=0;r.redirect(0);step(m);require(sp.status==3,"CPU masked IMEM write invalidates instruction cache");
 
  sp.reset();opcode(m,0x40043800);step(m);require(r.gpr[4]==0 && sp.semaphore==1,"MFC0 acquires semaphore");opcode(m,0x40843800);r.gpr[4]=123;step(m);require(!sp.semaphore,"MTC0 releases semaphore");
  for(uint32_t bad:{0x40048000u,0x4a000012u,0x70000000u}){opcode(m,bad);const auto before=r.gpr;const auto count=r.instructions;require(!r.step(sp,m.dp_interface,m.sp,m.ram) && r.gpr==before && sp.pc==0 && sp.status==1 && r.blocked && r.blocked_word==bad && r.instructions==count,"unsupported control/vector operation never fabricates BREAK or IRQ");}
@@ -76,7 +86,7 @@ int main(int argc,char** argv){try{
  // CPU clock and MI see actual RSP BREAK, then CPU ack clears the shared level.
  m.reset();opcode(m,13);sp.status=64;m.mi_mask=1;m.rsp_phase=1;m.cpu.state.cp0[12]=0x401;require(m.write(n64::sign32(0xa0000400),4,0),"CPU NOP");m.cpu.step();require(m.cpu.exception_taken && sp.interrupt && (m.cpu.state.cp0[13]&0x400),"real RSP BREAK drives CPU MI interrupt");require(m.write(n64::sign32(0xa4040010),4,8) && !m.interrupt_pending(),"CPU acknowledges RSP interrupt");
  // Pending branch, fractional phase, blocked diagnostics and all registers survive state replay.
- m.reset();opcode(m,0x10000006);step(m);for(unsigned n=0;n<4;++n)m.sp[4096+4+n]=uint8_t(13>>(24-n*8));m.rsp_phase=2;
+ m.reset();opcode(m,0x10000006);step(m);for(unsigned n=0;n<4;++n)m.sp[4096+4+n]=uint8_t(13>>(24-n*8));m.sp_interface.invalidate_imem();m.rsp_phase=2;
  std::vector<uint8_t> saved,after,replay;require(m.save(saved),"RSP save");m.clock();m.save(after);require(m.restore(saved),"RSP restore");m.clock();m.save(replay);require(after==replay,"pending RSP branch/BREAK exact replay");
  for(unsigned field=0;field<38;++field){if(field==33)continue;auto bad=saved;const uint64_t invalid=field==0?1:field<32 || field==36?0x100000000ull:field==32?1:field==37?3:2;const size_t at=bad.size()-1056280+field*8;for(unsigned n=0;n<8;++n)bad[at+n]=uint8_t(invalid>>(56-n*8));require(m.restore(saved) && !m.restore(bad) && m.save(replay) && replay==saved,"invalid RSP state rejected atomically");}
  auto old=saved;old.resize(old.size()-1056280);old[6]='1';old[7]='3';require(m.restore(old) && r.gpr==std::array<uint32_t,32>{} && !r.instructions && r.next_pc==((sp.pc+4)&4095) && !m.rsp_phase,"S013 neutral scalar/phase conversion preserves SP PC");

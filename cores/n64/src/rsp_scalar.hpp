@@ -14,6 +14,8 @@ public:
     uint32_t next_pc=4,blocked_word=0;
     uint64_t instructions=0;
     bool delay_slot=false,blocked=false;
+    std::array<uint32_t,1024> imem_words{};
+    std::array<uint64_t,1024> imem_tags{};
     using State=std::array<uint64_t,37>;
     void reset(){*this=RspScalar{};}
     void redirect(uint32_t pc){next_pc=(pc+4)&4092;delay_slot=blocked=false;blocked_word=0;}
@@ -22,12 +24,17 @@ public:
         if(s[0] || (s[32]&~4092ull) || s[34]>1 || s[35]>1 || s[36]>0xffffffffu)return false;
         for(unsigned n=0;n<32;++n)if(s[n]>0xffffffffu)return false;
         for(unsigned n=0;n<32;++n)gpr[n]=uint32_t(s[n]);
-        next_pc=uint32_t(s[32]);instructions=s[33];delay_slot=bool(s[34]);blocked=bool(s[35]);blocked_word=uint32_t(s[36]);return true;
+        next_pc=uint32_t(s[32]);instructions=s[33];delay_slot=bool(s[34]);blocked=bool(s[35]);blocked_word=uint32_t(s[36]);imem_tags.fill(0);return true;
     }
     bool step(SpInterface& control,DpInterface& dp,std::array<uint8_t,8192>& memory,std::vector<uint8_t>& ram){
         if(control.status&1)return false;
         const uint32_t pc=control.pc,old_next=next_pc;
-        uint32_t ins=0;for(unsigned n=0;n<4;++n)ins=(ins<<8)|memory[4096+((pc+n)&4095)];
+        const unsigned slot=pc>>2;
+        if(imem_tags[slot]!=control.imem_generation){
+            uint32_t word=0;for(unsigned n=0;n<4;++n)word=(word<<8)|memory[4096+((pc+n)&4095)];
+            imem_words[slot]=word;imem_tags[slot]=control.imem_generation;
+        }
+        const uint32_t ins=imem_words[slot];
         const unsigned op=ins>>26,rs=(ins>>21)&31,rt=(ins>>16)&31,rd=(ins>>11)&31,sa=(ins>>6)&31,fn=ins&63;
         const uint32_t a=gpr[rs],b=gpr[rt],imm=(ins&0xffff)|((ins&0x8000)?0xffff0000u:0);
         control.pc=old_next;next_pc=(old_next+4)&4092;const bool old_delay=delay_slot;delay_slot=false;

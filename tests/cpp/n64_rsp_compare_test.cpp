@@ -29,7 +29,7 @@ static constexpr unsigned lane_map[16][8]={{0,1,2,3,4,5,6,7},{0,1,2,3,4,5,6,7},{
 static unsigned packed(const std::array<uint16_t,3>& f,unsigned i){return (f[0]/(1u<<i)%2)+2*(f[0]/(1u<<(i+8))%2)+4*(f[1]/(1u<<i)%2)+8*(f[1]/(1u<<(i+8))%2)+16*(f[2]/(1u<<i)%2);}
 static void flags(std::array<uint16_t,3>& f,unsigned bits,unsigned i){f[0]|=uint16_t(((bits%2)+256*(bits/2%2))<<i);f[1]|=uint16_t(((bits/4%2)+256*(bits/8%2))<<i);f[2]|=uint16_t((bits/16%2)<<i);}
 static uint32_t ins(unsigned fn,unsigned e,unsigned vs,unsigned vt,unsigned vd){return 0x4a000000|(e<<21)|(vt<<16)|(vs<<11)|(vd<<6)|fn;}
-static void install(n64::Machine& m,uint32_t word){for(unsigned b=0;b<4;++b)m.sp[4096+b]=uint8_t(word>>(24-b*8));m.sp_interface.pc=0;m.sp_interface.status=0;m.rsp.next_pc=4;m.rsp.delay_slot=false;m.rsp.blocked=false;}
+static void install(n64::Machine& m,uint32_t word){for(unsigned b=0;b<4;++b)m.sp[4096+b]=uint8_t(word>>(24-b*8));m.sp_interface.invalidate_imem();m.sp_interface.pc=0;m.sp_interface.status=0;m.rsp.next_pc=4;m.rsp.delay_slot=false;m.rsp.blocked=false;}
 static void step(n64::Machine& m,uint32_t word){install(m,word);m.rsp.step(m.sp_interface,m.dp_interface,m.sp,m.ram);}
 int main(int argc,char** argv){try{
  // Complete 16-bit VS sweep against eight boundary/relationship partners and

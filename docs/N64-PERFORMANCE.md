@@ -323,3 +323,17 @@ The private SM64 course continuation, production netplay and trained-plugin
 RDP checkpoint pass.
 Performance is still below the 60-field real-time target; **N64 remains
 50% (10/20)** of the fixed delivery checklist.
+
+## Cached RSP instruction fetch (0.94.0)
+
+The RSP caches a fetched 32-bit IMEM word by aligned PC and a host-only IMEM
+generation. CPU IMEM stores and SP DMA into IMEM advance the generation; reset
+and state restore discard old entries. This leaves the native state format and
+guest timing unchanged. Five alternating 300-field SM64 course-checkpoint
+pairs on ordinary optimized builds measured **3.3% more throughput (18.39 to
+19.00 VI fields/second)** than 0.93.0. All complete native states, CPU attempt
+counts and audio counts matched. Raw results are in ignored
+`build/artifacts/performance/n64-rsp-imem-cache-graded/report.json`. The RSP
+unit suite, original RSP acceleration ROM corpus, private course continuation
+and production netplay pass. The core remains below the 60-field real-time
+target and **N64 remains 50% (10/20)**.

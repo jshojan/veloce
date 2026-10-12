@@ -13,7 +13,7 @@ static uint32_t reference(bool root,uint32_t raw){if(raw==0)return 2147483647;if
 static constexpr unsigned lane_map[16][8]={{0,1,2,3,4,5,6,7},{0,1,2,3,4,5,6,7},{0,0,2,2,4,4,6,6},{1,1,3,3,5,5,7,7},{0,0,0,0,4,4,4,4},{1,1,1,1,5,5,5,5},{2,2,2,2,6,6,6,6},{3,3,3,3,7,7,7,7},{0,0,0,0,0,0,0,0},{1,1,1,1,1,1,1,1},{2,2,2,2,2,2,2,2},{3,3,3,3,3,3,3,3},{4,4,4,4,4,4,4,4},{5,5,5,5,5,5,5,5},{6,6,6,6,6,6,6,6},{7,7,7,7,7,7,7,7}};
 static void flags(std::array<uint16_t,3>& f,unsigned bits,unsigned i){f[0]|=uint16_t(((bits%2)+256*(bits/2%2))<<i);f[1]|=uint16_t(((bits/4%2)+256*(bits/8%2))<<i);f[2]|=uint16_t((bits/16%2)<<i);}
 static uint32_t ins(unsigned fn,unsigned e,unsigned vs,unsigned vt,unsigned vd){return 0x4a000000|(e<<21)|(vt<<16)|(vs<<11)|(vd<<6)|fn;}
-static void install(n64::Machine& m,uint32_t word){for(unsigned b=0;b<4;++b)m.sp[4096+b]=uint8_t(word>>(24-b*8));m.sp_interface.pc=0;m.sp_interface.status=0;m.rsp.next_pc=4;m.rsp.delay_slot=false;m.rsp.blocked=false;}
+static void install(n64::Machine& m,uint32_t word){for(unsigned b=0;b<4;++b)m.sp[4096+b]=uint8_t(word>>(24-b*8));m.sp_interface.invalidate_imem();m.sp_interface.pc=0;m.sp_interface.status=0;m.rsp.next_pc=4;m.rsp.delay_slot=false;m.rsp.blocked=false;}
 static void step(n64::Machine& m,uint32_t word){install(m,word);m.rsp.step(m.sp_interface,m.dp_interface,m.sp,m.ram);}
 int main(int argc,char** argv){try{
  uint64_t values=0;

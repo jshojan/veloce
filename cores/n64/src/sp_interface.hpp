@@ -10,7 +10,10 @@ public:
     using State=std::array<uint32_t,9>;
     uint32_t pending_sp=0,pending_dram=0,active_sp=0,active_dram=0,length=0;
     uint32_t status=1,pc=0,semaphore=0,interrupt=0;
-    void reset() {*this=SpInterface{};}
+    // Host-only instruction-memory generation; save states restore a fresh cache.
+    uint64_t imem_generation=1;
+    void invalidate_imem(){++imem_generation;if(!imem_generation)++imem_generation;}
+    void reset() {const auto generation=imem_generation;*this=SpInterface{};imem_generation=generation;invalidate_imem();}
     bool read(unsigned reg,uint64_t& value) {
         switch(reg) {
         case 0:value=active_sp;break;case 1:value=active_dram;break;
@@ -35,7 +38,7 @@ public:
         // Settled lengths are reset zero or terminal count/length with retained stride.
         if(s[4] && (s[4]&0xfffff)!=0xff8)return false;
         pending_sp=s[0];pending_dram=s[1];active_sp=s[2];active_dram=s[3];length=s[4];
-        status=s[5];pc=s[6];semaphore=s[7];interrupt=s[8];return true;
+        status=s[5];pc=s[6];semaphore=s[7];interrupt=s[8];invalidate_imem();return true;
     }
 private:
     static void pair(uint32_t command,unsigned bit,uint32_t& target,uint32_t mask) {
@@ -62,6 +65,7 @@ private:
             auto& dram=ram[pending_dram+row*(bytes+skip)+byte];
             if(to_ram)dram=sp;else sp=dram;
         }
+        if(!to_ram && bank)invalidate_imem();
         if(to_ram && hidden)for(uint32_t row=0;row<rows;++row){const auto address=pending_dram+row*(bytes+skip);hidden->ordinary_burst(address,ram.data()+address,bytes);}
         active_sp=bank|((start+rows*bytes)&4095);
         active_dram=(pending_dram+rows*bytes+(rows-1)*skip)&0xfffff8;
