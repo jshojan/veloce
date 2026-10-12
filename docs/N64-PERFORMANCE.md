@@ -162,3 +162,32 @@ ctest --test-dir build -R '^n64_(dp_test|dp_idle_clock_test|idle_clock_test)$' -
 
 **N64 remains 50% (10/20)**. Full-title playability, physical timing and
 further performance work remain pending. CI/CD remains disabled.
+
+## Active RSP idle-clock batching (0.89.0)
+
+During a cached CPU idle loop, the core now executes every RSP and DP tick while
+advancing quiet VI, AI, output-sample and cartridge RTC phases arithmetically.
+Each batch stops before their next event. SP/DP interrupt delivery can stop it
+earlier. The ordinary event clock handles those boundaries. RSP/DP work and
+nominal counters stay in execution order; host controls and diagnostics are
+excluded from save and netplay state.
+
+Five alternating 60-field private SM64 checkpoint pairs against 0.88.0 measured
+**9.5% more throughput**, from **14.36 to 15.73 VI fields/second** on this
+machine. All ten complete native states matched byte for byte, with 94,022,500
+CPU attempts and 48,140 observed stereo sample pairs in every run. Raw timings
+and hashes are in `build/artifacts/performance/n64-active-batch-final/report.json`.
+The core remains below the 60-field real-time target.
+
+The expanded machine test compares 128 complete continuations against both an
+unbatched idle clock and the ordinary per-instruction CPU path. Its cases cross
+VI, AI, output sample, RTC, active RSP, BREAK and DP FullSync boundaries. Original
+VI field scheduling, interrupt, RSP and DP register ROMs, production netplay and
+private SM64 course continuation also pass.
+
+```sh
+ctest --test-dir build -R '^n64_(idle_clock_test|vi_field_schedule|interrupts|rsp_scalar_test|dp_test)$' --output-on-failure
+```
+
+**N64 remains 50% (10/20)**; full-title playability, physical timing and further
+performance work remain pending. CI/CD remains disabled.

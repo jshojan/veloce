@@ -116,6 +116,7 @@ void Machine::run_frontend_frame() {
             do{
                 const unsigned skipped=skip_inactive_clocks(idle-advanced);
                 if(skipped)advanced+=skipped;
+                else if(const unsigned active=advance_active_rsp_clocks(idle-advanced))advanced+=active;
                 else{clock();++advanced;}
                 pending=interrupt_pending();
                 if(interruptible && (cpu.state.cp0[12]&(uint64_t(pending)<<8)))break;
@@ -159,8 +160,40 @@ unsigned Machine::skip_inactive_clocks(unsigned maximum) {
     if(rtc)joybus.rtc.clocks+=count;
     return unsigned(count);
 }
-void Machine::clock() {
-    // One nominal CPU clock per interpreter attempt: physical CPI is unmodeled.
+unsigned Machine::advance_active_rsp_clocks(unsigned maximum) {
+    if(!active_rsp_batch_enabled || (sp_interface.status&1))return 0;
+    // RSP and DP still execute on every nominal tick. Stop before the next
+    // VI line, AI fetch, host sample or RTC second so their event path stays
+    // in clock(); an SP/DP interrupt can stop this batch even earlier.
+    constexpr uint64_t cpu_rate=93750000,crystal_rate=48681818;
+    uint64_t count=maximum;
+    const auto before_crystal_event=[&](uint64_t ticks){
+        count=std::min(count,(ticks*cpu_rate-1-crystal_phase)/crystal_rate);
+    };
+    if(video_interface.active())before_crystal_event(video_interface.period()-video_interface.phase);
+    if(audio_interface.bitrate)before_crystal_event(audio_interface.dacrate+1-audio_interface.phase);
+    count=std::min(count,(cpu_rate-1-output_phase)/48000);
+    const bool rtc=joybus.rtc.present && !(joybus.rtc.status&0x80);
+    if(rtc)count=std::min(count,CartridgeRtc::clocks_per_second-1-joybus.rtc.clocks);
+    if(!count)return 0;
+    const bool rsp_irq=(cpu.state.cp0[12]&0x401)==0x401 && (mi_mask&33);
+    unsigned advanced=0;
+    do{
+        tick_rsp_dp();
+        ++advanced;
+        if(rsp_irq && (cpu.state.cp0[12]&(uint64_t(interrupt_pending())<<8)))break;
+    }while(advanced<count);
+    const uint64_t crystal_total=crystal_phase+uint64_t(advanced)*crystal_rate;
+    crystal_phase=crystal_total%cpu_rate;
+    const uint64_t ticks=crystal_total/cpu_rate;
+    if(video_interface.active())video_interface.phase+=uint32_t(ticks);
+    if(audio_interface.bitrate)audio_interface.phase+=uint32_t(ticks);
+    output_phase+=uint64_t(advanced)*48000;
+    if(rtc)joybus.rtc.clocks+=advanced;
+    active_rsp_batched_clocks+=advanced;
+    return advanced;
+}
+void Machine::tick_rsp_dp() {
     rsp_phase+=2;if(rsp_phase>=3){
         rsp_phase-=3;rsp.step(sp_interface,dp_interface,sp,ram);
         // A settled command stream only advances the nominal pipeline
@@ -174,6 +207,10 @@ void Machine::clock() {
             }
         }else dp_interface.tick(ram,sp,dp_interrupt,&hidden);
     }
+}
+void Machine::clock() {
+    // One nominal CPU clock per interpreter attempt: physical CPI is unmodeled.
+    tick_rsp_dp();
     joybus.rtc.tick();
     crystal_phase+=48681818;
     if(crystal_phase>=93750000) {crystal_phase-=93750000;audio_interface.tick(ram);video_interface.tick();}
