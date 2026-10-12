@@ -4774,3 +4774,13 @@ netplay passed. The plugin remains host-specific and local; normal builds use
 the portable default. See [performance details](../../docs/N64-PERFORMANCE.md#host-trained-local-veloce-build-october-2026).
 Measured throughput remains about **23 VI fields/second** for this course
 continuation, below real time. **N64 stays 50% (10/20)**.
+
+## RSP performance target (October 2026)
+
+A temporary guest instruction counter measured **38,237,541 RSP instructions**
+in a 60-field SM64 course continuation. COP2 vector arithmetic contributed
+**13,598,392**, vector loads **3,603,708**, and vector stores **2,417,335**.
+The hottest individual IMEM address was under 0.6% of the total. A native
+LTO/PGO build lost a direct five-pair comparison against the installed native
+PGO plugin, so it was not installed. See [the measurements](../../docs/N64-PERFORMANCE.md#rsp-guest-instruction-distribution-october-2026).
+**N64 stays 50% (10/20)**.

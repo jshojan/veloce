@@ -681,3 +681,27 @@ netplay, and production two-peer TCP netplay passed with the trained plugin.
 The benchmark includes ROM/state loading and state writing, so these numbers
 are not a GUI frame-rate measurement. Full-speed play still needs substantial
 CPU, RSP and software RDP work; **N64 stays 50% (10/20)**.
+
+## RSP guest instruction distribution (October 2026)
+
+A temporary counter in the RSP interpreter recorded the guest opcode at
+every executed IMEM address during a 60-field private SM64 course
+continuation. It counted **38,237,541 RSP instructions**: **13,598,392 COP2
+vector arithmetic instructions**, **3,603,708 vector loads**, and
+**2,417,335 vector stores**. Vector function codes `0x0e` and `0x0f`
+accounted for **1,998,647** and **1,663,597** executions, respectively.
+The hottest single IMEM address ran **222,540** times, under 0.6% of all
+RSP instructions. The counters were diagnostic host instrumentation and are
+excluded from the shipped plugin and native state.
+
+A separate host-native, link-time-optimized Release build was 3.1% faster
+than the portable core by median paired throughput in five 60-field pairs.
+After training it with GCC PGO, five direct pairs against the installed
+host-native PGO plugin showed **0.981× median paired throughput**, with only
+two pairs faster. Complete native states matched. The link-time build was not
+installed; the previously measured host-native PGO plugin remains the local
+Veloce build. The ignored comparison report is
+`build/artifacts/performance/n64-lto-pgo-vs-tuned-short/report.json`.
+Further RSP work can use the vector arithmetic and transfer distribution as
+a target, but must show a gain against the trained build over longer runs.
+**N64 stays 50% (10/20)**.
