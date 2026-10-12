@@ -3,6 +3,7 @@
 #include "rdram.hpp"
 #include "hidden_rdram.hpp"
 #include "pif_joybus.hpp"
+#include "flash_ram.hpp"
 #include "sp_interface.hpp"
 #include "rsp_scalar.hpp"
 #include "audio_interface.hpp"
@@ -41,6 +42,7 @@ public:
     emu::FrameScheduling frame_scheduling=emu::FrameScheduling::InstructionQuantum;
     std::array<uint8_t, 64> pif{};
     PifJoybus joybus;
+    FlashRam flash;
     uint32_t si_address = 0, input_buttons = 0;
     std::array<uint32_t,3> other_input_buttons{};
     bool si_interrupt = false;
@@ -71,7 +73,8 @@ public:
     static constexpr size_t current_state_size=704+ram_size+8192+75888+304+dp_state_size+vector_state_size+accumulator_state_size+combiner_state_size+depth_image_state_size+divider_state_size+texture_state_size+tmem_state_size+controller_state_size+packet_state_size+conversion_state_size+blender_state_size+hidden_state_size+primitive_depth_state_size+joybus_state_size+PifJoybus::Eeprom{}.size()+8;
     static constexpr size_t pak_state_size=current_state_size+PifJoybus::PakStorage{}.size()+8;
     static constexpr size_t rumble_state_size=pak_state_size+8;
-    size_t state_size() const {return !sram.empty()?rumble_state_size+sram.size()+8:joybus.has_rumble_state()?rumble_state_size:joybus.has_pak_state()?pak_state_size:current_state_size;}
+    static constexpr size_t flash_state_size=rumble_state_size+FlashRam::bytes+128+32;
+    size_t state_size() const {return flash.enabled?flash_state_size:!sram.empty()?rumble_state_size+sram.size()+8:joybus.has_rumble_state()?rumble_state_size:joybus.has_pak_state()?pak_state_size:current_state_size;}
     uint64_t rsp_phase=0;
     static constexpr size_t rsp_state_size=304;
     AudioInterface audio_interface;

@@ -4121,3 +4121,17 @@ snapshots include the media for rollback. Direct aligned 32-bit SRAM I/O is
 also supported. Physical PI timing, out-of-extent mirroring, odd/unaligned
 DMA, FlashRAM, retail save APIs and full-title playability remain unverified.
 The fixed N64 delivery score remains **50% (10/20)**.
+
+## Cartridge FlashRAM commands, PI DMA and saves (0.67.0)
+
+The [original MIPS cartridge](../../tests/roms-src/n64/cartridge_flash/README.md)
+programs and reads every 128-byte FlashRAM page through guest PI commands and
+DMA. The host grades **1,024 cases / 20,480 actual register words** and all
+**131,072 saved bytes**; an executed wrong-register cartridge and damaged-file
+controls fail. Component tests exercise silicon ID reads, both known Macronix
+address models, all eight 16 KiB sector erases, chip erase and S037 rollback
+during pending page programming. The frontend reloads `.sav` media across
+sessions and rejects malformed sizes. Twenty known native cartridge IDs select
+FlashRAM, with an existing 128 KiB save available for unknown native boards.
+Reset retains media. Physical PI timing, busy and stale-status behavior, retail
+save APIs and full-title playability remain unverified. N64 stays **50% (10/20)**.

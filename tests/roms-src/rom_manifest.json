@@ -21944,6 +21944,17 @@
       "source_type": "original",
       "suite": "cache_coherence"
     },
+    "n64/cartridge_flash/cartridge_flash.z64": {
+      "build_command": "python3 tests/roms-src/n64/cartridge_flash/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "a67a0c58df0e28ac391c84fecbffdffbed643e1c2014522eaee3053888b71133",
+      "source_repo": "tests/roms-src/n64/cartridge_flash/build.py",
+      "source_sha": "7ef61529ff3b3746b54919eecc36045d90f09f4291ef1a4f55de06c7e44b46b5",
+      "source_type": "original",
+      "suite": "cartridge_flash"
+    },
     "n64/cartridge_sram/cartridge_sram.z64": {
       "build_command": "python3 tests/roms-src/n64/cartridge_sram/build.py",
       "console": "n64",

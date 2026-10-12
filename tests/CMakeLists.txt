@@ -1244,6 +1244,12 @@ target_include_directories(n64_sram_state_test PRIVATE ${CMAKE_SOURCE_DIR}/cores
 add_test(NAME n64_sram_state_test COMMAND n64_sram_state_test
     ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/accessory_absent/accessory_absent.z64)
 set_tests_properties(n64_sram_state_test PROPERTIES LABELS "unit;accuracy;save;netplay" TIMEOUT 90)
+add_executable(n64_flash_state_test cpp/n64_flash_state_test.cpp
+    ${CMAKE_SOURCE_DIR}/cores/n64/src/machine.cpp ${CMAKE_SOURCE_DIR}/cores/n64/src/vr4300.cpp)
+target_include_directories(n64_flash_state_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src ${CMAKE_SOURCE_DIR}/include)
+add_test(NAME n64_flash_state_test COMMAND n64_flash_state_test
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/accessory_absent/accessory_absent.z64)
+set_tests_properties(n64_flash_state_test PROPERTIES LABELS "unit;accuracy;save;netplay" TIMEOUT 90)
 add_executable(n64_controller_pak_state_test cpp/n64_controller_pak_state_test.cpp
     ${CMAKE_SOURCE_DIR}/cores/n64/src/machine.cpp ${CMAKE_SOURCE_DIR}/cores/n64/src/vr4300.cpp)
 target_include_directories(n64_controller_pak_state_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src ${CMAKE_SOURCE_DIR}/include)
@@ -1304,6 +1310,25 @@ add_test(NAME n64_sram_frontend_test COMMAND n64_sram_frontend_test
     $<TARGET_FILE:n64_plugin> ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/cartridge_sram/cartridge_sram.z64
     ${CMAKE_BINARY_DIR}/artifacts/owned/n64_sram_frontend ${N64_SRAM_32K_ROM})
 set_tests_properties(n64_sram_frontend_test PROPERTIES LABELS "integration;accuracy;save" TIMEOUT 90)
+add_executable(n64_cartridge_flash_capture cpp/n64_cartridge_flash_capture.cpp)
+target_include_directories(n64_cartridge_flash_capture PRIVATE ${CMAKE_SOURCE_DIR}/include ${SDL2_INCLUDE_DIRS})
+target_link_libraries(n64_cartridge_flash_capture PRIVATE ${SDL2_LIBRARIES})
+add_dependencies(n64_cartridge_flash_capture n64_plugin)
+add_test(NAME n64_cartridge_flash COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/cartridge_flash/run.py
+    --capture $<TARGET_FILE:n64_cartridge_flash_capture> --plugin $<TARGET_FILE:n64_plugin>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_cartridge_flash)
+set_tests_properties(n64_cartridge_flash PROPERTIES LABELS "integration;accuracy;owned;save" TIMEOUT 360)
+add_executable(n64_flash_frontend_test cpp/n64_flash_frontend_test.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/plugin_manager.cpp ${CMAKE_SOURCE_DIR}/src/core/plugin_registry.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/plugin_config.cpp ${CMAKE_SOURCE_DIR}/src/core/paths_config.cpp)
+target_include_directories(n64_flash_frontend_test PRIVATE ${CMAKE_SOURCE_DIR}/include ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(n64_flash_frontend_test PRIVATE nlohmann_json::nlohmann_json ${CMAKE_DL_LIBS})
+add_dependencies(n64_flash_frontend_test n64_plugin)
+add_test(NAME n64_flash_frontend_test COMMAND n64_flash_frontend_test
+    $<TARGET_FILE:n64_plugin> ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/cartridge_flash/cartridge_flash.z64
+    ${CMAKE_BINARY_DIR}/artifacts/owned/n64_flash_frontend)
+set_tests_properties(n64_flash_frontend_test PROPERTIES LABELS "integration;accuracy;save" TIMEOUT 90)
 add_test(NAME n64_accessory_absent COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/accessory_absent/run.py --emulator $<TARGET_FILE:veloce>
     --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_accessory_absent)
