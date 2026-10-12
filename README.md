@@ -163,6 +163,8 @@ N64 0.97.0 reuses the second-tile decision and texture conversion values across 
 
 N64 0.98.0 selects PAL or NTSC VI/AI crystal timing from the normalized cartridge country byte. The [original VI cartridge](tests/roms-src/n64/vi_field_schedule/README.md) now grades **10,320 NTSC/PAL field and guest CURRENT records / 92,880 output words**. An executed NTSC-country control fails all 5,160 PAL expectations; a separate gate checks 66 country/ROM-byte-order loads and native-state region rejection. PAL retail CIC handoff, physical timing and real-time SM64 play remain pending. **N64 stays 50% (10/20)**.
 
+N64 0.99.0 adds an exact RGBA16 triangular-filter route for the dominant SM64 texture mode. An independent component oracle checks **67,108,864 corner-pair/fraction cases**, and original one-cycle triangle texture, two-cycle filter and shaded-texture ROMs pass. Three CPU-pinned, paired 300-field SM64 course-checkpoint runs measured **18.94 to 19.35 VI fields/second**, with all three pairs faster and byte-identical complete states. [Performance details](docs/N64-PERFORMANCE.md#exact-rgba16-triangular-filter-route-0990). The game remains below real time; **N64 stays 50% (10/20)**.
+
 A cross-platform, plugin-based emulator framework built for speedrunners and TAS creators.
 
 *Veloce* - Italian for "fast"

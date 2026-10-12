@@ -33,7 +33,9 @@ int main(){
     uint64_t normal=0,uv_cases=0,previous=0,conversion=0;
     Filter::Options o;o.mid=true;
     for(unsigned a=0;a<256;++a)for(unsigned b=0;b<256;++b){const auto q=corners(a,b);
-        for(unsigned s=0;s<32;++s)for(unsigned t=0;t<32;++t){o.s=s;o.t=t;check(Filter::filter(q,o)==oracle(q,o));++normal;}
+        for(unsigned s=0;s<32;++s)for(unsigned t=0;t<32;++t){o.s=s;o.t=t;check(Filter::filter(q,o)==oracle(q,o));
+            auto ordinary=o;ordinary.mid=false;
+            check(Filter::filter_rgba16_triangle(q,s,t)==oracle(q,ordinary));++normal;}
         o.s=o.t=16;o.mid=false;check(Filter::filter(q,o)==oracle(q,o));++normal;o.mid=true;
     }
     for(unsigned pattern=0;pattern<512;++pattern){auto q=corners(pattern%256,pattern/2);for(auto& point:q){point[0]-=128;point[1]-=128;}

@@ -157,7 +157,12 @@ private:
                             const auto quad=RdpTexelQuad::read(*tmem,tile,sample,palette,!(mode&(1ull<<45)));
                             RdpTextureFilter::Options options;options.s=sample.s.fraction;options.t=sample.t.fraction;
                             options.mid=mode&(1ull<<44);options.yuv=tile.format()==1;options.odd_s=sample.s.texel&1;
-                            return (mode&(1ull<<43))?RdpTextureFilter::filter(quad,options):RdpTextureFilter::convert_weights(quad,options,conversion_weights);
+                            if(mode&(1ull<<43)){
+                                if(tile.format()==0 && tile.size()==2 && !options.mid)
+                                    return RdpTextureFilter::filter_rgba16_triangle(quad,options.s,options.t);
+                                return RdpTextureFilter::filter(quad,options);
+                            }
+                            return RdpTextureFilter::convert_weights(quad,options,conversion_weights);
                         }
                         const auto texel=RdpTexelFetch::read(*tmem,tile,sample.s.texel,sample.t.texel);
                         if(mode&(1ull<<43)){

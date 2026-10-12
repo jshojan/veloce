@@ -411,3 +411,23 @@ and triangle texture component gates pass. The local ignored report is at
 `build/artifacts/performance/n64-draw-invariants/report.json` in the N64
 lane. This is a small gain; N64 remains below the 60-field real-time target
 and **50% (10/20)** on the delivery checklist.
+
+## Exact RGBA16 triangular filter route (0.99.0)
+
+The SM64 course checkpoint sends about 6.17 million of 6.48 million shaded
+pixel visits through textured triangular filtering; about 6.14 million use
+RGBA16 tiles. For RGBA16 without the optional middle-pixel mode, the renderer
+now evaluates the same signed, rounded triangle weights directly. YUV,
+conversion and other modes keep the general filter.
+
+An independent component oracle checks the new route over **67,108,864
+eight-bit corner-pair and 5-bit S/T fraction combinations**. Original
+one-cycle textured-triangle, two-cycle filter and two-cycle shaded-texture
+cartridges pass their guest framebuffer/register oracles. Three alternating,
+CPU-pinned 300-field SM64 course-checkpoint pairs measured **18.94 to 19.35
+VI fields/second** by median time, a **2.1% throughput gain**; all three
+pairs were faster and complete native states, CPU attempts and audio counts
+matched byte for byte. The ignored local report is at
+`build/artifacts/performance/n64-rgba16-triangle-filter/report.json` in the
+N64 lane. This remains well below the 60-field real-time target, and N64
+remains **50% (10/20)** on the delivery checklist.

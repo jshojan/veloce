@@ -4626,3 +4626,15 @@ words** across NTSC and PAL. An executed NTSC-country control fails every PAL
 clock case. A separate component gate checks 66 region/byte-order loads;
 machine, NTSC audio and VI tests pass. PAL retail CIC handoff, MPAL, physical
 timing and full-title playability remain unverified. **N64 stays 50% (10/20)**.
+
+## Exact RGBA16 triangular texture filter (0.99.0)
+
+RGBA16 tiles using ordinary triangular filtering now take a direct signed
+weight route; other texture and middle-pixel modes retain the general filter.
+The independent component oracle checks **67,108,864 corner-pair/fraction
+cases**. Original one-cycle triangle texture, two-cycle filter and two-cycle
+shaded-texture cartridges pass. Three CPU-pinned, paired 300-field SM64 course
+checkpoint runs measured **18.94 to 19.35 VI fields/second** by median time,
+with all three pairs faster and byte-identical complete states. See
+[performance details](../../docs/N64-PERFORMANCE.md#exact-rgba16-triangular-filter-route-0990).
+The game remains below real time; **N64 stays 50% (10/20)**.
