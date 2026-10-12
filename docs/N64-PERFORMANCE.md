@@ -266,4 +266,32 @@ register ROMs, production netplay and the private SM64 course continuation pass
 with the trained plugin. CI/CD remains disabled.
 
 **N64 remains 50% (10/20)**; complete hardware, full-title playability and
-physical timing are pending.
+physical timing remain unfinished.
+
+## Perspective divider floor shift (0.92.0)
+
+Sampling a 300-field private SM64 Bob-omb Battlefield continuation in an
+ordinary optimized build located repeated signed division in the RDP
+perspective texture divider. The divider now computes floor division by a
+power of two with shifts of nonnegative values. Its identity also holds at
+`INT64_MIN`; it does not depend on a compiler's signed-right-shift behavior.
+
+The independent exhaustive divider oracle passed **4,294,967,296 ST/W pairs**
+and all **524,288** saturation encodings. Five alternating 60-field runs
+measured **1.2%** more throughput, and a separate nine-pair confirmation
+measured **3.1%** more throughput (**14.90 to 15.36 VI fields/second**).
+Each pair had byte-identical complete native states, CPU attempts and audio
+counts. Raw results and source hashes are in the local ignored artifacts
+`build/artifacts/performance/n64-floor-shift-{prototype,confirmation}/`.
+Five more pairs using the full production build measured **3.2%** more
+throughput (**16.65 to 17.19 VI fields/second**) against the prior ordinary
+plugin, again with byte-identical complete states. A fresh local PGO profile
+trained on 0.92.0 measured an additional **3.8%** over ordinary 0.92.0 in
+five pairs (**16.63 to 17.26 VI fields/second**), with identical states.
+Profiles from older source must be retrained. Those measurements are in the
+ignored `n64-floor-shift-production/` and `n64-floor-shift-pgo/check/`
+artifacts. The original perspective texture ROM, private SM64 course
+continuation, trained-plugin perspective checkpoint and production netplay
+passed. Performance remains below the 60-field real-time target.
+The fixed N64 delivery checklist remains **50% (10/20)**. Physical timing
+and full-title playability remain unverified.

@@ -4511,3 +4511,17 @@ an arbitrary analog source; assign one to player one or another port. An
 explicit player-one assignment remains authoritative. The SDL virtual-pad
 hotplug test covers a sole pad, two ambiguous pads, secondary ownership and
 the default input plugin. The fixed N64 checklist remains **50% (10/20)**.
+
+## Perspective texture divider speed (0.92.0)
+
+The RDP perspective divider now computes exact floor division by powers of
+two with shifts of nonnegative operands. An independent exhaustive oracle
+passes all **4,294,967,296 ST/W pairs** and **524,288** saturation encodings.
+Five alternating production-build SM64 checkpoint pairs measured **3.2% more
+VI-field throughput** (16.65 to 17.19 fields/second), with byte-identical
+complete states, CPU attempts and audio counts. A retrained optional GCC PGO
+build added **3.8%** over ordinary 0.92.0 in another five pairs. See
+[performance evidence](../../docs/N64-PERFORMANCE.md). The original
+perspective texture register ROM, private course continuation, perspective
+checkpoint and production netplay pass. Performance remains below real time,
+and the fixed N64 checklist remains **50% (10/20)**.
