@@ -4477,3 +4477,14 @@ from **14.36 to 15.73 VI fields/second**, with identical complete states,
 CPU attempts and audio counts. Original timing and register ROMs, netplay and
 private course movement pass. See [performance details](../../docs/N64-PERFORMANCE.md).
 Performance remains below real time. **N64 remains 50% (10/20).**
+
+## Active RSP interrupt polling (0.90.0)
+
+During active RSP idle batches, the core checks newly deliverable SP/DP
+interrupts only after RSP/DP ticks; other device events still end the batch.
+Five paired SM64 checkpoint runs measured **4.0% more throughput** than 0.89.0
+(**16.46 to 17.12 VI fields/second**), with identical complete states,
+CPU attempts and audio counts. The 128-state differential gate exercises
+RSP BREAK and DP FullSync interrupt paths. Original interrupt ROMs, netplay
+and private course movement pass. See [benchmark details](../../docs/N64-PERFORMANCE.md).
+Performance remains below real time. **N64 remains 50% (10/20).**

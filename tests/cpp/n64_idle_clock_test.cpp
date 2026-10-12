@@ -41,7 +41,7 @@ static void prepare(Machine& m,unsigned scenario,bool field){
     if(scenario&16){m.joybus.rtc.configure(true);m.joybus.rtc.clocks=93749995;}
 }
 int main(){try{
-    uint64_t optimized=0,active=0;
+    uint64_t optimized=0,active=0,breaks=0,fullsyncs=0;
     for(unsigned scenario=0;scenario<32;++scenario)for(bool field:{false,true}){
         auto fast=std::make_unique<Machine>(),reference=std::make_unique<Machine>(),unbatched=std::make_unique<Machine>();
         prepare(*fast,scenario,field);prepare(*reference,scenario,field);prepare(*unbatched,scenario,field);
@@ -58,8 +58,11 @@ int main(){try{
         }
         optimized+=fast->cpu.cached_idle_steps;
         active+=fast->active_rsp_batched_clocks;
+        if((scenario&20)==20 && fast->sp_interface.interrupt)++breaks;
+        if((scenario&8) && fast->dp_interrupt)++fullsyncs;
     }
     if(!optimized)throw std::runtime_error("idle clock cases never optimized");
     if(!active)throw std::runtime_error("active RSP clocks never batched");
-    std::cout<<"128 complete machine continuations, VI/AI/RSP/DP/RTC/BREAK/interrupt boundaries; "<<optimized<<" cached attempts, "<<active<<" active RSP clocks PASS\n";
+    if(!breaks || !fullsyncs)throw std::runtime_error("SP/DP interrupt paths never exercised");
+    std::cout<<"128 complete machine continuations, VI/AI/RSP/DP/RTC/BREAK/interrupt boundaries; "<<optimized<<" cached attempts, "<<active<<" active RSP clocks, "<<breaks<<" BREAK and "<<fullsyncs<<" FullSync continuations PASS\n";
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}
