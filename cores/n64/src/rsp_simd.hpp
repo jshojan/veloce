@@ -24,6 +24,15 @@ struct RspSimd {
 #endif
         return result;
     }
+    static void store_words(std::array<uint8_t,16>& bytes,const Words& words){
+#if VELOCE_RSP_SSE2
+        const auto packed=_mm_loadu_si128(reinterpret_cast<const __m128i*>(words.data()));
+        const auto swapped=_mm_or_si128(_mm_slli_epi16(packed,8),_mm_srli_epi16(packed,8));
+        _mm_storeu_si128(reinterpret_cast<__m128i*>(bytes.data()),swapped);
+#else
+        for(unsigned i=0;i<8;++i){bytes[2*i]=uint8_t(words[i]>>8);bytes[2*i+1]=uint8_t(words[i]);}
+#endif
+    }
 #if VELOCE_RSP_SSE2
 private:
     static __m128i load(const Words& v){return _mm_loadu_si128(reinterpret_cast<const __m128i*>(v.data()));}
