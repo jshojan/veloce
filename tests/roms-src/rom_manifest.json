@@ -21988,6 +21988,17 @@
       "source_type": "original",
       "suite": "controller_netplay"
     },
+    "n64/controller_pak/controller_pak.z64": {
+      "build_command": "python3 tests/roms-src/n64/controller_pak/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "cf8a0d91598490722c8d98b92ec5be352bbf227828b637e1bdb82b4ce7eebf59",
+      "source_repo": "tests/roms-src/n64/controller_pak/build.py",
+      "source_sha": "a2ab7187e11e6a5b86ab1039a7728700c5fb360d485b039deee71dc1f8c8df61",
+      "source_type": "original",
+      "suite": "controller_pak"
+    },
     "n64/controller_serial/controller_serial.z64": {
       "build_command": "python3 tests/roms-src/n64/controller_serial/build.py",
       "console": "n64",

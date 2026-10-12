@@ -12,8 +12,8 @@ returns 32 zero bytes and their inverted CRC; a valid write returns the
 payload's inverted CRC. The component gate checks the same packet shape and
 CRC over all ports and seeds, malformed lengths and the status byte. An
 executed wrong-register ROM and three damaged result files are rejected.
-Controller Pak storage, insertion, persistence and physical SI timing remain
-unfinished.
+The [inserted Controller Pak cartridge](../controller_pak/README.md) now grades
+addressed storage on all four ports. Physical SI timing remains unfinished.
 
 ```sh
 python3 tests/roms-src/build.py n64/accessory_absent --original-only --check
