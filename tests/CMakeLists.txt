@@ -1069,6 +1069,10 @@ add_test(NAME n64_rdp_two_cycle_fog COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/rdp_two_cycle_fog/run.py --emulator $<TARGET_FILE:veloce>
     --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_rdp_two_cycle_fog)
 set_tests_properties(n64_rdp_two_cycle_fog PROPERTIES LABELS "accuracy;owned" TIMEOUT 700)
+add_test(NAME n64_rdp_two_cycle_pass COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/rdp_two_cycle_pass/run.py --emulator $<TARGET_FILE:veloce>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_rdp_two_cycle_pass)
+set_tests_properties(n64_rdp_two_cycle_pass PROPERTIES LABELS "accuracy;owned" TIMEOUT 700)
 add_test(NAME n64_rdp_two_cycle_texture COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/rdp_two_cycle_texture/run.py --emulator $<TARGET_FILE:veloce>
     --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_rdp_two_cycle_texture)

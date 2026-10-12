@@ -4032,8 +4032,14 @@ blend profiles and RDRAM/XBUS command paths. An independent oracle, executed
 wrong-capture and wrong-fog-alpha-selector ROMs, and damaged-stream controls
 pass. N64 0.70.0 implements the
 fog-register-alpha selector described by the
-[Nintendo render-mode documentation](https://ultra64.ca/files/documentation/online-manuals/man/n64man/gdp/gDPSetRenderMode.html);
-general two-cycle blender modes remain unsupported.
+[Nintendo render-mode documentation](https://ultra64.ca/files/documentation/online-manuals/man/n64man/gdp/gDPSetRenderMode.html).
+N64 0.71.0 also accepts first-cycle `G_RM_PASS`: the second combiner result
+reaches the second blender stage without fog. The
+[original PASS cartridge](../../tests/roms-src/n64/rdp_two_cycle_pass/README.md)
+grades **262,144 guest cases / 3,407,872 actual framebuffer and DP/MI
+register words**. Its CC0 and CC1 colors differ; an executed wrong-first-stage
+cartridge is rejected. The component gate checks another 65,536 pass-through
+pixels. Other two-cycle blender modes remain unsupported.
 The [original textured two-cycle cartridge](../../tests/roms-src/n64/rdp_two_cycle_texture/README.md)
 grades another **262,144 guest cases / 3,407,872 actual framebuffer and DP/MI
 register words**. It loads every 16-bit RGBA16 and IA16 TEXEL0 pattern through
