@@ -706,6 +706,20 @@ add_test(NAME n64_dp_test COMMAND n64_dp_test
     ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/dp_registers/dp_registers.z64)
 set_tests_properties(n64_dp_test PROPERTIES LABELS "unit;accuracy;owned" TIMEOUT 180)
 
+add_executable(n64_rsp_simd_test cpp/n64_rsp_simd_test.cpp)
+target_include_directories(n64_rsp_simd_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src)
+add_test(NAME n64_rsp_simd_test COMMAND n64_rsp_simd_test)
+set_tests_properties(n64_rsp_simd_test PROPERTIES LABELS "unit;accuracy;performance" TIMEOUT 180)
+add_executable(n64_rsp_scalar_fallback_test cpp/n64_rsp_simd_test.cpp)
+target_include_directories(n64_rsp_scalar_fallback_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src)
+target_compile_definitions(n64_rsp_scalar_fallback_test PRIVATE VELOCE_RSP_DISABLE_SIMD=1)
+add_test(NAME n64_rsp_scalar_fallback_test COMMAND n64_rsp_scalar_fallback_test)
+set_tests_properties(n64_rsp_scalar_fallback_test PROPERTIES LABELS "unit;accuracy;performance")
+add_test(NAME n64_rsp_acceleration_roms COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/n64_rsp_acceleration_roms.py --emulator $<TARGET_FILE:veloce>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_rsp_acceleration)
+set_tests_properties(n64_rsp_acceleration_roms PROPERTIES LABELS "accuracy;owned;performance" TIMEOUT 600)
+
 add_executable(n64_rsp_vector_test cpp/n64_rsp_vector_test.cpp
     ${CMAKE_SOURCE_DIR}/cores/n64/src/machine.cpp ${CMAKE_SOURCE_DIR}/cores/n64/src/vr4300.cpp)
 target_include_directories(n64_rsp_vector_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src ${CMAKE_SOURCE_DIR}/include)

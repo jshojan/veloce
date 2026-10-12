@@ -87,6 +87,8 @@ N64 0.84.0 implements two-cycle detail and sharpen texture modes, signed sharpen
 
 N64 0.85.0 accelerates cached idle loops and inactive device clocks while preserving complete native state and interrupt timing in the functional model. The [paired performance benchmark](docs/N64-PERFORMANCE.md) measured **1.56x throughput (8.17 to 12.75 VI fields/second)** on this machine across three private SM64 checkpoint pairs, with identical full states, CPU attempts and audio counts. CPU/cache/timer continuation checks, 128 full machine continuations, original interrupt/VI scheduling ROMs and netplay pass. This is still below real time; RSP and software RDP performance, full-title playability and physical timing remain pending. N64 stays **50% (10/20)**.
 
+N64 0.86.0 adds SSE2 RSP multiply/accumulate and ALU/merge acceleration with a retained scalar path. The [paired benchmark](docs/N64-PERFORMANCE.md) measured **10.8% more throughput (12.61 to 13.98 VI fields/second)** than 0.85.0 on this machine, with identical complete states in three private SM64 pairs. The scalar comparison covers **2,359,296 seeded continuations**; six original ROM subsets grade **4,240 cases / 77,328 actual register words** and reject executed mutants. Hardware arithmetic fixtures, portable fallback, netplay and the private course continuation pass. N64 remains below real time and **50% (10/20)**; software RDP performance and full-title playability remain unfinished.
+
 ### 3DS ARM11 instruction coverage
 
 The 3DS plugin implements the following ARMv6 instruction subsets. Each linked

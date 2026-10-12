@@ -5,6 +5,7 @@
 #include "rsp_compare.hpp"
 #include "rsp_alu.hpp"
 #include "rsp_divider.hpp"
+#include "rsp_simd.hpp"
 namespace n64 {
 // Functional vector storage, transfers, multiply/accumulate, comparison and integer ALU execution.
 // Physical load/pipeline interlocks and remaining arithmetic are pending.
@@ -15,6 +16,7 @@ public:
     using AccState=std::array<uint64_t,8>;
     static constexpr uint64_t acc_mask=0xffffffffffffull;
     RspDivider divider;
+    bool simd_enabled=true; // Host-only; excluded from native save and rollback state.
     AccState acc_snapshot() const{return accumulator;}
     bool acc_restore(const AccState& a){for(auto v:a)if(v&~acc_mask)return false;accumulator=a;return true;}
     std::array<uint16_t,3> flags{}; // VCO, VCC, VCE (8 bits).
@@ -78,8 +80,13 @@ private:
     }
     bool lane_math(uint32_t ins){
         const unsigned fn=ins&63,vt=(ins>>16)&31,vs=(ins>>11)&31,vd=(ins>>6)&31,e=(ins>>21)&15;
-        std::array<unsigned,8> left{},right{};
+        RspSimd::Words left{},right{};
         for(unsigned i=0;i<8;++i){const unsigned selected=e<2?i:e<4?(i&6)|(e&1):e<8?(i&4)|(e&3):e&7;left[i]=lane(vs,i);right[i]=lane(vt,selected);}
+        RspSimd::Words accelerated;
+        if(simd_enabled && RspSimd::alu(fn,left,right,accumulator,flags,accelerated)){
+            for(unsigned i=0;i<8;++i)set_lane(vd,i,accelerated[i]);
+            return true;
+        }
         std::array<uint16_t,3> next{};
         for(unsigned i=0;i<8;++i){
             const unsigned packed=((flags[0]>>i)&1)|(((flags[0]>>(i+8))&1)<<1)|(((flags[1]>>i)&1)<<2)|(((flags[1]>>(i+8))&1)<<3)|(((flags[2]>>i)&1)<<4);
@@ -97,8 +104,13 @@ private:
         const unsigned fn=ins&63,vt=(ins>>16)&31,vs=(ins>>11)&31,vd=(ins>>6)&31,e=(ins>>21)&15;
         if(fn==29){for(unsigned i=0;i<8;++i)set_lane(vd,i,e>=8 && e<=10?uint16_t(accumulator[i]>>(16*(10-e))):0);return true;}
         if(fn>=16)return false;
-        std::array<unsigned,8> left{},right{};
+        RspSimd::Words left{},right{};
         for(unsigned i=0;i<8;++i){const unsigned selected=e<2?i:e<4?(i&6)|(e&1):e<8?(i&4)|(e&3):e&7;left[i]=lane(vs,i);right[i]=lane(vt,selected);}
+        RspSimd::Words accelerated;
+        if(simd_enabled && RspSimd::multiply(fn,left,right,accumulator,accelerated)){
+            for(unsigned i=0;i<8;++i)set_lane(vd,i,accelerated[i]);
+            return true;
+        }
         for(unsigned i=0;i<8;++i){const int64_t a=signed16(left[i]),b=signed16(right[i]),old=signed48(accumulator[i]);int64_t value=0;
             switch(fn){
             case 0:case 1:value=a*b*2+32768;break;
