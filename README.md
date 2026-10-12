@@ -65,6 +65,8 @@ N64 0.73.0 expands the [original two-tile cartridge](tests/roms-src/n64/rdp_two_
 
 N64 0.74.0 adds [original two-tile filtering evidence](tests/roms-src/n64/rdp_two_cycle_filter/README.md): **65,536 guest cases / 851,968 actual framebuffer and DP/MI register words** covering every 5-bit fractional S/T pair, RGBA16 and IA16, triangular and mid-texel filters, eight primitive-alpha values and RDRAM/XBUS command delivery. Executed wrong-tile, point-sampling and wrong-mid-texel ROMs are rejected. The tile data are fixed, LOD and perspective are untested in this corpus, and N64 stays **50% (10/20)**.
 
+N64 0.75.0 implements constant-coordinate two-cycle LOD magnification: both texture cycles use the primitive tile when LOD is enabled with detail/sharpen off. The [original LOD cartridge](tests/roms-src/n64/rdp_lod_magnify/README.md) grades **524,288 cases / 6,815,744 actual framebuffer and DP/MI register words** across all 16-bit RGBA16 and IA16 patterns, LOD on/off and RDRAM/XBUS delivery. Wrong-LOD and wrong-tile ROMs are rejected. Variable LOD, mipmap chains, LOD fractions and full hardware accuracy remain pending; N64 stays **50% (10/20)**.
+
 ### 3DS ARM11 instruction coverage
 
 The 3DS plugin implements the following ARMv6 instruction subsets. Each linked

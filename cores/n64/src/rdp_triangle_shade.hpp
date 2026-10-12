@@ -29,7 +29,16 @@ private:
     static unsigned draw_decoded(const RdpTriangle& triangle,uint64_t image,uint64_t mode,uint64_t scissor,const RdpCombiner& combiner,std::vector<uint8_t>& ram,const RdpTexture* texture=nullptr,const RdpTmem* tmem=nullptr,const RdpConvert* conversion=nullptr,RdpBlender* blender=nullptr,HiddenRdram* hidden=nullptr,uint32_t depth_image=0,const RdpPrimitiveDepth* primitive=nullptr){
         const bool textured=triangle.texture && texture && tmem;
         const bool two_cycle=((mode>>52)&3)==1;
-        const uint64_t sampling=textured?((63ull<<42)|(1ull<<51)):(blender?(2047ull<<41):0);
+        const bool lod_enabled=mode&(1ull<<48);
+        // A zero STW gradient is a magnified pixel at every sample. The LOD
+        // tile table selects the primitive tile in both cycles in this mode.
+        // Variable LOD, detail and sharpen remain outside this profile.
+        bool constant_stw=true;
+        for(unsigned group=1;group<4;++group)
+            for(unsigned lane=0;lane<3;++lane)
+                constant_stw=constant_stw && !triangle.tex[group][lane];
+        if(lod_enabled && (!textured || !two_cycle || !constant_stw || (mode&(1ull<<51))))return 1;
+        const uint64_t sampling=textured?((63ull<<42)|(1ull<<51)|(1ull<<48)):(blender?(2047ull<<41):0);
         const uint64_t dither=(3ull<<38)|(3ull<<36);
         const bool depth_mode=mode&48,primitive_mode=mode&4;
         if(primitive_mode && !primitive)return 1;
@@ -88,7 +97,7 @@ private:
                     };
                     sources.texel0=fetch(texture->tiles[triangle.tile]);
                     if(two_cycle && combiner.uses_texel1_cycle1())
-                        sources.texel1=fetch(texture->tiles[(triangle.tile+1)&7]);
+                        sources.texel1=fetch(texture->tiles[lod_enabled?triangle.tile:(triangle.tile+1)&7]);
                 }
                 if(two_cycle)sources.combined=combiner.evaluate(0,sources).combined;
                 auto color=combiner.evaluate(1,sources).clamped;
