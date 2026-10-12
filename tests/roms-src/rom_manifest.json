@@ -22802,6 +22802,17 @@
       "source_type": "original",
       "suite": "rsp_divider"
     },
+    "n64/rsp_imem_rewrite/rsp_imem_rewrite.z64": {
+      "build_command": "python3 tests/roms-src/n64/rsp_imem_rewrite/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "8d01c223a5a5802a29b53c01d3233e7fcb33905c6a0aa3fe4a1b43e620b29dcc",
+      "source_repo": "tests/roms-src/n64/rsp_imem_rewrite/build.py",
+      "source_sha": "a180edae37b0258222ac4474216db9c5549e6cfd5c3fd04e2a64c53042aa1a75",
+      "source_type": "original",
+      "suite": "rsp_imem_rewrite"
+    },
     "n64/rsp_integer_edges/rsp_integer_edges.z64": {
       "build_command": "python3 tests/roms-src/n64/rsp_integer_edges/build.py",
       "console": "n64",

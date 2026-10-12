@@ -4566,3 +4566,13 @@ states and work counts. Individual runs varied, and the result remains far
 below 60 fields/second. Original RSP ROMs and production netplay pass. See
 [the build command and measurements](../../docs/N64-PERFORMANCE.md#optional-host-cpu-optimization).
 The checklist remains **50% (10/20)**.
+
+## Original RSP IMEM rewrite cartridge
+
+The [repository-built cartridge](../../tests/roms-src/n64/rsp_imem_rewrite/README.md)
+executes every 8-bit ADDIU immediate after CPU stores and SP DMA rewrite the
+same RSP instruction slot. An independent file oracle grades **512 cases /
+1,536 actual DMEM, IMEM and SP status register words** and rejects an executed
+wrong-instruction ROM and a malformed capture. This verifies functional
+rewrite visibility for both paths; physical bus/DMA timing and the full IMEM
+address domain remain ungraded. N64 remains **50% (10/20)**.
