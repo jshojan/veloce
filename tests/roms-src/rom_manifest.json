@@ -22417,6 +22417,17 @@
       "source_type": "original",
       "suite": "rdp_hidden_rgba16"
     },
+    "n64/rdp_lod_affine_2d/rdp_lod_affine_2d.z64": {
+      "build_command": "python3 tests/roms-src/n64/rdp_lod_affine_2d/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "7fe95a026b9d028c0d73b6a0adbb0b6ce9a0de1e095bbee6a2ec29cbb66d178b",
+      "source_repo": "tests/roms-src/n64/rdp_lod_affine_2d/build.py",
+      "source_sha": "436033460c8bd9c5a1c0bb31640e6b871329f8881869c084bce964cb48741622",
+      "source_type": "original",
+      "suite": "rdp_lod_affine_2d"
+    },
     "n64/rdp_lod_affine_levels/rdp_lod_affine_levels.z64": {
       "build_command": "python3 tests/roms-src/n64/rdp_lod_affine_levels/build.py",
       "console": "n64",

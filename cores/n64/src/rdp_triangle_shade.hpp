@@ -30,19 +30,23 @@ private:
         const bool textured=triangle.texture && texture && tmem;
         const bool two_cycle=((mode>>52)&3)==1;
         const bool lod_enabled=mode&(1ull<<48);
-        // This affine LOD profile has a single exact integer-texel S gradient.
-        // Other gradients, perspective, detail and sharpen remain outside it.
+        // Bounded affine LOD: exact integer-texel S/T gradients on both axes.
+        // The edge gradient equals d/dY, as on a vertical major edge.
+        // Perspective, detail and sharpen remain outside this profile.
         unsigned first_tile=triangle.tile,second_tile=(triangle.tile+1)&7,lod_fraction=0;
         if(lod_enabled){
-            bool simple_gradient=!triangle.tex[1][1] && !triangle.tex[1][2];
-            for(unsigned group=2;group<4;++group)
-                for(unsigned lane=0;lane<3;++lane)
-                    simple_gradient=simple_gradient && !triangle.tex[group][lane];
-            const int64_t gradient=int32_t(triangle.tex[1][0]);
-            const uint64_t magnitude=uint64_t(gradient<0?-gradient:gradient);
+            const bool simple_gradient=!triangle.tex[1][2] && !triangle.tex[2][2] &&
+                !triangle.tex[3][2] && triangle.tex[2][0]==triangle.tex[3][0] &&
+                triangle.tex[2][1]==triangle.tex[3][1];
             constexpr uint64_t texel=32ull<<16;
-            if(!textured || !two_cycle || !simple_gradient || (mode&(1ull<<51)) ||
-               magnitude%texel || magnitude/texel>255)return 1;
+            uint64_t magnitude=0;
+            for(unsigned group=1;group<=3;group+=2)for(unsigned lane=0;lane<2;++lane){
+                const int64_t gradient=int32_t(triangle.tex[group][lane]);
+                const uint64_t absolute=uint64_t(gradient<0?-gradient:gradient);
+                if(absolute%texel || absolute/texel>255)return 1;
+                if(absolute>magnitude)magnitude=absolute;
+            }
+            if(!textured || !two_cycle || !simple_gradient || (mode&(1ull<<51)))return 1;
             const unsigned steps=unsigned(magnitude/texel);
             unsigned level=0;
             for(unsigned value=steps;value>1;value>>=1)++level;

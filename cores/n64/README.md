@@ -4111,6 +4111,16 @@ level, nonzero minimum level, fractional/T/Y gradients, perspective,
 detail, sharpen and full mipmap filtering remain unfinished. N64 stays
 **50% (10/20)** of the fixed delivery checklist.
 
+N64 0.78.0 derives affine LOD level and fraction from the largest S/T gradient
+along either screen axis. The [original four-axis cartridge](../../tests/roms-src/n64/rdp_lod_affine_2d/README.md)
+grades **524,280 cases / 6,815,640 actual framebuffer and DP/MI register
+words** over every nonzero four-tuple of 0–15 integer texels per pixel, both
+common signs, RGBA16/IA16 and RDRAM/XBUS delivery. Executed wrong-T, wrong-Y,
+wrong-fraction, wrong-tile and wrong-capture ROMs are rejected. This is an
+affine vertical-edge profile; fractional gradients, independent signs,
+perspective and full mipmap filtering remain unfinished. N64 stays
+**50% (10/20)**.
+
 An A pulse now loads Bob-omb Battlefield. Guest RAM places Mario near
 **(-6525, 0, 6431)** with a course terrain and camera. A 120-field neutral
 control leaves the opening dialogue and position unchanged; repeated A presses
