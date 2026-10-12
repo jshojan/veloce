@@ -81,6 +81,8 @@ N64 0.81.0 computes two-cycle LOD from adjacent perspective-divided texture coor
 
 N64 0.82.0 extends two-cycle perspective LOD to changing W along screen X and Y. The [original varying-W cartridge](tests/roms-src/n64/rdp_lod_varying_w/README.md) grades **147,456 cases / 1,916,928 actual framebuffer and DP/MI register words** across 0–127 subtexel S/T gradients on four axes, both signs, six W slope pairs, two W bases, three maximum levels, RGBA16/IA16 and RDRAM/XBUS delivery. The independent reciprocal oracle checks per-pixel LOD and rejects an executed zero-W-gradient ROM. W overflow, arbitrary fractional gradients, detail/sharpen and full mipmap filtering remain pending; N64 stays **50% (10/20)**.
 
+N64 0.83.0 verifies mixed S/T/W perspective LOD gradients and division-overflow clamping with the [original mixed-gradient cartridge](tests/roms-src/n64/rdp_lod_perspective_mixed/README.md). Its independent reciprocal oracle grades **24,576 cases / 319,488 actual framebuffer and DP/MI register words** across eight S/T vectors, all 16 sign masks, two edge gradients, four W values including zero and negative W, six W-gradient pairs, RGBA16/IA16 and RDRAM/XBUS delivery. Executed wrong-edge, wrong-sign, wrong-W, wrong-W-sign, wrong-zero-W, wrong-tile and wrong-fraction ROMs are rejected. Arbitrary fractional gradients, non-solid mipmap filtering and detail/sharpen remain pending; N64 stays **50% (10/20)**.
+
 ### 3DS ARM11 instruction coverage
 
 The 3DS plugin implements the following ARMv6 instruction subsets. Each linked

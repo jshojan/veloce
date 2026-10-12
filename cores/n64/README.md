@@ -4375,3 +4375,16 @@ reciprocal oracle and executed zero-W-gradient mutant check that varying W
 changes the tile pair and LOD fraction. This finite profile still excludes W
 overflow, arbitrary fractional gradients, detail/sharpen and full mipmap
 filtering. **N64 remains 50% (10/20).**
+
+## Mixed-gradient perspective LOD evidence (0.83.0)
+
+The [original mixed-gradient cartridge](../../tests/roms-src/n64/rdp_lod_perspective_mixed/README.md)
+grades **24,576 guest cases / 319,488 actual framebuffer and DP/MI register
+words** with independent signed S/T derivatives, different edge and screen-Y
+derivatives, changing W, and zero or negative W. Its reciprocal oracle checks
+that division flags force the distant LOD, then grades the tile pair, fraction,
+blending and registers. Executed gradient, W-sign, zero-W, tile, fraction and capture mutants
+are rejected. This bounds the verified profile to exact 1/32-texel S/T and
+integer W derivatives with solid source tiles; arbitrary fractional gradients,
+non-solid mipmap filtering, detail/sharpen and physical timing remain pending.
+**N64 remains 50% (10/20).**
