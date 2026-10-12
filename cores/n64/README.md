@@ -4092,3 +4092,18 @@ SI packets / 100,320 captured register words** and the final **131,072 Pak
 bytes**. An executed wrong-register image and three damaged result files must
 fail. Retail game filesystem APIs, other accessories and physical serial
 timing remain open. N64 stays **50% (10/20)**.
+
+## Original guest Rumble Pak corpus (0.65.0)
+
+An [original MIPS cartridge](../../tests/roms-src/n64/rumble_pak/README.md)
+now exercises status, motor writes and every aligned accessory read address on
+all four ports through guest SI DMA. The independent host oracle grades
+**24,596 complete packets / 196,768 guest register words** across motor off,
+on and off phases, rejecting an executed wrong-register ROM and damaged files.
+The production plugin allows one Controller Pak or Rumble Pak per port. Motor
+state is part of S035 snapshots and rollback, and frontend output follows the
+assigned SDL controller, stopping on pause, reset, unload and reassignment.
+The virtual SDL gate checks routing; real controller output and electrical
+timing remain unmeasured. The private Super Mario 64 lobby checkpoint still
+passes dialogue dismissal and movement into the raised hall. N64 remains
+**50% (10/20)**.

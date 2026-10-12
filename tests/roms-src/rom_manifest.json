@@ -22670,6 +22670,17 @@
       "source_type": "original",
       "suite": "rsp_vector_transfers"
     },
+    "n64/rumble_pak/rumble_pak.z64": {
+      "build_command": "python3 tests/roms-src/n64/rumble_pak/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "0f8e94c87b90d169693b6447cfcb22d03114f968894ae06503680c812c2fd4a6",
+      "source_repo": "tests/roms-src/n64/rumble_pak/build.py",
+      "source_sha": "ec81686d322aa481a053cbf06d3dc96a2555b8de9ad72503e16f0ad329cd94c0",
+      "source_type": "original",
+      "suite": "rumble_pak"
+    },
     "n64/sp_controls/sp_controls.z64": {
       "build_command": "python3 tests/roms-src/n64/sp_controls/build.py",
       "console": "n64",

@@ -17,6 +17,7 @@
 #include "gui/notification_manager.hpp"
 #include "emu/controller_layout.hpp"
 #include "emu/emulator_plugin.hpp"
+#include "emu/rumble_output.hpp"
 
 #include <SDL.h>
 #include <iostream>
@@ -810,6 +811,14 @@ bool Application::run_emulation_frame() {
     // Update game plugins (for timer updates and auto-split detection)
     m_plugin_manager->update_game_plugins();
 
+    // Sample only the final emulated state after TAS/netplay work, including
+    // any rollback replay. Refresh SDL's short effect while the motor is on.
+    if(m_input_manager){
+        auto* rumble=dynamic_cast<IRumbleOutput*>(plugin);
+        for(unsigned port=0;port<4;++port)
+            m_input_manager->set_rumble_for_port(int(port),rumble && rumble->rumble_active(port));
+    }
+
     // Cores which do not actually stream still receive a frame-end audio path.
     // Merely storing the callback in the base ABI does not prove delivery.
     auto* netplay = m_plugin_manager->get_netplay_plugin();
@@ -840,6 +849,7 @@ void Application::render() {
 
 bool Application::load_rom(const std::string& path, bool preserve_selected_core) {
     std::cout << "Loading ROM: " << path << std::endl;
+    if(m_input_manager)m_input_manager->stop_all_rumble();
 
     // A test session belongs to the ROM it was opened for. Loading another ROM
     // (GUI browser, drag-and-drop) may replace the emulator plugin the sink is
@@ -926,6 +936,7 @@ bool Application::load_rom(const std::string& path, bool preserve_selected_core)
 
 void Application::pause() {
     m_paused = true;
+    if(m_input_manager)m_input_manager->stop_all_rumble();
     if (m_audio_manager) m_audio_manager->pause();
     m_plugin_manager->set_paused(true);
 }
@@ -937,6 +948,7 @@ void Application::resume() {
 }
 
 void Application::reset() {
+    if(m_input_manager)m_input_manager->stop_all_rumble();
     reset_input_timeline();
     if (auto* netplay = m_plugin_manager->get_netplay_plugin()) netplay->disconnect();
     auto* plugin = m_plugin_manager->get_active_plugin();

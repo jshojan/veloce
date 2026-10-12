@@ -7,6 +7,7 @@
 #include <iterator>
 #include <string>
 #include "emu/controller_pak_storage.hpp"
+#include "emu/rumble_output.hpp"
 #include "emu/netplay_plugin.hpp"
 #ifdef VELOCE_N64_IMGUI
 #include <imgui.h>
@@ -14,11 +15,12 @@
 
 namespace n64 {
 class Plugin : public emu::IEmulatorPlugin, public emu::INetplayCapable,
-               public emu::IFrameScheduling, public emu::IControllerPakStorage {
+               public emu::IFrameScheduling, public emu::IControllerPakStorage,
+               public emu::IRumbleOutput {
 public:
     emu::EmulatorInfo get_info() override {
         static const char* extensions[] = {".z64", ".v64", ".n64", nullptr};
-        return {"N64", "0.64.0", "Veloce", "Experimental N64 core with MIPS III, CP0, RSP, partial RDP, SI/PIF controller polling, 32 KiB Controller Paks on four ports, functional 4/16 Kbit cartridge EEPROM and frontend save persistence. Retail course entry, other save media, complete hardware and physical timing remain pending.",
+        return {"N64", "0.65.0", "Veloce", "Experimental N64 core with MIPS III, CP0, RSP, partial RDP, SI/PIF controller polling, per-port Controller or Rumble Paks, functional 4/16 Kbit cartridge EEPROM and frontend save persistence. Retail course entry, other save media, complete hardware and physical timing remain pending.",
                 extensions, 60.0, 93750000, 320, 240};
     }
     const emu::ControllerLayoutInfo* get_controller_layout() override {
@@ -45,6 +47,7 @@ public:
     bool load_rom(const uint8_t* data, size_t size) override {
         if(!machine.load(data,size))return false;
         machine.joybus.configure_pak_mask(configured_paks);
+        machine.joybus.configure_rumble_mask(configured_rumble);
         return true;
     }
     emu::FrameScheduling get_frame_scheduling() const override {return machine.frame_scheduling;}
@@ -70,6 +73,9 @@ public:
         return true;
     }
     unsigned controller_pak_ports() const override {return 4;}
+    bool rumble_active(unsigned port) const override {
+        return is_rom_loaded() && port<4 && (machine.joybus.active_motors()&(1u<<port));
+    }
     bool controller_pak_inserted(unsigned port) const override {
         return is_rom_loaded() && port<4 && (machine.joybus.inserted_paks()&(1u<<port));
     }
@@ -88,7 +94,8 @@ public:
     bool save_config(const char* path) override {
         std::ofstream file(path,std::ios::trunc);
         if(!file)return false;
-        file<<"{\"controller_paks\":"<<unsigned(configured_paks)<<"}\n";
+        file<<"{\"controller_paks\":"<<unsigned(configured_paks)
+            <<",\"rumble_paks\":"<<unsigned(configured_rumble)<<"}\n";
         return bool(file);
     }
     bool load_config(const char* path) override {
@@ -105,7 +112,18 @@ public:
         unsigned mask=0;
         const auto result=std::from_chars(begin,end,mask);
         if(result.ec!=std::errc{} || mask>15)return false;
+        unsigned rumble=0;
+        const auto rumble_key=contents.find("\"rumble_paks\"");
+        if(rumble_key!=std::string::npos){
+            const auto rumble_colon=contents.find(':',rumble_key+13);
+            if(rumble_colon==std::string::npos)return false;
+            begin=contents.data()+rumble_colon+1;
+            while(begin<end && (*begin==' ' || *begin=='\t'))++begin;
+            const auto parsed=std::from_chars(begin,end,rumble);
+            if(parsed.ec!=std::errc{} || rumble>15 || (rumble&mask))return false;
+        }
         configured_paks=uint8_t(mask);
+        configured_rumble=uint8_t(rumble);
         return true;
     }
 #ifdef VELOCE_N64_IMGUI
@@ -118,16 +136,18 @@ public:
         ImGui::End();
     }
     void render_config_gui_content() override {
-        ImGui::TextUnformatted("Controller Pak storage");
+        ImGui::TextUnformatted("Controller accessories");
         for(unsigned port=0;port<4;++port){
-            bool inserted=configured_paks&(1u<<port);
+            int accessory=(configured_paks&(1u<<port))?1:(configured_rumble&(1u<<port))?2:0;
             const std::string label="Port "+std::to_string(port+1);
-            if(ImGui::Checkbox(label.c_str(),&inserted)){
-                if(inserted)configured_paks|=uint8_t(1u<<port);
-                else configured_paks&=uint8_t(~(1u<<port));
+            if(ImGui::Combo(label.c_str(),&accessory,"None\0Controller Pak\0Rumble Pak\0")){
+                configured_paks&=uint8_t(~(1u<<port));
+                configured_rumble&=uint8_t(~(1u<<port));
+                if(accessory==1)configured_paks|=uint8_t(1u<<port);
+                if(accessory==2)configured_rumble|=uint8_t(1u<<port);
             }
         }
-        if(is_rom_loaded())ImGui::TextUnformatted("Reload the ROM to apply Pak changes.");
+        if(is_rom_loaded())ImGui::TextUnformatted("Reload the ROM to apply accessory changes.");
     }
     const char* get_config_window_name() const override {return "Nintendo 64 Settings";}
 #endif
@@ -153,7 +173,7 @@ public:
         std::memcpy(buffer,state_scratch.data(),state_scratch.size());return state_scratch.size();
     }
     bool load_state_fast(const uint8_t* buffer,size_t size) override {
-        if(!is_loaded() || !buffer || size<8 || size>Machine::pak_state_size)return false;
+        if(!is_loaded() || !buffer || size<8 || size>Machine::rumble_state_size)return false;
         return machine.restore(std::vector<uint8_t>(buffer,buffer+size));
     }
     uint64_t get_state_hash() const override {
@@ -179,6 +199,7 @@ public:
     const char* test_channels() const override { return "v64debug"; }
 private:
     uint8_t configured_paks=0;
+    uint8_t configured_rumble=0;
     bool is_loaded() const {return !machine.rom.empty();}
     void step_quantum(bool canonical_audio=false){
         if(!is_loaded())return;

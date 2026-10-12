@@ -9,8 +9,8 @@ namespace n64 {
 // Packet formatting latches five channel offsets. SI reads communicate through
 // that layout with current input; clearing the format bit does not disable it.
 // This functional profile has four controllers with signed-byte analog input
-// and a cartridge EEPROM. Each port can hold a 32 KiB Controller Pak.
-// Physical serial timing and other accessory types are not modeled.
+// and a cartridge EEPROM. Each port can hold a 32 KiB Controller Pak or
+// a Rumble Pak. Physical serial timing and other accessory types are pending.
 class PifJoybus {
 public:
     using Ram=std::array<uint8_t,64>;
@@ -24,13 +24,35 @@ public:
         if(mask)pak_state_active=true;
         pak_latch|=uint8_t(mask&~pak_mask);
         pak_mask=mask;
-        pak_latch&=mask;
+        rumble_mask&=uint8_t(~mask);
+        rumble_on&=rumble_mask;
+        pak_latch&=uint8_t(pak_mask|rumble_mask);
     }
     uint8_t inserted_paks() const {return pak_mask;}
     uint8_t pending_pak_changes() const {return pak_latch;}
     bool has_pak_state() const {return pak_state_active;}
+    void configure_rumble_mask(uint8_t mask){
+        mask&=15;
+        if(mask)rumble_state_active=true;
+        pak_latch|=uint8_t(mask&~rumble_mask);
+        rumble_mask=mask;
+        pak_mask&=uint8_t(~mask);
+        rumble_on&=rumble_mask;
+        pak_latch&=uint8_t(pak_mask|rumble_mask);
+    }
+    uint8_t inserted_rumble_paks() const {return rumble_mask;}
+    uint8_t active_motors() const {return rumble_on;}
+    bool has_rumble_state() const {return rumble_state_active;}
+    void stop_rumble(){rumble_on=0;}
+    bool restore_rumble_flags(uint8_t mask,uint8_t motors){
+        if((mask|motors)>15 || (motors&~mask) || (mask&pak_mask))return false;
+        rumble_mask=mask;rumble_on=motors;
+        rumble_state_active=true;
+        return true;
+    }
+    void clear_accessories(){pak_mask=pak_latch=rumble_mask=rumble_on=0;rumble_state_active=false;format_paks();}
     bool restore_pak_flags(uint8_t mask,uint8_t latch){
-        if((mask|latch)>15 || (latch&~mask))return false;
+        if((mask|latch)>15 || (latch&~uint8_t(mask|rumble_mask)) || (mask&rumble_mask))return false;
         pak_mask=mask;pak_latch=latch;
         if(mask)pak_state_active=true;
         return true;
@@ -116,15 +138,20 @@ public:
                 }
                 const uint16_t address=uint16_t(ram[at+3])<<8|ram[at+4];
                 const uint16_t offset=address&~uint16_t(31);
-                const bool available=(pak_mask&(1u<<port)) && !(pak_latch&(1u<<port)) &&
+                const bool available=((pak_mask|rumble_mask)&(1u<<port)) && !(pak_latch&(1u<<port)) &&
                     (address&31)==accessory_address_crc(offset);
                 if(command==2){
-                    if(available && offset<32768)
+                    if(available && (rumble_mask&(1u<<port)))
+                        std::fill_n(ram.begin()+reply,32,uint8_t(offset>=0x8000 && offset<0x9000?0x80:offset>=0x9000 && (rumble_on&(1u<<port))?0xff:0));
+                    else if(available && offset<32768)
                         std::copy_n(paks.begin()+port*32768+offset,32,ram.begin()+reply);
                     else std::fill_n(ram.begin()+reply,32,0);
                     ram[reply+32]=uint8_t(accessory_data_crc(ram.data()+reply)^(available?0:0xff));
                 } else {
-                    if(available && offset<32768)
+                    if(available && (rumble_mask&(1u<<port)) && offset>=0xc000){
+                        if(ram[at+5]&1)rumble_on|=uint8_t(1u<<port);
+                        else rumble_on&=uint8_t(~(1u<<port));
+                    } else if(available && offset<32768 && (pak_mask&(1u<<port)))
                         std::copy_n(ram.begin()+at+5,32,paks.begin()+port*32768+offset);
                     ram[reply]=uint8_t(accessory_data_crc(ram.data()+at+5)^(available?0:0xff));
                 }
@@ -134,7 +161,7 @@ public:
             if(tx!=1 || rx!=(command==1?4u:3u)){ram[at+1]|=64;continue;}
             if(command!=1){
                 ram[reply]=5;ram[reply+1]=0;
-                ram[reply+2]=(pak_mask&(1u<<port))?(pak_latch&(1u<<port))?3:1:2;
+                ram[reply+2]=((pak_mask|rumble_mask)&(1u<<port))?(pak_latch&(1u<<port))?3:1:2;
                 pak_latch&=uint8_t(~(1u<<port));
                 continue;
             }
@@ -177,6 +204,8 @@ private:
     PakStorage paks{};
     uint8_t pak_mask=0,pak_latch=0;
     bool pak_state_active=false;
+    uint8_t rumble_mask=0,rumble_on=0;
+    bool rumble_state_active=false;
     size_t eeprom_size=0;
     static unsigned wire(uint32_t buttons){
         buttons=emu::n64_input::buttons(buttons);
