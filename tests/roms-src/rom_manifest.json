@@ -22054,6 +22054,17 @@
       "source_type": "original",
       "suite": "dp_registers"
     },
+    "n64/eeprom_4k/eeprom_4k.z64": {
+      "build_command": "python3 tests/roms-src/n64/eeprom_4k/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "b70546e97e509b62c4fac30abbf206020431e915a6f481dd6e7861bd6e453557",
+      "source_repo": "tests/roms-src/n64/eeprom_4k/build.py",
+      "source_sha": "4583c9523bc95cf58b88952ad0aee9b4d1cd0556c74d6b9f2a92613ac2c60bb9",
+      "source_type": "original",
+      "suite": "eeprom_4k"
+    },
     "n64/fpu_arithmetic_edges/fpu_arithmetic_edges.z64": {
       "build_command": "python3 tests/roms-src/n64/fpu_arithmetic_edges/build.py",
       "console": "n64",

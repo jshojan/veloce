@@ -23,7 +23,7 @@ int main(int argc,char** argv){try{
         std::vector<uint8_t> input,actual;require(initial.save(input) && core.plugin->load_state(input),"native input checkpoint");
         if(argc==5)scheduling->set_frame_scheduling(emu::FrameScheduling::InstructionQuantum);
         core.plugin->run_frame({});core.plugin->run_frame({});require(core.plugin->save_state(actual),"actual production state");
-        const size_t vi_at=actual.size()-1054640,ram_at=704+0x10000;
+        const size_t vi_at=actual.size()-1055152,ram_at=704+0x10000;
         const uint32_t guest=(uint32_t(actual.at(ram_at))<<24)|(uint32_t(actual.at(ram_at+1))<<16)|(uint32_t(actual.at(ram_at+2))<<8)|actual.at(ram_at+3);
         out<<"["<<index++<<','<<h<<','<<v<<','<<leap<<','<<a<<','<<b<<','<<pattern<<','<<current<<','<<phase<<','<<crystal
            <<','<<(core.plugin->get_cycle_count()-10)<<','<<be(actual,vi_at+15*8)<<','<<be(actual,vi_at+16*8)<<','<<be(actual,vi_at+17*8)<<','<<be(actual,vi_at+18*8)
@@ -40,10 +40,10 @@ int main(int argc,char** argv){try{
     // Mode is serialized, restored atomically and preserved across reset. Legacy
     // S029 always resumes the exact old quantum regardless of native boot mode.
     std::vector<uint8_t> saved,replay;require(core.plugin->save_state(saved),"mode save");
-    require(saved.size()==9527616 && saved[6]=='3' && saved[7]=='1',"S031 exact ABI capacity");
+    require(saved.size()==9528128 && saved[6]=='3' && saved[7]=='2',"S032 exact ABI capacity");
     for(unsigned bit=0;bit<64;++bit){if(bit==0 || bit==8 || bit==16)continue;auto bad=saved;bad[639-bit/8]|=uint8_t(1u<<(bit%8));require(!core.plugin->load_state(bad) && core.plugin->save_state(replay) && replay==saved,"reserved schedule flag atomic rejection");}
     scheduling->set_frame_scheduling(emu::FrameScheduling::InstructionQuantum);require(core.plugin->load_state(saved) && scheduling->get_frame_scheduling()==emu::FrameScheduling::VideoField,"field schedule restore");
-    auto old=saved;old[6]='2';old[7]='9';old[638]=0;require(core.plugin->load_state(old) && scheduling->get_frame_scheduling()==emu::FrameScheduling::InstructionQuantum,"S029 exact legacy scheduling");
+    auto old=saved;old.resize(old.size()-512);old[6]='2';old[7]='9';old[638]=0;require(core.plugin->load_state(old) && scheduling->get_frame_scheduling()==emu::FrameScheduling::InstructionQuantum,"S029 exact legacy scheduling");
     const auto before=core.plugin->get_cycle_count();core.plugin->run_frame({});require(core.plugin->get_cycle_count()-before==100000,"actual imported quantum budget");
     core.plugin->reset();require(scheduling->get_frame_scheduling()==emu::FrameScheduling::InstructionQuantum,"legacy movie reset must preserve schedule");
     const auto reset_start=core.plugin->get_cycle_count();core.plugin->run_frame({});require(core.plugin->get_cycle_count()-reset_start==100000,"actual legacy reset budget");
@@ -61,7 +61,7 @@ int main(int argc,char** argv){try{
     initial.video_interface.write(7,4095);initial.video_interface.write(8,0x0fff0fff);
     initial.video_interface.write(6,1023);initial.video_interface.write(0,2);initial.crystal_phase=0;
     initial.save(saved);require(core.plugin->load_state(saved),"largest field start");const auto maximum=core.plugin->get_cycle_count();core.plugin->run_frame({});
-    require(core.plugin->save_state(saved) && be(saved,saved.size()-1054640+17*8)==1,"largest stable field boundary");
+    require(core.plugin->save_state(saved) && be(saved,saved.size()-1055152+17*8)==1,"largest stable field boundary");
     const uint64_t wanted=(uint64_t(512)*4096*93750000+48681817)/48681818;
     require(core.plugin->get_cycle_count()-maximum==wanted,"largest field rational clock duration");
     initial.video_interface.fields=~uint64_t(0);initial.save(saved);require(core.plugin->load_state(saved),"saturated start");const auto bounded=core.plugin->get_cycle_count();core.plugin->run_frame({});require(core.plugin->get_cycle_count()-bounded==6250000,"saturated-counter safety cap");

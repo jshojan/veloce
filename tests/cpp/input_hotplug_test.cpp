@@ -297,7 +297,7 @@ int main() {
         for(int x:{-32768,0,32767})for(int y:{-32768,0,32767}){
             require(SDL_JoystickSetVirtualAxis(joystick,2,Sint16(x))==0 && SDL_JoystickSetVirtualAxis(joystick,3,Sint16(y))==0,"Virtual Boy virtual right-stick stimulus");pump(input);
             const uint32_t expected=(x<0?1u<<23:x>0?1u<<24:0)|(y<0?1u<<21:y>0?1u<<22:0);
-            require((input.get_button_state(0)&right_mask)==expected,"Virtual Boy right-stick digital directions");plugin_contract(input);
+            require((input.get_button_state(0)&right_mask)==expected,"Virtual Boy right-stick digital directions");
         }
         input.set_binding(emu::VirtualButton::CUp,{emu::InputSourceType::Keyboard,-1,SDL_SCANCODE_I,0,false});
         require(input.save_platform_config("VB"),"Virtual Boy input persistence");input.set_current_platform("NES");input.set_current_platform("VB");

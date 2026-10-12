@@ -1,19 +1,26 @@
 #pragma once
 #include "emu/input_types.hpp"
 #include "emu/n64_input.hpp"
+#include <algorithm>
 #include <array>
 #include <cstdint>
 namespace n64 {
 // Packet formatting latches five channel offsets. SI reads communicate through
 // that layout with current input; clearing the format bit does not disable it.
-// This functional profile has four controllers with signed-byte analog input,
-// no paks/EEPROM and no physical optical-counter calibration.
+// This functional profile has four controllers with signed-byte analog input
+// and a 4 Kbit cartridge EEPROM. Paks and physical timing are not modeled.
 class PifJoybus {
 public:
     using Ram=std::array<uint8_t,64>;
     using State=std::array<uint64_t,5>;
-    PifJoybus(){reset();}
+    using Eeprom=std::array<uint8_t,512>;
+    PifJoybus(){erase_eeprom();reset();}
     void reset(){channels.fill(64);}
+    void configure_eeprom(bool present){eeprom_present=present;}
+    bool has_eeprom() const {return eeprom_present;}
+    void erase_eeprom(){eeprom.fill(0xff);}
+    const Eeprom& eeprom_data() const {return eeprom;}
+    void set_eeprom(const Eeprom& data){eeprom=data;}
     void format(Ram& ram){
         if(!(ram[63]&1))return;
         reset();unsigned at=0,channel=0;
@@ -28,14 +35,32 @@ public:
         }
         ram[63]&=~uint8_t(1);
     }
-    void poll(Ram& ram,const std::array<uint32_t,4>& input) const {
+    void poll(Ram& ram,const std::array<uint32_t,4>& input) {
         for(unsigned port=0;port<5;++port){const auto at=unsigned(channels[port]);if(at>=64)continue;
             const unsigned raw=ram[at];if(raw&192)continue; // Skip/reset flags, no digital side effects.
             const unsigned tx=raw&63,rx=ram[at+1]&63,reply=at+2+tx;
             ram[at+1]=uint8_t(rx);
             if(!tx || reply+rx>63){ram[at+1]|=64;continue;}
             const unsigned command=ram[at+2];
-            if(port==4 || (command!=0 && command!=255 && command!=1)){ram[at+1]|=128;continue;}
+            if(port==4){
+                if(!eeprom_present){ram[at+1]|=128;continue;}
+                if(command==0 || command==255){
+                    if(tx!=1 || rx!=3){ram[at+1]|=64;continue;}
+                    ram[reply]=0;ram[reply+1]=0x80;ram[reply+2]=0;continue;
+                }
+                if(command==4){
+                    if(tx!=2 || rx!=8 || ram[at+3]>=64){ram[at+1]|=64;continue;}
+                    std::copy_n(eeprom.begin()+unsigned(ram[at+3])*8,8,ram.begin()+reply);
+                    continue;
+                }
+                if(command==5){
+                    if(tx!=10 || rx!=1 || ram[at+3]>=64){ram[at+1]|=64;continue;}
+                    std::copy_n(ram.begin()+at+4,8,eeprom.begin()+unsigned(ram[at+3])*8);
+                    ram[reply]=0;continue;
+                }
+                ram[at+1]|=128;continue;
+            }
+            if(command!=0 && command!=255 && command!=1){ram[at+1]|=128;continue;}
             if(tx!=1 || rx!=(command==1?4u:3u)){ram[at+1]|=64;continue;}
             if(command!=1){ram[reply]=5;ram[reply+1]=0;ram[reply+2]=2;continue;}
             const unsigned buttons=wire(input[port]);ram[reply]=uint8_t(buttons>>8);ram[reply+1]=uint8_t(buttons);
@@ -51,6 +76,8 @@ public:
     }
 private:
     State channels{};
+    Eeprom eeprom{};
+    bool eeprom_present=false;
     static unsigned wire(uint32_t buttons){
         buttons=emu::n64_input::buttons(buttons);
         using emu::VirtualButton;
