@@ -4054,12 +4054,21 @@ texture byte; independent shade patterns, filtering and depth remain ungraded.
 N64 0.72.0 samples cycle-one TEXEL1 from tile `(primitive tile + 1) mod 8`
 when LOD selection is disabled. The
 [original two-tile cartridge](../../tests/roms-src/n64/rdp_two_cycle_texel1/README.md)
-grades **262,144 guest cases / 3,407,872 actual framebuffer and DP/MI
+initially graded **262,144 guest cases / 3,407,872 actual framebuffer and DP/MI
 register words**. Every RGBA16 and IA16 source word is tested with a different
 next-tile texel under RDRAM and XBUS delivery. The independent oracle rejects
 an executed ROM that points the second tile at the first texel. This covers
 point sampling with fixed primitive alpha; LOD, filtering and general
 two-cycle behavior remain ungraded.
+
+N64 0.73.0 also routes TEXEL0 RGB and both texels' alpha values into cycle
+one. The expanded [two-tile cartridge](../../tests/roms-src/n64/rdp_two_cycle_texel1/README.md)
+now grades **786,432 guest cases / 10,223,616 actual framebuffer and DP/MI
+register words** across three coefficient selectors. An executed wrong-alpha
+selector ROM is rejected. The first-cycle TEXEL0 path, second-cycle TEXEL0 and
+TEXEL1 color inputs, and both texel-alpha coefficients have finite evidence;
+the two tile alphas are complementary in that corpus. LOD, filtering and other
+combiner/blender sources remain incomplete.
 
 An A pulse now loads Bob-omb Battlefield. Guest RAM places Mario near
 **(-6525, 0, 6431)** with a course terrain and camera. A 120-field neutral

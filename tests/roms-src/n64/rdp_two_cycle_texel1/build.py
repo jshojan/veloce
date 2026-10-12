@@ -6,14 +6,14 @@ HERE=Path(__file__).resolve().parent
 spec=importlib.util.spec_from_file_location('dp_assembler',HERE.parent/'dp_registers'/'build.py')
 asm=importlib.util.module_from_spec(spec);spec.loader.exec_module(asm)
 SUITE='rdp_two_cycle_texel1'
-VARIANTS=list(itertools.product((0,3),(2,),range(2)))
+VARIANTS=list(itertools.product((0,3),(2,),range(2),(8,9,10)))
 INDEX={v:i for i,v in enumerate(VARIANTS)}
 def cases(short=False):
     for raw in ((0,1,0x7fff,0x8000,0xfffe,0xffff) if short else range(65536)):
         for v in VARIANTS:yield raw,v,7,23
 
-def commands(v,wrong_tile1=False):
-    f,size,source=v;source_size=size;width=16>>source_size
+def commands(v,wrong_tile1=False,wrong_factor=False):
+    f,size,source,factor=v;source_size=size;width=16>>source_size
     image=(0xfd<<56)|(source_size<<51)|((width-1)<<32)|0x7f0000
     tile=(0xf5<<56)|(f<<53)|(size<<51)|(1<<41)
     load=(0xf4<<56)|(((width-1)*4)<<12)|4
@@ -23,16 +23,19 @@ def commands(v,wrong_tile1=False):
     color=(0xff<<56)|(3<<51)|(3<<32)|0x700000
     mode=(0xef<<56)|(1<<52)|(15<<36)|(3<<42)|(3<<26)|(2<<18)|(1<<20)|64|16384
     scissor=(0xed<<56)|(16<<12)|16
-    primitive=(0xfa<<56)|64
-    combine=(0xfc<<56)|(15<<52)|(15<<28)|(31<<47)|(1<<15)|(7<<44)|(7<<12)|(7<<41)|(1<<9)
-    combine|=(2<<24)|(10<<32)|(2<<6)|(7<<21)|(7<<3)|(7<<18)|2
+    primitive=(0xfa<<56)|(0x6496c8<<8)|64
+    # TEXEL0_ALPHA selects a primitive-COMBINED versus TEXEL0 interpolation.
+    # The other selectors interpolate TEXEL0-COMBINED versus TEXEL1.
+    base=1 if factor==8 else 2
+    combine=(0xfc<<56)|(15<<52)|(15<<28)|(31<<47)|((3 if factor==8 else 1)<<15)|(7<<44)|(7<<12)|(7<<41)|(1<<9)
+    combine|=(base<<24)|((10 if wrong_factor else factor)<<32)|(base<<6)|(7<<21)|(7<<3)|(7<<18)|2
     head=(0xca<<56)|(1<<55)|(16<<32)|(8<<16)
     edges=[(2<<48)|0xffff0000,0,65536]
     # Constant S/T supplied by the guest, no expected framebuffer in the ROM.
     tri=[head]+edges+[0]*8
     return [image,tile,load,bounds,tile1,bounds1,color,mode,scissor,primitive,combine]+tri+[0xe900000000000000]
 
-def build(short=False,wrong_capture=False,wrong_tile1=False):
+def build(short=False,wrong_capture=False,wrong_tile1=False,wrong_factor=False):
     rows=list(cases(short));p=asm.Program();asm.header(p,len(rows),13)
     p.i(15,0,27,0xa070);p.i(15,0,28,0xa430);p.address(21,'templates');p.puts('header')
     p.mark('sample');p.i(39,16,12,0);p.r(2,rt=12,rd=8,sa=16);p.r(0,rt=8,rd=9,sa=9);p.r(33,21,9,22)
@@ -67,7 +70,7 @@ def build(short=False,wrong_capture=False,wrong_tile1=False):
     while p.pc&7:p.data.append(0)
     p.mark('templates')
     for v in VARIANTS:
-        words=commands(v,wrong_tile1);record=(len(words)*8).to_bytes(4,'big')+v[2].to_bytes(4,'big')+b''.join(w.to_bytes(8,'big') for w in words)
+        words=commands(v,wrong_tile1,wrong_factor);record=(len(words)*8).to_bytes(4,'big')+v[2].to_bytes(4,'big')+b''.join(w.to_bytes(8,'big') for w in words)
         assert len(record)<=512;p.data.extend(record+b'\0'*(512-len(record)))
     p.mark('table')
     for raw,v,s,t in rows:p.word(raw|(INDEX[v]<<16));p.word(s|(t<<5))
