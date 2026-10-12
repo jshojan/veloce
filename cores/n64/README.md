@@ -4134,6 +4134,17 @@ detail/sharpen and full mipmap filtering remain unfinished. This model follows
 published RDP behavior; physical hardware capture is still needed for direct
 silicon validation. N64 stays **50% (10/20)**.
 
+N64 0.80.0 accepts independent texture gradients along the triangle edge
+while calculating affine LOD from the S/T screen-X and screen-Y derivatives.
+The [original edge-gradient cartridge](../../tests/roms-src/n64/rdp_lod_edge_gradient/README.md)
+grades **165,760 cases / 2,154,880 actual framebuffer and DP/MI register
+words** across mixed 1/32-texel gradient vectors, all 16 sign masks, two edge
+arrangements, RGBA16/IA16 and RDRAM/XBUS delivery. A changed-edge control
+preserves LOD observations; executed wrong-Y, wrong-T, wrong-sign, wrong-tile,
+wrong-fraction and wrong-capture ROMs are rejected. Solid source tiles isolate
+LOD from edge-coordinate sampling. Perspective LOD, detail/sharpen and full
+mipmap filtering remain unfinished; N64 stays **50% (10/20)**.
+
 An A pulse now loads Bob-omb Battlefield. Guest RAM places Mario near
 **(-6525, 0, 6431)** with a course terrain and camera. A 120-field neutral
 control leaves the opening dialogue and position unchanged; repeated A presses

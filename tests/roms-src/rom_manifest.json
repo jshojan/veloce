@@ -22439,6 +22439,17 @@
       "source_type": "original",
       "suite": "rdp_lod_affine_levels"
     },
+    "n64/rdp_lod_edge_gradient/rdp_lod_edge_gradient.z64": {
+      "build_command": "python3 tests/roms-src/n64/rdp_lod_edge_gradient/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "5692edd9bdebe1acd5217cc2183e9494cd2af37fd5eed1079e9c2b9ee718b745",
+      "source_repo": "tests/roms-src/n64/rdp_lod_edge_gradient/build.py",
+      "source_sha": "19723bf380f383176ef0da8adf5aa830f5c7b5627d708fe3ecd5eabbfb127b03",
+      "source_type": "original",
+      "suite": "rdp_lod_edge_gradient"
+    },
     "n64/rdp_lod_fraction/rdp_lod_fraction.z64": {
       "build_command": "python3 tests/roms-src/n64/rdp_lod_fraction/build.py",
       "console": "n64",

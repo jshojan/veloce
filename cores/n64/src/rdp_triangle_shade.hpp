@@ -31,13 +31,12 @@ private:
         const bool two_cycle=((mode>>52)&3)==1;
         const bool lod_enabled=mode&(1ull<<48);
         // Bounded affine LOD: exact 1/32-texel S/T gradients on both axes.
-        // The edge gradient equals d/dY, as on a vertical major edge.
+        // d/dEdge drives interpolation; LOD uses the independent d/dY.
         // Perspective, detail and sharpen remain outside this profile.
         unsigned first_tile=triangle.tile,second_tile=(triangle.tile+1)&7,lod_fraction=0;
         if(lod_enabled){
             const bool simple_gradient=!triangle.tex[1][2] && !triangle.tex[2][2] &&
-                !triangle.tex[3][2] && triangle.tex[2][0]==triangle.tex[3][0] &&
-                triangle.tex[2][1]==triangle.tex[3][1];
+                !triangle.tex[3][2];
             constexpr uint64_t unit=1ull<<16;
             unsigned lod_units=0;
             for(unsigned group=1;group<=3;group+=2)for(unsigned lane=0;lane<2;++lane){
