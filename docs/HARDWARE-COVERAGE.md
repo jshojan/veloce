@@ -4315,12 +4315,14 @@ gates. Fresh media formatting is deterministic. Original guest filesystem use,
 other accessories, additional save media and physical serial timing remain
 unverified. The fixed N64 delivery score remains **50% (10/20)**.
 
-## N64 original Controller Pak guest corpus (0.63.0)
+## N64 original Controller Pak guest corpus (0.64.0)
 
 The [repository-built MIPS cartridge](../tests/roms-src/n64/controller_pak/README.md)
-grades 12,292 full SI reply packets / 98,336 guest register words across
-four ports and 4,096 blocks, followed by 131,072 final Pak bytes. The harness
-rejects an executed wrong-register image and three malformed files. This is
-guest-path evidence for the functional Pak storage profile; filesystem use by
-retail games and physical timing remain unverified. The fixed N64 score is
-**50% (10/20)**.
+grades 12,540 full SI reply packets / 100,320 guest register words across
+four ports, five system pages per fresh Pak, a synthetic one-page note on each
+port and 4,096 storage blocks, followed by 131,072 final Pak bytes. Host
+validation checks copied ID headers, checksums, empty and allocated inode
+tables, the note directory, 122 free pages per Pak and note data from guest reads.
+The harness rejects an executed wrong-register image and three malformed
+files. Retail game filesystem APIs and physical timing remain unverified.
+The fixed N64 score is **50% (10/20)**.

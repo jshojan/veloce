@@ -10,7 +10,9 @@ asm = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(asm)
 SUITE = 'controller_pak'
 BLOCKS = 1024
-CASES = 4 + 4 * BLOCKS * 3
+SYSTEM_BLOCKS = 40
+NOTE_BLOCKS = (40, 41, 42, 43, 44, 45, 46, 47, 8, 16, 24)
+CASES = 4 + 4 * (SYSTEM_BLOCKS + len(NOTE_BLOCKS) * 2 + BLOCKS * 3)
 
 
 def address_crc(offset):
@@ -29,17 +31,41 @@ def payload(port, block):
                        for lane in range(3, 32)))
 
 
+def note_data(port, block):
+    if 40 <= block < 48:
+        return bytes((port * 23 + block * 7 + lane * 19) & 255 for lane in range(32))
+    if block in (8, 16):
+        inode = bytearray(32)
+        inode[1] = (122 * 3 + 1) & 255
+        for slot in range(5, 16):
+            inode[slot * 2 + 1] = 1 if slot == 5 else 3
+        return bytes(inode)
+    if block == 24:
+        note = bytearray(32)
+        note[:10] = bytes((0x56, 0x4c, 0x4f, 0x45, 0x50, 0x4b, 0, 5, 2, 3))
+        note[12] = 0x1a  # extension A
+        note[16:20] = bytes((0x2d, 0x1e, 0x2c, 0x2d))  # TEST
+        return bytes(note)
+    raise ValueError(block)
+
+
 def cases():
     for port in range(4):
-        yield port, 0, 0
+        yield port, 0, 0, 'status'
+        for block in range(SYSTEM_BLOCKS):
+            yield port, block, 2, 'fresh'
+        for block in NOTE_BLOCKS:
+            yield port, block, 3, 'note'
+        for block in NOTE_BLOCKS:
+            yield port, block, 2, 'note'
         for block in range(BLOCKS):
-            yield port, block, 3
-            yield port, block, 2
+            yield port, block, 3, 'bulk'
+            yield port, block, 2, 'bulk'
         for block in range(BLOCKS):
-            yield port, block, 2
+            yield port, block, 2, 'bulk'
 
 
-def packet(port, block, command):
+def packet(port, block, command, phase):
     data = bytearray([0xaa] * 64)
     data[:port] = bytes(port)
     tx, rx = (1, 3) if command == 0 else (3, 33) if command == 2 else (35, 1)
@@ -48,7 +74,7 @@ def packet(port, block, command):
         address = block * 32 | address_crc(block * 32)
         data[port + 3:port + 5] = address.to_bytes(2, 'big')
     if command == 3:
-        data[port + 5:port + 37] = payload(port, block)
+        data[port + 5:port + 37] = note_data(port, block) if phase == 'note' else payload(port, block)
     data[port + 2 + tx + rx] = 254
     data[63] = 1
     return data

@@ -35,7 +35,7 @@ N64 0.61.0 adds correct absent-controller-accessory replies for Joybus read/writ
 
 N64 0.62.0 adds configurable 32 KiB Controller Paks on four ports, addressed Joybus reads and writes, deterministic fresh-Pak formatting, S034 rollback state and frontend `.mpk1` through `.mpk4` persistence. A component gate writes and rereads all **4,096 Pak blocks** across four ports; state and frontend gates cover rollback, cross-session reload and malformed-file rejection. The private Super Mario 64 lobby checkpoint is rerun as a compatibility gate. Other save media and complete accessory behavior remain pending; N64 stays **50% (10/20)**.
 
-N64 0.63.0 adds an [original Controller Pak MIPS cartridge](tests/roms-src/n64/controller_pak/README.md): **12,292 guest SI packets / 98,336 captured register words** across all four ports and all 4,096 blocks, plus the final **131,072 Pak bytes** graded by a host oracle. An executed wrong-register ROM and damaged result files are rejected. Game filesystem integration and physical serial timing remain unverified; N64 stays **50% (10/20)**.
+N64 0.64.0 extends the [original Controller Pak MIPS cartridge](tests/roms-src/n64/controller_pak/README.md) to read each fresh Pak’s five system pages, create and read back a synthetic one-page note on each port, then sweep all 4,096 storage blocks. The host checks four copied ID headers, their checksums, both inode tables, the note directory and data chain from guest SI replies. It grades **12,540 guest packets / 100,320 register words** and the final **131,072 Pak bytes**. An executed wrong-register ROM and damaged files are rejected. Retail game filesystem APIs and physical serial timing remain unverified; N64 stays **50% (10/20)**.
 
 ### 3DS ARM11 instruction coverage
 

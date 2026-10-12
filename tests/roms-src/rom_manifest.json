@@ -21993,9 +21993,9 @@
       "console": "n64",
       "license": "MIT",
       "rom_variant": "veloce",
-      "sha256": "cf8a0d91598490722c8d98b92ec5be352bbf227828b637e1bdb82b4ce7eebf59",
+      "sha256": "43e52ba300918e8bb82081889a8f887dc926f2a5471d632ab481cb6c1add27a1",
       "source_repo": "tests/roms-src/n64/controller_pak/build.py",
-      "source_sha": "a2ab7187e11e6a5b86ab1039a7728700c5fb360d485b039deee71dc1f8c8df61",
+      "source_sha": "e424066f8107a187699638b982292311817fe0401b5b6502632d152dbfe8bfc2",
       "source_type": "original",
       "suite": "controller_pak"
     },
