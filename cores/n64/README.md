@@ -4023,6 +4023,11 @@ depth decisions. Other two-cycle sources and blender profiles still reject.
 The [original synthetic DP packet test](../../tests/cpp/n64_rdp_two_cycle_test.cpp)
 checks 65,536 combiner feedback values,
 65,536 fogged pixels and framebuffer writes through actual DP dispatch.
+The [original two-cycle cartridge](../../tests/roms-src/n64/rdp_two_cycle_fog/README.md)
+grades **262,144 guest cases / 3,407,872 actual framebuffer and DP/MI
+register words** from a file. It sweeps all 8-bit primitive seed/alpha pairs,
+two second-cycle blend profiles and RDRAM/XBUS command paths. An independent
+oracle, executed wrong-capture ROM and damaged-stream controls pass.
 
 An A pulse now loads Bob-omb Battlefield. Guest RAM places Mario near
 **(-6525, 0, 6431)** with a course terrain and camera. A 120-field neutral
