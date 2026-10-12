@@ -12,14 +12,14 @@ immediately reads every block with **256 distinct payload patterns**. It
 finally rereads every block to detect address aliasing after all writes.
 These **16,512 cases / 33,024 guest 64-bit words** are independently graded by
 `run.py`. The table spans the full 512-byte device; it does not cover physical
-serial timing, 16 Kbit EEPROM, SRAM, FlashRAM or controller accessories.
+serial timing, SRAM, FlashRAM or controller accessories.
 
 The runner also checks production frontend persistence across two processes,
 rejects a malformed one-byte save, executes a wrong-read cartridge that fails
 all 16,384 write/read cases, and rejects seven damaged register files. A
 component test covers EEPROM identification, all valid block addresses,
 out-of-range addresses, malformed command lengths, and reset behavior.
-Native state tests cover S032 replay and atomic legacy import.
+Native state tests cover S033 replay and atomic S032 legacy import.
 
 ```sh
 python3 tests/roms-src/build.py n64/eeprom_4k --original-only --check

@@ -87,10 +87,10 @@ int main(int argc,char** argv) {
     continuation();require(m.save(after) && m.restore(state),"SP state restore");continuation();require(m.save(replay) && replay==after,"SP exact state replay");
     for(unsigned field=0;field<9;++field) {
         constexpr uint32_t invalid[]={1,1,1,1,1,4,1,2,2};
-        auto bad=after;const size_t at=bad.size()-1089184+field*8;bad[at+7]|=invalid[field];
+        auto bad=after;const size_t at=bad.size()-1090728+field*8;bad[at+7]|=invalid[field];
         require(!m.restore(bad) && m.save(replay) && replay==after,"SP invalid state rejection atomicity");
     }
-    auto old=after;old.resize(old.size()-1089184);old[6]='0';old[7]='7';require(m.restore(old) && sp.status==1 && !sp.interrupt && !sp.semaphore,"S007 neutral SP conversion");
+    auto old=after;old.resize(old.size()-1090728);old[6]='0';old[7]='7';require(m.restore(old) && sp.status==1 && !sp.interrupt && !sp.semaphore,"S007 neutral SP conversion");
     require(m.save(state),"access baseline");
     for(unsigned reg=0;reg<8;++reg)for(unsigned width:{1u,2u,8u}) {v=0xabcdef;require(!m.read(address(reg),width,v) && v==0xabcdef && !m.write(address(reg),width,0),"SP widths");}
     for(unsigned reg=0;reg<8;++reg) {v=0xabcdef;require(!m.read(address(reg)+1,4,v) && v==0xabcdef && !m.write(address(reg)+1,4,0),"SP alignment");}

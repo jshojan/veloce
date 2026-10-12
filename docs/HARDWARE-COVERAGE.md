@@ -4271,3 +4271,13 @@ executed wrong-read cartridge fails the host oracle. S032 states preserve the
 EEPROM across rollback; older states import erased storage. Busy timing,
 16 Kbit EEPROM, other save media, RTC and accessories remain unverified, so the
 N64 checklist stays **50% (10/20)**.
+
+## N64 16 Kbit EEPROM evidence (0.59.0)
+
+The [original 16 Kbit cartridge](../tests/roms-src/n64/eeprom_16k/README.md)
+grades **66,048 SI/PIF guest cases / 132,096 register-file words** across all
+256 blocks. Its host oracle checks a 2,048-byte cross-process save reload,
+malformed data rejection and an executed wrong-read mutant. S033 state and
+plugin tests check rollback and S032 import. This is bounded functional save
+media coverage; busy timing, other save types and automatic 16 Kbit selection
+for new native cartridges remain incomplete. N64 remains **50% (10/20)**.

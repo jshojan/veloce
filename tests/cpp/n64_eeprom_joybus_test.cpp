@@ -28,9 +28,9 @@ static n64::PifJoybus::Ram packet(n64::PifJoybus& device, unsigned command,
 
 int main() {
     n64::PifJoybus device;
-    device.configure_eeprom(true);
+    device.configure_eeprom(512);
     const auto blank = device.eeprom_data();
-    require(n64::PifJoybus::Eeprom{}.size() == 512, "EEPROM extent");
+    require(device.eeprom_bytes() == 512, "EEPROM extent");
     for (auto byte : blank) require(byte == 0xff, "erased EEPROM byte");
     for (unsigned command : {0u, 255u}) {
         const auto status = packet(device, command, 1, 3, 0);

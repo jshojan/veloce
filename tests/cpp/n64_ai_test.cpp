@@ -58,8 +58,8 @@ int main(int argc,char** argv) {
     for(unsigned n=0;n<4097;++n)m.clock();std::vector<uint8_t> state,after,replay;require(m.save(state),"audio state save");
     auto advance=[&]() {for(unsigned n=0;n<100000;++n)m.clock();};advance();require(m.save(after) && m.restore(state),"audio state restore");advance();require(m.save(replay) && replay==after,"audio exact replay");
     constexpr uint64_t invalid[]={1,2,16384,16,3,2,16384,2,1,1,1,1,65536,65536,2,93750000,93750000,8192,8193};
-    for(unsigned field=0;field<19;++field) {auto bad=after;const size_t at=bad.size()-n64::Machine::audio_state_size-1056184+field*8;for(unsigned byte=0;byte<8;++byte)bad[at+byte]=uint8_t(invalid[field]>>(56-byte*8));require(!m.restore(bad) && m.save(replay) && replay==after,"audio invalid state atomicity");}
-    auto old=after;old.resize(old.size()-n64::Machine::audio_state_size-1056184);old[6]='0';old[7]='8';require(m.restore(old) && !a.count && !m.audio_count && !m.crystal_phase,"S008 neutral audio conversion");
+    for(unsigned field=0;field<19;++field) {auto bad=after;const size_t at=bad.size()-n64::Machine::audio_state_size-1057728+field*8;for(unsigned byte=0;byte<8;++byte)bad[at+byte]=uint8_t(invalid[field]>>(56-byte*8));require(!m.restore(bad) && m.save(replay) && replay==after,"audio invalid state atomicity");}
+    auto old=after;old.resize(old.size()-n64::Machine::audio_state_size-1057728);old[6]='0';old[7]='8';require(m.restore(old) && !a.count && !m.audio_count && !m.crystal_phase,"S008 neutral audio conversion");
     // Bound host output without stopping guest DMA.
     m.reset();put(m,2,1);put(m,5,15);put(m,4,16383);put(m,0,0x700008);put(m,1,0x3fff8);
     for(unsigned n=0;n<18000000;++n)m.clock();require(m.audio_count==8192 && m.audio_dropped>0 && a.count==1,"host ring bound/backpressure");

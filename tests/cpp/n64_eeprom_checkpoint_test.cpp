@@ -8,19 +8,29 @@
 using emulator_test::require;
 
 int main(int argc, char** argv) {
-    require(argc == 3, "core and original EEPROM cartridge required");
+    require(argc == 3 || argc == 4, "core and original EEPROM cartridge required");
+    const size_t battery_bytes = argc == 4 ? 2048 : 512;
     std::ifstream stream(argv[2], std::ios::binary);
     std::vector<uint8_t> rom{std::istreambuf_iterator<char>(stream), {}};
     emulator_test::LoadedCore core(argv[1], rom);
     auto& net = core.netplay();
     require(core.plugin->has_battery_save(), "marked cartridge EEPROM capability");
     const auto blank = core.plugin->get_battery_save_data();
-    require(blank.size() == 512 && std::all_of(blank.begin(), blank.end(),
+    require(blank.size() == battery_bytes && std::all_of(blank.begin(), blank.end(),
             [](uint8_t value) { return value == 0xff; }), "erased battery bytes");
     for (unsigned frame = 0; frame < 5; ++frame) net.run_frame_netplay(0, 0);
     const auto checkpoint = emulator_test::snapshot(net);
+    uint64_t profile = 0;
+    for (auto at = checkpoint.end() - 8; at != checkpoint.end(); ++at)
+        profile = (profile << 8) | *at;
+    require(profile == battery_bytes, "S033 EEPROM media size missing");
+    auto invalid_profile = checkpoint;
+    invalid_profile.back() ^= 1;
+    require(!net.load_state_fast(invalid_profile.data(), invalid_profile.size()) &&
+            emulator_test::snapshot(net) == checkpoint,
+            "invalid S033 media size changed active state");
     const auto battery = core.plugin->get_battery_save_data();
-    require(battery.size() == 512 && battery != blank,
+    require(battery.size() == battery_bytes && battery != blank,
             "guest did not write EEPROM before checkpoint");
     for (unsigned frame = 0; frame < 5; ++frame) net.run_frame_netplay(0, 0);
     const auto later = emulator_test::snapshot(net);
