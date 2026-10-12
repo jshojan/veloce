@@ -1081,6 +1081,10 @@ add_test(NAME n64_rdp_two_cycle_texel1 COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/rdp_two_cycle_texel1/run.py --emulator $<TARGET_FILE:veloce>
     --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_rdp_two_cycle_texel1)
 set_tests_properties(n64_rdp_two_cycle_texel1 PROPERTIES LABELS "accuracy;owned" TIMEOUT 700)
+add_test(NAME n64_rdp_two_cycle_filter COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/rdp_two_cycle_filter/run.py --emulator $<TARGET_FILE:veloce>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_rdp_two_cycle_filter)
+set_tests_properties(n64_rdp_two_cycle_filter PROPERTIES LABELS "accuracy;owned" TIMEOUT 700)
 add_test(NAME n64_rdp_two_cycle_shaded_texture COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/rdp_two_cycle_shaded_texture/run.py --emulator $<TARGET_FILE:veloce>
     --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_rdp_two_cycle_shaded_texture)

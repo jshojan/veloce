@@ -63,6 +63,8 @@ N64 0.72.0 samples cycle-one TEXEL1 from the tile after the primitive tile when 
 
 N64 0.73.0 expands the [original two-tile cartridge](tests/roms-src/n64/rdp_two_cycle_texel1/README.md) to **786,432 guest cases / 10,223,616 actual framebuffer and DP/MI register words**. Cycle one now accepts TEXEL0 RGB and either texel alpha as an interpolation coefficient, alongside primitive alpha. An executed wrong-alpha-selector ROM is rejected. The tile alphas are complementary in this point-sampled, no-LOD corpus; full graphics and retail compatibility remain pending. N64 stays **50% (10/20)**.
 
+N64 0.74.0 adds [original two-tile filtering evidence](tests/roms-src/n64/rdp_two_cycle_filter/README.md): **65,536 guest cases / 851,968 actual framebuffer and DP/MI register words** covering every 5-bit fractional S/T pair, RGBA16 and IA16, triangular and mid-texel filters, eight primitive-alpha values and RDRAM/XBUS command delivery. Executed wrong-tile, point-sampling and wrong-mid-texel ROMs are rejected. The tile data are fixed, LOD and perspective are untested in this corpus, and N64 stays **50% (10/20)**.
+
 ### 3DS ARM11 instruction coverage
 
 The 3DS plugin implements the following ARMv6 instruction subsets. Each linked

@@ -4070,6 +4070,16 @@ TEXEL1 color inputs, and both texel-alpha coefficients have finite evidence;
 the two tile alphas are complementary in that corpus. LOD, filtering and other
 combiner/blender sources remain incomplete.
 
+N64 0.74.0 adds original guest-register evidence for filtering both sampled
+tiles in the no-LOD two-cycle path. The
+[two-tile filter cartridge](../../tests/roms-src/n64/rdp_two_cycle_filter/README.md)
+grades **65,536 cases / 851,968 actual framebuffer and DP/MI register words**:
+all 1,024 fractional S/T pairs, RGBA16 and IA16, triangular and mid-texel
+filter modes, eight primitive-alpha values, and RDRAM/XBUS command delivery.
+Wrong-tile, point-sampling and wrong-mid-texel ROMs are rejected by its
+independent file oracle. Tile neighborhoods are fixed; general texture pairs,
+perspective/LOD and complete RDP behavior remain ungraded.
+
 An A pulse now loads Bob-omb Battlefield. Guest RAM places Mario near
 **(-6525, 0, 6431)** with a course terrain and camera. A 120-field neutral
 control leaves the opening dialogue and position unchanged; repeated A presses
