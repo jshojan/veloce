@@ -4091,6 +4091,16 @@ a component gate verifies that nonzero STW gradients reject atomically. This
 does not yet implement variable LOD, mipmap chains, fractions, detail/sharpen,
 perspective LOD or physical timing.
 
+N64 0.76.0 extends the affine two-cycle LOD profile to exact integer S
+gradients from **0 through 255 texels per pixel**, both signs, with level
+clamping at the primitive's maximum. The
+[original tile-level cartridge](../../tests/roms-src/n64/rdp_lod_affine_levels/README.md)
+grades **8,192 cases / 106,496 actual framebuffer and DP/MI register words**
+across RGBA16, IA16, two maximum levels, LOD on/off and RDRAM/XBUS delivery.
+Five source tiles have distinct values; executed wrong-tile, wrong-LOD and
+wrong-maximum-level ROMs are rejected. Fractional and nonhorizontal gradients,
+perspective, LOD fractions and general mipmap filtering remain unsupported.
+
 An A pulse now loads Bob-omb Battlefield. Guest RAM places Mario near
 **(-6525, 0, 6431)** with a course terrain and camera. A 120-field neutral
 control leaves the opening dialogue and position unchanged; repeated A presses

@@ -114,6 +114,9 @@ int main(){
     auto gradient=packet;gradient.words[13]|=1ull<<48;
     check(n64::RdpTriangleShade::draw(gradient,dp.color_image,dp.other_mode|(1ull<<48),dp.scissor,
           dp.combiner,ram,&dp.texture,&dp.tmem,&dp.conversion,&dp.blender)==1 && ram==preserved);
+    auto excessive=packet;excessive.words[13]|=8192ull<<48;
+    check(n64::RdpTriangleShade::draw(excessive,dp.color_image,dp.other_mode|(1ull<<48),dp.scissor,
+          dp.combiner,ram,&dp.texture,&dp.tmem,&dp.conversion,&dp.blender)==1 && ram==preserved);
     check(n64::RdpTriangleShade::draw(packet,dp.color_image,dp.other_mode|(1ull<<48)|(1ull<<51),dp.scissor,
           dp.combiner,ram,&dp.texture,&dp.tmem,&dp.conversion,&dp.blender)==1 && ram==preserved);
     std::cout<<values<<" combiner feedback values, "<<fog_cases

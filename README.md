@@ -67,6 +67,8 @@ N64 0.74.0 adds [original two-tile filtering evidence](tests/roms-src/n64/rdp_tw
 
 N64 0.75.0 implements constant-coordinate two-cycle LOD magnification: both texture cycles use the primitive tile when LOD is enabled with detail/sharpen off. The [original LOD cartridge](tests/roms-src/n64/rdp_lod_magnify/README.md) grades **524,288 cases / 6,815,744 actual framebuffer and DP/MI register words** across all 16-bit RGBA16 and IA16 patterns, LOD on/off and RDRAM/XBUS delivery. Wrong-LOD and wrong-tile ROMs are rejected. Variable LOD, mipmap chains, LOD fractions and full hardware accuracy remain pending; N64 stays **50% (10/20)**.
 
+N64 0.76.0 adds affine integer-gradient LOD tile selection. The [original tile-level cartridge](tests/roms-src/n64/rdp_lod_affine_levels/README.md) grades **8,192 cases / 106,496 actual framebuffer and DP/MI register words** across all 0–255 texel-per-pixel S gradients in both directions, two maximum levels, LOD on/off, RGBA16/IA16 and RDRAM/XBUS delivery. Executed wrong-tile, wrong-LOD and wrong-maximum-level ROMs are rejected. Fractional/T/Y gradients, perspective, LOD fractions and general mipmaps remain pending; N64 stays **50% (10/20)**.
+
 ### 3DS ARM11 instruction coverage
 
 The 3DS plugin implements the following ARMv6 instruction subsets. Each linked

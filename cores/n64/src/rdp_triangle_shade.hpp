@@ -30,14 +30,26 @@ private:
         const bool textured=triangle.texture && texture && tmem;
         const bool two_cycle=((mode>>52)&3)==1;
         const bool lod_enabled=mode&(1ull<<48);
-        // A zero STW gradient is a magnified pixel at every sample. The LOD
-        // tile table selects the primitive tile in both cycles in this mode.
-        // Variable LOD, detail and sharpen remain outside this profile.
-        bool constant_stw=true;
-        for(unsigned group=1;group<4;++group)
-            for(unsigned lane=0;lane<3;++lane)
-                constant_stw=constant_stw && !triangle.tex[group][lane];
-        if(lod_enabled && (!textured || !two_cycle || !constant_stw || (mode&(1ull<<51))))return 1;
+        // This affine LOD profile has a single exact integer-texel S gradient.
+        // Other gradients, perspective, detail and sharpen remain outside it.
+        unsigned first_tile=triangle.tile,second_tile=(triangle.tile+1)&7;
+        if(lod_enabled){
+            bool simple_gradient=!triangle.tex[1][1] && !triangle.tex[1][2];
+            for(unsigned group=2;group<4;++group)
+                for(unsigned lane=0;lane<3;++lane)
+                    simple_gradient=simple_gradient && !triangle.tex[group][lane];
+            const int64_t gradient=int32_t(triangle.tex[1][0]);
+            const uint64_t magnitude=uint64_t(gradient<0?-gradient:gradient);
+            constexpr uint64_t texel=32ull<<16;
+            if(!textured || !two_cycle || !simple_gradient || (mode&(1ull<<51)) ||
+               magnitude%texel || magnitude/texel>255)return 1;
+            const unsigned steps=unsigned(magnitude/texel);
+            unsigned level=0;
+            for(unsigned value=steps;value>1;value>>=1)++level;
+            if(level>triangle.level)level=triangle.level;
+            first_tile=(triangle.tile+level)&7;
+            second_tile=(first_tile+(steps?1u:0u))&7;
+        }
         const uint64_t sampling=textured?((63ull<<42)|(1ull<<51)|(1ull<<48)):(blender?(2047ull<<41):0);
         const uint64_t dither=(3ull<<38)|(3ull<<36);
         const bool depth_mode=mode&48,primitive_mode=mode&4;
@@ -95,9 +107,9 @@ private:
                         }
                         RdpTextureFilter::Quad quad{};quad.fill(texel);return RdpTextureFilter::convert_weights(quad,{},conversion->weights());
                     };
-                    sources.texel0=fetch(texture->tiles[triangle.tile]);
+                    sources.texel0=fetch(texture->tiles[first_tile]);
                     if(two_cycle && combiner.uses_texel1_cycle1())
-                        sources.texel1=fetch(texture->tiles[lod_enabled?triangle.tile:(triangle.tile+1)&7]);
+                        sources.texel1=fetch(texture->tiles[second_tile]);
                 }
                 if(two_cycle)sources.combined=combiner.evaluate(0,sources).combined;
                 auto color=combiner.evaluate(1,sources).clamped;
