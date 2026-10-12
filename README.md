@@ -161,6 +161,8 @@ N64 0.96.0 decodes RDP combiner cycles once per triangle draw. Five CPU-pinned, 
 
 N64 0.97.0 reuses the second-tile decision and texture conversion values across each triangle draw. Three CPU-pinned, paired 300-field SM64 course-checkpoint runs measured a **1.0% median paired gain (19.00 to 19.14 VI fields/second)**, with two of three pairs faster and byte-identical complete native states. The original two-cycle filter ROM and affected component gates pass. [Performance details](docs/N64-PERFORMANCE.md#reused-draw-invariants-0970). Play remains below real time; **N64 stays 50% (10/20)**.
 
+N64 0.98.0 selects PAL or NTSC VI/AI crystal timing from the normalized cartridge country byte. The [original VI cartridge](tests/roms-src/n64/vi_field_schedule/README.md) now grades **10,320 NTSC/PAL field and guest CURRENT records / 92,880 output words**. An executed NTSC-country control fails all 5,160 PAL expectations; a separate gate checks 66 country/ROM-byte-order loads and native-state region rejection. PAL retail CIC handoff, physical timing and real-time SM64 play remain pending. **N64 stays 50% (10/20)**.
+
 A cross-platform, plugin-based emulator framework built for speedrunners and TAS creators.
 
 *Veloce* - Italian for "fast"

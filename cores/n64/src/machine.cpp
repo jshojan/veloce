@@ -18,6 +18,13 @@ static uint64_t be(const uint8_t* data, unsigned bytes) {
     for (unsigned i = 0; i < bytes; ++i) value = (value << 8) | data[i];
     return value;
 }
+static bool pal_country(uint8_t code) {
+    switch(code) {
+    case 'D':case 'F':case 'H':case 'I':case 'L':case 'P':
+    case 'S':case 'U':case 'W':case 'X':case 'Y':case 'Z':return true;
+    default:return false;
+    }
+}
 bool Machine::load(const uint8_t* data, size_t size) {
     if (!data || size < 0x1004 || size > 64*1024*1024 || (size & 3)) return false;
     std::vector<uint8_t> image(data, data + size);
@@ -43,6 +50,8 @@ bool Machine::load(const uint8_t* data, size_t size) {
     for (auto byte : image) { identity ^= byte; identity *= 1099511628211ull; }
     entry = sign32(start);
     boot_mode=mode;
+    pal_region=pal_country(image[0x3e]);
+    video_crystal_rate=pal_region?49656530:48681818;
     frame_scheduling=mode==BootMode::Homebrew?emu::FrameScheduling::InstructionQuantum:emu::FrameScheduling::VideoField;
     rom = std::move(image);
     joybus.erase_eeprom();
@@ -98,10 +107,11 @@ void Machine::run_frontend_frame() {
     const bool field_mode=frame_scheduling==emu::FrameScheduling::VideoField;
     const auto field=video_interface.fields;
     // Blank/unconfigured VI has no field ending in the current functional VI
-    // model. Advance one nominal NTSC interval during startup. The larger cap
+    // model. Advance one nominal region interval during startup. The larger cap
     // bounds guest timing rewrites and a saturated field counter; it exceeds
     // the largest supported stable VI period (512 lines * 4096 VI clocks).
-    constexpr unsigned startup_budget=1562500,field_budget=6250000;
+    const unsigned startup_budget=pal_region?1875000:1562500;
+    constexpr unsigned field_budget=6250000;
     const unsigned budget=field_mode?field_budget:100000;
     for(unsigned attempt=0;attempt<budget && !done && !yielded;){
         unsigned maximum=std::min(2048u,budget-attempt);
@@ -135,7 +145,8 @@ unsigned Machine::skip_inactive_clocks(unsigned maximum) {
     // AI fetch, output sample or RTC second. Those event clocks use clock().
     if(!(sp_interface.status&1) || dp_interface.current!=dp_interface.active_end ||
        (dp_interface.start_valid && dp_interface.end_valid) || dp_interface.packet.ready())return 0;
-    constexpr uint64_t cpu_rate=93750000,crystal_rate=48681818;
+    constexpr uint64_t cpu_rate=93750000;
+    const uint64_t crystal_rate=video_crystal_rate;
     uint64_t count=maximum;
     const auto before_crystal_event=[&](uint64_t ticks){
         count=std::min(count,(ticks*cpu_rate-1-crystal_phase)/crystal_rate);
@@ -165,7 +176,8 @@ unsigned Machine::advance_active_rsp_clocks(unsigned maximum) {
     // RSP and DP still execute on every nominal tick. Stop before the next
     // VI line, AI fetch, host sample or RTC second so their event path stays
     // in clock(); an SP/DP interrupt can stop this batch even earlier.
-    constexpr uint64_t cpu_rate=93750000,crystal_rate=48681818;
+    constexpr uint64_t cpu_rate=93750000;
+    const uint64_t crystal_rate=video_crystal_rate;
     uint64_t count=maximum;
     const auto before_crystal_event=[&](uint64_t ticks){
         count=std::min(count,(ticks*cpu_rate-1-crystal_phase)/crystal_rate);
@@ -215,7 +227,7 @@ void Machine::clock() {
     // One nominal CPU clock per interpreter attempt: physical CPI is unmodeled.
     tick_rsp_dp();
     joybus.rtc.tick();
-    crystal_phase+=48681818;
+    crystal_phase+=video_crystal_rate;
     if(crystal_phase>=93750000) {crystal_phase-=93750000;audio_interface.tick(ram);video_interface.tick();}
     output_phase+=48000;
     if(output_phase>=93750000) {
@@ -447,7 +459,7 @@ bool Machine::save(std::vector<uint8_t>& data) const {
     for (auto value : s.cp0) append(data, value);
     for (auto value : {s.hi, s.lo, s.pc, s.next_pc, s.instructions, uint64_t(s.delay_slot)}) append(data, value);
     append(data, si_address); append(data, input_buttons); append(data, si_interrupt); append(data, mi_mask);
-    append(data, uint64_t(yielded)|(frame_scheduling==emu::FrameScheduling::VideoField?0x100:0)|(s.llbit?0x10000:0));
+    append(data, uint64_t(yielded)|(frame_scheduling==emu::FrameScheduling::VideoField?0x100:0)|(pal_region?0x200:0)|(s.llbit?0x10000:0));
     data.insert(data.end(), pif.begin(), pif.end());
     data.insert(data.end(), ram.begin(), ram.end());
     data.insert(data.end(), sp.begin(), sp.end());
@@ -564,7 +576,8 @@ bool Machine::restore(const std::vector<uint8_t>& data) {
     if (saved_done > 1 || saved_delay > 1 || s.gpr[0] != 0) return false;
     const auto saved_si_address = take(), saved_input = take(), saved_irq = take(), saved_mask = take(), saved_yield = take();
     if (saved_si_address > 0xffffff || saved_input > 0xffffffff || saved_irq > 1 || saved_mask > 63 ||
-        (scheduled?(saved_yield&~uint64_t(linked?0x10101:0x101))!=0:saved_yield>1)) return false;
+        (scheduled?(saved_yield&~uint64_t(linked?0x10301:0x301))!=0:saved_yield>1) ||
+        pal_region!=bool(scheduled && (saved_yield&0x200))) return false;
     s.delay_slot = saved_delay;
     s.llbit=linked && (saved_yield&0x10000);
     const size_t memory_position=position;

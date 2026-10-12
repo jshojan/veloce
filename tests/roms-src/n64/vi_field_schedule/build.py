@@ -3,12 +3,13 @@
 import argparse
 from pathlib import Path
 
-def build(wrong_read=False):
+def build(wrong_read=False,region=0):
     image=bytearray(0x1004)
     image[:4]=bytes.fromhex('80371240')
     image[8:12]=bytes.fromhex('80000400')
     image[0x20:0x34]=b'VELOCE VI FIELDS    '
     image[0x34:0x3c]=b'V64IP001'
+    image[0x3e]=region
     words=[]
     def i(op,rs,rt,value):words.append(op<<26|rs<<21|rt<<16|(value&65535))
     i(15,0,11,0xa440)
@@ -25,4 +26,5 @@ def build(wrong_read=False):
 
 if __name__=='__main__':
     p=argparse.ArgumentParser();p.add_argument('output',nargs='?',type=Path,default=Path(__file__).with_name('vi_field_schedule.z64'))
-    a=p.parse_args();a.output.write_bytes(build())
+    p.add_argument('--pal',action='store_true')
+    a=p.parse_args();a.output.write_bytes(build(region=ord('P') if a.pal else 0))

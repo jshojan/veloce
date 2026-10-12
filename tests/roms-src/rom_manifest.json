@@ -22963,9 +22963,20 @@
       "rom_variant": "veloce",
       "sha256": "dba9b2c3078d6dbc5fb761c2ba7abb120dde7775d86b5beaeaec5cda8a4086d3",
       "source_repo": "tests/roms-src/n64/vi_field_schedule/build.py",
-      "source_sha": "0e1e4b6fb2d4c823cb7a4b522e8bbc80cbbc4d538970ee2bb983fd0a7b12490d",
+      "source_sha": "ae5821d818432b990f3fb886324a4cc02283a842f7c62938f8d3159be13d9fce",
       "source_type": "original",
       "suite": "vi_field_schedule"
+    },
+    "n64/vi_field_schedule_pal/vi_field_schedule_pal.z64": {
+      "build_command": "python3 tests/roms-src/n64/vi_field_schedule_pal/build.py",
+      "console": "n64",
+      "license": "MIT",
+      "rom_variant": "veloce",
+      "sha256": "5de24e5977e5764af41f1649019a23de17b733257b6d4d4f9140c563b0cdde80",
+      "source_repo": "tests/roms-src/n64/vi_field_schedule_pal/build.py",
+      "source_sha": "a624cebd5009e87015d480b7612b752ea2a0ea9353dcf9d594ad31fc4df36e79",
+      "source_type": "original",
+      "suite": "vi_field_schedule_pal"
     },
     "n64/vi_framebuffer/vi_framebuffer.z64": {
       "build_command": "python3 tests/roms-src/n64/vi_framebuffer/build.py",
