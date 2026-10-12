@@ -1216,6 +1216,26 @@ add_test(NAME n64_native_save_identity_test COMMAND n64_native_save_identity_tes
     $<TARGET_FILE:n64_plugin> ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/native_save_identity/native_save_identity.z64
     ${CMAKE_BINARY_DIR}/artifacts/owned/n64_native_save_identity/registers.txt)
 set_tests_properties(n64_native_save_identity_test PROPERTIES LABELS "integration;accuracy;owned;save" TIMEOUT 90)
+add_executable(n64_controller_pak_joybus_test cpp/n64_controller_pak_joybus_test.cpp)
+target_include_directories(n64_controller_pak_joybus_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src ${CMAKE_SOURCE_DIR}/include)
+add_test(NAME n64_controller_pak_joybus_test COMMAND n64_controller_pak_joybus_test)
+set_tests_properties(n64_controller_pak_joybus_test PROPERTIES LABELS "unit;accuracy;controller;save" TIMEOUT 90)
+add_executable(n64_controller_pak_state_test cpp/n64_controller_pak_state_test.cpp
+    ${CMAKE_SOURCE_DIR}/cores/n64/src/machine.cpp ${CMAKE_SOURCE_DIR}/cores/n64/src/vr4300.cpp)
+target_include_directories(n64_controller_pak_state_test PRIVATE ${CMAKE_SOURCE_DIR}/cores/n64/src ${CMAKE_SOURCE_DIR}/include)
+add_test(NAME n64_controller_pak_state_test COMMAND n64_controller_pak_state_test
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/accessory_absent/accessory_absent.z64)
+set_tests_properties(n64_controller_pak_state_test PROPERTIES LABELS "unit;accuracy;controller;save" TIMEOUT 90)
+add_executable(n64_controller_pak_frontend_test cpp/n64_controller_pak_frontend_test.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/plugin_manager.cpp ${CMAKE_SOURCE_DIR}/src/core/plugin_registry.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/plugin_config.cpp ${CMAKE_SOURCE_DIR}/src/core/paths_config.cpp)
+target_include_directories(n64_controller_pak_frontend_test PRIVATE ${CMAKE_SOURCE_DIR}/include ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(n64_controller_pak_frontend_test PRIVATE nlohmann_json::nlohmann_json ${CMAKE_DL_LIBS})
+add_dependencies(n64_controller_pak_frontend_test n64_plugin)
+add_test(NAME n64_controller_pak_frontend_test COMMAND n64_controller_pak_frontend_test
+    $<TARGET_FILE:n64_plugin> ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/accessory_absent/accessory_absent.z64
+    ${CMAKE_BINARY_DIR}/artifacts/owned/n64_controller_pak_frontend)
+set_tests_properties(n64_controller_pak_frontend_test PROPERTIES LABELS "integration;accuracy;controller;save" TIMEOUT 90)
 add_test(NAME n64_accessory_absent COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/accessory_absent/run.py --emulator $<TARGET_FILE:veloce>
     --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_accessory_absent)

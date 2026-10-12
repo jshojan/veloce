@@ -6,6 +6,11 @@ endif()
 add_library(n64_plugin SHARED src/plugin.cpp src/machine.cpp src/vr4300.cpp)
 target_compile_features(n64_plugin PRIVATE cxx_std_17)
 target_include_directories(n64_plugin PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../include)
+if(TARGET imgui)
+    target_include_directories(n64_plugin PRIVATE ${imgui_SOURCE_DIR})
+    target_link_libraries(n64_plugin PRIVATE imgui)
+    target_compile_definitions(n64_plugin PRIVATE VELOCE_N64_IMGUI=1)
+endif()
 set_target_properties(n64_plugin PROPERTIES PREFIX "" OUTPUT_NAME "n64"
     LIBRARY_OUTPUT_DIRECTORY ${VELOCE_CORES_OUTPUT_DIRECTORY}
     RUNTIME_OUTPUT_DIRECTORY ${VELOCE_CORES_OUTPUT_DIRECTORY})

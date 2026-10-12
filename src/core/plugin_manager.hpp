@@ -274,6 +274,8 @@ public:
     // These are called automatically by load_rom/unload_rom when appropriate
     bool load_battery_save();
     bool save_battery_save();
+    bool load_controller_paks();
+    bool save_controller_paks();
     std::filesystem::path get_save_file_path() const;
 
 private:

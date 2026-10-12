@@ -4303,3 +4303,14 @@ guest register words, including complete 64-byte reply packets, and rejects
 an executed wrong-register image. An independent component check covers valid
 packet CRC and malformed lengths. Controller Pak insertion, storage and
 persistence remain pending. N64 remains **50% (10/20)**.
+
+## N64 Controller Pak storage (0.62.0)
+
+Configurable 32 KiB Paks on four controller ports now answer addressed Joybus
+read/write commands with address and data CRC handling. An exhaustive component
+gate writes and rereads all 4,096 blocks across the four Paks. S034 snapshots
+preserve Pak bytes and insertion status; the production frontend writes one
+`.mpk1`–`.mpk4` file per enabled slot, with cross-session and malformed-file
+gates. Fresh media formatting is deterministic. Original guest filesystem use,
+other accessories, additional save media and physical serial timing remain
+unverified. The fixed N64 delivery score remains **50% (10/20)**.

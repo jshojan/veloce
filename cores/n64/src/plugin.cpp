@@ -2,14 +2,23 @@
 #include <algorithm>
 #include <array>
 #include <cstring>
+#include <charconv>
+#include <fstream>
+#include <iterator>
+#include <string>
+#include "emu/controller_pak_storage.hpp"
 #include "emu/netplay_plugin.hpp"
+#ifdef VELOCE_N64_IMGUI
+#include <imgui.h>
+#endif
 
 namespace n64 {
-class Plugin : public emu::IEmulatorPlugin, public emu::INetplayCapable, public emu::IFrameScheduling {
+class Plugin : public emu::IEmulatorPlugin, public emu::INetplayCapable,
+               public emu::IFrameScheduling, public emu::IControllerPakStorage {
 public:
     emu::EmulatorInfo get_info() override {
         static const char* extensions[] = {".z64", ".v64", ".n64", nullptr};
-        return {"N64", "0.61.0", "Veloce", "Experimental N64 core with MIPS III, CP0, RSP, partial RDP, SI/PIF controller polling and absent-accessory CRC replies, functional 4/16 Kbit cartridge EEPROM, native 16 Kbit ID selection and frontend battery persistence. Retail course entry, Controller Pak storage, complete hardware and physical timing remain pending.",
+        return {"N64", "0.62.0", "Veloce", "Experimental N64 core with MIPS III, CP0, RSP, partial RDP, SI/PIF controller polling, 32 KiB Controller Paks on four ports, functional 4/16 Kbit cartridge EEPROM and frontend save persistence. Retail course entry, other save media, complete hardware and physical timing remain pending.",
                 extensions, 60.0, 93750000, 320, 240};
     }
     const emu::ControllerLayoutInfo* get_controller_layout() override {
@@ -33,7 +42,11 @@ public:
             emu::ControllerShape::Modern,2.0f,buttons,14,4};
         return &layout;
     }
-    bool load_rom(const uint8_t* data, size_t size) override { return machine.load(data, size); }
+    bool load_rom(const uint8_t* data, size_t size) override {
+        if(!machine.load(data,size))return false;
+        machine.joybus.configure_pak_mask(configured_paks);
+        return true;
+    }
     emu::FrameScheduling get_frame_scheduling() const override {return machine.frame_scheduling;}
     void set_frame_scheduling(emu::FrameScheduling mode) override {machine.frame_scheduling=mode;}
     void unload_rom() override { machine.rom.clear(); machine.crc = 0; machine.identity = 0; machine.entry = 0; machine.boot_mode=Machine::BootMode::Homebrew; machine.reset(); }
@@ -56,6 +69,68 @@ public:
         machine.joybus.set_eeprom(content);
         return true;
     }
+    unsigned controller_pak_ports() const override {return 4;}
+    bool controller_pak_inserted(unsigned port) const override {
+        return is_rom_loaded() && port<4 && (machine.joybus.inserted_paks()&(1u<<port));
+    }
+    std::vector<uint8_t> get_controller_pak_data(unsigned port) const override {
+        if(!controller_pak_inserted(port))return {};
+        const auto& storage=machine.joybus.pak_storage();
+        return {storage.begin()+port*32768,storage.begin()+(port+1)*32768};
+    }
+    bool set_controller_pak_data(unsigned port,const std::vector<uint8_t>& data) override {
+        if(!controller_pak_inserted(port) || data.size()!=32768)return false;
+        auto storage=machine.joybus.pak_storage();
+        std::copy(data.begin(),data.end(),storage.begin()+port*32768);
+        machine.joybus.set_pak_storage(storage);
+        return true;
+    }
+    bool save_config(const char* path) override {
+        std::ofstream file(path,std::ios::trunc);
+        if(!file)return false;
+        file<<"{\"controller_paks\":"<<unsigned(configured_paks)<<"}\n";
+        return bool(file);
+    }
+    bool load_config(const char* path) override {
+        std::ifstream file(path);
+        if(!file)return true;
+        const std::string contents{std::istreambuf_iterator<char>(file),{}};
+        const auto key=contents.find("\"controller_paks\"");
+        if(key==std::string::npos)return false;
+        const auto colon=contents.find(':',key+17);
+        if(colon==std::string::npos)return false;
+        const char* begin=contents.data()+colon+1;
+        const char* end=contents.data()+contents.size();
+        while(begin<end && (*begin==' ' || *begin=='\t'))++begin;
+        unsigned mask=0;
+        const auto result=std::from_chars(begin,end,mask);
+        if(result.ec!=std::errc{} || mask>15)return false;
+        configured_paks=uint8_t(mask);
+        return true;
+    }
+#ifdef VELOCE_N64_IMGUI
+    bool has_config_gui() const override {return true;}
+    void set_imgui_context(void* context) override {
+        ImGui::SetCurrentContext(static_cast<ImGuiContext*>(context));
+    }
+    void render_config_gui(bool& visible) override {
+        if(ImGui::Begin("Nintendo 64 Settings",&visible))render_config_gui_content();
+        ImGui::End();
+    }
+    void render_config_gui_content() override {
+        ImGui::TextUnformatted("Controller Pak storage");
+        for(unsigned port=0;port<4;++port){
+            bool inserted=configured_paks&(1u<<port);
+            const std::string label="Port "+std::to_string(port+1);
+            if(ImGui::Checkbox(label.c_str(),&inserted)){
+                if(inserted)configured_paks|=uint8_t(1u<<port);
+                else configured_paks&=uint8_t(~(1u<<port));
+            }
+        }
+        if(is_rom_loaded())ImGui::TextUnformatted("Reload the ROM to apply Pak changes.");
+    }
+    const char* get_config_window_name() const override {return "Nintendo 64 Settings";}
+#endif
     uint32_t get_rom_crc32() const override { return machine.crc; }
     void reset() override { machine.reset(); }
     void run_frame(const emu::InputState& input) override {
@@ -70,15 +145,15 @@ public:
         for(unsigned port=1;port<4;++port)machine.other_input_buttons[port-1]=port<inputs.size()?inputs[port]:0;
         step_quantum(true);
     }
-    size_t get_max_state_size() const override {return is_loaded()?Machine::current_state_size:0;}
+    size_t get_max_state_size() const override {return is_loaded()?machine.state_size():0;}
     size_t save_state_fast(uint8_t* buffer,size_t capacity) override {
         if(!is_loaded())return 0;
-        if(!buffer)return Machine::current_state_size;
-        if(capacity<Machine::current_state_size || !machine.save(state_scratch) || state_scratch.size()!=Machine::current_state_size)return 0;
+        if(!buffer)return machine.state_size();
+        if(capacity<machine.state_size() || !machine.save(state_scratch) || state_scratch.size()!=machine.state_size())return 0;
         std::memcpy(buffer,state_scratch.data(),state_scratch.size());return state_scratch.size();
     }
     bool load_state_fast(const uint8_t* buffer,size_t size) override {
-        if(!is_loaded() || !buffer || size<8 || size>Machine::current_state_size)return false;
+        if(!is_loaded() || !buffer || size<8 || size>Machine::pak_state_size)return false;
         return machine.restore(std::vector<uint8_t>(buffer,buffer+size));
     }
     uint64_t get_state_hash() const override {
@@ -103,6 +178,7 @@ public:
     bool set_test_sink(emu::ITestSink* sink) override { machine.sink = sink; return true; }
     const char* test_channels() const override { return "v64debug"; }
 private:
+    uint8_t configured_paks=0;
     bool is_loaded() const {return !machine.rom.empty();}
     void step_quantum(bool canonical_audio=false){
         if(!is_loaded())return;
