@@ -40,7 +40,7 @@ The Game Boy plugin implements DMG/CGB CPU, display, audio and cartridge profile
 | CB-prefix opcodes (256) | Implemented profile | All bit manipulation and rotate/shift |
 | Cycle timing | Implemented profile | M-cycle accurate |
 | HALT mode | Implemented profile | Proper wake-on-interrupt |
-| STOP mode | Implemented profile | Speed switching (CGB) |
+| STOP mode | Implemented profile | CGB KEY1 speed switching and DIV reset; transient bus behavior pending |
 | HALT bug | Implemented profile | IME=0 with pending interrupt quirk |
 | OAM bug | Implemented profile | DMG OAM corruption quirk |
 | Interrupts | Implemented profile | VBlank, LCD STAT, Timer, Serial, Joypad |
@@ -347,5 +347,21 @@ ROM bytes and cloned source stay out of git.
 Game Boy remains **40% (8/20 delivery milestones)**. Full CPU/timing/peripheral/
 mapper corpus, hardware comparison, link multiplayer/netplay and broader retail
 verification remain incomplete. The root and every core percentage stay in
-sync; N64 remains 45%; CI/CD remains disabled. GBA, SNES, older documentation
-and incomplete NES APU branches remain to reconcile.
+sync; CI/CD remains disabled.
+
+## CGB KEY1 speed switching (2026-10-12)
+
+KEY1 now arms STOP to switch between normal and double CPU speed, clears the
+prepare bit on transition, and resets DIV. The frame loop advances LCD and
+audio at their normal dot rate while the CPU runs two M-cycles per four dots
+in double speed. Save-state loading reconstructs the active speed from KEY1.
+The STOP transition includes the documented 2050 M-cycle pause as an initial
+timing profile.
+
+The [original CGB cartridge](../../tests/roms-src/gb/cgb_speed_switch/README.md)
+records **517 actual KEY1 register readbacks**: five transition states and all
+256 input bytes at each speed. Its independent file oracle checks every byte;
+an executed disarmed-STOP variant must report unchanged speed and fail.
+The cartridge does not grade the LCD phase, speed-switch transient bus access,
+or the full CGB peripheral timing profile. Game Boy / Color remains **40%
+(8/20 delivery milestones)**.

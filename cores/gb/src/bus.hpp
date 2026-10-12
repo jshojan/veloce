@@ -32,6 +32,9 @@ public:
     // CGB mode
     void set_cgb_mode(bool cgb) { m_cgb_mode = cgb; }
     bool is_cgb_mode() const { return m_cgb_mode; }
+    bool is_double_speed() const { return m_double_speed; }
+    // STOP resets DIV and, when KEY1.0 is armed, switches the CGB CPU clock.
+    bool stop_speed_switch();
 
     // Memory access
     uint8_t read(uint16_t address);
