@@ -111,6 +111,8 @@ N64 0.94.0 caches fetched RSP instruction words until CPU stores or SP DMA chang
 
 An optional [N64-only host CPU build](docs/N64-PERFORMANCE.md#optional-host-cpu-optimization) applies `-march=native` on local GCC/Clang builds. Nine CPU-pinned SM64 course-checkpoint pairs measured **17.35 to 18.27 VI fields/second** by median time, with identical complete states and work counts; individual runs varied. Original RSP ROMs and production netplay pass. The portable build remains the default, performance remains below real time, and **N64 stays 50% (10/20)**.
 
+The [original RSP IMEM rewrite cartridge](tests/roms-src/n64/rsp_imem_rewrite/README.md) grades **512 cases / 1,536 actual register words** after CPU stores and SP DMA rewrite the same instruction slot. The file oracle rejects an executed wrong-instruction cartridge and malformed output. This checks functional instruction-cache visibility; wider IMEM address coverage and physical timing remain pending. **N64 stays 50% (10/20)**.
+
 ### 3DS ARM11 instruction coverage
 
 The 3DS plugin implements the following ARMv6 instruction subsets. Each linked

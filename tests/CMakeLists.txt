@@ -726,6 +726,12 @@ add_test(NAME n64_rsp_acceleration_roms COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_SOURCE_DIR}/tests/n64_rsp_acceleration_roms.py --emulator $<TARGET_FILE:veloce>
     --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_rsp_acceleration)
 set_tests_properties(n64_rsp_acceleration_roms PROPERTIES LABELS "accuracy;owned;performance" TIMEOUT 600)
+add_test(NAME n64_rsp_imem_rewrite COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_SOURCE_DIR}/tests/roms-src/n64/rsp_imem_rewrite/run.py
+    --emulator $<TARGET_FILE:veloce>
+    --artifacts ${CMAKE_BINARY_DIR}/artifacts/owned/n64_rsp_imem_rewrite)
+set_tests_properties(n64_rsp_imem_rewrite PROPERTIES LABELS "accuracy;owned;fast"
+    TIMEOUT 60 REQUIRED_FILES $<TARGET_FILE:veloce>)
 
 add_executable(n64_rsp_vector_test cpp/n64_rsp_vector_test.cpp
     ${CMAKE_SOURCE_DIR}/cores/n64/src/machine.cpp ${CMAKE_SOURCE_DIR}/cores/n64/src/vr4300.cpp)
