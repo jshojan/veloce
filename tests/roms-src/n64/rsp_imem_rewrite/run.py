@@ -15,8 +15,8 @@ from build import build
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[3]
 SUITE = "rsp_imem_rewrite"
-CASES = 512
-WORDS = 3
+CASES = 2560
+WORDS = 4
 
 
 def require(condition, message):
@@ -45,14 +45,15 @@ def evaluate(path, rom):
         "wrong ROM identity or declared domain")
     mismatches = []
     for index, line in enumerate(lines[3:3 + CASES]):
-        require(re.fullmatch(r"REG r=[0-9a-f]{24}", line) is not None,
+        require(re.fullmatch(r"REG r=[0-9a-f]{32}", line) is not None,
                 f"malformed register row {index}")
-        actual = tuple(int(line[6 + offset:14 + offset], 16) for offset in (0, 8, 16))
-        value = index & 255
-        expected = (value, 0x24020000 | value, 3)
+        actual = tuple(int(line[6 + offset:14 + offset], 16) for offset in (0, 8, 16, 24))
+        value = (index & 255) if index < 512 else ((index - 512) & 255)
+        slot = 0 if index < 512 else (index - 512) & 1023
+        expected = (value, 0x24020000 | value, 3, (slot * 4 + 12) & 4092)
         if actual != expected:
-            mismatches.append({"mode": "cpu-store" if index < 256 else "sp-dma",
-                               "value": value, "expected": expected, "actual": actual})
+            mismatches.append({"mode": "cpu-store" if (index < 256 or 512 <= index < 1536) else "sp-dma",
+                               "slot": slot, "value": value, "expected": expected, "actual": actual})
     require(lines[3 + CASES:5 + CASES] == [
         f"LOG complete cases={CASES}", "END observations_complete"],
         "missing or false completion marker")
@@ -85,6 +86,16 @@ def main():
     wrong = evaluate(result, mutant)
     require(len(wrong) == CASES, "executed wrong-instruction ROM escaped oracle")
 
+    disarmed = build(no_dma=True)
+    image = args.artifacts / "disarmed-dma.z64"
+    image.write_bytes(disarmed)
+    result = args.artifacts / "disarmed-dma.result"
+    run(args.emulator, image, result)
+    skipped = evaluate(result, disarmed)
+    dma_mismatches = sum(row["mode"] == "sp-dma" for row in skipped)
+    require(len(skipped) == dma_mismatches == 1279,
+            "disarmed SP DMA escaped oracle or changed CPU-store rows")
+
     control = (args.artifacts / "control.result").read_text()
     first = next(line for line in control.splitlines() if line.startswith("REG r="))
     corrupt = args.artifacts / "corrupt.result"
@@ -98,12 +109,14 @@ def main():
 
     report = {"suite": SUITE, "status": "pass", "cases": CASES,
               "actual_register_words": CASES * WORDS,
-              "cpu_store_cases": 256, "sp_dma_cases": 256,
+              "cpu_store_cases": 1280, "sp_dma_cases": 1280,
+              "imem_aligned_slots_per_path": 1024,
               "executed_mutant_mismatches": len(wrong),
+              "disarmed_dma_mismatches": dma_mismatches,
               "rom_sha256": hashlib.sha256(original).hexdigest()}
     (args.artifacts / "report.json").write_text(json.dumps(report, indent=2) + "\n")
     print(f"N64 RSP IMEM rewrite: {CASES} cases / {CASES * WORDS} actual words pass; "
-          "executed mutant and malformed capture rejected")
+          "executed mutants and malformed capture rejected")
 
 
 if __name__ == "__main__":
